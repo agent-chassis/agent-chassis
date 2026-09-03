@@ -1,6 +1,7 @@
 
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import path from "node:path";
 
 import {
   WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES,
@@ -8,12 +9,17 @@ import {
   assertAbsolutePath,
   branchExists,
   revParse,
-  defaultRunGit
+  defaultRunGit,
+  worktreeIdentityStoreDir
 } from "./worktree-substrate-primitives.mjs";
 import {
   deriveExactUnitName,
   resolveWkBranchTipBase
 } from "./worktree-substrate-exact-unit-identity.mjs";
+import {
+  bindingFilePath,
+  resolveVerifiedSparseExactUnitBinding
+} from "./worktree-substrate-identity.mjs";
 
 export const SLICE_TIP_RECONCILE_DIAGNOSTIC_CODES = Object.freeze({
   SLICE_TIP_RECONCILE_REQUIRED: "agent_launch.worktree_substrate.slice_tip_reconcile_required.v1"
@@ -23,24 +29,17 @@ export const SLICE_TIP_RECONCILE_STATES = Object.freeze({
   ABSENT: "absent",
   EQUAL: "equal",
   INTEGRATED: "integrated",
-  AUTHENTICATED_CONTINUATION: "authenticated_continuation",
+  ACCUMULATED_IMPLEMENTATION_TIP: "accumulated_implementation_tip",
   ORPHANED: "orphaned",
   WK_BASE_UNRESOLVED: "wk_base_unresolved"
 });
-
-export const CORRECTIVE_CONTINUATION_PROOF_SCHEMA_VERSION =
-  "workspace-agent-corrective-continuation-proof.v1";
-
-const OID_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
-const CORRECTIVE_CONTINUATION_PROOF_FIELDS = Object.freeze([
-  "schema_version", "subject", "unit_address", "slice_ref", "frozen_base_sha",
-  "delivered_tip_sha", "commit_chain", "committed_target_digest", "worktree_path"
-]);
 
 export const SLICE_TIP_RECOVERY_ROUTES = Object.freeze({
   EXACT_SLICE_REVIEW_RECOVERY: "exact_slice_review_recovery",
   OPERATOR_RECONCILE: "operator_reconcile"
 });
+
+const BINDING_FILE_RE = /^binding-[0-9a-f]{64}\.json$/u;
 
 function reconcileRefusal(state, message, detail) {
   fail(
@@ -76,105 +75,165 @@ function classifyExistingSliceTip({ runGit, repo, branch, wkBaseSha }) {
   return Object.freeze({ state: SLICE_TIP_RECONCILE_STATES.ORPHANED, slice_tip: sliceTip });
 }
 
-function hasExactKeys(value, expected) {
-  return value !== null && typeof value === "object" && !Array.isArray(value) &&
-    Object.keys(value).sort().join("|") === [...expected].sort().join("|");
+function implementationBindingCandidates(repo, unitAddress) {
+  const store = worktreeIdentityStoreDir(repo);
+  let entries;
+  try {
+    entries = readdirSync(store, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && BINDING_FILE_RE.test(entry.name));
+  } catch (error) {
+    if (error?.code === "ENOENT") return [];
+    fail(
+      WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.BINDING_NOT_FOUND,
+      "launcher-owned implementation binding store is unreadable",
+      { store, errno: error?.code ?? null }
+    );
+  }
+  const candidates = [];
+  for (const entry of entries) {
+    const filePath = path.join(store, entry.name);
+    let binding;
+    try {
+      binding = JSON.parse(readFileSync(filePath, "utf8"));
+    } catch (error) {
+      fail(
+        WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.BINDING_NOT_FOUND,
+        "launcher-owned implementation binding is unreadable or malformed",
+        { file_path: filePath, error: error?.message ?? String(error) }
+      );
+    }
+    if (binding?.unit_address !== unitAddress) continue;
+    const expectedPath = bindingFilePath(
+      repo,
+      binding.launch_ref,
+      binding.run_id,
+      binding.retry_id
+    );
+    if (expectedPath !== filePath) {
+      fail(
+        WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.BINDING_NOT_FOUND,
+        "launcher-owned implementation binding is stored under the wrong identity",
+        { file_path: filePath, expected_path: expectedPath }
+      );
+    }
+    candidates.push(resolveVerifiedSparseExactUnitBinding({
+      mainRepo: repo,
+      launchRef: binding.launch_ref,
+      runId: binding.run_id,
+      retryId: binding.retry_id,
+      expectedBinding: binding
+    }));
+  }
+  return candidates;
 }
 
-function authenticateCorrectiveContinuation({
+function gitAncestor(runGit, repo, ancestor, descendant, detail) {
+  const result = runGit({ repo, args: ["merge-base", "--is-ancestor", ancestor, descendant] });
+  if (result?.ok === true) return true;
+  if (result?.status === 1) return false;
+  fail(
+    WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.GIT_FAILED,
+    "failed to authenticate implementation ancestry",
+    { ...detail, ancestor, descendant, status: result?.status ?? null, stderr: result?.stderr ?? null }
+  );
+}
+
+function exactLinearDeliveryDistance(runGit, repo, base, tip) {
+  const result = runGit({ repo, args: ["rev-list", "--count", base + ".." + tip] });
+  if (result?.ok !== true || !/^\d+$/u.test(String(result?.stdout ?? "").trim())) {
+    fail(
+      WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.GIT_FAILED,
+      "failed to measure launcher-owned implementation delivery ancestry",
+      { base_sha: base, slice_tip: tip, status: result?.status ?? null }
+    );
+  }
+  return Number(String(result.stdout).trim());
+}
+
+function authenticateAccumulatedImplementationTip({
   runGit,
   repo,
   name,
   branch,
   worktreePath,
   wkBaseSha,
-  sliceTip,
-  resolveProof
+  sliceTip
 }) {
-  if (typeof resolveProof !== "function") return null;
-  const expectedSubject = `${name.wk_id}#${name.slice_id}`;
-  const expectedSliceRef = `refs/heads/${branch}`;
-  let proof;
-  try {
-    proof = resolveProof(Object.freeze({
-      subject: expectedSubject,
+  const expectedSubject = name.wk_id + "#" + name.slice_id;
+  const expectedSliceRef = "refs/heads/" + branch;
+  const candidates = implementationBindingCandidates(repo, name.unit_address)
+    .filter((binding) => binding.output_branch === branch &&
+      binding.worktree_path === worktreePath &&
+      binding.record_id === name.wk_id && binding.slice_id === name.slice_id)
+    .filter((binding) => gitAncestor(runGit, repo, binding.base_sha, wkBaseSha, {
       unit_address: name.unit_address,
-      slice_ref: expectedSliceRef,
-      slice_tip: sliceTip,
-      worktree_path: worktreePath
-    }));
-  } catch {
-    return null;
-  }
-  if (!hasExactKeys(proof, CORRECTIVE_CONTINUATION_PROOF_FIELDS) ||
-      proof.schema_version !== CORRECTIVE_CONTINUATION_PROOF_SCHEMA_VERSION ||
-      proof.subject !== expectedSubject || proof.unit_address !== name.unit_address ||
-      proof.slice_ref !== expectedSliceRef || proof.delivered_tip_sha !== sliceTip ||
-      proof.worktree_path !== worktreePath || !OID_RE.test(proof.frozen_base_sha ?? "") ||
-      !OID_RE.test(proof.delivered_tip_sha ?? "") ||
-      typeof proof.committed_target_digest !== "string" ||
-      !/^sha256:[0-9a-f]{64}$/u.test(proof.committed_target_digest) ||
-      !Array.isArray(proof.commit_chain) || proof.commit_chain.length === 0 ||
-      proof.commit_chain.some((commit) => !OID_RE.test(commit))) {
-    return null;
-  }
-
-  const baseRetained = runGit({
-    repo,
-    args: ["merge-base", "--is-ancestor", proof.frozen_base_sha, wkBaseSha]
-  });
-  if (!baseRetained || (baseRetained.ok !== true && baseRetained.status !== 1)) {
-    fail(
-      WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.GIT_FAILED,
-      "failed to verify that the authenticated delivery base remains in the canonical WK chain",
-      { frozen_base_sha: proof.frozen_base_sha, wk_base_sha: wkBaseSha }
-    );
-  }
-  if (baseRetained.ok !== true) return null;
-
+      boundary: "controlled_generation_tip"
+    }) && gitAncestor(runGit, repo, binding.base_sha, sliceTip, {
+      unit_address: name.unit_address,
+      boundary: "accumulated_implementation_tip"
+    }))
+    .map((binding) => ({
+      binding,
+      distance: exactLinearDeliveryDistance(runGit, repo, binding.base_sha, sliceTip)
+    }))
+    .sort((left, right) => left.distance - right.distance ||
+      left.binding.base_sha.localeCompare(right.binding.base_sha));
+  if (candidates.length === 0) return null;
+  const nearest = candidates.filter((entry) => entry.distance === candidates[0].distance);
+  if (new Set(nearest.map((entry) => entry.binding.base_sha)).size !== 1) return null;
+  const binding = nearest[0].binding;
   const range = runGit({
     repo,
-    args: ["rev-list", "--reverse", "--parents", `${proof.frozen_base_sha}..${sliceTip}`]
+    args: ["rev-list", "--reverse", "--parents", binding.base_sha + ".." + sliceTip]
   });
   if (range?.ok !== true) {
     fail(
       WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.GIT_FAILED,
-      "failed to verify the authenticated corrective delivery chain",
-      { frozen_base_sha: proof.frozen_base_sha, slice_tip: sliceTip }
+      "failed to read the accumulated implementation delivery chain",
+      { base_sha: binding.base_sha, slice_tip: sliceTip }
     );
   }
   const lines = String(range.stdout ?? "").trim().split("\n").filter(Boolean);
-  if (lines.length !== proof.commit_chain.length) return null;
-  let expectedParent = proof.frozen_base_sha;
-  for (let index = 0; index < lines.length; index += 1) {
-    const parts = lines[index].trim().split(/\s+/u);
-    if (parts.length !== 2 || parts[0] !== proof.commit_chain[index] ||
-        parts[1] !== expectedParent) return null;
+  if (lines.length === 0) return null;
+  let expectedParent = binding.base_sha;
+  for (const line of lines) {
+    const parts = line.trim().split(/\s+/u);
+    if (parts.length !== 2 || parts[1] !== expectedParent) return null;
     const message = runGit({ repo, args: ["show", "-s", "--format=%B", parts[0]] });
     if (message?.ok !== true) {
       fail(
         WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES.GIT_FAILED,
-        "failed to verify a corrective delivery commit identity",
+        "failed to verify a launcher-owned implementation delivery commit",
         { commit: parts[0] }
       );
     }
     const expectedMessage =
-      `agent-launch worker delivery: ${expectedSubject} (base ${expectedParent.slice(0, 12)})` +
-      `\n\nWk-Slice: ${expectedSubject}`;
+      "agent-launch worker delivery: " + expectedSubject +
+      " (base " + expectedParent.slice(0, 12) + ")" +
+      "\n\nWk-Slice: " + expectedSubject;
     if (String(message.stdout ?? "").trimEnd() !== expectedMessage) return null;
     expectedParent = parts[0];
   }
   if (expectedParent !== sliceTip || !existsSync(worktreePath)) return null;
   const association = runGit({ repo: worktreePath, args: ["symbolic-ref", "--quiet", "HEAD"] });
-  if (association?.ok !== true || String(association.stdout ?? "").trim() !== expectedSliceRef) return null;
+  if (association?.ok !== true || String(association.stdout ?? "").trim() !== expectedSliceRef) {
+    return null;
+  }
   if (revParse(runGit, worktreePath, "HEAD") !== sliceTip ||
-      revParse(runGit, repo, branch) !== sliceTip) return null;
-
+      revParse(runGit, repo, branch) !== sliceTip) {
+    return null;
+  }
   return Object.freeze({
-    state: SLICE_TIP_RECONCILE_STATES.AUTHENTICATED_CONTINUATION,
+    state: SLICE_TIP_RECONCILE_STATES.ACCUMULATED_IMPLEMENTATION_TIP,
     slice_tip: sliceTip,
-    authenticated_base_sha: proof.frozen_base_sha,
-    committed_target_digest: proof.committed_target_digest
+    authenticated_base_sha: binding.base_sha,
+    implementation_binding: Object.freeze({
+      launch_ref: binding.launch_ref,
+      run_id: binding.run_id,
+      retry_id: binding.retry_id,
+      source_digest: binding.source_digest,
+      worktree_path: binding.worktree_path
+    })
   });
 }
 
@@ -184,8 +243,7 @@ export function reconcileExistingSliceTip({
   name,
   branch,
   worktreePath,
-  resolveWkTip,
-  resolveCorrectiveContinuationProof
+  resolveWkTip
 }) {
   let wkBase;
   try {
@@ -217,15 +275,9 @@ export function reconcileExistingSliceTip({
   }
   const classified = classifyExistingSliceTip({ runGit, repo, branch, wkBaseSha });
   if (classified.state === SLICE_TIP_RECONCILE_STATES.ORPHANED) {
-    const authenticated = authenticateCorrectiveContinuation({
-      runGit,
-      repo,
-      name,
-      branch,
-      worktreePath,
-      wkBaseSha,
-      sliceTip: classified.slice_tip,
-      resolveProof: resolveCorrectiveContinuationProof
+    const authenticated = authenticateAccumulatedImplementationTip({
+      runGit, repo, name, branch, worktreePath, wkBaseSha,
+      sliceTip: classified.slice_tip
     });
     if (authenticated !== null) {
       return Object.freeze({
@@ -274,26 +326,12 @@ export function classifyExistingSliceTipForDispatch({
     return Object.freeze({ state: SLICE_TIP_RECONCILE_STATES.ABSENT, slice_tip: null });
   }
   const resolveWkTip = deps.resolveWkBranchTipBase ?? resolveWkBranchTipBase;
-  const source = deps.resolveCorrectiveContinuationProof;
-  let capturedProof = null;
-  const capturingResolver = typeof source === "function"
-    ? (proofContext) => {
-        const proof = source(proofContext);
-        if (proof != null) capturedProof = proof;
-        return proof;
-      }
-    : undefined;
-  const verdict = reconcileExistingSliceTip({
+  return reconcileExistingSliceTip({
     runGit,
     repo,
     name,
     branch,
     worktreePath: name.worktree_path,
-    resolveWkTip,
-    resolveCorrectiveContinuationProof: capturingResolver
+    resolveWkTip
   });
-  if (verdict.state === SLICE_TIP_RECONCILE_STATES.AUTHENTICATED_CONTINUATION && capturedProof !== null) {
-    return Object.freeze({ ...verdict, corrective_continuation_proof: capturedProof });
-  }
-  return verdict;
 }

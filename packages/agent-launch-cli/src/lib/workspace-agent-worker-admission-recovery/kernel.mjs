@@ -1,13 +1,5 @@
 
 
-export const WORKER_ADMISSION_REVIEW_THRESHOLD_TAXONOMY_CODE =
-  "worker_admission_review_threshold_exceeded";
-
-export const WORKER_ADMISSION_REJECT_THRESHOLD_TAXONOMY_CODE =
-  "worker_admission_reject_threshold_exceeded";
-
-export const REJECT_THRESHOLD_REASON_CODES = Object.freeze(["reject_threshold_exceeded"]);
-
 export const PRECONDITION_REASON_CODES = Object.freeze([
   "precondition_graph_malformed",
   "unit_superseded",
@@ -48,58 +40,43 @@ export function hasOwn(object, key) {
   return Object.prototype.hasOwnProperty.call(object, key);
 }
 
-export function hasOnlyAllowedFields(object, allowedFields) {
-  return Object.keys(object).every((key) => allowedFields.has(key));
-}
-
-const ALLOWED_REASON_CODES = new Set([
-  "review_threshold_exceeded",
-  "reject_threshold_exceeded",
-  "worker_admission.work_unit_atomicity.review_threshold_exceeded.v1",
-  ...PRECONDITION_REASON_CODES
-]);
-
-export function allowlistReasonCode(value) {
-  if (!isNonEmptyString(value)) {
+export function readCurrentCceTypedRecovery(remote, expectedEffect) {
+  if (
+    !isObject(remote) ||
+    remote.exact_policy_payload_authenticated !== true ||
+    remote.effect !== expectedEffect
+  ) {
     return null;
   }
-  const trimmed = value.trim();
-  return ALLOWED_REASON_CODES.has(trimmed) ? trimmed : null;
-}
-
-export function allowlistControlId(value) {
-  if (!isNonEmptyString(value)) {
+  const provenance = remote.response_provenance;
+  const provenanceFields = ["schema_version", "pack", "operation"];
+  if (
+    !isObject(provenance) ||
+    Object.keys(provenance).length !== provenanceFields.length ||
+    !provenanceFields.every((field) => isNonEmptyString(provenance[field]))
+  ) {
     return null;
   }
-  return value.trim();
-}
-
-export function normalizeObservedScalar(value) {
-  if (value === null || typeof value === "boolean") {
-    return { present: true, value };
+  if (!hasOwn(remote, "recovery_validation")) {
+    return Object.freeze({ response_provenance: provenance, recovery_validation: null });
   }
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? { present: true, value } : { present: false };
-  }
-  return { present: false };
+  const validation = remote.recovery_validation;
+  if (validation?.state !== "valid" || !isObject(validation.recovery)) return null;
+  return Object.freeze({
+    response_provenance: provenance,
+    recovery_validation: validation
+  });
 }
 
 export function extractPreconditionReason(decision) {
-  if (!isObject(decision)) {
-    return null;
-  }
+  if (!isObject(decision)) return null;
   const candidates = [];
-  if (isObject(decision.reason)) {
-    candidates.push(decision.reason);
-  }
+  if (isObject(decision.reason)) candidates.push(decision.reason);
   if (Array.isArray(decision.reasons)) {
     candidates.push(...decision.reasons.filter((reason) => isObject(reason)));
   }
-  if (Array.isArray(decision.pack_result_reasons)) {
-    candidates.push(...decision.pack_result_reasons.filter((reason) => isObject(reason)));
-  }
   for (const reason of candidates) {
-    const code = allowlistReasonCode(reason.code);
+    const code = isNonEmptyString(reason.code) ? reason.code.trim() : null;
     if (code && PRECONDITION_REASON_CODES.includes(code)) {
       return {
         code,
@@ -111,8 +88,6 @@ export function extractPreconditionReason(decision) {
 }
 
 export function normalizeStringArray(value) {
-  if (!Array.isArray(value)) {
-    return [];
-  }
+  if (!Array.isArray(value)) return [];
   return value.filter((entry) => isNonEmptyString(entry)).map((entry) => entry.trim());
 }

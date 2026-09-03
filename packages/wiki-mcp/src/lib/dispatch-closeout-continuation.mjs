@@ -47,6 +47,18 @@ function trustedLifecycleDispatchCall(dispatch, { role, subject }) {
   );
 }
 
+const TRUSTED_WHOLE_WK_FINDINGS_ROLES = Object.freeze(["reviewer", "redteam"]);
+
+function trustedWholeWkFindingsRole(dispatch) {
+  const role = dispatch?.args?.role;
+  if (!TRUSTED_WHOLE_WK_FINDINGS_ROLES.includes(role) ||
+      dispatch?.closure_plan?.role !== role ||
+      dispatch?.closure_plan?.subject !== dispatch?.args?.subject) {
+    return null;
+  }
+  return role;
+}
+
 function sliceReviewEvidenceState(evidence, sliceReview) {
   if (evidence?.schema_version !== "workspace-agent-slice-review-advisory-evidence.v1" ||
       evidence.authority !== "advisory_only" ||
@@ -99,7 +111,7 @@ function isCanonicalCleanReviewResult(reviewResult) {
 function retainedTerminalReviewState(retainedReview) {
   if (retainedReview?.outcome === "changes_requested" &&
       retainedReview.review_result === null) {
-    return Object.freeze({ decision_required: true, eligible_for_handoff: false });
+    return Object.freeze({ decision_required: true, eligible_for_handoff: true });
   }
   if (retainedReview?.outcome === "clean" &&
       isCanonicalCleanReviewResult(retainedReview.review_result)) {
@@ -112,43 +124,18 @@ export async function buildCloseoutWorkflowContinuation({ dispatchBackend, statu
   if (lifecycle?.phase === POST_WORKER_LIFECYCLE_PHASES.AWAITING_SLICE_REVIEW &&
       lifecycle?.slice_review?.review_subject === status?.subject) {
     const sliceReview = lifecycle.slice_review;
-    let evidence = null;
-    if (typeof dispatchBackend?.resolveSliceReviewEvidenceSet === "function") {
-      try {
-        evidence = await dispatchBackend.resolveSliceReviewEvidenceSet({
-          subject: sliceReview.review_subject
-        });
-      } catch {
 
-        evidence = null;
-      }
-    }
-    const findings = sliceReviewEvidenceState(evidence, sliceReview);
-    let call = null;
-    if (findings.decision_required !== true) {
-      call = findings.review_complete
-        ? currentSafeCall(
-            "workspace_integrate_committed_slice",
-            { subject: sliceReview.review_subject },
-            "trusted_slice_review_evidence"
-          )
-        : trustedLifecycleDispatchCall(lifecycle.reviewer_dispatch, {
-            role: "reviewer",
-            subject: sliceReview.review_subject
-          });
-    }
+    const call = trustedLifecycleDispatchCall(lifecycle.reviewer_dispatch, {
+      role: "reviewer",
+      subject: sliceReview.review_subject
+    });
     return closeoutContinuation({
-      stage: findings.decision_required
-        ? "slice_review_disposition_required"
-        : findings.review_complete
-          ? "slice_integration_ready"
-          : "slice_review_required",
-      decisionRequired: findings.decision_required,
+      stage: "slice_review_required",
+      decisionRequired: false,
       orderedSteps: [
-        closeoutStep(1, "findings_only_slice_review", findings.review_complete ? "complete" : "current"),
-        closeoutStep(2, "coordinator_disposition", findings.decision_required ? "required" : "conditional"),
-        closeoutStep(3, "workspace_integrate_committed_slice",
-          findings.review_complete && !findings.decision_required ? "current" : "pending"),
+        closeoutStep(1, "findings_only_slice_review", "current"),
+        closeoutStep(2, "coordinator_disposition", "conditional"),
+        closeoutStep(3, "workspace_integrate_committed_slice", "pending"),
         closeoutStep(4, "resume_original_worker_monitor", "pending")
       ],
       call
@@ -159,10 +146,14 @@ export async function buildCloseoutWorkflowContinuation({ dispatchBackend, statu
       lifecycle?.wk_transitioned_to_review === true &&
       lifecycle?.reviewer_dispatch?.args?.subject) {
     const reviewSubject = lifecycle.reviewer_dispatch.args.subject;
-    const call = trustedLifecycleDispatchCall(lifecycle.reviewer_dispatch, {
-      role: "reviewer",
-      subject: reviewSubject
-    });
+
+    const trustedRole = trustedWholeWkFindingsRole(lifecycle.reviewer_dispatch);
+    const call = trustedRole === null
+      ? null
+      : trustedLifecycleDispatchCall(lifecycle.reviewer_dispatch, {
+          role: trustedRole,
+          subject: reviewSubject
+        });
     if (call !== null) {
       return closeoutContinuation({
         stage: "terminal_whole_wk_review_required",
@@ -204,21 +195,17 @@ export async function buildCloseoutWorkflowContinuation({ dispatchBackend, statu
   }
   const decisionRequired = findings.decision_required === true;
   return closeoutContinuation({
-    stage: decisionRequired
-      ? "terminal_review_disposition_required"
-      : "forge_handoff_ready",
+    stage: "forge_handoff_ready",
     decisionRequired,
     orderedSteps: [
       closeoutStep(1, "terminal_whole_wk_review", "complete"),
       closeoutStep(2, "coordinator_disposition", decisionRequired ? "required" : "not_required"),
-      closeoutStep(3, "workspace_wk_forge_handoff", decisionRequired ? "pending" : "current")
+      closeoutStep(3, "workspace_wk_forge_handoff", "current")
     ],
-    call: decisionRequired
-      ? null
-      : currentSafeCall(
-          "workspace_wk_forge_handoff",
-          { assigned_unit: terminalReviewSubject[1] },
-          "trusted_terminal_review_state"
-        )
+    call: currentSafeCall(
+      "workspace_wk_forge_handoff",
+      { assigned_unit: terminalReviewSubject[1] },
+      "trusted_terminal_review_state"
+    )
   });
 }

@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-admitted-proof-pack.v1",
   "profile_id": "proof.authorization.failed-attempt-nonconsumption",
   "profile_version": "1.0.0",
-  "profile_digest": "214abfb167df615acf4002aa76f4817c0e8fc51a364c94a6d2052b4fe33eec44",
+  "profile_digest": "890f5d0e0785fd570eb354e68def580d0a8c3f37ab9a16e4f54be3ef0281efb5",
   "guarantee": "A declared failed attempt using one legitimate authority is refused; that authority complete declared state observed after refusal equals its complete declared state observed before the attempt; and a later distinct authorized attempt using the same authority reaches a declared expected successful result state.",
   "guarantee_digest": "fd5a53f0f0357bbbce255cd8b6cdbfe60be577a653b099c3c136f4f5c59fbf0f",
   "explicit_exclusions": [
@@ -16,8 +16,8 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "6f881319262f9ea487b34fba832f388c024e5c2b570ecc63c0dfdeb5e4449ddb",
-    "adequacy_result_digest": "3c93ae38eb757d508381f2c70f978ea2e703de64e12dd6c002a62f74772891a6",
+    "adequacy_declaration_digest": "ad7160f352d85128b44ae16548e1d246b11f88989a78d4bfc732812ac7898e27",
+    "adequacy_result_digest": "bdc355d929babbe855e5a6dd827ad5ef194a34050737177968874eda4eed0732",
     "executable_control_count": 59,
     "negative_fixture_count": 87,
     "coverage_witness_count": 200

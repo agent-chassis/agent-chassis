@@ -3,11 +3,56 @@
 import path from "node:path";
 import { defaultRunGit } from "./worktree-substrate.mjs";
 import { isPlainObject } from "./backend-review-identity.mjs";
-
 import {
+  assertTerminalCandidateMaterialization,
   TERMINAL_REVIEW_MATERIALIZATION_SCHEMA_VERSION,
   TERMINAL_REVIEW_VERIFY_PARTS
 } from "./terminal-review-materialization.mjs";
+import { verifyTerminalWkCandidateObjectBinding } from "./terminal-wk-candidate.mjs";
+
+export const TERMINAL_CANDIDATE_REVIEW_TARGET_SCHEMA_VERSION =
+  "agent_launch.terminal_candidate_review_target.v1";
+
+const TERMINAL_CANDIDATE_REVIEW_TARGET_FIELDS = Object.freeze([
+  "schema_version",
+  "review_identity_kind",
+  "ref",
+  "sha",
+  "candidate_ref",
+  "candidate_sha",
+  "base_ref",
+  "base_sha",
+  "wk_ref",
+  "wk_sha",
+  "worktree_path",
+  "canonical_wk_digest",
+  "diff_base_sha",
+  "diff_head_sha",
+  "diff_range",
+  "complete_parent_wk_contract",
+  "accumulated_wk_diff"
+]);
+
+const TERMINAL_CANDIDATE_READINESS_FIELDS = Object.freeze([
+  "review_identity_kind",
+  "candidate_ref",
+  "candidate_sha",
+  "base_ref",
+  "base_sha",
+  "wk_ref",
+  "wk_sha",
+  "diff_base_sha",
+  "diff_head_sha",
+  "diff_range",
+  "canonical_wk_digest",
+  "complete_parent_wk_contract",
+  "accumulated_wk_diff"
+]);
+
+function hasExactFields(value, fields) {
+  const keys = Object.keys(value);
+  return keys.length === fields.length && fields.every((field) => Object.hasOwn(value, field));
+}
 
 export function assertFrozenReviewTarget(target) {
   if (target?.review_identity_kind === "terminal_candidate") {
@@ -27,7 +72,8 @@ export function assertFrozenReviewTarget(target) {
 
 export function assertFrozenTerminalCandidateReviewTarget(target) {
   if (!isPlainObject(target) ||
-      target.schema_version !== "agent_launch.terminal_candidate_review_target.v1" ||
+      !hasExactFields(target, TERMINAL_CANDIDATE_REVIEW_TARGET_FIELDS) ||
+      target.schema_version !== TERMINAL_CANDIDATE_REVIEW_TARGET_SCHEMA_VERSION ||
       target.review_identity_kind !== "terminal_candidate" ||
       typeof target.candidate_ref !== "string" ||
       !/^refs\/agent-launch\/terminal-current-v2\/WK-\d{4}$/u.test(target.candidate_ref) ||
@@ -45,6 +91,47 @@ export function assertFrozenTerminalCandidateReviewTarget(target) {
     throw new Error("frozen terminal-candidate review target is incomplete or incompatible");
   }
   return target;
+}
+
+export async function createTerminalCandidateReviewTarget({
+  binding,
+  materialization,
+  runGit
+} = {}) {
+  await verifyTerminalWkCandidateObjectBinding({ binding, runGit });
+  assertTerminalCandidateMaterialization(materialization, binding);
+  const target = {
+    schema_version: TERMINAL_CANDIDATE_REVIEW_TARGET_SCHEMA_VERSION,
+    review_identity_kind: "terminal_candidate",
+    ref: binding.candidate_ref,
+    sha: binding.candidate,
+    candidate_ref: binding.candidate_ref,
+    candidate_sha: binding.candidate,
+    base_ref: binding.base_ref,
+    base_sha: binding.base,
+    wk_ref: binding.wk_ref,
+    wk_sha: binding.wk_tip,
+    worktree_path: materialization.checkout_path,
+    canonical_wk_digest: binding.canonical_wk_digest,
+    diff_base_sha: binding.base,
+    diff_head_sha: binding.candidate,
+    diff_range: `${binding.base}..${binding.candidate}`,
+    complete_parent_wk_contract: true,
+    accumulated_wk_diff: true
+  };
+  assertFrozenTerminalCandidateReviewTarget(target);
+  return Object.freeze(target);
+}
+
+export function projectTerminalCandidateReviewTargetReadiness(target) {
+  const validated = assertFrozenTerminalCandidateReviewTarget(target);
+  if (!Object.isFrozen(validated)) {
+    throw new Error("frozen terminal-candidate review target is not immutable");
+  }
+  const readiness = Object.fromEntries(
+    TERMINAL_CANDIDATE_READINESS_FIELDS.map((field) => [field, validated[field]])
+  );
+  return Object.freeze(readiness);
 }
 
 export function runFrozenReviewTargetObjectStoreProbes({ mainRepo, probes, runGit }) {

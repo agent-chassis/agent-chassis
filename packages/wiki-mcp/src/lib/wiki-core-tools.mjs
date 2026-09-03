@@ -1,5 +1,7 @@
 
 
+import path from "node:path";
+
 import {
   allocateId,
   bootstrapRepo,
@@ -19,10 +21,19 @@ import {
 
 import { buildLintFindingsResponse } from "@agent-chassis/wiki-core/src/operations/generate-and-lint.mjs";
 import { autofixDocsBacklinks } from "@agent-chassis/wiki-core/src/operations/autofix-docs-backlinks.mjs";
+import { getManifestRecordTypeVocabulary } from "@agent-chassis/wiki-core/src/lib/contract.mjs";
+
 import {
   getReadSelectorValidationIssues,
-  runWorkRecordReadWithCompactGate
+  runWorkRecordReadWithCompactGate,
+  workRecordDetailSelectorSchemaShape
 } from "./work-record-compact-read-gate.mjs";
+
+import {
+  MCP_CALLABLE_OWNER_PROJECTION_PARAM,
+  MCP_WRITE_SEMANTICS,
+  projectMcpCallableOwnerIssues
+} from "./register-tool.mjs";
 
 export function registerWikiCoreTools({
   registerTool,
@@ -38,13 +49,39 @@ export function registerWikiCoreTools({
   const nonEmptyString = z.string().refine((value) => value.trim().length > 0, {
     message: "Expected a non-empty string"
   });
+  const recordTypeVocabulary = getManifestRecordTypeVocabulary();
+  const caseInsensitiveLiteral = (value) => [...value].map((character) => {
+    if (/[a-z]/iu.test(character)) {
+      return `[${character.toLowerCase()}${character.toUpperCase()}]`;
+    }
+    return character.replace(/[\\^$.*+?()[\]{}|]/gu, "\\$&");
+  }).join("");
+  const acceptedRecordTypePattern = new RegExp(
+    `^(?:${recordTypeVocabulary.accepted.map(caseInsensitiveLiteral).join("|")})$`,
+    "u"
+  );
+  const createRecordTypeSchema = z.union([
+    z.enum(recordTypeVocabulary.canonical).describe("Canonical manifest-owned record kinds."),
+    z.enum(recordTypeVocabulary.aliases).describe("Canonical lowercase manifest-owned aliases."),
+    z.string().regex(
+      acceptedRecordTypePattern,
+      "Expected a manifest-owned record kind or alias (case-insensitive)."
+    ).describe("Case-insensitive record-kind or alias input normalized by wiki-core.")
+  ]);
   function strictReadSchema(shape, toolFamily) {
     return z.object(shape).strict().superRefine((args, context) => {
-      for (const issue of getReadSelectorValidationIssues(args, toolFamily)) {
+      const issues = getReadSelectorValidationIssues(args, toolFamily);
+      const ownerProjection = projectMcpCallableOwnerIssues({
+        ownerId: "work-record-compact-read-gate",
+        tool: toolFamily,
+        issues
+      });
+      for (const issue of issues) {
         context.addIssue({
           code: z.ZodIssueCode.custom,
           path: issue.path,
-          message: issue.message
+          message: issue.message,
+          params: { [MCP_CALLABLE_OWNER_PROJECTION_PARAM]: ownerProjection }
         });
       }
     });
@@ -59,10 +96,9 @@ export function registerWikiCoreTools({
     include_body: z.boolean().optional(),
     include_raw: z.boolean().optional(),
     include_record: z.boolean().optional(),
-    selected_slice: nonEmptyString.optional(),
-    selected_record: z.literal(true).optional(),
     accept_full_read: z.literal(true).optional(),
-    compact_read_token: z.string().optional()
+    compact_read_token: z.string().optional(),
+    ...workRecordDetailSelectorSchemaShape(z, "workspace_read_page")
   }, "workspace_read_page");
 
   const workspaceGetRecordInputSchema = strictReadSchema({
@@ -74,9 +110,9 @@ export function registerWikiCoreTools({
     include_record: z.boolean().optional(),
     include_body: z.boolean().optional(),
     include_raw: z.boolean().optional(),
-    selected_slice: nonEmptyString.optional(),
     accept_full_read: z.literal(true).optional(),
-    compact_read_token: z.string().optional()
+    compact_read_token: z.string().optional(),
+    ...workRecordDetailSelectorSchemaShape(z, "workspace_get_record")
   }, "workspace_get_record");
 
   function isGraphEvidenceSidecarReadPath(value) {
@@ -88,6 +124,36 @@ export function registerWikiCoreTools({
   }
 
   function resolveWorkspaceReadPageRepo(args) {
+    const frozenReviewRoot = String(
+      process.env.WIKI_MCP_REVIEW_MATERIALIZATION_DIR ?? ""
+    ).trim();
+    const role = String(process.env.WIKI_MCP_TOOL_PROFILE ?? "").trim();
+    if (frozenReviewRoot !== "") {
+      if ((role !== "reviewer" && role !== "redteam") ||
+          !path.isAbsolute(frozenReviewRoot)) {
+        throw new Error("launcher-frozen review materialization binding is invalid");
+      }
+      const frozenRepository = typeof workspaceRepos?.currentAlias === "string"
+        ? workspaceRepos.currentAlias.trim()
+        : "";
+      if (frozenRepository === "") {
+        throw new Error("launcher-frozen review repository binding is invalid");
+      }
+      const requestedRepository = typeof args.repo === "string"
+        ? args.repo.trim()
+        : frozenRepository;
+      if (requestedRepository !== frozenRepository) {
+        throw new Error(
+          `workspace_read_page repository mismatch: requested ${requestedRepository || "(empty)"}; ` +
+          `launcher-bound ${frozenRepository}`
+        );
+      }
+      const canonical = resolveWorkspaceRepo(workspaceRepos, null);
+      if (canonical.repo !== frozenRepository) {
+        throw new Error("launcher-frozen review repository binding is invalid");
+      }
+      return { repo: frozenRepository, dir: path.resolve(frozenReviewRoot) };
+    }
     if (args.repo || workspaceRepos?.currentAlias) {
       return resolveWorkspaceRepo(workspaceRepos, args.repo);
     }
@@ -109,8 +175,9 @@ export function registerWikiCoreTools({
     registerTool(
       "workspace_generate_and_lint",
       {
+        writeSemantics: MCP_WRITE_SEMANTICS.NONE,
         description:
-          "Write-capable: regenerate the non-canonical wiki views, then lint the workspace repository. Only generated views are written; canonical records and docs are untouched. Use this (not workspace_lint_repo) when views should be refreshed before linting. Optional max_findings caps returned findings: omit for the bounded default, 0 for summary only, or a positive integer for a repair session — large caps can produce large responses.",
+          "Regenerate non-canonical wiki views, then lint the workspace. Write-capable only for generated views; canonical records and docs are untouched. Use workspace_lint_repo when no refresh is wanted. max_findings bounds returned findings; 0 returns summary only.",
         inputSchema: {
           repo: z.string().optional(),
           profile: z.string().optional(),
@@ -138,7 +205,7 @@ export function registerWikiCoreTools({
       "workspace_lint_repo",
       {
         description:
-          "Read-only: validate the workspace repository against the shared wiki contract. Writes nothing; use workspace_generate_and_lint when the generated views must be refreshed first. Optional max_findings caps returned findings: omit for the bounded default, 0 for summary only, or a positive integer for a repair session — large caps can produce large responses.",
+          "Validate the workspace against the shared wiki contract. Read-only; use workspace_generate_and_lint to refresh generated views first. max_findings bounds returned findings; 0 returns summary only.",
         inputSchema: {
           repo: z.string().optional(),
           profile: z.string().optional(),
@@ -169,8 +236,9 @@ export function registerWikiCoreTools({
     registerTool(
       "workspace_autofix_docs_backlinks",
       {
+        writeSemantics: MCP_WRITE_SEMANTICS.NONE,
         description:
-          "Write-capable: explicitly autofix missing docs backlink comments in canonical docs pages after recomputing fresh lint findings internally. Use optional path/id/comment filters only to narrow which fresh findings are applied; the route never accepts caller-supplied findings as write authority and does not change read-only lint behavior.",
+          "Autofix missing docs backlink comments after recomputing fresh lint findings. Write-capable for matched canonical docs only; optional filters narrow fresh findings, and caller-supplied findings grant no write authority.",
         inputSchema: {
           repo: z.string().optional(),
           paths: z.array(z.string()).optional(),
@@ -218,6 +286,7 @@ export function registerWikiCoreTools({
   registerTool(
     "bootstrap_repo",
     {
+      writeSemantics: MCP_WRITE_SEMANTICS.NONE,
       description:
         "Create required wiki surfaces and sync the shared contract into a target repository.",
       inputSchema: {
@@ -239,6 +308,7 @@ export function registerWikiCoreTools({
   registerTool(
     "sync_contract",
     {
+      writeSemantics: MCP_WRITE_SEMANTICS.NONE,
       description:
         "Sync shared templates into a target repository or check for contract drift.",
       inputSchema: {
@@ -264,6 +334,7 @@ export function registerWikiCoreTools({
   registerTool(
     "allocate_id",
     {
+      writeSemantics: MCP_WRITE_SEMANTICS.NONE,
       description: "Reserve the next identifier for a core wiki type.",
       inputSchema: {
         dir: z.string(),
@@ -283,6 +354,7 @@ export function registerWikiCoreTools({
   registerTool(
     "create_record",
     {
+      writeSemantics: MCP_WRITE_SEMANTICS.NONE,
       description:
         "Create a new wiki record from the shared template set, consuming the next reserved or sequential ID.",
       inputSchema: {
@@ -326,7 +398,7 @@ export function registerWikiCoreTools({
     "workspace_read_page",
     {
       description:
-        "Read a markdown page, JSON work-record, or graph-evidence sidecar from a workspace repository (no caller-supplied filesystem root). For work-record reads, compact/default output is the first step: detailed done, cancelled, and parked slice bodies are intentionally omitted, and record/slice agent note bodies are omitted. A selected_slice returns only that slice's detail in one call; verbose, include flags, and accept_full_read cannot widen a selected response. Large unscoped expensive reads remain compact-first unless the caller explicitly passes accept_full_read:true for that call. Graph-evidence sidecars are replay/debug data and never dispatch authority; use selected_slice or selected_record (mutually exclusive) to pull exactly one replay entry.",
+        "Read a workspace Markdown page, canonical JSON work/kind record, or graph-evidence sidecar. Read-only; no caller filesystem root. Canonical records are compact-first; selected_slice returns only a work-record slice, while accept_full_read:true enables an unscoped full read. Sidecars are replay/debug data without dispatch authority; select at most one slice or record entry.",
       inputSchema: workspaceReadPageInputSchema
     },
     async (args) => {
@@ -377,7 +449,7 @@ export function registerWikiCoreTools({
     "workspace_get_record",
     {
       description:
-        "Read a canonical wiki record from a workspace repository (no caller-supplied filesystem root). For work records, compact/default output is the first step: detailed done, cancelled, and parked slice bodies are intentionally omitted, and record/slice agent note bodies are omitted. A selected_slice returns only that slice's detail in one call; verbose, include flags, and accept_full_read cannot widen a selected response. Large unscoped expensive reads remain compact-first unless the caller explicitly passes accept_full_read:true for that call.",
+        "Read a canonical workspace wiki record by durable ID, including registered initiative and decision records. Read-only; no caller filesystem root. Canonical records are compact-first; selected_slice returns only a work-record slice, while accept_full_read:true enables an unscoped full read.",
       inputSchema: workspaceGetRecordInputSchema
     },
     async (args) => {
@@ -406,15 +478,16 @@ export function registerWikiCoreTools({
   registerTool(
     "workspace_create_record",
     {
+      writeSemantics: MCP_WRITE_SEMANTICS.NONE,
       description:
-        "Create a new canonical wiki record in a workspace repository through the shared allocator/template path (no caller-supplied filesystem root). Output is compact by default; pass verbose:true for full allocator/template details.",
-      inputSchema: {
-        type: z.string(),
+        "Create a canonical workspace wiki record through the shared allocator and template path. Write-capable; no caller filesystem root. Compact by default; verbose:true adds allocator/template detail.",
+      inputSchema: z.object({
+        type: createRecordTypeSchema,
         title: z.string(),
         repo: z.string().optional(),
         id: z.string().optional(),
         verbose: z.boolean().optional()
-      }
+      }).strict()
     },
     async (args) => {
       try {
@@ -463,6 +536,7 @@ export function registerWikiCoreTools({
   registerTool(
     "generate_views",
     {
+      writeSemantics: MCP_WRITE_SEMANTICS.NONE,
       description:
         "Generate the standard non-canonical wiki views from a repository wiki.",
       inputSchema: {
@@ -483,6 +557,7 @@ export function registerWikiCoreTools({
   registerTool(
     "generate_and_lint",
     {
+      writeSemantics: MCP_WRITE_SEMANTICS.NONE,
       description:
         "Generate standard wiki views, then validate the repository against the shared wiki contract.",
       inputSchema: {
@@ -503,6 +578,7 @@ export function registerWikiCoreTools({
   registerTool(
     "build_search_index",
     {
+      writeSemantics: MCP_WRITE_SEMANTICS.NONE,
       description:
         "Build or refresh the shared lexical wiki/docs search index for a repository.",
       inputSchema: {
@@ -567,14 +643,13 @@ export function registerWikiCoreTools({
     "workspace_search_repo",
     {
       description:
-        "Search canonical wiki/docs content in a workspace repository (no caller-supplied filesystem root). Default compact output is bounded by limit, but reports complete total_count, returned_count, limit, offset, has_more, and next_offset metadata. Use offset/next_offset paging or unbounded:true to retrieve every ranked match; pass verbose:true for index/filter diagnostics and full result entries.",
-      inputSchema: {
+        "Search canonical workspace wiki/docs content. Read-only; no caller filesystem root. Compact results are limit/offset paged with complete counts and next_offset; unbounded:true returns every ranked match, and verbose:true adds full entries and diagnostics.",
+      inputSchema: z.object({
         query: z.string(),
         repo: z.string().optional(),
         limit: z.number().optional(),
         offset: z.number().int().min(0).optional(),
         unbounded: z.boolean().optional(),
-        reindex: z.boolean().optional(),
         verbose: z.boolean().optional(),
         profile: z.string().optional(),
         extensionNamespaces: extensionNamespacesSchema,
@@ -594,7 +669,7 @@ export function registerWikiCoreTools({
         lifecycle: z.string().optional(),
         sensitivity: z.string().optional(),
         topic: z.string().optional()
-      }
+      }).strict()
     },
     async (args) => {
       try {
@@ -614,6 +689,7 @@ export function registerWikiCoreTools({
   registerTool(
     "workspace_build_search_index",
     {
+      writeSemantics: MCP_WRITE_SEMANTICS.NONE,
       description:
         "Build or refresh the lexical wiki/docs search index for a configured workspace repository without accepting a caller-supplied filesystem root.",
       inputSchema: {

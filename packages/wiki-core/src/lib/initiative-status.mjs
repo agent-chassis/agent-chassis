@@ -5,8 +5,21 @@ import { collectSelectedDerivedEvidence } from './initiative-status-evidence.mjs
 
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_REPO_ROOT = process.cwd();
-const INITIATIVE_STATUS_TAXONOMY_RELATIVE_PATH = 'packages/wiki-core/data/initiative-status-actions.v1.json';
-const RUNTIME_BLOCKER_TAXONOMY_RELATIVE_PATH = 'packages/wiki-core/data/runtime-blocker-codes.v1.json';
+
+const INITIATIVE_STATUS_TAXONOMY_PATH = path.join(
+  MODULE_DIR,
+  '..',
+  '..',
+  'data',
+  'initiative-status-actions.v1.json',
+);
+const RUNTIME_BLOCKER_TAXONOMY_PATH = path.join(
+  MODULE_DIR,
+  '..',
+  '..',
+  'data',
+  'runtime-blocker-codes.v1.json',
+);
 const WORK_RECORDS_RELATIVE_DIR = 'wiki/work-records';
 export const INITIATIVE_STATUS_ACTION_LIMIT = 5;
 export const INITIATIVE_STATUS_CONSISTENCY_LIMIT = 10;
@@ -142,8 +155,8 @@ function buildReasonCodeEntriesByAction(localReasonCodeEntries) {
   return byAction;
 }
 
-function loadInitiativeStatusTaxonomyFromDisk(repoRoot = DEFAULT_REPO_ROOT) {
-  const taxonomyPath = resolveRepoPath(repoRoot, INITIATIVE_STATUS_TAXONOMY_RELATIVE_PATH);
+function loadInitiativeStatusTaxonomyFromDisk() {
+  const taxonomyPath = INITIATIVE_STATUS_TAXONOMY_PATH;
   const raw = readJsonFile(taxonomyPath);
   const localReasonCodeEntries = Array.isArray(raw.local_reason_codes)
     ? raw.local_reason_codes.map((entry) => normalizeLocalReasonCodeEntry(entry)).filter(Boolean)
@@ -152,7 +165,7 @@ function loadInitiativeStatusTaxonomyFromDisk(repoRoot = DEFAULT_REPO_ROOT) {
   const actionKindEntries = Array.isArray(raw.action_kinds)
     ? raw.action_kinds.map((entry) => normalizeActionKindEntry(entry, reasonCodeEntriesByAction)).filter(Boolean)
     : [];
-  const runtimeBlockerPath = resolveRepoPath(repoRoot, RUNTIME_BLOCKER_TAXONOMY_RELATIVE_PATH);
+  const runtimeBlockerPath = RUNTIME_BLOCKER_TAXONOMY_PATH;
   const runtimeBlockerRaw = readJsonFile(runtimeBlockerPath);
   const runtimeBlockerCodes = normalizeRuntimeBlockerTaxonomy(runtimeBlockerRaw);
   const localReasonCodeStrings = localReasonCodeEntries.map((entry) => entry.code);
@@ -181,9 +194,8 @@ function loadInitiativeStatusTaxonomyFromDisk(repoRoot = DEFAULT_REPO_ROOT) {
   };
 }
 
-export function loadInitiativeStatusTaxonomy(options = {}) {
-  const repoRoot = asNonEmptyString(options.repoRoot) ?? DEFAULT_REPO_ROOT;
-  return loadInitiativeStatusTaxonomyFromDisk(repoRoot);
+export function loadInitiativeStatusTaxonomy() {
+  return loadInitiativeStatusTaxonomyFromDisk();
 }
 
 export const loadInitiativeStatusActions = loadInitiativeStatusTaxonomy;
@@ -245,8 +257,18 @@ function findSliceById(root, sliceId) {
   return found;
 }
 
-function collectWorkRecordFiles(repoRoot) {
-  return readdirSync(resolveRepoPath(repoRoot, WORK_RECORDS_RELATIVE_DIR), { withFileTypes: true })
+function collectWorkRecordFiles(repoRoot, readDirectory = readdirSync) {
+  const corpusPath = resolveRepoPath(repoRoot, WORK_RECORDS_RELATIVE_DIR);
+  let entries;
+  try {
+    entries = readDirectory(corpusPath, { withFileTypes: true });
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      return [];
+    }
+    throw error;
+  }
+  return entries
     .filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
     .map((entry) => path.join(WORK_RECORDS_RELATIVE_DIR, entry.name));
 }
@@ -315,55 +337,6 @@ function hasReviewRunReference(node) {
 
     return Boolean(asNonEmptyString(ref.monitor_handle) || asNonEmptyString(ref.run_id) || asNonEmptyString(ref.runId));
   });
-}
-
-function hasReviewResultEvidence(node) {
-  if (!isPlainObject(node)) {
-    return false;
-  }
-
-  const candidates = [
-    node.review_result,
-    node.reviewResult,
-    node.review_result_evidence,
-    node.reviewResultEvidence,
-    node.review_completion,
-    node.reviewCompletion,
-    node.review_attestation,
-    node.reviewAttestation,
-  ];
-
-  return candidates.some((candidate) => isPlainObject(candidate) || typeof candidate === 'string');
-}
-
-function getReviewOutcome(node) {
-  if (!isPlainObject(node)) {
-    return null;
-  }
-
-  const reviewObjects = [
-    node.review_result,
-    node.reviewResult,
-    node.review_completion,
-    node.reviewCompletion,
-    node.review_attestation,
-    node.reviewAttestation,
-  ];
-
-  for (const reviewObject of reviewObjects) {
-    if (!isPlainObject(reviewObject)) {
-      continue;
-    }
-
-    const outcome = asNonEmptyString(
-      reviewObject.review_outcome ?? reviewObject.reviewOutcome ?? reviewObject.outcome ?? reviewObject.status ?? reviewObject.result,
-    );
-    if (outcome) {
-      return outcome;
-    }
-  }
-
-  return null;
 }
 
 function getDispatchIntent(node) {
@@ -625,6 +598,20 @@ function makeNoAction(taxonomy, overrides = {}) {
   });
 }
 
+function makeAllocationAction(taxonomy, initiative, overrides = {}) {
+  const selected = findBestActionMatch(taxonomy, ['allocate', 'work record'], 'allocation_required');
+  return normalizeActionFromTaxonomy(taxonomy, selected, {
+    kind: 'allocate_work_record',
+    suggested_tool: 'workspace_create_record',
+    target_unit: initiative,
+    priority: 'high',
+    blocking: false,
+    reason_code: 'allocation_required',
+    summary: 'Allocate the initiative\'s first work record through the canonical allocator-backed route.',
+    ...overrides,
+  });
+}
+
 function makeReviewDispatchAction(taxonomy, selection, overrides = {}) {
   const selected = findBestActionMatch(taxonomy, ['review', 'dispatch', 'reviewer'], null);
   return normalizeActionFromTaxonomy(taxonomy, selected, {
@@ -730,8 +717,6 @@ function deriveActionForSelection(taxonomy, selection, { initiativeMismatch = fa
   const status = getStatus(selection.entry);
   const workKind = getWorkKind(selection.entry);
   const reviewRunExists = hasReviewRunReference(selection.entry) || hasReviewRunReference(record ?? selection.entry);
-  const reviewEvidenceExists = hasReviewResultEvidence(selection.entry) || hasReviewResultEvidence(record ?? selection.entry);
-  const reviewOutcome = getReviewOutcome(selection.entry) ?? getReviewOutcome(record ?? selection.entry);
 
   const structuredEvidenceAction = getStructuredEvidenceAction(taxonomy, selection, record ?? selection.entry);
   if (structuredEvidenceAction) {
@@ -745,20 +730,8 @@ function deriveActionForSelection(taxonomy, selection, { initiativeMismatch = fa
       });
     }
 
-    if (!reviewEvidenceExists) {
-      return makeReviewStatusAction(taxonomy, selection, {
-        summary: 'A reviewer run exists; inspect its status before any attestation write path.',
-      });
-    }
-
-    if (reviewOutcome && reviewOutcome.toLowerCase() !== 'accepted') {
-      return makeRemediationAction(taxonomy, selection, {
-        summary: 'Review produced a non-accepted outcome; remediate before any completion step.',
-      });
-    }
-
-    return makeCloseAction(taxonomy, selection, {
-      summary: 'Reviewer evidence is present; close out the unit if the record is otherwise complete.',
+    return makeReviewStatusAction(taxonomy, selection, {
+      summary: 'A reviewer run exists; consume its returned advisory text and disposition it normally.',
     });
   }
 
@@ -796,13 +769,16 @@ function deriveActionForSelection(taxonomy, selection, { initiativeMismatch = fa
   });
 }
 
-function loadRelevantRecords(repoRoot, initiative) {
-  const recordFiles = collectWorkRecordFiles(repoRoot);
+function loadRelevantRecords(repoRoot, initiative, {
+  readDirectory = readdirSync,
+  readRecord = readJsonFile,
+} = {}) {
+  const recordFiles = collectWorkRecordFiles(repoRoot, readDirectory);
   const loaded = [];
 
   for (const relativePath of recordFiles) {
     const sourcePath = resolveRepoPath(repoRoot, relativePath);
-    const raw = readJsonFile(sourcePath);
+    const raw = readRecord(sourcePath);
     const record = normalizeWorkRecord(raw);
     const recordInitiative = asNonEmptyString(record?.initiative ?? raw?.initiative);
 
@@ -819,7 +795,10 @@ function loadRelevantRecords(repoRoot, initiative) {
 export function loadInitiativeStatusRecords(options = {}) {
   const repoRoot = asNonEmptyString(options.repoRoot) ?? DEFAULT_REPO_ROOT;
   const initiative = asNonEmptyString(options.initiative);
-  return loadRelevantRecords(repoRoot, initiative);
+  return loadRelevantRecords(repoRoot, initiative, {
+    readDirectory: options.readDirectory,
+    readRecord: options.readRecord,
+  });
 }
 
 export function readInitiativeStatusRecord(options = {}) {
@@ -1092,6 +1071,9 @@ export function deriveInitiativeStatus(options = {}) {
   const topActionLimitRaw = Number(options.topActionLimit ?? options.top_action_limit ?? options.top_actions_limit ?? DEFAULT_TOP_ACTION_LIMIT);
   const topActionLimit = Number.isFinite(topActionLimitRaw) && topActionLimitRaw > 0 ? Math.trunc(topActionLimitRaw) : DEFAULT_TOP_ACTION_LIMIT;
   const taxonomy = isPlainObject(options.taxonomy) ? options.taxonomy : loadInitiativeStatusTaxonomy({ repoRoot });
+  const initiativeRecord = isPlainObject(options.initiativeRecord ?? options.initiative_record)
+    ? options.initiativeRecord ?? options.initiative_record
+    : null;
   const providedRecords = Array.isArray(options.records) ? options.records.map(normalizeLoadedRecordEntry).filter(Boolean) : null;
 
   let selection = null;
@@ -1185,6 +1167,10 @@ export function deriveInitiativeStatus(options = {}) {
     for (const candidate of openUnits) {
       const action = deriveActionForSelection(taxonomy, candidate, { record: candidate.record });
       actions.push(createActionCandidateSummary(candidate, action, candidate.record));
+    }
+    const initiativeStatus = getStatus(initiativeRecord);
+    if (records.length === 0 && (initiativeStatus === 'todo' || initiativeStatus === 'in_progress')) {
+      actions.push(makeAllocationAction(taxonomy, initiative));
     }
   }
 

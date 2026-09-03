@@ -19,9 +19,14 @@ import {
   validateEnumField,
   validateControlledStringField,
   validateFacetProvenance,
-  validateAcceptanceCriterionEntry
+  validateAcceptanceCriterionEntry,
+  validateAcceptanceValidationSection
 } from "./work-record-schema-validators.mjs";
 import { validateWorkerAdmissionDerivedEvidenceStructure } from "./work-record-schema-derived-evidence.mjs";
+import {
+  analyzeWorkRecordFindingsUnit,
+  isTerminalWorkUnitStatus
+} from "./work-record-findings-semantics.mjs";
 import {
   WORK_UNIT_FEATURE_VECTOR_ACTIVITY_KIND_VALUES,
   WORK_UNIT_FEATURE_VECTOR_ARTIFACT_KIND_VALUES,
@@ -29,7 +34,6 @@ import {
   WORK_RECORD_AGENT_ROLE_VALUES,
   WORK_RECORD_TARGET_UNIT_VALUES,
   WORK_RECORD_WORK_KIND_VALUES,
-  WORK_RECORD_REVIEW_PURPOSE_VALUES,
   WORK_RECORD_COMPLETION_POLICY_VALUES,
   WORK_RECORD_STATUS_VALUES,
   WORK_RECORD_ESCALATION_KIND_VALUES,
@@ -260,7 +264,8 @@ function validateAcceptance(diagnostics, acceptance, path = "acceptance") {
       })
     );
   }
-  validateStringArrayField(diagnostics, acceptance, "validation", { path: `${path}.validation` });
+
+  validateAcceptanceValidationSection(diagnostics, acceptance.validation, `${path}.validation`);
 }
 
 function validateChildReference(diagnostics, child, path) {
@@ -365,7 +370,26 @@ function validateSliceReadScope(diagnostics, slice, path) {
   }
 }
 
-function validateSlice(diagnostics, slice, path) {
+function collectFindingsSemanticDiagnostics(
+  diagnostics,
+  unit,
+  path = null,
+  { recordTerminal = false } = {}
+) {
+  const analysis = analyzeWorkRecordFindingsUnit(unit, { path });
+  const terminal = recordTerminal || isTerminalWorkUnitStatus(unit?.status);
+  for (const entry of analysis.diagnostics) {
+    if (terminal && entry.code === "findings_role_conflict") {
+      continue;
+    }
+    addDiagnostic(diagnostics, "invalid_record", entry.message, {
+      path: entry.path,
+      severity: entry.severity
+    });
+  }
+}
+
+function validateSlice(diagnostics, slice, path, { recordTerminal = false } = {}) {
   if (!isObject(slice)) {
     addDiagnostic(diagnostics, "invalid_record", `${path} must be an object`, { path });
     return;
@@ -384,16 +408,7 @@ function validateSlice(diagnostics, slice, path) {
   validateEnumField(diagnostics, slice, "work_kind", WORK_RECORD_WORK_KIND_VALUES, {
     path: `${path}.work_kind`
   });
-  if (hasOwn(slice, "review_purpose")) {
-    validateEnumField(diagnostics, slice, "review_purpose", WORK_RECORD_REVIEW_PURPOSE_VALUES, {
-      path: `${path}.review_purpose`, required: false
-    });
-    if (slice.work_kind !== "review") {
-      addDiagnostic(diagnostics, "invalid_record", `${path}.review_purpose is valid only for review work`, {
-        path: `${path}.review_purpose`
-      });
-    }
-  }
+  collectFindingsSemanticDiagnostics(diagnostics, slice, path, { recordTerminal });
   if (slice.work_kind === "tracker") {
     addDiagnostic(diagnostics, "invalid_record", `${path}.work_kind cannot be tracker`, {
       path: `${path}.work_kind`
@@ -402,6 +417,18 @@ function validateSlice(diagnostics, slice, path) {
   validateEnumField(diagnostics, slice, "status", WORK_RECORD_STATUS_VALUES, {
     path: `${path}.status`
   });
+
+  if (hasOwn(slice, "integrated_delivery_sha")) {
+    const value = slice.integrated_delivery_sha;
+    if (typeof value !== "string" || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(value)) {
+      addDiagnostic(
+        diagnostics,
+        "invalid_record",
+        `${path}.integrated_delivery_sha must be a Git object id`,
+        { path: `${path}.integrated_delivery_sha` }
+      );
+    }
+  }
   if (hasOwn(slice, "completion_policy")) {
     addDiagnostic(
       diagnostics,
@@ -414,6 +441,7 @@ function validateSlice(diagnostics, slice, path) {
   validateStringArrayField(diagnostics, slice, "repo_paths", { path: `${path}.repo_paths` });
   validateSliceReadScope(diagnostics, slice, path);
   validateStringArrayField(diagnostics, slice, "depends_on", { path: `${path}.depends_on` });
+
   validateAcceptance(diagnostics, slice.acceptance, `${path}.acceptance`);
   validateDispatchIntent(diagnostics, slice.dispatch_intent, `${path}.dispatch_intent`);
   validateNullableNonNegativeIntegerField(diagnostics, slice, "expected_changed_line_budget", {
@@ -428,6 +456,14 @@ function validateSlice(diagnostics, slice, path) {
   }
   if (isObject(slice.sections)) {
     const sections = slice.sections;
+    if (hasOwn(sections, "structured_validation")) {
+      addDiagnostic(
+        diagnostics,
+        "invalid_record",
+        `${path}.sections.structured_validation is not supported; declare validation in acceptance.validation`,
+        { path: `${path}.sections.structured_validation` }
+      );
+    }
     if (hasOwn(sections, "agent_notes")) {
       const value = sections.agent_notes;
       if (Array.isArray(value)) {
@@ -944,6 +980,14 @@ function validateSections(diagnostics, sections) {
     addDiagnostic(diagnostics, "invalid_record", "sections must be an object", { path: "sections" });
     return;
   }
+  if (hasOwn(sections, "structured_validation")) {
+    addDiagnostic(
+      diagnostics,
+      "invalid_record",
+      "sections.structured_validation is not supported; declare validation in acceptance.validation",
+      { path: "sections.structured_validation" }
+    );
+  }
   validateStringField(diagnostics, sections, "summary", {
     path: "sections.summary",
     allowEmpty: true
@@ -977,6 +1021,8 @@ function validateCompletionPolicy(diagnostics, record) {
 function validateTopLevelArrays(diagnostics, record) {
   validateCompletionPolicy(diagnostics, record);
 
+  collectFindingsSemanticDiagnostics(diagnostics, record, null);
+
   for (const field of REQUIRED_ARRAY_OF_STRING_TOP_LEVEL_FIELDS) {
     validateStringArrayField(diagnostics, record, field, { path: field });
   }
@@ -1002,7 +1048,10 @@ function validateTopLevelArrays(diagnostics, record) {
   if (hasOwn(record, "slices") && !Array.isArray(record.slices)) {
     addDiagnostic(diagnostics, "invalid_record", "slices must be an array", { path: "slices" });
   } else if (Array.isArray(record.slices)) {
-    record.slices.forEach((slice, index) => validateSlice(diagnostics, slice, `slices[${index}]`));
+    const recordTerminal = isTerminalWorkUnitStatus(record.status);
+    record.slices.forEach((slice, index) =>
+      validateSlice(diagnostics, slice, `slices[${index}]`, { recordTerminal })
+    );
   }
 
   if (hasOwn(record, "escalations") && !Array.isArray(record.escalations)) {

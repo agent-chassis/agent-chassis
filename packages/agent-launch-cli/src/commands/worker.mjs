@@ -27,17 +27,17 @@ const HELP_TEXT = `agent-launch worker <unit-address> [options] [--] [prompt...]
 Canonical implementation-worker dispatch. The canonical option grammar is
 \`agent-launch worker <unit> [--profile <profile>] [--app <app>] [--model <model>]\`:
 \`worker\` is authority role only; \`--profile\` selects a canonical launcher
-profile (default: worker); \`--app\` overrides the selected profile's default
-app binding. Supported worker apps are codex and claude; agy is roadmap/WIP
+profile (default: worker); \`--app\` asserts the app derived from the selected
+model. Supported worker apps are codex and claude; agy is roadmap/WIP
 and should be used only with --dry-run-json for planning or experimental
-validation. \`--model\` overrides only the selected app binding's default model.
+validation. \`--model\` explicitly selects a registered model.
 \`worker_spark\` is a profile, not a role.
 
 Options:
   --profile <profile>            Canonical launcher profile (worker, worker_spark)
-  --app codex|claude             Override the profile's default app binding
+  --app codex|claude             Assert the app derived from the selected model
   --app agy                      Unsupported; fails closed
-  --model <model>                Override the selected binding's default model
+  --model <model>                Select a registered model explicitly
   --opus                         Alias for --model opus (Claude model shorthand)
   --sonnet                       Alias for --model sonnet (Claude model shorthand)
   --spark                        Shorthand for --profile worker_spark
@@ -93,7 +93,7 @@ export async function runWorker(argv, io = {}, { backend: injectedBackend } = {}
     return;
   }
 
-  let resolution = resolveLauncherProfile({
+  const resolution = resolveLauncherProfile({
     role: "worker",
     profileName: parsed.profileName,
     app: parsed.app,
@@ -101,17 +101,6 @@ export async function runWorker(argv, io = {}, { backend: injectedBackend } = {}
     env: process.env,
     dir: process.cwd()
   });
-  if (!resolution.ok && shouldResolveWorkerLiveAppWithoutModelHint({ parsed, resolution })) {
-
-    resolution = resolveLauncherProfile({
-      role: "worker",
-      profileName: parsed.profileName,
-      app: parsed.app,
-      model: null,
-      env: process.env,
-      dir: process.cwd()
-    });
-  }
   if (!resolution.ok) {
     writeStderr(io.stderr, `${resolution.error.message}\n`);
     process.exitCode = 2;
@@ -130,15 +119,6 @@ export async function runWorker(argv, io = {}, { backend: injectedBackend } = {}
   }
 
   await dispatchWorkerSharedPipeline({ resolved, parsed }, io, { backend: injectedBackend });
-}
-
-function shouldResolveWorkerLiveAppWithoutModelHint({ parsed, resolution }) {
-  return parsed.dryRunJson !== true
-    && typeof parsed.app === "string"
-    && parsed.app.length > 0
-    && typeof parsed.model === "string"
-    && parsed.model.length > 0
-    && resolution?.error?.path === "model";
 }
 
 function emitWorkerDryRunPlan({ io, parsed, resolved }) {

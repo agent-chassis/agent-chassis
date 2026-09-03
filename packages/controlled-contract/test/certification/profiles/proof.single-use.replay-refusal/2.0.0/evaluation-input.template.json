@@ -1,0 +1,196 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.v1",
+  "evaluation_stage": "pre_dispatch",
+  "reference_bindings": [
+    {
+      "role": "operation",
+      "reference_ids": [
+        "ref-operation"
+      ]
+    },
+    {
+      "role": "single_use_authority",
+      "reference_ids": [
+        "ref-single-use-authority"
+      ]
+    },
+    {
+      "role": "input",
+      "reference_ids": [
+        "ref-input"
+      ]
+    },
+    {
+      "role": "first_attempt",
+      "reference_ids": [
+        "ref-first-attempt"
+      ]
+    },
+    {
+      "role": "first_result",
+      "reference_ids": [
+        "ref-first-result"
+      ]
+    },
+    {
+      "role": "replay_attempt",
+      "reference_ids": [
+        "ref-replay-attempt"
+      ]
+    },
+    {
+      "role": "replay_refusal",
+      "reference_ids": [
+        "ref-replay-refusal"
+      ]
+    },
+    {
+      "role": "effect_subject",
+      "reference_ids": [
+        "ref-effect-subject"
+      ]
+    },
+    {
+      "role": "effect_occurrence_population",
+      "reference_ids": [
+        "ref-effect-occurrence-population"
+      ]
+    },
+    {
+      "role": "effect_occurrence",
+      "reference_ids": [
+        "ref-effect-occurrence"
+      ]
+    },
+    {
+      "role": "effect_state_before",
+      "reference_ids": [
+        "ref-effect-state-before"
+      ]
+    },
+    {
+      "role": "effect_state_after_first",
+      "reference_ids": [
+        "ref-effect-state-after-first"
+      ]
+    },
+    {
+      "role": "effect_state_after_replay",
+      "reference_ids": [
+        "ref-effect-state-after-replay"
+      ]
+    },
+    {
+      "role": "observation_before",
+      "reference_ids": [
+        "ref-observation-before"
+      ]
+    },
+    {
+      "role": "observation_after_first",
+      "reference_ids": [
+        "ref-observation-after-first"
+      ]
+    },
+    {
+      "role": "observation_after_replay",
+      "reference_ids": [
+        "ref-observation-after-replay"
+      ]
+    },
+    {
+      "role": "expected_success_state",
+      "reference_ids": [
+        "ref-expected-success-state"
+      ]
+    },
+    {
+      "role": "first_result_state",
+      "reference_ids": [
+        "ref-first-result-state"
+      ]
+    },
+    {
+      "role": "success_criterion",
+      "reference_ids": [
+        "ref-success-criterion"
+      ]
+    },
+    {
+      "role": "success_verification",
+      "reference_ids": [
+        "ref-success-verification"
+      ]
+    },
+    {
+      "role": "first_effect_verification",
+      "reference_ids": [
+        "ref-first-effect-verification"
+      ]
+    },
+    {
+      "role": "consumption_verification",
+      "reference_ids": [
+        "ref-consumption-verification"
+      ]
+    },
+    {
+      "role": "replay_refusal_verification",
+      "reference_ids": [
+        "ref-replay-refusal-verification"
+      ]
+    },
+    {
+      "role": "replay_occurrence_verification",
+      "reference_ids": [
+        "ref-replay-occurrence-verification"
+      ]
+    },
+    {
+      "role": "replay_effect_verification",
+      "reference_ids": [
+        "ref-replay-effect-verification"
+      ]
+    },
+    {
+      "role": "first_use_failure_condition",
+      "reference_ids": [
+        "ref-first-use-failure-condition"
+      ]
+    },
+    {
+      "role": "no_first_effect_condition",
+      "reference_ids": [
+        "ref-no-first-effect-condition"
+      ]
+    },
+    {
+      "role": "authority_still_live_condition",
+      "reference_ids": [
+        "ref-authority-still-live-condition"
+      ]
+    },
+    {
+      "role": "replay_accepted_condition",
+      "reference_ids": [
+        "ref-replay-accepted-condition"
+      ]
+    },
+    {
+      "role": "duplicate_effect_condition",
+      "reference_ids": [
+        "ref-duplicate-effect-condition"
+      ]
+    }
+  ],
+  "number_bindings": [
+    {
+      "role": "effect_occurrence_count",
+      "value": 1
+    }
+  ],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": [],
+  "stable_evaluation": {}
+}

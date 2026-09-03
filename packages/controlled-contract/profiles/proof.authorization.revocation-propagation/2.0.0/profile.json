@@ -1,0 +1,1214 @@
+{
+  "schema_version": "controlled-contract-verification-profile.v1",
+  "profile_id": "proof.authorization.revocation-propagation",
+  "profile_version": "2.0.0",
+  "contract_schema_version": "controlled-acceptance-contract.v1",
+  "vocabulary_version": "controlled-contract-vocabulary.v1",
+  "vocabulary_signature_digest": "596a4c44d98aed1d31dd9ab3842fc054be6f8ffa3d62a3867a3966e75ecab742",
+  "vocabulary_algebra_digest": "0fbea1e7377baeef1869cbc55dc588ef5509ed40c768ce2a3c4f58be1133cf9c",
+  "vocabulary_definitions_digest": "bb3d2a63cb6fc8c62b9bc36d29d07549dea6ad85e32badb0cbb3cacfd6ad4759",
+  "vocabulary_complete_digest": "45484504f06968c6b4ac812c24b9f1b6e47e1d34ba21fefebde8dd85d1290fa9",
+  "evaluation_stages": [
+    "pre_dispatch"
+  ],
+  "verification_falsifier_policy": "controlled_complement_per_target",
+  "reference_roles": [
+    {
+      "role": "authority",
+      "allowed_type_terms": [
+        "cc:authority",
+        "cc:capability"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "revocation_event",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "propagation_interval",
+      "allowed_type_terms": [
+        "cc:event",
+        "cc:process"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "revoked_state",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "refused_state",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "consumer_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "consumers",
+      "allowed_type_terms": [
+        "cc:runtime_component",
+        "cc:actor",
+        "cc:process"
+      ],
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ],
+      "cardinality": "one_or_more"
+    },
+    {
+      "role": "attempt_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "attempts",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "one_or_more"
+    },
+    {
+      "role": "refused_attempt_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "refused_attempts",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "one_or_more"
+    },
+    {
+      "role": "protected_effect_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "protected_effects",
+      "allowed_type_terms": [
+        "cc:resource",
+        "cc:artifact",
+        "cc:configuration",
+        "cc:state"
+      ],
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ],
+      "cardinality": "one_or_more"
+    },
+    {
+      "role": "revoked_state_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "revoked_states",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "one_or_more"
+    },
+    {
+      "role": "applied_state_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "applied_states",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "one_or_more"
+    },
+    {
+      "role": "verification",
+      "allowed_type_terms": [
+        "cc:test",
+        "cc:process"
+      ],
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "durable_id",
+        "repository_path"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "stale_consumer_condition",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "accepted_attempt_condition",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "post_revocation_write_condition",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "post_revocation_mutation_condition",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    }
+  ],
+  "number_roles": [
+    {
+      "role": "consumer_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 1
+    },
+    {
+      "role": "attempt_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 1
+    },
+    {
+      "role": "effect_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 1
+    },
+    {
+      "role": "state_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 1,
+      "maximum": 1
+    }
+  ],
+  "distinct_reference_role_sets": [
+    {
+      "roles": [
+        "authority",
+        "revocation_event",
+        "propagation_interval",
+        "revoked_state",
+        "refused_state"
+      ]
+    },
+    {
+      "roles": [
+        "consumer_population",
+        "attempt_population",
+        "protected_effect_population",
+        "revoked_state_population"
+      ]
+    },
+    {
+      "roles": [
+        "stale_consumer_condition",
+        "accepted_attempt_condition",
+        "post_revocation_write_condition",
+        "post_revocation_mutation_condition"
+      ]
+    }
+  ],
+  "reference_binding_patterns": [
+    {
+      "pattern_id": "complete-consumer-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "consumer_population",
+        "consumers"
+      ],
+      "applicability_context": {
+        "mode": "where",
+        "operand_roles": [
+          "authority"
+        ]
+      }
+    },
+    {
+      "pattern_id": "complete-post-revocation-attempt-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "attempt_population",
+        "attempts"
+      ],
+      "applicability_context": {
+        "mode": "after",
+        "operand_roles": [
+          "revocation_event"
+        ]
+      }
+    },
+    {
+      "pattern_id": "complete-refused-attempt-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "refused_attempt_population",
+        "refused_attempts"
+      ],
+      "applicability_context": {
+        "mode": "after",
+        "operand_roles": [
+          "revocation_event"
+        ]
+      }
+    },
+    {
+      "pattern_id": "complete-protected-effect-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "protected_effect_population",
+        "protected_effects"
+      ],
+      "applicability_context": {
+        "mode": "where",
+        "operand_roles": [
+          "authority"
+        ]
+      }
+    },
+    {
+      "pattern_id": "complete-revoked-state-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "revoked_state_population",
+        "revoked_states"
+      ],
+      "applicability_context": {
+        "mode": "after",
+        "operand_roles": [
+          "revocation_event"
+        ]
+      }
+    },
+    {
+      "pattern_id": "complete-applied-state-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "applied_state_population",
+        "applied_states"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "propagation_interval"
+        ]
+      }
+    }
+  ],
+  "reference_role_count_bindings": [
+    {
+      "reference_role": "consumers",
+      "number_role": "consumer_count"
+    },
+    {
+      "reference_role": "attempts",
+      "number_role": "attempt_count"
+    },
+    {
+      "reference_role": "refused_attempts",
+      "number_role": "attempt_count"
+    },
+    {
+      "reference_role": "protected_effects",
+      "number_role": "effect_count"
+    },
+    {
+      "reference_role": "revoked_states",
+      "number_role": "state_count"
+    },
+    {
+      "reference_role": "applied_states",
+      "number_role": "state_count"
+    }
+  ],
+  "claim_patterns": [
+    {
+      "pattern_id": "revocation-invalidates-authority",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "revocation_event",
+        "operator": "reference:invalidates",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "authority"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "revocation-records-revoked-state",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "revocation_event",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "revoked_state"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "revocation-precedes-propagation-interval",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "revocation_event",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "propagation_interval"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "each-consumer-observes-authority-during-propagation",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "consumers",
+        "member_role": "consumer"
+      },
+      "proposition_template": {
+        "subject_role": "consumer",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "propagation_interval"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "authority"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "each-consumer-applies-revoked-state-during-propagation",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "consumers",
+        "member_role": "consumer"
+      },
+      "proposition_template": {
+        "subject_role": "consumer",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "propagation_interval"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "revoked_state"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "applied-state-equals-revoked-state",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "applied_state_population",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "propagation_interval"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "revoked_state_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "propagation-interval-precedes-each-attempt",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "attempts",
+        "member_role": "attempt"
+      },
+      "proposition_template": {
+        "subject_role": "propagation_interval",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "attempt"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "each-attempt-uses-revoked-authority",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "attempts",
+        "member_role": "attempt"
+      },
+      "proposition_template": {
+        "subject_role": "attempt",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "revocation_event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "authority"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "each-attempt-targets-consumer-population",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "attempts",
+        "member_role": "attempt"
+      },
+      "proposition_template": {
+        "subject_role": "attempt",
+        "operator": "reference:targets",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "revocation_event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "consumer_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "each-attempt-is-refused",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "attempts",
+        "member_role": "attempt"
+      },
+      "proposition_template": {
+        "subject_role": "attempt",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "revocation_event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "refused_state"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "each-attempt-does-not-write-protected-effects",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST_NOT"
+      ],
+      "for_each": {
+        "population_role": "attempts",
+        "member_role": "attempt"
+      },
+      "proposition_template": {
+        "subject_role": "attempt",
+        "operator": "reference:writes",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "revocation_event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "protected_effects"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "each-attempt-does-not-mutate-protected-effects",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST_NOT"
+      ],
+      "for_each": {
+        "population_role": "attempts",
+        "member_role": "attempt"
+      },
+      "proposition_template": {
+        "subject_role": "attempt",
+        "operator": "reference:mutates",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "revocation_event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "protected_effects"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "all-post-revocation-attempts-refused",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "refused_attempt_population",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "revocation_event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "attempt_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "no-post-revocation-attempt-writes-protected-effects",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST_NOT"
+      ],
+      "proposition_template": {
+        "subject_role": "attempt_population",
+        "operator": "reference:writes",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "revocation_event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "protected_effects"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "no-post-revocation-attempt-mutates-protected-effects",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST_NOT"
+      ],
+      "proposition_template": {
+        "subject_role": "attempt_population",
+        "operator": "reference:mutates",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "revocation_event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "protected_effects"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "verification-reads-shared-revocation-graph",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "authority"
+          },
+          {
+            "kind": "reference",
+            "role": "revocation_event"
+          },
+          {
+            "kind": "reference",
+            "role": "propagation_interval"
+          },
+          {
+            "kind": "reference",
+            "role": "consumer_population"
+          },
+          {
+            "kind": "reference",
+            "role": "attempt_population"
+          },
+          {
+            "kind": "reference",
+            "role": "refused_attempt_population"
+          },
+          {
+            "kind": "reference",
+            "role": "protected_effect_population"
+          },
+          {
+            "kind": "reference",
+            "role": "applied_state_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "verify-consumer-applied-state",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "consumer_population"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "applied_state_population",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "stale_consumer_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "revoked_state_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "verify-all-attempts-refused",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "refused_attempt_population"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "refused_attempt_population",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "accepted_attempt_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "attempt_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "verify-no-protected-write",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "protected_effect_population"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "attempt_population",
+        "operator": "reference:writes",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "post_revocation_write_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "protected_effects"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "verify-no-protected-mutation",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "attempt_population"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "attempt_population",
+        "operator": "reference:mutates",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "post_revocation_mutation_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "protected_effects"
+          }
+        ]
+      }
+    }
+  ],
+  "relation_patterns": [
+    {
+      "pattern_id": "verification-target-consumer-state",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "verify-consumer-applied-state",
+      "target_claim_pattern_id": "applied-state-equals-revoked-state"
+    },
+    {
+      "pattern_id": "verification-target-refusal",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "verify-all-attempts-refused",
+      "target_claim_pattern_id": "all-post-revocation-attempts-refused"
+    },
+    {
+      "pattern_id": "verification-target-no-write",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "verify-no-protected-write",
+      "target_claim_pattern_id": "no-post-revocation-attempt-writes-protected-effects"
+    },
+    {
+      "pattern_id": "verification-target-no-mutation",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "verify-no-protected-mutation",
+      "target_claim_pattern_id": "no-post-revocation-attempt-mutates-protected-effects"
+    }
+  ],
+  "collection_patterns": [],
+  "resolver_fact_patterns": [],
+  "evidence_patterns": [],
+  "falsifier_condition_bindings": [
+    {
+      "relation_pattern_id": "verification-target-consumer-state",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "stale_consumer_condition"
+        ]
+      }
+    },
+    {
+      "relation_pattern_id": "verification-target-refusal",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "accepted_attempt_condition"
+        ]
+      }
+    },
+    {
+      "relation_pattern_id": "verification-target-no-write",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "post_revocation_write_condition"
+        ]
+      }
+    },
+    {
+      "relation_pattern_id": "verification-target-no-mutation",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "post_revocation_mutation_condition"
+        ]
+      }
+    }
+  ],
+  "satisfaction_expression": {
+    "all_of": [
+      {
+        "pattern": "complete-consumer-population"
+      },
+      {
+        "pattern": "complete-post-revocation-attempt-population"
+      },
+      {
+        "pattern": "complete-refused-attempt-population"
+      },
+      {
+        "pattern": "complete-protected-effect-population"
+      },
+      {
+        "pattern": "complete-revoked-state-population"
+      },
+      {
+        "pattern": "complete-applied-state-population"
+      },
+      {
+        "pattern": "revocation-invalidates-authority"
+      },
+      {
+        "pattern": "revocation-records-revoked-state"
+      },
+      {
+        "pattern": "revocation-precedes-propagation-interval"
+      },
+      {
+        "pattern": "each-consumer-observes-authority-during-propagation"
+      },
+      {
+        "pattern": "each-consumer-applies-revoked-state-during-propagation"
+      },
+      {
+        "pattern": "applied-state-equals-revoked-state"
+      },
+      {
+        "pattern": "propagation-interval-precedes-each-attempt"
+      },
+      {
+        "pattern": "each-attempt-uses-revoked-authority"
+      },
+      {
+        "pattern": "each-attempt-targets-consumer-population"
+      },
+      {
+        "pattern": "each-attempt-is-refused"
+      },
+      {
+        "pattern": "each-attempt-does-not-write-protected-effects"
+      },
+      {
+        "pattern": "each-attempt-does-not-mutate-protected-effects"
+      },
+      {
+        "pattern": "all-post-revocation-attempts-refused"
+      },
+      {
+        "pattern": "no-post-revocation-attempt-writes-protected-effects"
+      },
+      {
+        "pattern": "no-post-revocation-attempt-mutates-protected-effects"
+      },
+      {
+        "pattern": "verification-reads-shared-revocation-graph"
+      },
+      {
+        "pattern": "verify-consumer-applied-state"
+      },
+      {
+        "pattern": "verify-all-attempts-refused"
+      },
+      {
+        "pattern": "verify-no-protected-write"
+      },
+      {
+        "pattern": "verify-no-protected-mutation"
+      },
+      {
+        "pattern": "verification-target-consumer-state"
+      },
+      {
+        "pattern": "verification-target-refusal"
+      },
+      {
+        "pattern": "verification-target-no-write"
+      },
+      {
+        "pattern": "verification-target-no-mutation"
+      }
+    ]
+  }
+}

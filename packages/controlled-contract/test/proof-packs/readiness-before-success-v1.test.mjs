@@ -23,16 +23,16 @@ import {
   implementationPassed
 } from "./readiness-before-success-v1-harness.mjs";
 import {
-  evaluateVerificationProfileV034,
-  validateProfileSemanticsV034
-} from "../../lib/verification-profile-v034.mjs";
+  evaluateStableProofPackFixtureV1,
+  validateProfileSemanticsV1
+} from "../support/stable-v1-proof-pack-runtime.mjs";
 
 const controlledContractRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)), ".."
 );
 const packDirectory = path.join(
   controlledContractRoot,
-  "certification/profiles/proof.readiness.before-success/1.0.0"
+  "certification/profiles/proof.readiness.before-success/2.0.0"
 );
 
 async function readJson(name) {
@@ -40,7 +40,7 @@ async function readJson(name) {
 }
 
 function evaluateFixture(fixture) {
-  return evaluateVerificationProfileV034({
+  return evaluateStableProofPackFixtureV1({
     contract: fixture.contract,
     profile: fixture.profile,
     evaluation_input: fixture.input
@@ -210,7 +210,7 @@ test("every aggregate mechanism has executable discrimination", async () => {
   for (const mutate of mutations) {
     const profile = structuredClone(original);
     mutate(profile);
-    assert.deepEqual(validateProfileSemanticsV034(profile).filter(
+    assert.deepEqual(validateProfileSemanticsV1(profile).filter(
       ({ code }) => code === "profile_pattern_stage_unreachable"
     ), []);
     const observations = await runProofPackAdequacyControls({ profile });

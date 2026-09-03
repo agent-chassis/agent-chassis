@@ -7,117 +7,9 @@ import {
   sortStrings,
   uniqueBy
 } from "./work-record-admission-shared.mjs";
-import { resolveWorkUnitAtomicitySubjectAddress } from "./work-record-admission-work-unit.mjs";
+import { normalizeReadinessEnvelope } from "./work-record-dispatch-readiness-shape.mjs";
 
-export function normalizeDispatchReadiness(dispatchReadiness) {
-  if (!isObject(dispatchReadiness)) {
-    return {
-      schema_version: "dispatch-readiness.v1",
-      unit: {
-        kind: "work_item",
-        address: "unknown",
-        record_id: null,
-        slice_id: null
-      },
-      decision_code: "invalid_record",
-      dispatchable: false,
-      clusters: [],
-      state: {
-        graph_available: false,
-        dirty_state: "unknown",
-        staleness: "unknown",
-        graph_state: {
-          graph_available: false,
-          edge_source: "unavailable",
-          dirty_graph_mode: "unavailable",
-          unavailable_paths: []
-        }
-      },
-      reasons: ["dispatch readiness input is required"],
-      accepted_escalations: [],
-      blast_radius: {
-        level: "low",
-        reasons: [],
-        accepted_escalation_id: null
-      }
-    };
-  }
-
-  const state = isObject(dispatchReadiness.state)
-    ? {
-        graph_available: Boolean(dispatchReadiness.state.graph_available),
-        dirty_state: dispatchReadiness.state.dirty_state ?? "unknown",
-        staleness: dispatchReadiness.state.staleness ?? "unknown",
-        graph_state: isObject(dispatchReadiness.state.graph_state)
-          ? {
-              graph_available: Boolean(dispatchReadiness.state.graph_state.graph_available),
-              edge_source: dispatchReadiness.state.graph_state.edge_source ?? "unavailable",
-              dirty_graph_mode: dispatchReadiness.state.graph_state.dirty_graph_mode ?? "unavailable",
-              unavailable_paths: sortStrings(dispatchReadiness.state.graph_state.unavailable_paths)
-            }
-          : {
-              graph_available: Boolean(dispatchReadiness.state.graph_available),
-              edge_source: "unavailable",
-              dirty_graph_mode: "unavailable",
-              unavailable_paths: []
-            }
-      }
-    : {
-        graph_available: false,
-        dirty_state: "unknown",
-        staleness: "unknown",
-        graph_state: {
-          graph_available: false,
-          edge_source: "unavailable",
-          dirty_graph_mode: "unavailable",
-          unavailable_paths: []
-        }
-      };
-
-  return {
-    schema_version: String(dispatchReadiness.schema_version || "dispatch-readiness.v1"),
-    unit: isObject(dispatchReadiness.unit)
-      ? {
-          kind: isNonEmptyString(dispatchReadiness.unit.kind) ? dispatchReadiness.unit.kind : "work_item",
-          address: resolveWorkUnitAtomicitySubjectAddress(dispatchReadiness),
-          record_id: isNonEmptyString(dispatchReadiness.unit.record_id)
-            ? dispatchReadiness.unit.record_id
-            : null,
-          slice_id: isNonEmptyString(dispatchReadiness.unit.slice_id)
-            ? dispatchReadiness.unit.slice_id
-            : null
-        }
-      : {
-          kind: "work_item",
-          address: isNonEmptyString(dispatchReadiness.record_id) ? dispatchReadiness.record_id : "unknown",
-          record_id: isNonEmptyString(dispatchReadiness.record_id) ? dispatchReadiness.record_id : null,
-          slice_id: null
-        },
-    decision_code: isNonEmptyString(dispatchReadiness.decision_code)
-      ? dispatchReadiness.decision_code
-      : "invalid_record",
-    dispatchable: Boolean(dispatchReadiness.dispatchable),
-    clusters: Array.isArray(dispatchReadiness.clusters) ? dispatchReadiness.clusters : [],
-    state,
-    reasons: Array.isArray(dispatchReadiness.reasons) ? dispatchReadiness.reasons : [],
-    accepted_escalations: Array.isArray(dispatchReadiness.accepted_escalations)
-      ? dispatchReadiness.accepted_escalations
-      : [],
-    blast_radius: isObject(dispatchReadiness.blast_radius)
-      ? {
-          level: dispatchReadiness.blast_radius.level ?? "low",
-          reasons: Array.isArray(dispatchReadiness.blast_radius.reasons)
-            ? dispatchReadiness.blast_radius.reasons
-            : [],
-          accepted_escalation_id: dispatchReadiness.blast_radius.accepted_escalation_id ?? null
-        }
-      : {
-          level: "low",
-          reasons: [],
-          accepted_escalation_id: null
-        }
-  };
-}
+export const normalizeDispatchReadiness = normalizeReadinessEnvelope;
 
 function classifyDeclaredEntry(path) {
   const category = pathCategory(path);
@@ -486,17 +378,11 @@ export function evaluateAtomicity({
   graphImpact,
   fileEntries
 }) {
-  const clusters = Array.isArray(dispatchReadiness.clusters) ? dispatchReadiness.clusters : [];
+  const normalizedReadiness = normalizeReadinessEnvelope(dispatchReadiness);
+  const clusters = normalizedReadiness.clusters;
   const graphState = isObject(graphImpact?.graph_state)
     ? graphImpact.graph_state
-    : isObject(dispatchReadiness.state?.graph_state)
-      ? dispatchReadiness.state.graph_state
-      : {
-          graph_available: false,
-          edge_source: "unavailable",
-          dirty_graph_mode: "unavailable",
-          unavailable_paths: []
-        };
+    : normalizedReadiness.state.graph_state;
   const graphAvailable = Boolean(graphState.graph_available);
 
   return {
@@ -523,8 +409,8 @@ export function evaluateAtomicity({
       test_to_impl_ratio: computeTestToImplRatio(fileEntries),
       graph_quality: {
         graph_available: graphAvailable,
-        dirty_state: graphImpact?.dirty_state ?? dispatchReadiness.state?.dirty_state ?? "unknown",
-        staleness: graphImpact?.staleness ?? dispatchReadiness.state?.staleness ?? "unknown",
+        dirty_state: graphImpact?.dirty_state ?? normalizedReadiness.state.dirty_state,
+        staleness: graphImpact?.staleness ?? normalizedReadiness.state.staleness,
         edge_source: graphState.edge_source ?? "unavailable",
         dirty_graph_mode: graphState.dirty_graph_mode ?? "unavailable",
         unavailable_path_count: Array.isArray(graphState.unavailable_paths)

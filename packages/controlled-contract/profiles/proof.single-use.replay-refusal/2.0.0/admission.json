@@ -1,0 +1,28 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v1",
+  "profile_id": "proof.single-use.replay-refusal",
+  "profile_version": "2.0.0",
+  "profile_digest": "7716ad9e4ae12f15c579de9695a879b18f9439da044e02b0f56f407e372c0516",
+  "guarantee": "Given one declared single-use authority and authorized input, two distinct ordered attempts of the same operation using that authority and input, one closed one-member effect-occurrence population, one elected durable effect resource with complete observations before first use, after first success, and after replay refusal, and one expected success state: the first attempt is accepted, reaches the expected state, creates the sole declared effect occurrence, and changes the elected resource state; after that success the authority no longer authorizes the input; the replay is rejected and not accepted, creates no member of the declared effect population, and leaves the elected resource state equal to its post-first-use state.",
+  "guarantee_digest": "b555f4eace29c9d9054bbacd990817451c6a260db3e83ef887ef5bc0584507d2",
+  "explicit_exclusions": [
+    "additional-replay-attempts",
+    "concurrent-or-linearizable-use",
+    "delivered-evidence-authenticity",
+    "effects-outside-elected-population",
+    "failure-settlement-and-cleanup",
+    "pack-applicability",
+    "purely-transient-effect",
+    "refusal-before-effects",
+    "transient-duplicate-and-restore",
+    "truthful-identity-and-population-grounding"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "80c916898de365c472a95826dc9bef9cad90d23252eb4321c2d96b56d0e08973",
+    "adequacy_result_digest": "02bc0732804da2cf381f916d05acc7111f523cbec07ec335d90dd2984ed6fcfb",
+    "executable_control_count": 40,
+    "negative_fixture_count": 16,
+    "coverage_witness_count": 263
+  }
+}

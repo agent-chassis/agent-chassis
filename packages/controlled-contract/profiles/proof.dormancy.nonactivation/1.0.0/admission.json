@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-admitted-proof-pack.v2",
   "profile_id": "proof.dormancy.nonactivation",
   "profile_version": "1.0.0",
-  "profile_digest": "34fe6942fc06d74abb0faef0f4488c81b56d2f165f83ceb7ca9595aef79ff69c",
+  "profile_digest": "92516eae65bfb6afda2c5d394d1d5b56491ecac69e60b6f7a7740ae95036fa92",
   "guarantee": "For one directly constructible and independently registrable declared component, one exact captured complete production reachability snapshot, one exact captured default-configuration artifact, and one exact captured activation-observation artifact, the declared complete graph and production-entrypoint populations contain the selected component and entrypoints, the default configuration declares the component inactive, the declared complete activation-event population has exactly zero members, and a separately bound no-path result covers every declared production entrypoint and that component.",
   "guarantee_digest": "195abee0ccf37eccb8b59dcb3f7e5c750cce280860015fb880aea55c3953e738",
   "explicit_exclusions": [
@@ -17,15 +17,15 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "19c599c1e975b87e089c6301423afa73ff696fd40b93f2e210b1811f26d202f0",
-    "adequacy_result_digest": "c807241710084d254228644e81fb89b6f029c549fbe7ba663ec180e54924f6a8",
+    "adequacy_declaration_digest": "92ab7d9663bcea75dc952d1756792e5b6db83a0b1b7fdc866f5b00d3cb0b875f",
+    "adequacy_result_digest": "35ff65fa3f2724b27ffcd51b9946db1cdb20bab0083b0242a2ba77b50ce0293c",
     "executable_control_count": 42,
     "negative_fixture_count": 52,
     "coverage_witness_count": 52
   },
   "exact_binding": {
-    "declaration_digest": "410cfe9c528f88b38adbaf188fa6353f158c38fb8816022e219cc34c7f047416",
-    "certification_result_digest": "c5885c2945842c6ff69e74338f539f69819e66c14a9ea3bd9740d3d78c55e5ab",
+    "declaration_digest": "8c91248f62decfc881e20b82ca1041bec25b7900cbee001a330c36534be091ae",
+    "certification_result_digest": "002b0a37c3a94f758756b21c161ae374b610ad64cc6a501b67ba1bcfc5a57b8e",
     "executable_control_count": 18,
     "binding_kinds": [
       "artifact_bytes",

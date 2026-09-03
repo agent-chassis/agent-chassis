@@ -1,0 +1,429 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "controlled-contract-verification-profile-input.v1",
+  "type": "object",
+  "required": [
+    "input_version",
+    "evaluation_stage",
+    "reference_bindings",
+    "claim_pattern_bindings",
+    "resolver_facts",
+    "delivered_evidence",
+    "stable_evaluation"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "input_version": {
+      "type": "string",
+      "enum": [
+        "controlled-contract-verification-profile-input.v1"
+      ]
+    },
+    "evaluation_stage": {
+      "type": "string",
+      "enum": [
+        "pre_dispatch",
+        "post_delivery"
+      ]
+    },
+    "reference_bindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "role",
+          "reference_ids"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "reference_ids": {
+            "type": "array",
+            "minItems": 0,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^ref-[a-z0-9]+(?:-[a-z0-9]+)*$"
+            }
+          }
+        }
+      }
+    },
+    "number_bindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "role",
+          "value"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "value": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "claim_pattern_bindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "pattern_id",
+          "claim_id"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "pattern_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+          },
+          "claim_id": {
+            "type": "string",
+            "pattern": "^claim-[a-z0-9]+(?:-[a-z0-9]+)*$"
+          }
+        }
+      }
+    },
+    "resolver_facts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "resolver_kind",
+          "fact_key",
+          "argument_reference_ids",
+          "satisfied"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "resolver_kind": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+          },
+          "fact_key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+          },
+          "argument_reference_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^ref-[a-z0-9]+(?:-[a-z0-9]+)*$"
+            }
+          },
+          "satisfied": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "delivered_evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "evidence_kind",
+          "verification_claim_id",
+          "satisfied"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "evidence_kind": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+          },
+          "verification_claim_id": {
+            "type": "string",
+            "pattern": "^claim-[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "satisfied": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "stable_evaluation": {
+      "$ref": "#/$defs/stable_evaluation"
+    }
+  },
+  "$defs": {
+    "population_input": {
+      "type": "object",
+      "required": ["population_id", "completeness", "authenticated", "ordered", "members"],
+      "additionalProperties": false,
+      "properties": {
+        "population_id": { "type": "string", "minLength": 1 },
+        "completeness": { "const": "exact" },
+        "authenticated": { "const": true },
+        "ordered": { "type": "boolean" },
+        "members": { "type": "array" },
+        "occurrence_capture": { "$ref": "#/$defs/occurrence_capture" },
+        "acquisition_artifact": { "type": "object" }
+      }
+    },
+    "occurrence_capture": {
+      "type": "object",
+      "required": [
+        "schema_version", "source_grounded_identity_sha256", "occurrences"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "controlled-contract.authoritative-ordered-occurrence-population.v1"
+        },
+        "source_grounded_identity_sha256": {
+          "type": "string", "pattern": "^[a-f0-9]{64}$"
+        },
+        "occurrences": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["source_occurrence_id", "equality_key", "content_sha256"],
+            "additionalProperties": false,
+            "properties": {
+              "source_occurrence_id": { "type": "string" },
+              "equality_key": { "type": "string" },
+              "content_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+            }
+          }
+        }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "required": ["source", "target"],
+      "additionalProperties": false,
+      "properties": {
+        "source": {},
+        "target": {}
+      }
+    },
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "provider_id": { "type": "string" },
+        "provider_version": { "type": "string" },
+        "capability": { "type": "string" },
+        "capability_snapshot_digest": { "type": "string" },
+        "strategy": { "type": "string" },
+        "boundary_kind": { "type": "string" },
+        "registry_id": { "type": "string" },
+        "registry_version": { "type": "string" },
+        "path": { "type": "string" }
+      }
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mechanism": { "type": "string" },
+        "artifact_id": { "type": "string" },
+        "artifact_digest": { "type": "string" },
+        "artifact_owner": { "type": "string" },
+        "test_controlled_output_used": { "type": "boolean" }
+      }
+    },
+    "test_validity": {
+      "type": "object",
+      "required": ["verification_id", "test_proof_id"],
+      "additionalProperties": false,
+      "properties": {
+        "verification_id": { "type": "string" },
+        "test_proof_id": { "type": "string" },
+        "candidate_execution": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "passed": { "type": "boolean" },
+            "observed_boundary_id": { "type": "string" },
+            "observed_observable_id": { "type": "string" },
+            "source_text_inspection_used": { "type": "boolean" },
+            "provider": { "$ref": "#/$defs/provider" },
+            "observation": { "$ref": "#/$defs/observation" }
+          }
+        },
+        "test_inventory": {
+          "type": "object",
+          "required": [
+            "declared_test_ids", "baseline_executed_test_ids", "observed_tests"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "declared_test_ids": { "type": "array", "items": { "type": "string" } },
+            "baseline_executed_test_ids": {
+              "type": "array", "items": { "type": "string" }
+            },
+            "observed_tests": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["test_id", "status"],
+                "additionalProperties": false,
+                "properties": {
+                  "test_id": { "type": "string" },
+                  "status": { "enum": ["passed", "failed", "skipped"] }
+                }
+              }
+            }
+          }
+        },
+        "falsifier_executions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["falsifier_id"],
+            "additionalProperties": false,
+            "properties": {
+              "falsifier_id": { "type": "string" },
+              "isolated": { "type": "boolean" },
+              "skipped": { "type": "boolean" },
+              "target_verification_failed": { "type": "boolean" },
+              "failure_proposition_id": { "type": "string" },
+              "failure_reason_source": { "type": "string" },
+              "failure_reason_code": { "type": "string" },
+              "provider": { "$ref": "#/$defs/provider" },
+              "observation": { "$ref": "#/$defs/observation" },
+              "mutation": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "mutation_id": { "type": "string" },
+                  "strategy": { "type": "string" },
+                  "applied": { "type": "boolean" },
+                  "target_verification_id": { "type": "string" }
+                }
+              },
+              "test_reported_reason": { "type": "string" }
+            }
+          }
+        },
+        "boundary_traversal": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "provider_support": { "enum": ["supported", "unsupported"] },
+            "result": { "enum": ["proven", "review_only"] },
+            "authenticated": { "type": "boolean" },
+            "instrumented": { "type": "boolean" },
+            "observation_seam": { "type": "string" },
+            "boundary_id": { "type": "string" },
+            "observable_id": { "type": "string" },
+            "provider": { "$ref": "#/$defs/provider" },
+            "observation": { "$ref": "#/$defs/observation" }
+          }
+        }
+      }
+    },
+    "stable_evaluation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "associations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["graph_id", "role_populations", "associations"],
+            "additionalProperties": false,
+            "properties": {
+              "graph_id": { "type": "string" },
+              "role_populations": {
+                "type": "object",
+                "additionalProperties": { "$ref": "#/$defs/population_input" }
+              },
+              "associations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["association_id", "roles"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "association_id": { "type": "string" },
+                    "roles": {
+                      "type": "object",
+                      "additionalProperties": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "partitions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["source_population", "parts"],
+            "additionalProperties": false,
+            "properties": {
+              "source_population": { "$ref": "#/$defs/population_input" },
+              "parts": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["part_id", "members"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "part_id": { "type": "string" },
+                    "members": { "type": "array" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "relations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["population_id", "member_population", "edges", "assertions"],
+            "additionalProperties": false,
+            "properties": {
+              "population_id": { "type": "string" },
+              "member_population": { "$ref": "#/$defs/population_input" },
+              "edges": { "type": "array", "items": { "$ref": "#/$defs/edge" } },
+              "irreflexive": { "type": "boolean" },
+              "assertions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["kind"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "enum": ["match", "inverse", "transitive", "adjacency", "acyclic"]
+                    },
+                    "mode": { "enum": ["exact", "subset", "at_least"] },
+                    "minimum": { "type": ["integer", "null"], "minimum": 0 },
+                    "expected_edges": {
+                      "type": "array", "items": { "$ref": "#/$defs/edge" }
+                    },
+                    "inverse_edges": {
+                      "type": "array", "items": { "$ref": "#/$defs/edge" }
+                    },
+                    "ordered_occurrence_ids": { "type": "array" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "test_validity": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/test_validity" }
+        }
+      }
+    }
+  },
+  "$id": "https://agent-chassis.dev/controlled-contract/controlled-contract-verification-profile-input.v1.schema.json"
+}

@@ -1,0 +1,916 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-chassis.dev/controlled-contract/controlled-contract-test-proof-runtime-evidence.v2.schema.json",
+  "title": "controlled-contract-test-proof-runtime-evidence.v2",
+  "description": "Stable-v1 identity-bound advisory runtime evidence. Acquisition and execution remain launcher-owned.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "test_proof_version",
+    "authority",
+    "evidence_identity",
+    "contract_binding",
+    "execution_result",
+    "test_inventory",
+    "boundary_traversals",
+    "falsifier_executions",
+    "observed_shortcuts",
+    "artifacts"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "controlled-contract-test-proof-runtime-evidence.v2"
+    },
+    "test_proof_version": {
+      "const": "controlled-contract-test-proof.v1"
+    },
+    "authority": {
+      "const": "advisory_execution_facts"
+    },
+    "evidence_identity": {
+      "$ref": "#/$defs/evidence_identity"
+    },
+    "contract_binding": {
+      "$ref": "#/$defs/contract_binding"
+    },
+    "execution_result": {
+      "$ref": "#/$defs/execution_result"
+    },
+    "test_inventory": {
+      "$ref": "#/$defs/test_inventory"
+    },
+    "boundary_traversals": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/boundary_traversal"
+      }
+    },
+    "falsifier_executions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/falsifier_execution"
+      }
+    },
+    "observed_shortcuts": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/shortcut"
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/artifact"
+      }
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "test_id": {
+      "type": "string",
+      "pattern": "^test-[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "artifact_id": {
+      "type": "string",
+      "pattern": "^artifact-[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "artifact_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/artifact_id"
+      }
+    },
+    "shortcut": {
+      "enum": [
+        "coverage_percentage_only",
+        "mock_only_boundary_substitution",
+        "snapshot_only_assertion",
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ]
+    },
+    "provider_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider_id",
+        "provider_version",
+        "capability",
+        "capability_snapshot_digest",
+        "observation_mechanism",
+        "evidence_artifact_types"
+      ],
+      "properties": {
+        "provider_id": {
+          "type": "string",
+          "pattern": "^launcher\\.[a-z0-9]+(?:[.-][a-z0-9]+)*$"
+        },
+        "provider_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "capability": {
+          "enum": [
+            "boundary_traversal",
+            "candidate_execution",
+            "falsifier_execution"
+          ]
+        },
+        "capability_snapshot_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "observation_mechanism": {
+          "enum": [
+            "module_substitution",
+            "node_test_structured_events",
+            "node_test_v8_coverage"
+          ]
+        },
+        "evidence_artifact_types": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "boundary_trace",
+              "falsifier_result",
+              "structured_test_result"
+            ]
+          }
+        }
+      }
+    },
+    "traversal_provider_evidence": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/provider_evidence"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "registry_id",
+            "registry_version",
+            "capability",
+            "capability_snapshot_digest"
+          ],
+          "properties": {
+            "registry_id": {
+              "const": "launcher.test-proof-provider-registry"
+            },
+            "registry_version": {
+              "const": "1.0.0"
+            },
+            "capability": {
+              "const": "traversal_unsupported"
+            },
+            "capability_snapshot_digest": {
+              "$ref": "#/$defs/digest"
+            }
+          }
+        }
+      ]
+    },
+    "evidence_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidence_id",
+        "run_id",
+        "wk_id",
+        "selected_unit",
+        "controlled_contract_generation",
+        "verification_id",
+        "source_snapshot_digest",
+        "command_id",
+        "command_target",
+        "test_id",
+        "attempt"
+      ],
+      "properties": {
+        "evidence_id": {
+          "type": "string",
+          "pattern": "^test-proof-evidence-[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "run_id": {
+          "type": "string",
+          "pattern": "^run-[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "wk_id": {
+          "type": "string",
+          "pattern": "^WK-[0-9]{4}$"
+        },
+        "selected_unit": {
+          "type": "string",
+          "pattern": "^WK-[0-9]{4}(?:#SLICE-[0-9]{3})?$"
+        },
+        "controlled_contract_generation": {
+          "$ref": "#/$defs/digest"
+        },
+        "verification_id": {
+          "type": "string",
+          "pattern": "^claim-[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "source_snapshot_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "command_id": {
+          "type": "string",
+          "pattern": "^command-[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "command_target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "test_id": {
+          "$ref": "#/$defs/test_id"
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "contract_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_digest",
+        "contract_schema_version",
+        "verification_claim_id",
+        "test_proof_id"
+      ],
+      "properties": {
+        "contract_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "contract_schema_version": {
+          "const": "controlled-acceptance-contract.v1"
+        },
+        "verification_claim_id": {
+          "type": "string",
+          "pattern": "^claim-[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "test_proof_id": {
+          "type": "string",
+          "pattern": "^test-proof-[a-z0-9]+(?:-[a-z0-9]+)*$"
+        }
+      }
+    },
+    "execution_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "exit_code",
+        "attempt_id",
+        "structured_result",
+        "evidence_artifact_ids",
+        "provider"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "error",
+            "failed",
+            "passed"
+          ]
+        },
+        "exit_code": {
+          "oneOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "attempt_id": {
+          "type": "string",
+          "pattern": "^attempt-[a-f0-9]{64}$"
+        },
+        "structured_result": {
+          "$ref": "#/$defs/structured_result"
+        },
+        "evidence_artifact_ids": {
+          "$ref": "#/$defs/artifact_ids"
+        },
+        "provider": {
+          "$ref": "#/$defs/provider_evidence"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "const": "passed"
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "exit_code": {
+                "const": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "const": "failed"
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "exit_code": {
+                "type": "integer",
+                "not": {
+                  "const": 0
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "structured_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mechanism",
+        "exit_code",
+        "summary",
+        "pass_events",
+        "fail_events"
+      ],
+      "properties": {
+        "mechanism": {
+          "const": "node_test_structured_events"
+        },
+        "exit_code": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "summary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "passed",
+            "failed",
+            "skipped",
+            "cancelled",
+            "todo",
+            "tests"
+          ],
+          "properties": {
+            "passed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "failed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "skipped": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "cancelled": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "todo": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "tests": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "pass_events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/pass_event"
+          }
+        },
+        "fail_events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/fail_event"
+          }
+        }
+      }
+    },
+    "pass_event": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/structured_test_event"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "test:pass"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        }
+      ]
+    },
+    "fail_event": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/structured_test_event"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "const": "test:fail"
+            },
+            "status": {
+              "const": "failed"
+            }
+          }
+        }
+      ]
+    },
+    "structured_test_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "test_id",
+        "name",
+        "file",
+        "nesting",
+        "status"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "test:pass",
+            "test:fail"
+          ]
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "test_id": {
+          "type": "string",
+          "pattern": "^test-[a-f0-9]{64}$"
+        },
+        "file": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "nesting": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "failed",
+            "passed",
+            "skipped",
+            "todo"
+          ]
+        },
+        "error_codes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "test_inventory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseline_id",
+        "declared_test_ids",
+        "discovered_test_ids",
+        "executed_test_ids",
+        "skipped_test_ids",
+        "removed_baseline_test_ids",
+        "renamed_baseline_tests",
+        "unexpected_test_ids",
+        "newly_skipped_test_ids",
+        "undispositioned_coverage_test_ids"
+      ],
+      "properties": {
+        "baseline_id": {
+          "type": "string",
+          "pattern": "^coverage-baseline-[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "declared_test_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/test_id"
+          }
+        },
+        "discovered_test_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/test_id"
+          }
+        },
+        "executed_test_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/test_id"
+          }
+        },
+        "skipped_test_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/test_id"
+          }
+        },
+        "removed_baseline_test_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/test_id"
+          }
+        },
+        "renamed_baseline_tests": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/renamed_test"
+          }
+        },
+        "unexpected_test_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/test_id"
+          }
+        },
+        "newly_skipped_test_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/test_id"
+          }
+        },
+        "undispositioned_coverage_test_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/test_id"
+          }
+        }
+      }
+    },
+    "renamed_test": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseline_test_id",
+        "observed_test_id"
+      ],
+      "properties": {
+        "baseline_test_id": {
+          "$ref": "#/$defs/test_id"
+        },
+        "observed_test_id": {
+          "$ref": "#/$defs/test_id"
+        }
+      }
+    },
+    "boundary_traversal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "boundary_id",
+        "observable_id",
+        "provider_support",
+        "provider",
+        "authenticated",
+        "boundary_kind",
+        "observation_mechanism",
+        "observation_seam",
+        "status",
+        "evidence_artifact_ids"
+      ],
+      "properties": {
+        "boundary_id": {
+          "type": "string",
+          "pattern": "^sut-boundary-[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "observable_id": {
+          "type": "string",
+          "pattern": "^observable-[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "provider_support": {
+          "enum": [
+            "supported",
+            "unsupported"
+          ]
+        },
+        "provider": {
+          "$ref": "#/$defs/traversal_provider_evidence"
+        },
+        "authenticated": {
+          "type": "boolean"
+        },
+        "boundary_kind": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "module",
+            null
+          ]
+        },
+        "observation_mechanism": {
+          "enum": [
+            "node_test_v8_coverage",
+            "registry_unsupported"
+          ]
+        },
+        "observation_seam": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "node_test_structured_assertion",
+            null
+          ]
+        },
+        "status": {
+          "enum": [
+            "not_proven",
+            "proven",
+            "review_only"
+          ]
+        },
+        "evidence_artifact_ids": {
+          "$ref": "#/$defs/artifact_ids"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "provider_support": {
+                "const": "unsupported"
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "authenticated": {
+                "const": true
+              },
+              "observation_seam": {
+                "type": "null"
+              },
+              "status": {
+                "const": "review_only"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "const": "proven"
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "provider_support": {
+                "const": "supported"
+              },
+              "authenticated": {
+                "const": true
+              },
+              "observation_seam": {
+                "const": "node_test_structured_assertion"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "falsifier_execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "falsifier_id",
+        "attempt_id",
+        "target_verification_id",
+        "provider",
+        "isolated",
+        "candidate_status",
+        "falsified_status",
+        "failure_reason_code",
+        "mutation",
+        "status",
+        "evidence_artifact_ids"
+      ],
+      "properties": {
+        "falsifier_id": {
+          "type": "string",
+          "pattern": "^falsifier-[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "attempt_id": {
+          "type": "string",
+          "pattern": "^attempt-[a-f0-9]{64}$"
+        },
+        "target_verification_id": {
+          "type": "string",
+          "pattern": "^claim-[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "provider": {
+          "$ref": "#/$defs/provider_evidence"
+        },
+        "isolated": {
+          "type": "boolean"
+        },
+        "candidate_status": {
+          "enum": [
+            "failed",
+            "passed",
+            "skipped"
+          ]
+        },
+        "falsified_status": {
+          "enum": [
+            "failed",
+            "passed",
+            "skipped"
+          ]
+        },
+        "failure_reason_code": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-z0-9]+(?:[._-][a-z0-9]+)*$"
+        },
+        "mutation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mutation_id",
+            "strategy",
+            "mechanism",
+            "target_kind",
+            "module_path",
+            "observed"
+          ],
+          "properties": {
+            "mutation_id": {
+              "type": "string",
+              "pattern": "^mutation-[a-z0-9]+(?:-[a-z0-9]+)*$"
+            },
+            "strategy": {
+              "const": "dependency_failure"
+            },
+            "mechanism": {
+              "const": "module_substitution"
+            },
+            "target_kind": {
+              "const": "module"
+            },
+            "module_path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "observed": {
+              "type": "boolean"
+            }
+          }
+        },
+        "status": {
+          "enum": [
+            "detected",
+            "execution_error",
+            "not_detected"
+          ]
+        },
+        "evidence_artifact_ids": {
+          "$ref": "#/$defs/artifact_ids"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "const": "detected"
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "isolated": {
+                "const": true
+              },
+              "candidate_status": {
+                "const": "passed"
+              },
+              "falsified_status": {
+                "const": "failed"
+              },
+              "failure_reason_code": {
+                "type": "string"
+              },
+              "mutation": {
+                "type": "object",
+                "properties": {
+                  "observed": {
+                    "const": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact_id",
+        "kind",
+        "digest",
+        "owner",
+        "payload"
+      ],
+      "properties": {
+        "artifact_id": {
+          "$ref": "#/$defs/artifact_id"
+        },
+        "kind": {
+          "enum": [
+            "boundary_trace",
+            "falsifier_result",
+            "structured_test_result",
+            "test_inventory"
+          ]
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "owner": {
+          "const": "launcher"
+        },
+        "payload": {
+          "type": "object"
+        }
+      }
+    }
+  }
+}

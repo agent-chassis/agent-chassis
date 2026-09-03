@@ -6,6 +6,30 @@ import {
   WORK_RECORD_RENDER_SCHEMA_VERSION,
   WORK_RECORD_SCHEMA_VERSION
 } from "./work-record-schema.mjs";
+import {
+  buildBriefProjectionResult,
+  createProjectionCompactionLists,
+  findSelectedSlice
+} from "./work-record-brief-renderer.mjs";
+import {
+  createDiagnostic,
+  escapeInlineCode,
+  formatChildEntry,
+  formatEscalationEntry,
+  formatFieldList,
+  formatSliceEntry,
+  isObject,
+  isString,
+  renderBulletList,
+  renderKeyValueBulletList,
+  renderParagraph,
+  renderSectionHeading,
+  stringList
+} from "./work-record-render-primitives.mjs";
+import {
+  projectWorkRecordTestProofValidation,
+  renderWorkRecordValidationEntry
+} from "./work-record-test-proof-bindings.mjs";
 
 export const WORK_RECORD_RENDERER_NAME = "agent-chassis";
 export const WORK_RECORD_RENDERER_VERSION = "0.2.0";
@@ -20,30 +44,6 @@ export const WORK_RECORD_RENDER_DIAGNOSTIC_CODES = Object.freeze([
   "source_record_missing",
   "missing_output_path"
 ]);
-
-function hasOwn(object, key) {
-  return Object.prototype.hasOwnProperty.call(object, key);
-}
-
-function isObject(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function isString(value) {
-  return typeof value === "string";
-}
-
-function isStringArray(value) {
-  return Array.isArray(value) && value.every((entry) => isString(entry));
-}
-
-function createDiagnostic(code, message, { severity = "error", path = null } = {}) {
-  return { code, severity, message, path };
-}
-
-function escapeInlineCode(value) {
-  return `\`${String(value).replaceAll("`", "\\`")}\``;
-}
 
 function isSimpleYamlScalar(value) {
   return /^[A-Za-z0-9_./:-]+$/.test(value) && !/^(true|false|null|yes|no|on|off)$/i.test(value);
@@ -125,56 +125,6 @@ function renderFrontmatter(entries) {
     .join("\n");
 }
 
-function renderSectionHeading(title) {
-  return `## ${title}`;
-}
-
-function renderParagraph(text) {
-  const normalized = String(text ?? "").trim();
-  return normalized ? normalized : "- None";
-}
-
-function renderBulletList(items, { empty = "- None", formatter = (value) => String(value) } = {}) {
-  if (!Array.isArray(items) || items.length === 0) {
-    return empty;
-  }
-  return items.map((item) => `- ${formatter(item)}`).join("\n");
-}
-
-function renderKeyValueBulletList(pairs, { empty = "- None" } = {}) {
-  if (!Array.isArray(pairs) || pairs.length === 0) {
-    return empty;
-  }
-  return pairs.map(([key, value]) => `- ${key}: ${value}`).join("\n");
-}
-
-function stringList(value) {
-  return Array.isArray(value) ? value.filter((entry) => isString(entry)) : [];
-}
-
-function normalizeAgentNotes(value) {
-  return Array.isArray(value) ? value.join("\n") : isString(value) ? value : "";
-}
-
-function formatRecordId(record) {
-  return escapeInlineCode(record?.id || "(missing)");
-}
-
-function formatRepoPath(value) {
-  return escapeInlineCode(value);
-}
-
-function formatValidationCommand(value) {
-  return escapeInlineCode(value);
-}
-
-function formatFieldList(value) {
-  return renderBulletList(stringList(value), {
-    empty: "- None",
-    formatter: (entry) => escapeInlineCode(entry)
-  });
-}
-
 function formatTaskList(tasks) {
   if (!Array.isArray(tasks) || tasks.length === 0) {
     return "- None";
@@ -209,86 +159,6 @@ function formatScopeBlock(scope, { title }) {
       formatter: (entry) => String(entry)
     })
   ].join("\n");
-}
-
-function formatChildEntry(child, { selected = false } = {}) {
-  const parts = [
-    `${formatRecordId(child)}: ${String(child?.title ?? "(missing)")}`
-  ];
-  if (child?.relation) {
-    parts.push(`relation: ${escapeInlineCode(child.relation)}`);
-  }
-  if (child?.work_kind) {
-    parts.push(`work kind: ${escapeInlineCode(child.work_kind)}`);
-  }
-  if (child?.status) {
-    parts.push(`status: ${escapeInlineCode(child.status)}`);
-  }
-  if (child?.dispatch_unit_ref) {
-    parts.push(`dispatch unit: ${escapeInlineCode(child.dispatch_unit_ref)}`);
-  }
-  if (selected) {
-    parts.push("selected: true");
-  }
-  return `- ${parts.join(", ")}`;
-}
-
-function formatSliceEntry(slice, { selected = false } = {}) {
-  const dispatchUnit = selected ? `${escapeInlineCode(slice?.id || "(missing)")}` : null;
-  const agentNotes = normalizeAgentNotes(slice?.sections?.agent_notes);
-  const details = [
-    `${escapeInlineCode(slice?.id || "(missing)")}: ${String(slice?.title ?? "(missing)")}`,
-    slice?.work_kind ? `work kind: ${escapeInlineCode(slice.work_kind)}` : null,
-    slice?.work_kind === "review"
-      ? `review purpose: ${escapeInlineCode(slice.review_purpose ?? "standalone")}`
-      : null,
-    slice?.status ? `status: ${escapeInlineCode(slice.status)}` : null,
-    dispatchUnit ? `dispatch unit: ${dispatchUnit}` : null,
-    agentNotes !== "" ? "agent notes: yes" : null
-  ].filter(Boolean);
-  return `- ${details.join(", ")}`;
-}
-
-function formatEscalationEntry(escalation) {
-  const parts = [
-    `${escapeInlineCode(escalation?.id || "(missing)")}: ${String(escalation?.kind ?? "(missing)")}`,
-    escalation?.status ? `status: ${escapeInlineCode(escalation.status)}` : null
-  ].filter(Boolean);
-
-  const lines = [parts.join(", ")];
-  const scope = escalation?.scope || {};
-  lines.push(
-    `  - scope unit: ${escapeInlineCode(scope.unit || "(missing)")}`,
-    `  - slice id: ${scope.slice_id === null ? "null" : escapeInlineCode(scope.slice_id || "")}`,
-    `  - write scope:`,
-    ...stringList(scope.write_scope).map((entry) => `    - ${escapeInlineCode(entry)}`),
-    scope.max_blast_radius
-      ? `  - max blast radius: ${escapeInlineCode(scope.max_blast_radius)}`
-      : "  - max blast radius: -"
-  );
-  if (escalation?.reason) {
-    lines.push(`  - reason: ${String(escalation.reason)}`);
-  }
-  if (escalation?.accepted_by) {
-    lines.push(
-      `  - accepted by: ${escapeInlineCode(escalation.accepted_by.actor || "(missing)")}, ${escapeInlineCode(escalation.accepted_by.id || "(missing)")}, source: ${escapeInlineCode(escalation.accepted_by.source || "(missing)")}`
-    );
-  }
-  if (escalation?.accepted_at) {
-    lines.push(`  - accepted at: ${escapeInlineCode(escalation.accepted_at)}`);
-  }
-  if (escalation?.expires_at) {
-    lines.push(`  - expires at: ${escapeInlineCode(escalation.expires_at)}`);
-  }
-  if (escalation?.authority_ref) {
-    lines.push(`  - authority ref: ${escapeInlineCode(escalation.authority_ref)}`);
-  }
-  if (escalation?.provenance) {
-    lines.push(
-      `  - provenance: source kind ${escapeInlineCode(escalation.provenance.source_kind || "(missing)")}, canonicality ${escapeInlineCode(escalation.provenance.canonicality || "(missing)")}, evidence basis ${escapeInlineCode(escalation.provenance.evidence_basis || "(missing)")}`
-    );
-  }
-  return lines.join("\n");
 }
 
 function formatClosureSection(closure) {
@@ -379,27 +249,11 @@ function renderGeneratedSource(metadata) {
   return lines.join("\n");
 }
 
-function renderRecordIdentity(record) {
-  const lines = [
-    renderSectionHeading("Identity"),
-    "",
-    renderKeyValueBulletList([
-      ["id", escapeInlineCode(record.id)],
-      ["repo", escapeInlineCode(record.repo)],
-      ["title", escapeInlineCode(record.title)],
-      ["work kind", escapeInlineCode(record.work_kind)],
-      ["status", escapeInlineCode(record.status)],
-      ["priority", escapeInlineCode(record.priority)],
-      record.initiative ? ["initiative", escapeInlineCode(record.initiative)] : null,
-      record.area ? ["area", escapeInlineCode(record.area)] : null,
-      record.resolution ? ["resolution", escapeInlineCode(record.resolution)] : null,
-      record.severity ? ["severity", escapeInlineCode(record.severity)] : null
-    ].filter(Boolean))
-  ];
-  return lines.join("\n");
-}
-
 function renderWorkRecordMarkdownBody(record, metadata) {
+  const validationProjection = projectWorkRecordTestProofValidation({ selectedUnit: record });
+  const validation = validationProjection.status === "valid"
+    ? validationProjection.validation_entries
+    : [];
   const sections = [
     renderSectionHeading("Summary"),
     "",
@@ -420,9 +274,9 @@ function renderWorkRecordMarkdownBody(record, metadata) {
     "",
     renderSectionHeading("Validation"),
     "",
-    renderBulletList(stringList(record.acceptance?.validation), {
+    renderBulletList(validation, {
       empty: "- None",
-      formatter: (entry) => formatValidationCommand(entry)
+      formatter: (entry) => renderWorkRecordValidationEntry(entry)
     }),
     "",
     renderSectionHeading("Tasks"),
@@ -549,399 +403,6 @@ function buildMarkdownProjectionResult(record, metadata, { diagnostics = [] } = 
       markdown
     },
     markdown
-  };
-}
-
-function renderListSection(title, items, formatter) {
-  return [
-    renderSectionHeading(title),
-    "",
-    renderBulletList(items, {
-      empty: "- None",
-      formatter
-    })
-  ].join("\n");
-}
-
-function renderBriefScope(record) {
-  return [
-    renderListSection("Canonical Docs", stringList(record.docs), escapeInlineCode),
-    "",
-    renderListSection("Repo Paths", stringList(record.repo_paths), escapeInlineCode),
-    "",
-    renderListSection("Write Scope", stringList(record.write_scope), escapeInlineCode),
-    "",
-    renderListSection("Dependencies", stringList(record.depends_on), escapeInlineCode)
-  ].join("\n");
-}
-
-function renderBriefAcceptance(record) {
-  return [
-    renderListSection("Acceptance Criteria", stringList(record.acceptance?.criteria), (entry) =>
-      String(entry)
-    ),
-    "",
-    renderListSection("Validation", stringList(record.acceptance?.validation), formatValidationCommand)
-  ].join("\n");
-}
-
-function renderDispatchIntent(record) {
-  const intent = record.dispatch_intent || {};
-  return [
-    renderSectionHeading("Dispatch Intent"),
-    "",
-    renderKeyValueBulletList([
-      ["intended agent role", escapeInlineCode(intent.intended_agent_role ?? "(missing)")],
-      ["target unit", escapeInlineCode(intent.target_unit ?? "(missing)")],
-      ["requires graph impact", escapeInlineCode(intent.requires_graph_impact ?? false)],
-      ["requires escalation", escapeInlineCode(intent.requires_escalation ?? false)]
-    ])
-  ].join("\n");
-}
-
-function renderChildrenBrief(record) {
-  return renderListSection("Children", Array.isArray(record.children) ? record.children : [], (
-    child
-  ) => formatChildEntry(child));
-}
-
-function renderSlicesBrief(record, { sliceId = null } = {}) {
-  const slices = Array.isArray(record.slices) ? record.slices : [];
-  if (sliceId) {
-    const selected = slices.find((slice) => String(slice.id) === String(sliceId));
-    if (!selected) {
-      return renderKeyValueBulletList([
-        ["selected slice", `not found: ${escapeInlineCode(sliceId)}`]
-      ]);
-    }
-
-    const sections = [
-      renderSectionHeading("Selected Slice"),
-      "",
-      renderKeyValueBulletList([
-        ["id", escapeInlineCode(selected.id)],
-        ["title", escapeInlineCode(selected.title)],
-        ["work kind", escapeInlineCode(selected.work_kind)],
-        ...(selected.work_kind === "review"
-          ? [["review purpose", escapeInlineCode(selected.review_purpose ?? "standalone")]]
-          : []),
-        ["status", escapeInlineCode(selected.status)],
-        ["dispatch unit", escapeInlineCode(`${record.id}#${selected.id}`)]
-      ]),
-      "",
-      renderListSection("Slice Docs", stringList(selected.docs), escapeInlineCode),
-      "",
-      renderListSection("Slice Repo Paths", stringList(selected.repo_paths), escapeInlineCode),
-      "",
-      renderListSection("Slice Write Scope", stringList(selected.write_scope), escapeInlineCode),
-      "",
-      renderListSection("Slice Dependencies", stringList(selected.depends_on), escapeInlineCode),
-      "",
-      renderListSection("Slice Acceptance Criteria", stringList(selected.acceptance?.criteria), (
-        entry
-      ) => String(entry)),
-      "",
-      renderListSection("Slice Validation", stringList(selected.acceptance?.validation), (
-        entry
-      ) => formatValidationCommand(entry)),
-      "",
-      renderDispatchIntent(selected)
-    ];
-    const sliceAgentNotes = normalizeAgentNotes(selected.sections?.agent_notes);
-    if (sliceAgentNotes !== "") {
-      sections.push(
-        "",
-        renderSectionHeading("Slice Agent Notes"),
-        "",
-        renderParagraph(sliceAgentNotes)
-      );
-    }
-    return sections.join("\n");
-  }
-
-  return renderListSection("Slices", slices, (slice) => formatSliceEntry(slice));
-}
-
-function renderEscalationsBrief(record) {
-  return renderListSection("Escalations", Array.isArray(record.escalations) ? record.escalations : [], (
-    escalation
-  ) => formatEscalationEntry(escalation));
-}
-
-function renderClosureBrief(record) {
-  const closure = record.sections?.closure;
-  if (!closure) {
-    return [
-      renderSectionHeading("Closure"),
-      "",
-      "- None"
-    ].join("\n");
-  }
-
-  return [
-    renderSectionHeading("Closure"),
-    "",
-    renderKeyValueBulletList([["summary", renderParagraph(closure.summary)]]),
-    "",
-    renderListSection("Closure Validation", stringList(closure.validation), (entry) =>
-      String(entry)
-    ),
-    "",
-    renderListSection("Closure Follow Ups", stringList(closure.follow_ups), (entry) => String(entry))
-  ].join("\n");
-}
-
-function renderBriefGeneratedSource(metadata) {
-  return [
-    renderSectionHeading("Generated Source"),
-    "",
-    renderKeyValueBulletList([
-      ["schema_version", escapeInlineCode(metadata.schema_version)],
-      ["projection_id", escapeInlineCode(metadata.projection_id)],
-      ["projection_kind", escapeInlineCode(metadata.projection_kind)],
-      ["source_record_id", escapeInlineCode(metadata.source_record_id)],
-      ["source_schema_version", escapeInlineCode(metadata.source_schema_version)],
-      ["source_digest", escapeInlineCode(metadata.source_digest)],
-      [
-        "renderer",
-        `${escapeInlineCode(metadata.renderer.name)} ${escapeInlineCode(metadata.renderer.version)}`
-      ],
-      ["generated_at", escapeInlineCode(metadata.generated_at)],
-      metadata.output_path ? ["output_path", escapeInlineCode(metadata.output_path)] : null,
-      ["authority", escapeInlineCode(metadata.authority)]
-    ].filter(Boolean))
-  ].join("\n");
-}
-
-function createProjectionCompactionLists(record, kind, options = {}) {
-  const sliceSelected = Boolean(options.sliceId);
-  if (kind === "markdown") {
-    return {
-      omittedFields: ["origin", "migration", "projections"],
-      compactedFields: [
-        "sections.summary",
-        "sections.why_it_matters",
-        "sections.scope.items",
-        "sections.scope.out_of_scope",
-        "acceptance.criteria",
-        "acceptance.validation",
-        "sections.tasks",
-        "children",
-        "slices",
-        "escalations",
-        "docs",
-        "repo_paths",
-        "write_scope",
-        "depends_on",
-        "sections.closure"
-      ]
-    };
-  }
-
-  const baseOmitted = [
-    "origin",
-    "migration",
-    "projections",
-    "external_links",
-    "links",
-    "assignees",
-    "agents",
-    "reviewers",
-    "target",
-    "started",
-    "completed",
-    "superseded_by",
-    "duplicate_of",
-    "deprecated_by"
-  ];
-
-  if (sliceSelected) {
-    return {
-      omittedFields: [
-        ...baseOmitted,
-        "sections.summary",
-        "sections.why_it_matters",
-        "sections.scope.items",
-        "sections.scope.out_of_scope",
-        "children",
-        "slices[siblings]",
-        "sections.closure",
-        "dispatch_intent[parent]"
-      ],
-      compactedFields: [
-        "slices[selected]",
-        "escalations[selected_slice]",
-        "docs[inherited_when_slice_empty]",
-        "repo_paths[inherited_when_slice_empty]",
-        "write_scope[inherited_when_slice_empty]",
-        "depends_on[inherited_when_slice_empty]",
-        "acceptance.criteria[inherited_when_slice_empty]",
-        "acceptance.validation[inherited_when_slice_empty]"
-      ]
-    };
-  }
-
-  return {
-    omittedFields: baseOmitted,
-    compactedFields: [
-      "sections.summary",
-      "sections.why_it_matters",
-      "sections.scope.items",
-      "sections.scope.out_of_scope",
-      "acceptance.criteria",
-      "acceptance.validation",
-      "slices",
-      "children",
-      "escalations",
-      "sections.closure"
-    ]
-  };
-}
-
-function findSelectedSlice(record, sliceId) {
-  if (!sliceId) {
-    return null;
-  }
-  const slices = Array.isArray(record.slices) ? record.slices : [];
-  return slices.find((slice) => String(slice?.id) === String(sliceId)) ?? null;
-}
-
-function escalationTargetsSlice(escalation, sliceId) {
-  const scope = escalation?.scope || {};
-  const target = String(sliceId);
-  if (String(scope.slice_id ?? "") === target) {
-    return true;
-  }
-
-  const unit = scope.unit;
-  return isString(unit) && unit.endsWith(`#${target}`);
-}
-
-function renderSelectedSliceEscalations(record, sliceId) {
-  const escalations = Array.isArray(record.escalations) ? record.escalations : [];
-  const relevant = escalations.filter((escalation) => escalationTargetsSlice(escalation, sliceId));
-  if (relevant.length > 0) {
-    return renderListSection("Escalations", relevant, (escalation) =>
-      formatEscalationEntry(escalation)
-    );
-  }
-
-  const parentCount = escalations.length;
-  const note =
-    parentCount > 0
-      ? `None scoped to this slice (${parentCount} parent-scope escalation(s) exist on ${escapeInlineCode(record.id)}; consult the canonical record if relevant)`
-      : "None";
-  return [renderSectionHeading("Escalations"), "", `- ${note}`].join("\n");
-}
-
-function renderInheritedParentContext(record, slice) {
-  const sections = [];
-  const inheritList = (sliceValue, parentValue, title, formatter = escapeInlineCode) => {
-    if (stringList(sliceValue).length === 0 && stringList(parentValue).length > 0) {
-      sections.push(
-        "",
-        renderListSection(`Inherited Parent ${title}`, stringList(parentValue), formatter)
-      );
-    }
-  };
-
-  inheritList(slice.docs, record.docs, "Canonical Docs");
-  inheritList(slice.repo_paths, record.repo_paths, "Repo Paths");
-  inheritList(slice.write_scope, record.write_scope, "Write Scope");
-  inheritList(slice.depends_on, record.depends_on, "Dependencies");
-  inheritList(
-    slice.acceptance?.criteria,
-    record.acceptance?.criteria,
-    "Acceptance Criteria",
-    (entry) => String(entry)
-  );
-  inheritList(
-    slice.acceptance?.validation,
-    record.acceptance?.validation,
-    "Validation",
-    formatValidationCommand
-  );
-
-  return sections;
-}
-
-function buildSelectedSliceBriefResult(record, metadata, slice) {
-  const dispatchUnit = `${record.id}#${slice.id}`;
-  const lines = [
-    `# Agent Brief: ${record.title} — slice ${escapeInlineCode(slice.id)}`,
-    "",
-    "> Canonical authority is the JSON work record. This brief is a generated projection.",
-    "> Scoped to the selected tracker-local slice; broad parent tracker context is intentionally omitted.",
-    `> Dispatch unit: ${escapeInlineCode(dispatchUnit)}`,
-    `> Source digest: ${escapeInlineCode(metadata.source_digest)}`,
-    "",
-    renderRecordIdentity(record),
-    "",
-    renderSlicesBrief(record, { sliceId: slice.id }),
-    ...renderInheritedParentContext(record, slice),
-    "",
-    renderSelectedSliceEscalations(record, slice.id),
-    "",
-    renderBriefGeneratedSource(metadata)
-  ];
-
-  return {
-    valid: true,
-    diagnostics: [],
-    projection: {
-      ...metadata,
-      brief: lines.join("\n")
-    },
-    brief: lines.join("\n")
-  };
-}
-
-function buildBriefProjectionResult(record, metadata, options = {}) {
-  const sliceId = options.sliceId ?? null;
-  const selectedSlice = findSelectedSlice(record, sliceId);
-  if (sliceId && selectedSlice) {
-    return buildSelectedSliceBriefResult(record, metadata, selectedSlice);
-  }
-
-  const lines = [
-    `# Agent Brief: ${record.title}`,
-    "",
-    "> Canonical authority is the JSON work record. This brief is a generated projection.",
-    `> Source digest: ${escapeInlineCode(metadata.source_digest)}`,
-    "",
-    renderRecordIdentity(record),
-    "",
-    renderListSection("Canonical Docs", stringList(record.docs), escapeInlineCode),
-    "",
-    renderListSection("Repo Paths", stringList(record.repo_paths), escapeInlineCode),
-    "",
-    renderListSection("Write Scope", stringList(record.write_scope), escapeInlineCode),
-    "",
-    renderListSection("Dependencies", stringList(record.depends_on), escapeInlineCode),
-    "",
-    renderBriefAcceptance(record),
-    "",
-    renderDispatchIntent(record),
-    "",
-    renderChildrenBrief(record),
-    "",
-    renderSlicesBrief(record, options),
-    "",
-    renderEscalationsBrief(record),
-    "",
-    renderClosureBrief(record),
-    "",
-    renderBriefGeneratedSource(metadata)
-  ];
-
-  return {
-    valid: true,
-    diagnostics: [],
-    projection: {
-      ...metadata,
-      brief: lines.join("\n")
-    },
-    brief: lines.join("\n")
   };
 }
 

@@ -1,3 +1,5 @@
+import { DEFAULT_AGENT_ROLE_RESULT_LIMITS } from "./agent-role-result.mjs";
+
 function isObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -58,12 +60,12 @@ function normalizeTerminalStructuredRoleResultMode(mode) {
 }
 
 export function resolveTerminalStructuredRoleResultMode({ schemaConstrained, role } = {}) {
-  if (schemaConstrained === true) {
-    return TERMINAL_STRUCTURED_ROLE_RESULT_MODES.SCHEMA_CONSTRAINED;
-  }
   const normalizedRole = typeof role === "string" ? role.trim().toLowerCase() : "";
   if (normalizedRole === "reviewer" || normalizedRole === "redteam") {
     return TERMINAL_STRUCTURED_ROLE_RESULT_MODES.FREE_PROSE;
+  }
+  if (schemaConstrained === true) {
+    return TERMINAL_STRUCTURED_ROLE_RESULT_MODES.SCHEMA_CONSTRAINED;
   }
   return TERMINAL_STRUCTURED_ROLE_RESULT_MODES.FENCED;
 }
@@ -118,9 +120,11 @@ function structuredRoleResultExample({ role, subject }) {
 export function renderTerminalStructuredRoleResultContract({
   role,
   subject,
-  mode = TERMINAL_STRUCTURED_ROLE_RESULT_MODES.FENCED
+  mode = undefined
 }) {
-  let terminalMode = normalizeTerminalStructuredRoleResultMode(mode);
+  let terminalMode = mode === undefined && (role === "reviewer" || role === "redteam")
+    ? TERMINAL_STRUCTURED_ROLE_RESULT_MODES.FREE_PROSE
+    : normalizeTerminalStructuredRoleResultMode(mode);
 
   if (
     terminalMode === TERMINAL_STRUCTURED_ROLE_RESULT_MODES.SCHEMA_CONSTRAINED &&
@@ -129,7 +133,8 @@ export function renderTerminalStructuredRoleResultContract({
     return [
       "## Terminal result",
       "Return exactly one raw JSON object matching the launcher-supplied schema, with no fences or surrounding text.",
-      `Set \`reported_subject\` to exactly \`${subject}\`.`
+      `Set \`reported_subject\` to exactly \`${subject}\`.`,
+      `The parent-declared soft-summary recommendation is ${DEFAULT_AGENT_ROLE_RESULT_LIMITS.summaryBudgetChars} JavaScript string code units; exceeding it is allowed, and the complete captured result is preserved.`
     ].join("\n");
   }
 
@@ -139,7 +144,10 @@ export function renderTerminalStructuredRoleResultContract({
     } else {
       return [
         "## Review findings",
-        "Report prose findings for the coordinator with a short title, severity, and affected paths; if there are no blocking or medium findings, say so explicitly."
+        "Report the actual review in prose for the coordinator with a short title, severity, and affected paths; if there are no blocking or medium findings, say so explicitly.",
+        "Your complete response is usable advisory evidence whether or not it matches the optional structured schema. Parser diagnostics annotate only optional formal review attestation; they do not invalidate or hide this review.",
+        "The coordinator will read and disposition your actual response. Do not use worker-only outcomes such as `partial`.",
+        "For ordinary advisory review, a terminal `agent-role-result.v1` object is optional convenience metadata, not an acceptance or usability condition."
       ].join("\n");
     }
   }
@@ -179,12 +187,12 @@ export function renderTerminalStructuredRoleResultContract({
     );
   } else {
     lines.push(
-      "For reviewer and redteam runs the terminal `agent-role-result.v1` JSON is mandatory: it is the only evidence that can produce a trusted `review_result` and review-attestation. A prose-only review or redteam answer — including a bare `SIGNOFF` line or human-readable narrative — does not create trusted `review_result` or review-attestation evidence.",
-      "A missing or malformed terminal JSON result blocks all trusted `review_result`/review-attestation evidence even when the prose is human-useful; the launcher then keeps the prose only as local diagnostics.",
+      "This explicitly selected structured mode is for optional formal review attestation. The actual reviewer/redteam response remains usable advisory evidence independently of schema adherence.",
+      "A missing or malformed terminal JSON result makes only formal attestation unavailable; preserve and disposition the actual review text normally.",
       "Reviewer and redteam payloads must include `reported_outcome`, `findings`, `finding_counts`, and `reviewed_controls`.",
       "Clean-review outcomes: `no_findings` requires zero findings (`finding_counts.total == 0` and an empty `findings` array); `passed_no_blocking_or_medium_findings` permits only `low` and `info` findings and requires zero blocking, critical, high, and medium findings. Any blocking, critical, high, or medium finding must be represented in `findings[]`, must use the `changes_requested` outcome, and must not produce a clean `review_result`.",
       "`reviewed_controls` must list the controls you actually reviewed for the selected unit — report what you examined, not what you think the set of controls is. Each entry is a `{ control_id, result }` object with `result` of `pass` or `fail`, and `control_id` is the control identifier as the deciding authority names it. Empty control ids and duplicate ids are non-compliant and block clean `review_result` derivation.",
-      "Findings prose, finding titles, and `affected_paths` may stay as local diagnostics for the coordinator, but they are never Node Engine authority facts; only bounded validated facts (reviewed-control ids, role class, clean outcome, and bounded counts) project to Node Engine pack input or public review-attestation responses."
+      "Findings prose, finding titles, and `affected_paths` remain usable advisory evidence for the coordinator, but they are never Node Engine authority facts; only bounded validated facts (reviewed-control ids, role class, clean outcome, and bounded counts) project to optional formal-attestation responses."
     );
   }
 

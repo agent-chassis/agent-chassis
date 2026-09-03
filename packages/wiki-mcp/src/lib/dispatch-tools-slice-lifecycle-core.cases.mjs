@@ -48,6 +48,10 @@ import {
 } from "./dispatch-tools-test-helpers.mjs";
 
 import { withSliceReviewPreparation } from "./dispatch-tools-slice-lifecycle-test-support.mjs";
+import {
+  CLOSED_LIFECYCLE_FAILURE_CODES,
+  isClosedLifecycleFailure
+} from "./dispatch-lifecycle-failure-projection.mjs";
 
 test("WK-1634 production composition pins launcher-owned candidate prepare/validate functions over caller deps", async () => {
   const calls = [];
@@ -239,9 +243,18 @@ test("concurrent status and wait polling share one phased post-worker lifecycle"
 test("process-local checkpoint loss recovers integrated phase only from canonical review and exact matching bindings and refs", async () => {
   const harness = createResumableLifecycleHarness({ bindFailures: 1 });
   const workspace = { repo: "agent-chassis", dir: "/home/user/agent-chassis" };
+
   await assert.rejects(
     runPostWorkerSliceLifecycle({ workspace, status: { ...harness.status }, deps: withSliceReviewPreparation(harness.deps) }),
-    /injected post-integration context failure/
+    (error) => {
+      assert.equal(isClosedLifecycleFailure(error), true);
+      assert.equal(
+        error.code,
+        CLOSED_LIFECYCLE_FAILURE_CODES.FROZEN_REVIEW_CONTEXT_BINDING_FAILED
+      );
+      assert.equal(error.message.includes("injected post-integration context failure"), false);
+      return true;
+    }
   );
   assert.deepEqual(harness.counts(), { integrationCalls: 1, bindCalls: 1 });
 

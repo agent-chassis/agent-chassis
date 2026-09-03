@@ -22,15 +22,15 @@ import {
   singleUseImplementationPassed
 } from "./single-use-replay-refusal-harness.mjs";
 import {
-  evaluateVerificationProfileV034
-} from "../../lib/verification-profile-v034.mjs";
+  evaluateStableProofPackFixtureV1
+} from "../support/stable-v1-proof-pack-runtime.mjs";
 
 const controlledContractRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)), ".."
 );
 const packDirectory = path.join(
   controlledContractRoot,
-  "certification/profiles/proof.single-use.replay-refusal/1.0.0"
+  "certification/profiles/proof.single-use.replay-refusal/2.0.0"
 );
 
 async function readJson(relativePath) {
@@ -106,7 +106,7 @@ test("the canonical profile satisfies truthful graphs and rejects abstract opera
   const profile = await readJson("profile.json");
   for (const domain of ["password_reset", "queue_permit", "voucher_claim"]) {
     const fixture = buildSingleUseReplayRefusalFixture({ domain });
-    const result = evaluateVerificationProfileV034({
+    const result = evaluateStableProofPackFixtureV1({
       contract: fixture.contract, profile, evaluation_input: fixture.input
     });
     assert.equal(result.satisfaction, "satisfied", domain);
@@ -115,7 +115,7 @@ test("the canonical profile satisfies truthful graphs and rejects abstract opera
   const ungrounded = buildSingleUseReplayRefusalFixture({
     identity_kind_overrides: { operation: "profile_term" }
   });
-  assert.equal(evaluateVerificationProfileV034({
+  assert.equal(evaluateStableProofPackFixtureV1({
     contract: ungrounded.contract, profile, evaluation_input: ungrounded.input
   }).satisfaction, "invalid");
 });

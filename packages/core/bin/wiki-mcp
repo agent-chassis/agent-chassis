@@ -1,3 +1,33 @@
 #!/usr/bin/env node
 
-await import("@agent-chassis/wiki-mcp/bin/wiki-mcp");
+// WK-2139: `@agent-chassis/core` owns the published documentation bundle, so
+// this forwarding bin is the one place that can truthfully say where those bytes
+// live. It derives its exact package identity and docs-bundle root from its OWN
+// module location and its OWN package.json, and hands that closed carrier
+// directly to the exported wiki-mcp bootstrap.
+//
+// Everything a carrier could otherwise be guessed from is deliberately unused:
+// no caller-supplied root, no environment variable, no ancestor-package or
+// `node_modules` search, no hoisting assumption, and no consuming-workspace
+// fallback. A nested, non-hoisted install therefore resolves exactly the bundle
+// shipped beside this file.
+import { createCorePackageDocsCarrier } from "../lib/package-docs-carrier.mjs";
+
+if (process.argv.slice(2).some((arg) => arg === "--help" || arg === "-h" || arg === "help")) {
+  console.log(`wiki-mcp
+
+Start the AgentChassis wiki MCP stdio server.
+
+Usage:
+  wiki-mcp
+
+Options:
+  -h, --help  Show this help text.`);
+  process.exit(0);
+}
+
+const { startWikiMcpServer } = await import("@agent-chassis/wiki-mcp/src/server.mjs");
+
+await startWikiMcpServer({
+  packageDocsCarrier: await createCorePackageDocsCarrier()
+});

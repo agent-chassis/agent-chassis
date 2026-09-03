@@ -40,9 +40,14 @@ const RETAINED_TERMINAL_CANDIDATE_REVIEWER_IDENTITY_FIELDS = Object.freeze([
 ]);
 import {
   FROZEN_FINDINGS_ONLY_ACCEPTANCE_CONTRACT_SCHEMA_VERSION,
+  FROZEN_STANDALONE_FINDINGS_ACCEPTANCE_CONTRACT_SCHEMA_VERSION,
   FROZEN_SLICE_LEVEL_ACCEPTANCE_CONTRACT_SCHEMA_VERSION
 } from "./workspace-agent-findings-role-context.mjs";
 import { sameStringArray } from "./backend-scope-authority.mjs";
+import { digestTrustedExactReviewEvidence } from
+  "./workspace-agent-dispatch-run-receipt.mjs";
+
+const trustedFrozenReviewContracts = new WeakSet();
 
 export function createManagedWorkerConfinementActivationBinding() {
   return Object.freeze({ ...EXPECTED_MANAGED_CONFINEMENT_ACTIVATION });
@@ -116,12 +121,124 @@ export function createRetainedReviewerLaunchIdentity(context) {
 }
 
 export function createTrustedFrozenReviewContract(reviewUnit) {
-  return Object.freeze({
+  if (!isPlainObject(reviewUnit) ||
+      typeof reviewUnit.subject !== "string" ||
+      typeof reviewUnit.canonical_parent_wk_contract !== "string" ||
+      typeof reviewUnit.review_unit_contract !== "string") {
+    throw new TypeError("review unit is not a complete trusted frozen review contract source");
+  }
+  const contract = Object.freeze({
     schema_version: FROZEN_FINDINGS_ONLY_ACCEPTANCE_CONTRACT_SCHEMA_VERSION,
     review_subject: reviewUnit.subject,
     canonical_parent_wk_contract: reviewUnit.canonical_parent_wk_contract,
     review_unit_contract: reviewUnit.review_unit_contract
   });
+  trustedFrozenReviewContracts.add(contract);
+  return contract;
+}
+
+export function isTrustedFrozenReviewContract(value) {
+  const identityFields = frozenContractIdentityFields(value);
+  return isPlainObject(value) &&
+    Object.isFrozen(value) &&
+    trustedFrozenReviewContracts.has(value) &&
+    sameStringArray(Object.keys(value).sort(), identityFields) &&
+    typeof value.schema_version === "string" &&
+    typeof value.review_subject === "string" &&
+    typeof value.canonical_parent_wk_contract === "string" &&
+    typeof value.review_unit_contract === "string";
+}
+
+const FROZEN_STANDALONE_FINDINGS_CONTRACT_IDENTITY_FIELDS = Object.freeze([
+  "canonical_parent_wk_contract",
+  "canonical_parent_wk_contract_digest",
+  "canonical_source_digest",
+  "contract_digest",
+  "initiative",
+  "intended_agent_role",
+  "record_id",
+  "repository",
+  "review_purpose",
+  "review_slice_id",
+  "review_subject",
+  "review_unit_contract",
+  "review_unit_contract_digest",
+  "schema_version",
+  "target_commit",
+  "target_ref",
+  "work_kind",
+  "write_scope"
+]);
+
+const ADVISORY_REVIEW_PRESENTATION_SCHEMA_VERSION =
+  "workspace-agent-advisory-review-presentation.v1";
+const ADVISORY_REVIEW_PRESENTATION_FIELDS = Object.freeze([
+  "canonical_parent_wk_contract",
+  "review_subject",
+  "review_unit_contract",
+  "role",
+  "schema_version"
+]);
+
+export function createTrustedAdvisoryReviewPresentation({
+  role,
+  subject,
+  canonicalParentWkContract,
+  reviewUnitContract
+} = {}) {
+  if ((role !== "reviewer" && role !== "redteam") ||
+      typeof subject !== "string" ||
+      typeof canonicalParentWkContract !== "string" ||
+      typeof reviewUnitContract !== "string") {
+    throw new TypeError("advisory review presentation is incomplete");
+  }
+  const contract = Object.freeze({
+    schema_version: ADVISORY_REVIEW_PRESENTATION_SCHEMA_VERSION,
+    review_subject: subject,
+    canonical_parent_wk_contract: canonicalParentWkContract,
+    review_unit_contract: reviewUnitContract,
+    role
+  });
+  trustedFrozenReviewContracts.add(contract);
+  return contract;
+}
+
+export function createTrustedFrozenStandaloneFindingsContract(reviewUnit) {
+  const body = Object.freeze({
+    schema_version: FROZEN_STANDALONE_FINDINGS_ACCEPTANCE_CONTRACT_SCHEMA_VERSION,
+    repository: reviewUnit.repository,
+    record_id: reviewUnit.record_id,
+    initiative: reviewUnit.initiative,
+    review_subject: reviewUnit.subject,
+    review_slice_id: reviewUnit.slice_id,
+    work_kind: reviewUnit.work_kind,
+    intended_agent_role: reviewUnit.intended_agent_role,
+    review_purpose: reviewUnit.review_purpose,
+    write_scope: Object.freeze([]),
+    canonical_parent_wk_contract: reviewUnit.canonical_parent_wk_contract,
+    canonical_parent_wk_contract_digest: reviewUnit.canonical_parent_wk_contract_digest,
+    review_unit_contract: reviewUnit.review_unit_contract,
+    review_unit_contract_digest: reviewUnit.review_unit_contract_digest,
+    target_ref: reviewUnit.target_ref,
+    target_commit: reviewUnit.target_commit,
+    canonical_source_digest: reviewUnit.canonical_source_digest
+  });
+  const contract = Object.freeze({
+    ...body,
+    contract_digest: digestTrustedExactReviewEvidence(body)
+  });
+  trustedFrozenReviewContracts.add(contract);
+  return contract;
+}
+
+function frozenContractIdentityFields(contract) {
+  if (contract?.schema_version === ADVISORY_REVIEW_PRESENTATION_SCHEMA_VERSION) {
+    return ADVISORY_REVIEW_PRESENTATION_FIELDS;
+  }
+  return contract?.schema_version ===
+      FROZEN_STANDALONE_FINDINGS_ACCEPTANCE_CONTRACT_SCHEMA_VERSION
+    ? FROZEN_STANDALONE_FINDINGS_CONTRACT_IDENTITY_FIELDS
+    : FROZEN_REVIEW_CONTRACT_IDENTITY_FIELDS;
 }
 
 function isStructurallyCompleteRetainedSliceReviewerLaunchIdentity(identity) {
@@ -166,12 +283,20 @@ export function assertRetainedSliceReviewerLaunchIdentityMatchesContext(identity
 }
 
 export function createTrustedFrozenSliceReviewContract(reviewUnit) {
-  return Object.freeze({
+  if (!isPlainObject(reviewUnit) ||
+      typeof reviewUnit.subject !== "string" ||
+      typeof reviewUnit.canonical_parent_wk_contract !== "string" ||
+      typeof reviewUnit.review_unit_contract !== "string") {
+    throw new TypeError("review unit is not a complete trusted frozen slice review contract source");
+  }
+  const contract = Object.freeze({
     schema_version: FROZEN_SLICE_LEVEL_ACCEPTANCE_CONTRACT_SCHEMA_VERSION,
     review_subject: reviewUnit.subject,
     canonical_parent_wk_contract: reviewUnit.canonical_parent_wk_contract,
     review_unit_contract: reviewUnit.review_unit_contract
   });
+  trustedFrozenReviewContracts.add(contract);
+  return contract;
 }
 
 export function createRetainedSliceReviewerLaunchIdentity(context) {
@@ -223,6 +348,7 @@ function isStructurallyCompleteRetainedReviewerLaunchIdentity(identity) {
     return false;
   }
   const contract = identity.trusted_frozen_review_contract;
+  const contractFields = frozenContractIdentityFields(contract);
   return typeof identity.main_repo === "string" && path.isAbsolute(identity.main_repo) &&
     typeof identity.review_subject === "string" && /^WK-\d{4}#SLICE-\d{3}$/u.test(identity.review_subject) &&
     typeof identity.record_id === "string" && /^WK-\d{4}$/u.test(identity.record_id) &&
@@ -233,8 +359,9 @@ function isStructurallyCompleteRetainedReviewerLaunchIdentity(identity) {
     typeof identity.wk_sha === "string" && /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(identity.wk_sha) &&
     typeof identity.diff_head_sha === "string" && /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(identity.diff_head_sha) &&
     isPlainObject(contract) && Object.isFrozen(contract) &&
-    sameStringArray(Object.keys(contract).sort(), FROZEN_REVIEW_CONTRACT_IDENTITY_FIELDS) &&
-    contract.schema_version === FROZEN_FINDINGS_ONLY_ACCEPTANCE_CONTRACT_SCHEMA_VERSION &&
+    sameStringArray(Object.keys(contract).sort(), contractFields) &&
+    (contract.schema_version === FROZEN_FINDINGS_ONLY_ACCEPTANCE_CONTRACT_SCHEMA_VERSION ||
+      contract.schema_version === FROZEN_STANDALONE_FINDINGS_ACCEPTANCE_CONTRACT_SCHEMA_VERSION) &&
     typeof contract.review_subject === "string" &&
     typeof contract.canonical_parent_wk_contract === "string" &&
     typeof contract.review_unit_contract === "string";
@@ -245,6 +372,7 @@ export function assertRetainedReviewerLaunchIdentityMatchesContext(identity, con
     throw new Error("consumed frozen whole-WK review context has no structurally complete retained reviewer launch identity");
   }
   const expected = createRetainedReviewerLaunchIdentity(context);
+  const contractFields = frozenContractIdentityFields(identity.trusted_frozen_review_contract);
   const identityFields = context?.review_identity_kind === "terminal_candidate"
     ? RETAINED_TERMINAL_CANDIDATE_REVIEWER_IDENTITY_FIELDS
     : RETAINED_REVIEWER_LAUNCH_IDENTITY_FIELDS;
@@ -252,7 +380,7 @@ export function assertRetainedReviewerLaunchIdentityMatchesContext(identity, con
     (field) => field !== "trusted_frozen_review_contract"
   );
   if (flatFields.some((field) => identity[field] !== expected[field]) ||
-      FROZEN_REVIEW_CONTRACT_IDENTITY_FIELDS.some(
+      contractFields.some(
         (field) => identity.trusted_frozen_review_contract[field] !==
           expected.trusted_frozen_review_contract[field]
       )) {

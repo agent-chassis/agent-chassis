@@ -57,26 +57,28 @@ shared code path. Each family's runtime state falls into one of four classes:
 
 The Claude executor's runtime paths are **derived from launcher-owned
 host-home facts**, not a fixed `/home/user` prefix. The launcher
-reads the host user home from a trusted source (the OS passwd entry for the
+reads the host user home from the OS passwd entry for the
 effective user via `os.userInfo().homedir`, never caller-supplied `HOME`,
-`XDG_*`, inline env, or `PATH` manipulation) and derives the narrow runtime
-facts below from it, so a macOS host home such as `/Users/<user>` or a
-non-default Linux home such as `/home/<user>` yields equivalent narrow
-approvals. The `$HOME` / `~` notation below is explanatory shorthand for that
-launcher-owned operator host home; it is not an agent-provided policy input.
+`XDG_*`, inline env, or `PATH` manipulation) and derives the runtime facts below
+from it, so a macOS host home such as `/Users/<user>` or a non-default Linux home
+such as `/home/<user>` yields equivalent paths. The `$HOME` / `~` notation below
+is explanatory shorthand for that launcher-owned operator host home; it is not an
+agent-provided policy input.
 
-- The worker bwrap exposes the OAuth credential file
-  `~/.claude/.credentials.json` as a single read-only leaf-file bind
-  (`--ro-bind-try <file> <file>`), drawn from a closed allowlist
-  (`CLAUDE_APPROVED_CREDENTIALS_READ_ONLY_FILES`) — operator-owned source,
-  read-only mount.
+- The worker bwrap exposes the real OAuth credential file
+  `~/.claude/.credentials.json` as a single leaf-file bind drawn from the
+  launcher's explicit accepted-path list
+  (`CLAUDE_APPROVED_CREDENTIALS_READ_ONLY_FILES`). Normal implementation workers
+  bind that file writable so Claude can persist OAuth rotation to the host file;
+  exact findings roles bind it read-only. Writable OAuth state is necessary for
+  consistent CLI operation and is not a separate credential-security posture.
 - The versioned Claude install directory (`~/.local/share/claude`,
   `CLAUDE_FAMILY_RUNTIME_READ_ONLY_ROOTS`) is bound read-only so the binary is
   reachable, and the executable resolves under `~/.local/bin/claude`.
-- Runtime approval stays narrow: the broad host home (`$HOME`), the `~/.claude`
-  directory itself, `~/.config` (including `~/.config/gcloud`), and credential
-  parent directories such as `~/gcp-credentials` are **never** mounted, even
-  though the narrow runtime leaves above resolve under that host home.
+- The broad host home (`$HOME`), the `~/.claude` directory itself, `~/.config`
+  (including `~/.config/gcloud`), and credential parent directories such as
+  `~/gcp-credentials` are not mounted. The launcher projects only the runtime
+  paths the Claude CLI composition uses.
 - **Result source is `stdout`**.
 
 **Agy**:
@@ -93,15 +95,15 @@ second transport.
 | Family | operator-owned source | launcher-owned per-run | writable runtime state | result source |
 | --- | --- | --- | --- | --- |
 | Codex | `CODEX_SOURCE_HOME` (`~/.codex`) entries symlinked read-through | private `CODEX_HOME` = `<runtime-base>/codex-home` (`log`/`sessions`/`tmp`/`shell_snapshots`/`rules`, `final.md`) | per-run dirs inside the private `CODEX_HOME` | `finalPath` (`--output-last-message`) |
-| Claude | `~/.claude/.credentials.json`, `~/.local/share/claude` (read-only, host-home-derived) | run dir (stdout capture) | none in family-runtime mounts | `stdout` |
+| Claude | `~/.claude/.credentials.json`, `~/.local/share/claude` (host-home-derived) | run dir (stdout capture) | OAuth credential leaf writable for normal implementation workers; read-only for exact findings roles | `stdout` |
 | Agy | unsupported | none | none | none; launch fails closed |
 
 In this table `~` / `$HOME` denotes the launcher-owned operator host home that
 the launcher discovers from trusted host facts (macOS `/Users/<user>`, Linux
 `/home/<user>`); it is platform-neutral explanatory notation, not a fixed
 `/home/user` path and not an agent-provided `HOME`/`XDG`/`PATH` value. The
-launcher derives the narrow runtime leaves above from that host home and
-refuses the broad host home and credential/config parents.
+launcher derives the runtime leaves above from that host home and does not mount
+the broad host home or credential/config parents.
 
 ### Codex source-home assumptions
 

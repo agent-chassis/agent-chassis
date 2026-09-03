@@ -9,20 +9,20 @@ import { EXCLUSIONS, runProofPackAdequacyControls } from "./bounded-interval-non
 import { BOUNDED_INTERVAL_NONMUTATION_V1_PROFILE } from "./bounded-interval-nonmutation-v1-fixture.mjs";
 import { DOMAINS, MUTATIONS, executeBoundedIntervalNonmutation, boundedIntervalNonmutationGuaranteeSatisfied }
   from "./bounded-interval-nonmutation-v1-harness.mjs";
-import { validateProfileSchemaV034, validateProfileSemanticsV034 }
-  from "../../lib/verification-profile-v034.mjs";
+import { validateProfileSchemaV1, validateProfileSemanticsV1 }
+  from "../support/stable-v1-proof-pack-runtime.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const repositoryRoot = path.resolve(packageRoot, "../..");
 const packDirectory = path.join(packageRoot,
-  "test/certification/profiles/proof.state.bounded-interval-nonmutation/1.0.0");
+  "test/certification/profiles/proof.state.bounded-interval-nonmutation/2.0.0");
 const readJson = async (name) => JSON.parse(await readFile(path.join(packDirectory, name), "utf8"));
 
 test("bounded-interval-nonmutation profile is valid, pre-dispatch, digest-bound, and explicitly bounded", async () => {
   const adequacy = await readJson("adequacy.json");
-  assert.equal(validateProfileSchemaV034(BOUNDED_INTERVAL_NONMUTATION_V1_PROFILE), true,
-    JSON.stringify(validateProfileSchemaV034.errors));
-  assert.deepEqual(validateProfileSemanticsV034(BOUNDED_INTERVAL_NONMUTATION_V1_PROFILE), []);
+  assert.equal(validateProfileSchemaV1(BOUNDED_INTERVAL_NONMUTATION_V1_PROFILE), true,
+    JSON.stringify(validateProfileSchemaV1.errors));
+  assert.deepEqual(validateProfileSemanticsV1(BOUNDED_INTERVAL_NONMUTATION_V1_PROFILE), []);
   assert.deepEqual(BOUNDED_INTERVAL_NONMUTATION_V1_PROFILE.evaluation_stages, ["pre_dispatch"]);
   assert.equal(adequacy.profile_digest, profileDigest(BOUNDED_INTERVAL_NONMUTATION_V1_PROFILE));
   assert.equal(adequacy.guarantee_digest, guaranteeDigest(adequacy.guarantee));

@@ -20,41 +20,6 @@ import {
   settleStdioMcpConduitCleanup
 } from "./stdio-mcp-conduit-contract.mjs";
 
-const TERMINAL_REVIEW_SPAWN_BARRIER_REFUSAL_BRAND = Symbol(
-  "terminalReviewSpawnBarrierRefusal"
-);
-
-export const TERMINAL_REVIEW_SPAWN_BARRIER_DEFAULT_REASON =
-  "terminal_review_attempt_contract_recheck_failed";
-
-export const TERMINAL_REVIEW_SPAWN_BARRIER_INVALID_REASON =
-  "terminal_review_spawn_barrier_invalid";
-
-export class TerminalReviewSpawnBarrierRefusal extends Error {
-  constructor(verdict) {
-    super("agent-launch isolation: terminal-review pre-spawn barrier refused the launch");
-    this.name = "TerminalReviewSpawnBarrierRefusal";
-    Object.defineProperty(this, TERMINAL_REVIEW_SPAWN_BARRIER_REFUSAL_BRAND, {
-      value: true,
-      enumerable: false
-    });
-    const reason = typeof verdict?.reason === "string" && verdict.reason.length > 0
-      ? verdict.reason
-      : TERMINAL_REVIEW_SPAWN_BARRIER_DEFAULT_REASON;
-    const detail = verdict?.detail !== null && typeof verdict?.detail === "object" &&
-      !Array.isArray(verdict.detail)
-      ? verdict.detail
-      : null;
-
-    this.verdict = Object.freeze({ ok: false, reason, detail });
-  }
-}
-
-export function isTerminalReviewSpawnBarrierRefusal(value) {
-  return (value !== null && typeof value === "object") &&
-    value[TERMINAL_REVIEW_SPAWN_BARRIER_REFUSAL_BRAND] === true;
-}
-
 export const LAUNCHER_TERMINATION_EVIDENCE_SCHEMA_VERSION =
   "launcher-stdio-mcp-termination-evidence.v1";
 
@@ -64,7 +29,9 @@ export const LAUNCHER_TERMINATION_INITIATING_FACTS = Object.freeze({
   CONDUIT_FAILURE_SETTLEMENT: "conduit_failure_settlement",
   SERVER_EXIT_EXPECTED_DRAIN: "server_exit_expected_drain",
   SERVER_EXIT_ABNORMAL: "server_exit_abnormal",
-  SERVER_EXIT_OBSERVATION_FAILED: "server_exit_observation_failed"
+  SERVER_EXIT_OBSERVATION_FAILED: "server_exit_observation_failed",
+  CLIENT_READINESS_FAILED: "client_readiness_failed",
+  NAMESPACE_READY_FAILED: "namespace_ready_failed"
 });
 
 const LAUNCHER_TERMINATION_INITIATING_FACT_SET = new Set(
@@ -190,6 +157,38 @@ function superviseConduitTerminalDrain(child, graceMs, basis = null,
   child.once("exit", () => clearTimeout(term));
 }
 
+function terminateConfinedClientDirectly(conduit, child, initiatingFact, cause) {
+  if (child.exitCode !== null || child.signalCode !== null) return null;
+  const record = beginLauncherTermination(
+    launcherTerminalSupervisionBasis(conduit, initiatingFact, cause),
+    child, "SIGKILL");
+  let deliveryError = null;
+  try { child.kill("SIGKILL"); } catch (error) { deliveryError = error;   }
+  recordLauncherTerminationOutcome(record, "sigkill", {
+    signal: "SIGKILL",
+    delivered: deliveryError === null,
+    errorCode: deliveryError?.code
+  });
+  return record;
+}
+
+function superviseConduitClientReadiness(conduit, child) {
+  conduit.beginClientReadiness();
+  conduit.clientReady.then(() => {
+
+    try {
+      conduit.markNamespaceReady();
+    } catch {
+      terminateConfinedClientDirectly(conduit, child,
+        LAUNCHER_TERMINATION_INITIATING_FACTS.NAMESPACE_READY_FAILED, null);
+    }
+  }, (error) => {
+
+    terminateConfinedClientDirectly(conduit, child,
+      LAUNCHER_TERMINATION_INITIATING_FACTS.CLIENT_READINESS_FAILED, error);
+  });
+}
+
 function resolveServerExitTerminalSupervision(exit) {
   if (exit?.expected === true) return null;
   return Object.freeze({
@@ -199,14 +198,6 @@ function resolveServerExitTerminalSupervision(exit) {
 }
 
 export function spawnIsolated(plan, stdioOptions = {}) {
-
-  const terminalReviewSpawnBarrier = stdioOptions?.terminalReviewSpawnBarrier ?? null;
-  if (terminalReviewSpawnBarrier !== null && typeof terminalReviewSpawnBarrier !== "function") {
-    throw new TerminalReviewSpawnBarrierRefusal({
-      reason: TERMINAL_REVIEW_SPAWN_BARRIER_INVALID_REASON,
-      detail: { barrier_type: typeof terminalReviewSpawnBarrier }
-    });
-  }
   if (!plan || typeof plan !== "object" || plan.schemaVersion !== BUBBLEWRAP_LAUNCH_PLAN_SCHEMA_VERSION) {
     fail(
       BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.PLAN_INVALID,
@@ -217,6 +208,9 @@ export function spawnIsolated(plan, stdioOptions = {}) {
   assertRequiredReadOnlyFilesUnchanged(plan.requiredReadOnlyFiles ?? []);
   assertReadOnlyProjectionMountpointsUnchanged(plan.readOnlyProjectionMountpoints ?? []);
   assertFindingsRoleGitMetadataUnchanged(plan.findingsRoleGitMetadata ?? null);
+  assertFindingsRoleGitMetadataUnchanged(
+    plan.provisionedWorktreeGitIsolation?.metadataProjection ?? null
+  );
   const parentEnv = stdioOptions.env && typeof stdioOptions.env === "object" ? stdioOptions.env : process.env;
   const resolved = assertBubblewrapAvailable({
     env: parentEnv,
@@ -233,13 +227,9 @@ export function spawnIsolated(plan, stdioOptions = {}) {
   assertRequiredReadOnlyFilesUnchanged(plan.requiredReadOnlyFiles ?? []);
   assertReadOnlyProjectionMountpointsUnchanged(plan.readOnlyProjectionMountpoints ?? []);
   assertFindingsRoleGitMetadataUnchanged(plan.findingsRoleGitMetadata ?? null);
-
-  if (terminalReviewSpawnBarrier !== null) {
-    const verdict = terminalReviewSpawnBarrier();
-    if (verdict?.ok !== true) {
-      throw new TerminalReviewSpawnBarrierRefusal(verdict);
-    }
-  }
+  assertFindingsRoleGitMetadataUnchanged(
+    plan.provisionedWorktreeGitIsolation?.metadataProjection ?? null
+  );
 
   if (conduit !== null) {
     const retainedConduitFailure = conduit.failure ?? conduit.readinessFailure ?? null;
@@ -262,22 +252,7 @@ export function spawnIsolated(plan, stdioOptions = {}) {
   }
   if (conduit !== null) {
 
-    conduit.beginClientReadiness();
-    conduit.clientReady.then(() => {
-
-      try {
-        conduit.markNamespaceReady();
-      } catch {
-        if (child.exitCode === null && child.signalCode === null) {
-          try { child.kill("SIGKILL"); } catch {   }
-        }
-      }
-    }, () => {
-
-      if (child.exitCode === null && child.signalCode === null) {
-        try { child.kill("SIGKILL"); } catch {   }
-      }
-    });
+    superviseConduitClientReadiness(conduit, child);
 
     if (conduit.failureSettlement instanceof Promise) {
       void conduit.failureSettlement.then((cause) => {
@@ -317,5 +292,7 @@ export function spawnIsolated(plan, stdioOptions = {}) {
 export const __testing = Object.freeze({
   launcherTerminalSupervisionBasis,
   resolveServerExitTerminalSupervision,
-  superviseConduitTerminalDrain
+  superviseConduitClientReadiness,
+  superviseConduitTerminalDrain,
+  terminateConfinedClientDirectly
 });

@@ -1,0 +1,112 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.experimental.v0.2",
+  "evaluation_stage": "post_delivery",
+  "reference_bindings": [
+    {
+      "role": "evidence_occurrence",
+      "reference_ids": [
+        "ref-evidence-occurrence-b58580300dd0e0505b3e5025efb83465e9e3b2713bcf0f1e820d8a8d0c28c196"
+      ]
+    },
+    {
+      "role": "target",
+      "reference_ids": [
+        "ref-authenticated-target"
+      ]
+    },
+    {
+      "role": "source",
+      "reference_ids": [
+        "ref-provenance-source"
+      ]
+    },
+    {
+      "role": "observation_attempt",
+      "reference_ids": [
+        "ref-observation-attempt-one"
+      ]
+    },
+    {
+      "role": "target_population",
+      "reference_ids": [
+        "ref-selected-target-population"
+      ]
+    },
+    {
+      "role": "source_population",
+      "reference_ids": [
+        "ref-selected-source-population"
+      ]
+    },
+    {
+      "role": "evidence_content",
+      "reference_ids": [
+        "ref-evidence-content"
+      ]
+    },
+    {
+      "role": "target_resolution_witness",
+      "reference_ids": [
+        "ref-target-resolution-witness"
+      ]
+    },
+    {
+      "role": "source_authentication_witness",
+      "reference_ids": [
+        "ref-source-authentication-witness"
+      ]
+    },
+    {
+      "role": "source_of_record_witness",
+      "reference_ids": [
+        "ref-source-of-record-witness"
+      ]
+    },
+    {
+      "role": "attempt_binding_witness",
+      "reference_ids": [
+        "ref-attempt-binding-witness"
+      ]
+    },
+    {
+      "role": "authentication_witness",
+      "reference_ids": [
+        "ref-authentication-witness"
+      ]
+    },
+    {
+      "role": "occurrence_capture",
+      "reference_ids": [
+        "ref-occurrence-capture"
+      ]
+    },
+    {
+      "role": "authentication_verification",
+      "reference_ids": [
+        "ref-authentication-verification"
+      ]
+    },
+    {
+      "role": "provenance_verification",
+      "reference_ids": [
+        "ref-provenance-verification"
+      ]
+    },
+    {
+      "role": "source_record_verification",
+      "reference_ids": [
+        "ref-source-record-verification"
+      ]
+    },
+    {
+      "role": "observation_verification",
+      "reference_ids": [
+        "ref-observation-verification"
+      ]
+    }
+  ],
+  "number_bindings": [],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": []
+}

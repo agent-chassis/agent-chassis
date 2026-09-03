@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-chassis.invalid/controlled-contract-proof-aware-resolved-carrier.experimental.v2.schema.json",
+  "title": "controlled-contract-proof-aware-resolved-carrier.experimental.v2",
+  "type": "object",
+  "required": ["carrier_version", "digest_algorithm", "canonical_order", "authority", "input_authority", "nodes", "binary_edges", "typed_incidences", "constraints", "unresolved_facts", "resource_accounting"],
+  "additionalProperties": false,
+  "properties": {
+    "carrier_version": { "const": "controlled-contract-proof-aware-planning-carrier.experimental.v2" },
+    "digest_algorithm": { "const": "sha256-domain-separated-canonical-json-v1" },
+    "canonical_order": { "const": "utf16-code-unit-by-declared-composite-key-v1" },
+    "authority": { "$ref": "#/$defs/authority" },
+    "input_authority": { "$ref": "#/$defs/input_authority" },
+    "nodes": { "type": "array", "maxItems": 200000, "items": { "$ref": "#/$defs/node" } },
+    "binary_edges": { "type": "array", "maxItems": 1000000, "items": { "$ref": "#/$defs/edge" } },
+    "typed_incidences": { "type": "array", "items": { "$ref": "#/$defs/incidence" } },
+    "constraints": { "type": "array", "items": { "$ref": "#/$defs/constraint" } },
+    "unresolved_facts": { "type": "array", "items": { "$ref": "#/$defs/unresolved" } },
+    "resource_accounting": { "$ref": "#/$defs/resource_accounting" }
+  },
+  "$defs": {
+    "id": { "type": "string", "minLength": 1, "maxLength": 512 },
+    "sha": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "exclusions": {
+      "type": "object", "required": ["proof_applicability", "optimality", "correct_ownership", "runtime_truth", "evidence_authority", "cce_consequences", "readiness", "status_transition_authority", "dispatch_authority", "mutation_or_publication_permission"], "additionalProperties": false,
+      "properties": { "proof_applicability": { "const": false }, "optimality": { "const": false }, "correct_ownership": { "const": false }, "runtime_truth": { "const": false }, "evidence_authority": { "const": false }, "cce_consequences": { "const": false }, "readiness": { "const": false }, "status_transition_authority": { "const": false }, "dispatch_authority": { "const": false }, "mutation_or_publication_permission": { "const": false } }
+    },
+    "authority": {
+      "type": "object", "required": ["kind", "authoritative", "mandatory_exclusions", "informational_limitations"], "additionalProperties": false,
+      "properties": { "kind": { "const": "non_authoritative_planning_input" }, "authoritative": { "const": false }, "mandatory_exclusions": { "$ref": "#/$defs/exclusions" }, "informational_limitations": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/id" } } }
+    },
+    "commitment": {
+      "type": "object", "required": ["domain", "digest", "canonical_bytes"], "additionalProperties": false,
+      "properties": { "domain": { "$ref": "#/$defs/id" }, "digest": { "$ref": "#/$defs/sha" }, "canonical_bytes": { "type": "integer", "minimum": 2, "maximum": 67108864 } }
+    },
+    "input_authority": {
+      "type": "object", "required": ["binding_version", "unit1_handoff_cycle_digest", "construction_cycle_digest", "contract", "compiled_proof_plan", "assessment_manifest", "supplement_census_digest", "planning_pack_cycle_digests", "planning_policy", "planning_implementation", "mandatory_exclusions"], "additionalProperties": false,
+      "properties": { "binding_version": { "const": "proof-aware-input-binding.v2-unit2" }, "unit1_handoff_cycle_digest": { "$ref": "#/$defs/sha" }, "construction_cycle_digest": { "$ref": "#/$defs/sha" }, "contract": { "$ref": "#/$defs/commitment" }, "compiled_proof_plan": { "$ref": "#/$defs/commitment" }, "assessment_manifest": { "$ref": "#/$defs/commitment" }, "supplement_census_digest": { "$ref": "#/$defs/sha" }, "planning_pack_cycle_digests": { "type": "array", "maxItems": 1024, "items": { "$ref": "#/$defs/sha" } }, "planning_policy": { "$ref": "#/$defs/commitment" }, "planning_implementation": { "$ref": "#/$defs/commitment" }, "mandatory_exclusions": { "$ref": "#/$defs/exclusions" } }
+    },
+    "provenance": {
+      "type": "object", "required": ["source_class", "source_digest", "source_ordinal"], "additionalProperties": false,
+      "properties": { "source_class": { "$ref": "#/$defs/id" }, "source_digest": { "$ref": "#/$defs/sha" }, "source_ordinal": { "type": "integer", "minimum": 0 } }
+    },
+    "resource_accounting": {
+      "type": "object", "required": ["verified_input_bytes", "node_count", "binary_edge_count", "typed_incidence_participant_count", "universal_occurrence_count", "selected_pack_count"], "additionalProperties": false,
+      "properties": { "verified_input_bytes": { "type": "integer", "minimum": 0, "maximum": 67108864 }, "node_count": { "type": "integer", "minimum": 0, "maximum": 200000 }, "binary_edge_count": { "type": "integer", "minimum": 0, "maximum": 1000000 }, "typed_incidence_participant_count": { "type": "integer", "minimum": 0, "maximum": 2000000 }, "universal_occurrence_count": { "type": "integer", "minimum": 0, "maximum": 1000000 }, "selected_pack_count": { "type": "integer", "minimum": 0, "maximum": 1024 } }
+    },
+    "state": { "enum": ["established", "proven", "satisfied", "inactive", "not_proven", "not_assessed", "not_applicable", "ambiguous", "excluded", "residue", "missing", "invalid"] },
+    "facet": { "enum": ["behavior_cohesion", "proof_atomicity", "exact_capture_atomicity", "implementation_ownership", "verification_ownership", "evidence_acquisition", "authority_boundary"] },
+    "effect": { "enum": ["behavior_cohesion", "proof_atomicity", "capture_atomicity", "directed_cut", "merge_signal", "hard_contraction", "separation_signal", "overlay_only", "diagnostic_only", "never_group", "unresolved_constraint"] },
+    "node": {
+      "type": "object",
+      "required": ["node_id", "node_kind", "subtype", "state", "facets", "pack_instance_id", "branch_scope_id", "provenance", "weight"],
+      "additionalProperties": false,
+      "properties": {
+        "node_id": { "$ref": "#/$defs/id" },
+        "node_kind": { "enum": ["authored_behavior_component", "obligation", "falsifier", "profile_pattern", "logic_gate", "relation_instance", "collection_instance", "population", "iterated_occurrence", "proof_pack", "assessment_state", "exact_binding_requirement", "capture_source_set", "deterministic_transform", "projected_selection", "planning_boundary", "resource"] },
+        "subtype": { "enum": ["behavior_claim", "structural_subject", "structural_operand", "mandatory_behavior", "forbidden_behavior", "advisory_behavior", "verification", "evidence", "proposition", "falsifying_proposition", "binding_constraint", "reference_binding", "claim", "relation", "collection", "resolver_fact", "all_of", "any_of", "exactly_one", "satisfies", "verifies", "derives_from", "refines", "traces", "replaces", "depends_on", "precedes", "closed_set", "ordered_sequence", "bound_population", "universal", "universal_member", "assessed_pack", "pack_result", "profile_result", "exact_binding_result", "source", "result", "exact_source_set", "projection", "selected", "inactive_branch", "not_satisfied", "ambiguous", "not_applicable", "uncovered", "excluded", "non_join", "residue", "missing", "invalid", "branch_scope", "implementation", "test", "capture", "acquisition", "role_binding"] }, "state": { "$ref": "#/$defs/state" },
+        "facets": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/facet" } },
+        "pack_instance_id": { "oneOf": [{ "type": "string" }, { "type": "null" }] }, "branch_scope_id": { "oneOf": [{ "type": "string" }, { "type": "null" }] },
+        "provenance": { "$ref": "#/$defs/provenance" }, "weight": { "$ref": "#/$defs/weight" }
+      }
+    },
+    "weight": {
+      "type": "object", "required": ["behavior", "verification", "capture", "serialization"], "additionalProperties": false,
+      "properties": { "behavior": { "type": "integer", "minimum": 0, "maximum": 4294967295 }, "verification": { "type": "integer", "minimum": 0, "maximum": 4294967295 }, "capture": { "type": "integer", "minimum": 0, "maximum": 4294967295 }, "serialization": { "type": "integer", "minimum": 0, "maximum": 4294967295 } }
+    },
+    "derivation": {
+      "type": "object", "required": ["rule_id", "source_class", "source_digest", "state_precondition"], "additionalProperties": false,
+      "properties": { "rule_id": { "type": "string", "minLength": 1 }, "source_class": { "type": "string", "minLength": 1 }, "source_digest": { "$ref": "#/$defs/sha" }, "state_precondition": { "$ref": "#/$defs/state" } }
+    },
+    "edge": {
+      "type": "object", "required": ["edge_id", "edge_kind", "source_node_id", "target_node_id", "state", "derivation", "effect", "facet"], "additionalProperties": false,
+      "properties": { "edge_id": { "$ref": "#/$defs/id" }, "edge_kind": { "enum": ["depends_on", "precedes", "verified_by", "falsified_by", "satisfies_pattern", "bound_to_projected_node", "captured_with", "derived_by", "shares_resource", "must_preserve_identity", "must_co_locate", "may_separate", "must_not_infer_join", "alternative_to", "outside_guarantee"] }, "source_node_id": { "$ref": "#/$defs/id" }, "target_node_id": { "$ref": "#/$defs/id" }, "state": { "$ref": "#/$defs/state" }, "derivation": { "$ref": "#/$defs/derivation" }, "effect": { "$ref": "#/$defs/effect" }, "facet": { "$ref": "#/$defs/facet" } }
+    },
+    "incidence": {
+      "type": "object", "required": ["incidence_id", "incidence_kind", "state", "derivation", "effect", "facet", "pack_instance_id", "branch_scope_id", "typed_attributes", "participants"], "additionalProperties": false,
+      "properties": { "incidence_id": { "$ref": "#/$defs/id" }, "incidence_kind": { "enum": ["proposition_structure", "applicability_scope", "relation_endpoints", "collection_membership", "logic_gate_branches", "iteration_association", "falsifier_occurrence", "exact_binding_source_result", "projected_selection_ownership", "resource_participation", "occurrence_participation", "non_join_boundary"] }, "state": { "$ref": "#/$defs/state" }, "derivation": { "$ref": "#/$defs/derivation" }, "effect": { "$ref": "#/$defs/effect" }, "facet": { "$ref": "#/$defs/facet" }, "pack_instance_id": { "oneOf": [{ "type": "string" }, { "type": "null" }] }, "branch_scope_id": { "oneOf": [{ "type": "string" }, { "type": "null" }] }, "typed_attributes": { "$ref": "#/$defs/typed_attributes" }, "participants": { "type": "array", "items": { "$ref": "#/$defs/participant" } } }
+    },
+    "participant": {
+      "type": "object", "required": ["role", "node_id", "position_path", "multiplicity", "attributes"], "additionalProperties": false,
+      "properties": { "role": { "enum": ["proposition", "subject", "operand", "applicability_owner", "applicability_operand", "relation", "endpoint", "collection", "member", "logic_gate", "branch_scope", "branch_member", "pattern", "population", "iteration_member", "iteration_member_role", "association", "association_member_role", "association_associated_role", "target", "verification", "falsifier", "occurrence_participant", "source_requirement", "captured_source", "source_set", "transform", "result_requirement", "result_projection", "pack_scope", "selection", "projected_graph", "selected_node", "resource", "resource_participant", "occurrence", "boundary", "left_side", "right_side"] }, "node_id": { "$ref": "#/$defs/id" }, "position_path": { "type": "array", "minItems": 1, "maxItems": 4, "items": { "type": "integer", "minimum": 0 } }, "multiplicity": { "type": "integer", "minimum": 1 }, "attributes": { "$ref": "#/$defs/participant_attributes" } }
+    },
+    "nullable_access_mode": { "enum": [null, "read", "write", "read_write", "execute", "observe"] },
+    "nullable_join_kind": { "enum": [null, "same_value", "same_occurrence", "same_attempt", "association"] },
+    "nullable_cardinality": { "enum": [null, "exactly_one", "zero_or_one", "one_or_more", "zero_or_more"] },
+    "typed_attributes": {
+      "oneOf": [
+        { "type": "object", "maxProperties": 0, "additionalProperties": false },
+        { "type": "object", "required": ["scope"], "additionalProperties": false, "properties": { "scope": { "enum": ["unconditional", "if", "unless", "when", "while", "where", "before", "after", "during", "until", "frozen_base", "counterfactual"] } } },
+        { "type": "object", "required": ["ordered"], "additionalProperties": false, "properties": { "ordered": { "type": "boolean" } } },
+        { "type": "object", "required": ["operator"], "additionalProperties": false, "properties": { "operator": { "enum": ["all_of", "any_of", "exactly_one"] } } },
+        { "type": "object", "required": ["quantifier", "vacuous"], "additionalProperties": false, "properties": { "quantifier": { "enum": ["bound_population", "universal"] }, "vacuous": { "type": "boolean" } } },
+        { "type": "object", "required": ["reason"], "additionalProperties": false, "properties": { "reason": { "enum": ["independent_pack_context", "explicit_identity_exclusion", "authority_boundary"] } } }
+      ]
+    },
+    "participant_attributes": {
+      "type": "object", "required": ["access_mode", "join_kind", "cardinality", "endpoint_role", "branch_state", "operand_kind", "scope_role", "member_role", "associated_role", "proposition_position_kind", "participation_role", "occurrence_role", "association_status"], "additionalProperties": false,
+      "properties": { "access_mode": { "$ref": "#/$defs/nullable_access_mode" }, "join_kind": { "$ref": "#/$defs/nullable_join_kind" }, "cardinality": { "$ref": "#/$defs/nullable_cardinality" }, "endpoint_role": { "enum": [null, "source", "target", "qualifier", "member", "owner"] }, "branch_state": { "enum": [null, "active", "inactive", "unresolved"] }, "operand_kind": { "enum": [null, "literal", "reference", "claim", "collection", "relation"] }, "scope_role": { "enum": [null, "subject", "operand", "endpoint", "member", "branch", "source", "result"] }, "member_role": { "enum": [null, "subject", "reference_operand", "applicability_operand"] }, "associated_role": { "enum": [null, "subject", "reference_operand", "relation_endpoint", "collection_member"] }, "proposition_position_kind": { "enum": [null, "subject", "operand", "applicability_operand"] }, "participation_role": { "enum": [null, "implementation", "test", "evidence", "capture_source", "capture_result", "transform_input", "transform_output", "occurrence"] }, "occurrence_role": { "enum": [null, "behavior_target", "verification", "falsifier", "capture", "transform", "projection", "selected_result", "universal_member"] }, "association_status": { "enum": [null, "satisfied", "unsatisfied", "indeterminate"] } }
+    },
+    "constraint": { "type": "object", "required": ["constraint_id", "constraint_kind", "facet", "state", "derivation", "incidence_ids", "normalized_effect"], "additionalProperties": false, "properties": { "constraint_id": { "$ref": "#/$defs/id" }, "constraint_kind": { "enum": ["must_co_locate", "must_preserve_identity", "must_not_infer_join", "ordered_sequence", "alternative_group", "universal_association", "exact_capture_occurrence", "deterministic_projection_source_set"] }, "facet": { "$ref": "#/$defs/facet" }, "state": { "$ref": "#/$defs/state" }, "derivation": { "$ref": "#/$defs/derivation" }, "incidence_ids": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/id" } }, "normalized_effect": { "$ref": "#/$defs/effect" } } },
+    "unresolved": { "type": "object", "required": ["fact_id", "state", "classification", "source_class", "source_digest", "subject_node_ids", "blocks", "only_permitted_effects"], "additionalProperties": false, "properties": { "fact_id": { "$ref": "#/$defs/id" }, "state": { "enum": ["not_proven", "not_assessed", "not_applicable", "ambiguous", "excluded", "residue", "missing", "invalid"] }, "classification": { "enum": ["unresolved_constraint", "hard_invalidity", "review_required_boundary", "diagnostic_boundary"] }, "source_class": { "$ref": "#/$defs/id" }, "source_digest": { "$ref": "#/$defs/sha" }, "subject_node_ids": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/id" } }, "blocks": { "type": "array", "minItems": 1, "items": { "enum": ["resolved_graph", "anonymization", "candidate_generation", "comparison", "affected_comparison_field"] } }, "only_permitted_effects": { "const": ["diagnostic_only", "unresolved_constraint"] } } }
+  }
+}

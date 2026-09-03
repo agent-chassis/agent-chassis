@@ -1,5 +1,5 @@
 import { PROOF_PACK_ADEQUACY_RUN_VERSION } from "../support/proof-pack-adequacy-constants.mjs";
-import { evaluateVerificationProfileV034 } from "../../lib/verification-profile-v034.mjs";
+import { evaluateStableProofPackFixtureV1 } from "../support/stable-v1-proof-pack-runtime.mjs";
 import {
   buildDormancyNonactivationFixture,
   findClaim,
@@ -11,7 +11,7 @@ import {
   executeDormancy
 } from "./dormancy-nonactivation-v1-harness.mjs";
 
-const PROFILE_DIGEST = "34fe6942fc06d74abb0faef0f4488c81b56d2f165f83ceb7ca9595aef79ff69c";
+const PROFILE_DIGEST = "d273dae20097835533033248ff776361180baf302cb4668c3dd1caa749021a32";
 const GUARANTEE_DIGEST = "195abee0ccf37eccb8b59dcb3f7e5c750cce280860015fb880aea55c3953e738";
 const EXCLUSIONS = Object.freeze([
   "activation-after-the-captured-observation-boundary",
@@ -23,7 +23,7 @@ const EXCLUSIONS = Object.freeze([
   "resolver-authority-or-independent-transitive-reachability-recomputation",
   "runtime-authority-pack-applicability-or-cce-consequence"
 ]);
-const evaluate = (fixture) => evaluateVerificationProfileV034({ contract: fixture.contract,
+const evaluate = (fixture) => evaluateStableProofPackFixtureV1({ contract: fixture.contract,
   profile: fixture.profile, evaluation_input: fixture.input }).satisfaction;
 const removeClaim = (contract, id) => {
   const claim = findClaim(contract, id); if (!claim) return;

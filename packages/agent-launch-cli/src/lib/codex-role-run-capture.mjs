@@ -7,8 +7,12 @@ import { mkdir, stat, realpath, writeFile } from "node:fs/promises";
 import { reviewPromptSubjectPath } from "./codex-role-prompts.mjs";
 import { isNonEmptyStringInternal, writeStderr } from "./codex-role-io.mjs";
 import { readDispatchArtifactStats } from "./workspace-agent-dispatch-provenance.mjs";
+import {
+  AGENT_RUN_PROVENANCE_ENVELOPE_SCHEMA_VERSION,
+  buildAgentRunProvenanceEnvelope
+} from "@agent-chassis/agent-launch-core";
 
-export const AGENT_RUN_PROVENANCE_SCHEMA_VERSION = "agent-run-provenance.v1";
+export const AGENT_RUN_PROVENANCE_SCHEMA_VERSION = AGENT_RUN_PROVENANCE_ENVELOPE_SCHEMA_VERSION;
 const AGENT_RUN_HEARTBEAT_INTERVAL_ENV_VAR = "AGENT_RUN_HEARTBEAT_INTERVAL";
 const AGENT_RUN_DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 30;
 const DIRECT_LAUNCH_SELECTED_AGENT = "codex";
@@ -70,6 +74,7 @@ export async function writeDirectLaunchProvenance(plan, {
   completedAt,
   completedAtEpoch,
   status,
+  signal = null,
   childPid,
   heartbeatPath,
   heartbeatTimeline,
@@ -109,21 +114,20 @@ export async function writeDirectLaunchProvenance(plan, {
     argvRedacted.push("[prompt redacted]");
   }
 
-  const envelope = {
-    schema_version: AGENT_RUN_PROVENANCE_SCHEMA_VERSION,
-    run_id: path.basename(plan.runDir),
+  const construction = buildAgentRunProvenanceEnvelope({
+    captureMode: "direct",
+    runId: path.basename(plan.runDir),
     wrapper,
     role,
-
     subject: isNonEmptyStringInternal(env.AGENT_SUBJECT) ? env.AGENT_SUBJECT : subjectAddress,
-    wk_id: wkId,
-    in_id: inId,
+    wkId,
+    inId,
     entrypoint: wrapper ? path.resolve(moduleDir, "..", "..", "bin", wrapper) : null,
-    selected_agent: DIRECT_LAUNCH_SELECTED_AGENT,
+    selectedAgent: DIRECT_LAUNCH_SELECTED_AGENT,
     profile: firstArgValue(plan.args, "-p"),
     model: firstArgValue(plan.args, "-m"),
-    argv_redacted: argvRedacted,
-    source_context: {
+    argvRedacted,
+    sourceContext: {
       subject: await describeProvenanceFile(
         subjectAbsolute,
         isNonEmptyStringInternal(subjectPath) ? subjectPath : null,
@@ -146,27 +150,28 @@ export async function writeDirectLaunchProvenance(plan, {
       runtime_home: runtimeHome,
       workspace_root: workspaceRoot
     },
-    runtime: {
-      cwd: workspaceRoot,
-      started_at: startedAt,
-      completed_at: completedAt,
-      started_at_epoch: startedAtEpoch,
-      completed_at_epoch: completedAtEpoch,
-      status: status === 0 ? "completed" : "failed",
-      exit_status: typeof status === "number" ? status : null,
-      child_pid: childPid,
-      heartbeat_timeline: Array.isArray(heartbeatTimeline) ? heartbeatTimeline : []
-    },
+    runtimeCwd: workspaceRoot,
+    runDir: plan.runDir,
+    startedAt,
+    completedAt,
+    startedAtEpoch,
+    completedAtEpoch,
+    status,
+    signal,
+    terminalStatus: status === 0 && signal === null ? "completed" : "failed",
+    childPid,
+    heartbeatTimeline,
     artifacts: {
       final_response: await describeProvenanceFile(plan.finalPath, plan.finalPath, "text/markdown", "routine"),
       stderr_log: await describeProvenanceFile(plan.logPath, plan.logPath, "text/plain", "sensitive"),
       heartbeat_log: await describeProvenanceFile(heartbeatPath, heartbeatPath, "text/plain", "sensitive")
     },
-    cleanup: {
-      retained: true,
-      run_dir: plan.runDir
-    }
-  };
+  });
+
+  if (!construction.ok) {
+    throw new Error(construction.diagnostic.message);
+  }
+  const envelope = construction.envelope;
 
   const metadataDir = path.join(plan.runDir, "metadata");
   await mkdir(metadataDir, { recursive: true });

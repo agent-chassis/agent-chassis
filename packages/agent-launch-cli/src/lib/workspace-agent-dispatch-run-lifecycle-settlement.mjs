@@ -5,8 +5,10 @@ import {
   BACKEND_REFUSAL_CODES,
   BACKEND_MISSING_RESULT_CODES,
   WORKSPACE_AGENT_DISPATCH_BACKEND_SCHEMA_VERSION,
-  WORKSPACE_AGENT_DISPATCH_RUN_STATUS_SCHEMA_VERSION
+  WORKSPACE_AGENT_DISPATCH_RUN_STATUS_SCHEMA_VERSION,
+  WORKSPACE_AGENT_DISPATCH_FINAL_RESULT_SCHEMA_VERSION
 } from "@agent-chassis/agent-launch-core";
+import { createHash } from "node:crypto";
 
 import {
   dispatchRefusal,
@@ -15,15 +17,198 @@ import {
 import {
   normalizeFinalResultWithStructuredRoleResult,
   buildMissingResultEnvelopeWithStructuredRoleResult,
-  attachDispatchProvenance
+  attachDispatchProvenance,
+  attachFormalReviewAttestationSettlement
 } from "./workspace-agent-dispatch-final-result-evidence.mjs";
 import { deriveBackendReviewResult } from "./workspace-agent-dispatch-review-result.mjs";
 import { WRITE_SCOPE_VERIFICATION_SCHEMA_VERSION } from "./workspace-agent-write-scope-verification.mjs";
+import {
+  buildWorkspaceAgentResultModeEnvelope,
+  classifyExactSliceReviewReceiptResultMode,
+  readLauncherObservedTerminalResultMode,
+  WORKSPACE_AGENT_RESULT_MODES
+} from "./workspace-agent-dispatch-result-mode.mjs";
+import {
+  reviseExactSliceReviewReceipt
+} from "./workspace-agent-dispatch-run-receipt-transitions.mjs";
+import {
+  LAUNCHER_DURABLE_STATE_CODES
+} from "@agent-chassis/agent-launch-core/src/lib/durable-runtime-state.mjs";
 
 import { readStdioMcpConduitTerminalFailure } from "./stdio-mcp-conduit-contract.mjs";
 
 export function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+const formalAttestationSettledRecords = new WeakSet();
+
+async function settleRequestedFormalAttestation(
+  record,
+  reviewResult,
+  settleFormalReviewAttestation
+) {
+  const formal = record?.final_result?.advisory_review?.formal_attestation;
+  if (formal?.requested !== true || formalAttestationSettledRecords.has(record)) return;
+  formalAttestationSettledRecords.add(record);
+  if (formal.reason === "schema_non_adherent") return;
+  let settlement;
+  try {
+    settlement = typeof settleFormalReviewAttestation === "function"
+      ? await settleFormalReviewAttestation({ record, reviewResult })
+      : { available: false, reason: "settlement_owner_unavailable" };
+  } catch (error) {
+    settlement = {
+      available: false,
+      reason: "settlement_failed",
+      diagnostics: [error?.message ?? String(error)]
+    };
+  }
+  record.final_result = attachFormalReviewAttestationSettlement(
+    record.final_result,
+    settlement
+  );
+}
+
+export const ATTEMPT_LINEAGE_RESOLUTION_SCHEMA_VERSION =
+  "workspace-agent-attempt-lineage-resolution.v1";
+export const ATTEMPT_LINEAGE_RESOLUTION_STATES = Object.freeze({
+  SELECTED: "selected",
+  OPERATOR_RECOVERY_NEEDED: "operator_recovery_needed"
+});
+const ATTEMPT_LINEAGE_NEXT_ACTIONS = new Set([
+  "poll_selected_attempt",
+  "consume_selected_result",
+  "no_supported_route",
+  "retry_lineage_settlement",
+  "retry_generation_tip_reassessment"
+]);
+
+export const ATTEMPT_LINEAGE_CONFLICT_CLASSES = Object.freeze([
+  "none",
+  "accumulated_tip_moved_during_reassessment",
+  "attempt_identity_mismatch",
+  "executor_spawn_bind_uncertain",
+  "frozen_contract_moved",
+  "generation_changed_during_reassessment",
+  "generation_tip_reassessment_failed",
+  "moved_accumulated_tip",
+  "receipt_mutation_failed",
+  "result_inapplicable",
+  "semantic_applicability_refused",
+  "selected_lineage_settlement_failed",
+  "stale_contract_generation",
+  "terminal_conflict_persistence_failed",
+  "terminal_projection_mismatched",
+  "terminal_projection_persistence_failed"
+]);
+const ATTEMPT_LINEAGE_CONFLICT_CLASS_SET = new Set(
+  ATTEMPT_LINEAGE_CONFLICT_CLASSES
+);
+
+const ATTEMPT_LINEAGE_CONFLICT_DETAIL_SCHEMA_VERSION =
+  "workspace-agent-review-applicability-conflict.v1";
+const ATTEMPT_LINEAGE_ORIGINATING_FAILURE_SCHEMA_VERSION =
+  "workspace-agent-findings-originating-failure.v1";
+export const FINDINGS_SETTLEMENT_INVARIANT_CODE =
+  "launcher_findings_settlement_invariant_violation";
+export const FINDINGS_TERMINAL_EVIDENCE_MISSING_CODE =
+  "agent_launch.review_result_mode.current_evidence_missing.v1";
+export const FINDINGS_TERMINAL_EVIDENCE_INVALID_CODE =
+  "agent_launch.review_result_mode.current_evidence_invalid.v1";
+export const FINDINGS_ATTEMPT_OBSERVATION_CLASSES = Object.freeze({
+  HOT_ACTIVE: "hot_active",
+  COLD_TERMINAL: "cold_terminal",
+  COLD_NONTERMINAL_UNOBSERVABLE: "cold_nonterminal_unobservable",
+  IDENTITY_CONFLICT: "identity_conflict",
+  ABSENT_NEW_ATTEMPT: "absent_new_attempt"
+});
+
+const FINDINGS_SETTLEMENT_FAILURE_PHASES = new Set([
+  "pre_spawn_receipt_settlement",
+  "retained_duplicate_reconciliation"
+]);
+
+function normalizeAttemptLineageConflictDetail(detail) {
+  if (detail === null || detail === undefined) return null;
+  const fields = [
+    "schema_version", "reason", "frozen_reviewed_sha", "observed_target_sha",
+    "frozen_generation_digest", "observed_generation_digest",
+    "frozen_manifest_digest", "observed_manifest_digest"
+  ];
+  if (!isPlainObject(detail) || Object.keys(detail).sort().join("\0") !==
+      [...fields].sort().join("\0") ||
+      detail.schema_version !== ATTEMPT_LINEAGE_CONFLICT_DETAIL_SCHEMA_VERSION ||
+      typeof detail.reason !== "string" || !/^[a-z][a-z0-9_]*$/u.test(detail.reason)) {
+    throw new TypeError("launcher attempt-lineage conflict detail is malformed");
+  }
+  for (const field of ["frozen_reviewed_sha", "observed_target_sha"]) {
+    if (!(detail[field] === null ||
+        (typeof detail[field] === "string" && /^[0-9a-f]{40,64}$/u.test(detail[field])))) {
+      throw new TypeError("launcher attempt-lineage conflict SHA detail is malformed");
+    }
+  }
+  for (const field of [
+    "frozen_generation_digest", "observed_generation_digest",
+    "frozen_manifest_digest", "observed_manifest_digest"
+  ]) {
+    if (!(detail[field] === null || (typeof detail[field] === "string" &&
+        /^(?:controlled-contract-generation:none|sha256:[0-9a-f]{64})$/u.test(detail[field])))) {
+      throw new TypeError("launcher attempt-lineage conflict digest detail is malformed");
+    }
+  }
+  return Object.freeze(Object.fromEntries(fields.map((field) => [field, detail[field]])));
+}
+
+export function buildAttemptLineageResolutionProjection({
+  state,
+  prior_run_id = null,
+  replacement_run_id,
+  monitor_handle = null,
+  prior_mode = null,
+  attempted_mode = null,
+  conflict_class = "none",
+  conflict_detail = null,
+  originating_failure = null,
+  next_action
+}) {
+  const normalizedConflictDetail = normalizeAttemptLineageConflictDetail(conflict_detail);
+  const normalizedOriginatingFailure = normalizeAttemptLineageOriginatingFailure(
+    originating_failure
+  );
+  if (!Object.values(ATTEMPT_LINEAGE_RESOLUTION_STATES).includes(state) ||
+      !(prior_run_id === null || typeof prior_run_id === "string") ||
+      typeof replacement_run_id !== "string" || replacement_run_id.length === 0 ||
+      !(monitor_handle === null || typeof monitor_handle === "string") ||
+      !(prior_mode === null || typeof prior_mode === "string") ||
+      !(attempted_mode === null || typeof attempted_mode === "string") ||
+      !ATTEMPT_LINEAGE_CONFLICT_CLASS_SET.has(conflict_class) ||
+      !ATTEMPT_LINEAGE_NEXT_ACTIONS.has(next_action)) {
+    throw new TypeError("launcher attempt-lineage resolution projection is malformed");
+  }
+  if ((state === ATTEMPT_LINEAGE_RESOLUTION_STATES.SELECTED) !==
+      (conflict_class === "none")) {
+    throw new TypeError("launcher attempt-lineage resolution state conflicts with its class");
+  }
+  if (state === ATTEMPT_LINEAGE_RESOLUTION_STATES.SELECTED &&
+      (normalizedConflictDetail !== null || normalizedOriginatingFailure !== null)) {
+    throw new TypeError("selected attempt-lineage resolution cannot carry conflict evidence");
+  }
+  return Object.freeze({
+    schema_version: ATTEMPT_LINEAGE_RESOLUTION_SCHEMA_VERSION,
+    state,
+    prior_run_id,
+    replacement_run_id,
+    monitor_handle,
+    prior_mode,
+    attempted_mode,
+    conflict_class,
+    conflict_detail: normalizedConflictDetail,
+    ...(normalizedOriginatingFailure === null
+      ? {}
+      : { originating_failure: normalizedOriginatingFailure }),
+    next_action
+  });
 }
 
 export function attachWriteScopeVerification(envelope, rawFinalResult) {
@@ -86,6 +271,9 @@ export function buildAcceptedLaunchEnvelope(record, startReviewResult, workerAdm
     updated_at: record.updated_at,
     exit: record.exit,
     final_result: record.final_result,
+    ...(record.attempt_lineage_resolution
+      ? { attempt_lineage_resolution: record.attempt_lineage_resolution }
+      : {}),
     ...(record.validation_evidence ? { validation_evidence: record.validation_evidence } : {}),
     ...(startReviewResult ? { review_result: startReviewResult } : {}),
 
@@ -101,6 +289,7 @@ export async function finalizeLaunchOutcome(params) {
     bindManagedRunOuterIdentity,
     runs,
     captureSliceReviewTerminalResult,
+    settleFormalReviewAttestation,
     run_id,
     monitor_handle,
     app,
@@ -113,7 +302,9 @@ export async function finalizeLaunchOutcome(params) {
     startedAt,
     reviewerValidationEvidence,
     reviewerLaunchIdentity,
-    workerAdmissionDiagnostic
+    workerAdmissionDiagnostic,
+    sessionContract = null,
+    findingsLifecycle = false
   } = params;
 
   let pendingManagedRunIdentity = params.pendingManagedRunIdentity ?? null;
@@ -203,8 +394,25 @@ export async function finalizeLaunchOutcome(params) {
     terminal: TERMINAL_STATUSES.has(initialStatus),
     exit: executorResult.exit ?? null,
     probe: typeof executorResult.probe === "function" ? executorResult.probe : null,
+
+    terminal_structured_role_result_mode:
+      readLauncherObservedTerminalResultMode(executorResult),
     final_result: null
   };
+  Object.defineProperty(record, "findings_lifecycle", {
+    value: findingsLifecycle === true,
+    enumerable: false,
+    configurable: false,
+    writable: false
+  });
+  if (sessionContract !== null) {
+    Object.defineProperty(record, "session_contract", {
+      value: sessionContract,
+      enumerable: true,
+      configurable: false,
+      writable: false
+    });
+  }
   if (reviewerValidationEvidence !== null) {
     Object.defineProperty(record, "validation_evidence", {
       value: reviewerValidationEvidence,
@@ -236,15 +444,29 @@ export async function finalizeLaunchOutcome(params) {
       : buildMissingResultEnvelopeWithStructuredRoleResult(
           BACKEND_MISSING_RESULT_CODES.FINAL_REPORT_NOT_CAPTURED,
           "executor_terminal_without_final_result",
-          { status: initialStatus }
+          { status: initialStatus },
+          record
         );
   }
+  const startReviewResult = deriveBackendReviewResult(record);
+  if (record.terminal) {
+    await settleRequestedFormalAttestation(
+      record,
+      startReviewResult,
+      settleFormalReviewAttestation
+    );
+  }
   runs.set(run_id, record);
-  if (record.terminal && typeof captureSliceReviewTerminalResult === "function") {
-    await captureSliceReviewTerminalResult({ record });
+  if (record.terminal && findingsLifecycle === true &&
+      typeof captureSliceReviewTerminalResult === "function") {
+    try {
+      await captureSliceReviewTerminalResult({ record, reassess: null });
+      record.findings_audit_posture = "recorded";
+    } catch {
+      record.findings_audit_posture = "unavailable";
+    }
   }
 
-  const startReviewResult = deriveBackendReviewResult(record);
   return buildAcceptedLaunchEnvelope(record, startReviewResult, workerAdmissionDiagnostic);
 }
 
@@ -271,7 +493,8 @@ function applyProbeObservation(record, probed, clock) {
             typeof probed?.status === "string"
           ? probed.status
           : null
-      }
+      },
+      record
     );
     record.updated_at = new Date(clock()).toISOString();
     return;
@@ -283,12 +506,15 @@ function applyProbeObservation(record, probed, clock) {
   }
 
   if (record.terminal && !record.final_result) {
+
+    const conduitFailure = readStdioMcpConduitTerminalFailure(probed);
+    if (conduitFailure !== null) {
+      record.launcher_conduit_terminal_failure = conduitFailure;
+    }
     const captured = normalizeFinalResultWithStructuredRoleResult(
       probed.final_result,
       record
     );
-
-    const conduitFailure = readStdioMcpConduitTerminalFailure(probed);
 
     if (captured && conduitFailure !== null) {
       record.exit = {
@@ -297,9 +523,6 @@ function applyProbeObservation(record, probed, clock) {
       };
     }
 
-    if (conduitFailure !== null) {
-      record.launcher_conduit_terminal_failure = conduitFailure;
-    }
     record.final_result = captured
       ? attachWriteScopeVerification(
           attachDispatchProvenance(captured, probed.final_result, record),
@@ -312,7 +535,8 @@ function applyProbeObservation(record, probed, clock) {
             : conduitFailure.reason,
           conduitFailure === null
             ? { status: record.status }
-            : { status: record.status, ...(conduitFailure.detail ?? {}) }
+            : { status: record.status, ...(conduitFailure.detail ?? {}) },
+          record
         );
   }
   record.updated_at = new Date(clock()).toISOString();
@@ -329,14 +553,15 @@ function applyProbeThrow(record, error, clock) {
   record.final_result = buildMissingResultEnvelopeWithStructuredRoleResult(
     BACKEND_MISSING_RESULT_CODES.FINAL_REPORT_PROBE_FAILED,
     "probe_threw_before_terminal_capture",
-    { message: error?.message ?? String(error) }
+    { message: error?.message ?? String(error) },
+    record
   );
   record.updated_at = new Date(clock()).toISOString();
 }
 
 export async function settleAndProjectRunStatus(
   record,
-  { clock, captureSliceReviewTerminalResult } = {}
+  { clock, captureSliceReviewTerminalResult, settleFormalReviewAttestation } = {}
 ) {
   if (!record.terminal && typeof record.probe === "function") {
     try {
@@ -350,8 +575,22 @@ export async function settleAndProjectRunStatus(
   }
 
   const reviewResult = deriveBackendReviewResult(record);
-  if (record.terminal && typeof captureSliceReviewTerminalResult === "function") {
-    await captureSliceReviewTerminalResult({ record });
+  if (record.terminal) {
+    await settleRequestedFormalAttestation(
+      record,
+      reviewResult,
+      settleFormalReviewAttestation
+    );
+  }
+  if (record.terminal && record.findings_lifecycle === true &&
+      typeof captureSliceReviewTerminalResult === "function" &&
+      record.findings_audit_posture === undefined) {
+    try {
+      await captureSliceReviewTerminalResult({ record, reassess: null });
+      record.findings_audit_posture = "recorded";
+    } catch {
+      record.findings_audit_posture = "unavailable";
+    }
   }
   return buildRunStatusEnvelope(record, reviewResult);
 }
@@ -373,6 +612,12 @@ export function buildRunStatusEnvelope(record, reviewResult) {
     updated_at: record.updated_at,
     exit: record.exit ?? null,
     final_result: record.final_result ?? null,
+    ...(record.session_contract === undefined
+      ? {}
+      : {
+          session_contract_required: true,
+          session_contract: record.session_contract
+        }),
     ...(record.validation_evidence ? { validation_evidence: record.validation_evidence } : {}),
     ...(reviewResult ? { review_result: reviewResult } : {})
   };

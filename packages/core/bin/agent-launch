@@ -1,3 +1,41 @@
 #!/usr/bin/env node
 
-await import("@agent-chassis/agent-launch-cli/src/index.mjs");
+import { fileURLToPath } from "node:url";
+import { createCorePackageDocsCarrier } from "../lib/package-docs-carrier.mjs";
+import {
+  PackageDocsCarrierCompositionError,
+  bindCorePackageDocsHostComposition
+} from "@agent-chassis/agent-launch-cli/src/lib/wiki-mcp-host-server.mjs";
+
+const MCP_COMPOSING_COMMANDS = new Set([
+  "worker", "review", "redteam", "orchestrator", "resume", "codex-role"
+]);
+
+let startupReady = true;
+if (MCP_COMPOSING_COMMANDS.has(process.argv[2])) {
+  try {
+    let packageDocsCarrier;
+    try {
+      packageDocsCarrier = await createCorePackageDocsCarrier();
+    } catch {
+      throw new PackageDocsCarrierCompositionError("package_metadata_invalid");
+    }
+    bindCorePackageDocsHostComposition({
+      entrypoint: fileURLToPath(new URL("./wiki-mcp", import.meta.url)),
+      packageDocsCarrier
+    });
+  } catch (error) {
+    if (error?.code === "package_docs_carrier_composition_incompatible" &&
+        error?.detail?.code === "package_docs_carrier_composition_incompatible") {
+      console.error(JSON.stringify(error.detail));
+      process.exitCode = 1;
+      startupReady = false;
+    } else {
+      throw error;
+    }
+  }
+}
+
+if (startupReady) {
+  await import("@agent-chassis/agent-launch-cli/src/index.mjs");
+}

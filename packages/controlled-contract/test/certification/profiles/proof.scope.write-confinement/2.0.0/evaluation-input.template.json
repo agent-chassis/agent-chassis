@@ -1,0 +1,49 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.v1",
+  "evaluation_stage": "pre_dispatch",
+  "reference_bindings": [
+    {
+      "role": "execution",
+      "reference_ids": [
+        "<execution-reference-id>"
+      ]
+    },
+    {
+      "role": "observed_population",
+      "reference_ids": [
+        "<observed-population-reference-id>"
+      ]
+    },
+    {
+      "role": "observed_mutations",
+      "reference_ids": []
+    },
+    {
+      "role": "authorized_scope",
+      "reference_ids": [
+        "<authorized-scope-reference-id>"
+      ]
+    },
+    {
+      "role": "authorized_targets",
+      "reference_ids": []
+    },
+    {
+      "role": "verification",
+      "reference_ids": [
+        "<verification-reference-id>"
+      ]
+    },
+    {
+      "role": "unauthorized_mutation_condition",
+      "reference_ids": [
+        "<unauthorized-mutation-condition-reference-id>"
+      ]
+    }
+  ],
+  "number_bindings": [],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": [],
+  "stable_evaluation": {}
+}

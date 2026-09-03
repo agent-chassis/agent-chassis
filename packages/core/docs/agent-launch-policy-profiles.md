@@ -11,15 +11,12 @@ decision; it is retained only as local config/evidence hygiene.
 
 ## Policy scope
 
-These policy inputs tune and record admissibility thresholds; they enforce
-product contracts and preserve provenance, and they do not claim security
-against a hostile same-user actor or a compromised host. The org policy profile
-is authority-bearing only on the CCE-bound path, where the Chassis Control
-Engine owns thresholds and verdicts; the local source-available override file is
-inert for admissibility. Both assume an honest operator and honest
-launcher-minted runtime: their job is to keep an honest dispatch's reviewability
-tuning correct and legible, not to withstand a local actor who already controls
-the account or the workspace.
+These policy inputs tune and record admissibility thresholds under the
+[no-additional-security-profile doctrine](operating-model.md#scope-doctrine-no-additional-security-profile).
+The org policy profile is authority-bearing only on the CCE-bound path, where
+the Chassis Control Engine owns thresholds and verdicts; the local
+source-available override file is inert for admissibility. These are policy and
+mechanical-validity controls, not an AgentChassis security profile.
 
 The following remain real boundaries and are unchanged by that scope framing:
 
@@ -29,9 +26,10 @@ The following remain real boundaries and are unchanged by that scope framing:
 - **Launcher-owned, workspace-local config.** The profile is launcher/operator
   config read from `<workspace>/.agent-launch/`, never selected by prompt,
   request payload, argv, or agent-authored env.
-- **Fail-closed config hygiene.** A declared-but-malformed local override fails
-  closed with diagnostics to protect evidence integrity; that is corruption
-  detection, not a local admissibility verdict.
+- **Mechanically closed config handling.** A declared-but-malformed local
+  override is rejected with diagnostics because it cannot be interpreted as the
+  required configuration; that is not a security-safe default or a local
+  admissibility verdict.
 
 For the durable audit and honest-scope mandate behind this framing, see
 agent-chassis:work record.
@@ -105,10 +103,10 @@ The override file is recognized by this schema version:
 ```
 
 The local reader may still validate the file as configuration evidence. A
-declared-but-malformed local override fails closed with diagnostics for hygiene
+declared-but-malformed local override is rejected with diagnostics for validity
 problems such as malformed JSON/config, unsupported schema versions, unknown
 entries, invalid values, or contradictory disabled-rule declarations. That
-fail-closed behavior protects evidence integrity only; it is not local threshold
+behavior preserves the configuration contract only; it is not local threshold
 authority and does not produce a local admissibility verdict.
 
 After decision, the local side measures and forwards raw carrier facts over the

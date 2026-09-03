@@ -314,7 +314,8 @@ export async function publishWorkRecordAdmissionDerivedEvidenceSidecar({
   publication,
   linkFile = link,
   openFile = open,
-  readDestination = readFile
+  readDestination = readFile,
+  removeStage = rm
 }) {
   const prepared = publication?.bytes && publication?.relativePath
     ? publication
@@ -449,9 +450,15 @@ export async function publishWorkRecordAdmissionDerivedEvidenceSidecar({
   } finally {
     if (stageCreated) {
       try {
-        await rm(stagePath, { force: true });
-      } catch {
-
+        await removeStage(stagePath, { force: true });
+      } catch (error) {
+        return publicationFailure({
+          code: "sidecar_publication_failed",
+          identity,
+          sidecarPath: prepared.relativePath,
+          operation: "stage_cleanup",
+          error
+        });
       }
     }
   }

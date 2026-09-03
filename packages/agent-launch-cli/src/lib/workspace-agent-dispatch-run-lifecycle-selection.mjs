@@ -12,12 +12,44 @@ import {
 import { DISPATCH_FORBIDDEN_ENVELOPE_TOKENS } from "./dispatch-envelope-policy.mjs";
 import {
   resolveDispatchedRoleModel,
-  resolveExplicitOverrideSelection
+  resolveExplicitOverrideSelection,
+  resolveModelOverrideBindingPermission
 } from "./agent-launch-profiles.mjs";
-import { resolveModel } from "./agent-launch-model-registry.mjs";
+import { resolveModelRuntime } from "./agent-launch-model-registry.mjs";
 import { dispatchRefusal } from "./workspace-agent-dispatch-refusal.mjs";
 
-export function resolveDispatchSelection({ role, app, model, workspaceDir, configRootDir = null }) {
+const DISPATCH_TARGET_GRAMMAR = Object.freeze({
+  initiative: /^IN-\d{4}$/,
+  wk: /^WK-\d{4}$/,
+  slice: /^WK-\d{4}#SLICE-\d{3}$/
+});
+
+const TARGET_ROLE_MATRIX = Object.freeze({
+  worker: new Set(["initiative", "wk", "slice"]),
+  reviewer: new Set(["wk", "slice"]),
+  redteam: new Set(["wk", "slice"])
+});
+
+function refusalDetail(detail, authority_limb = "mechanical_failure") {
+  const existingLimb = detail?.authority_limb;
+  return {
+    ...(detail ?? {}),
+    authority_limb: existingLimb === "exact_returned_policy" || existingLimb === "mechanical_failure"
+      ? existingLimb
+      : authority_limb
+  };
+}
+
+export function resolveDispatchSelection({
+  role,
+  app,
+  model,
+  target = null,
+  target_role = null,
+  subject = null,
+  workspaceDir,
+  configRootDir = null
+}) {
   const appToken = typeof app === "string" && app.trim().length > 0 ? app.trim() : null;
   const modelToken = typeof model === "string" && model.trim().length > 0 ? model.trim() : null;
 
@@ -25,58 +57,139 @@ export function resolveDispatchSelection({ role, app, model, workspaceDir, confi
     return {
       ok: false,
       reason: "unsupported_app",
-      detail: { app: appToken, supported_apps: [...BACKEND_SUPPORTED_APPS] }
+      detail: refusalDetail({ app: appToken, supported_apps: [...BACKEND_SUPPORTED_APPS] })
     };
   }
 
-  let selection;
-  if (appToken !== null || modelToken !== null) {
+  const targetProjection = resolveTargetRoleProjection({
+    target: target ?? subject,
+    targetRole: target_role,
+    role
+  });
+  if (!targetProjection.ok) return targetProjection;
 
-    selection = appToken !== null && modelToken === null
-      ? { ok: true, app: appToken, model: null, model_spec: null }
-      : resolveExplicitOverrideSelection({ role, app: appToken, model: modelToken });
-  } else {
-    const modelConfigDir = typeof configRootDir === "string" && configRootDir.length > 0
-      ? configRootDir
-      : workspaceDir;
-    try {
-      selection = resolveDispatchedRoleModel({ role, dir: modelConfigDir });
-    } catch (error) {
-      const refusalRole = role === "review" ? "reviewer" : role;
+  const modelConfigDir = typeof configRootDir === "string" && configRootDir.length > 0
+    ? configRootDir
+    : workspaceDir;
+  let roleSelection;
+  try {
+
+    roleSelection = modelToken !== null
+      ? resolveExplicitOverrideSelection({ role, app: appToken, model: modelToken })
+      : resolveDispatchedRoleModel({ role, dir: modelConfigDir });
+  } catch (error) {
+      const refusalRole = role;
       return {
         ok: false,
         reason: `${refusalRole ?? "role"}_role_config_invalid`,
-        detail: {
+        detail: refusalDetail({
           role: typeof refusalRole === "string" ? refusalRole : null,
           config_file: "agent-launch.toml",
           source_code: error?.code ?? "agent_launch_role_config_error",
           source_detail: error?.detail ?? null,
           message: error?.message ?? String(error)
-        }
+        })
+      };
+  }
+  if (!roleSelection?.ok) {
+    return roleSelection ?? {
+      ok: false,
+      reason: "launcher_selection_unresolved",
+      detail: refusalDetail({ role: typeof role === "string" ? role : null })
+    };
+  }
+
+  if (modelToken !== null) {
+    const permission = resolveModelOverrideBindingPermission({
+      role,
+      configRootDir: modelConfigDir,
+      app: roleSelection.app ?? resolveModelRuntime(modelToken)?.app ?? null,
+      modelOverride: modelToken
+    });
+    if (!permission.ok) {
+      return {
+        ...permission,
+        detail: refusalDetail(permission.detail, "exact_returned_policy")
       };
     }
   }
 
-  if (!selection || selection.ok !== true) {
-    return selection ?? {
-      ok: false,
-      reason: "launcher_selection_unresolved",
-      detail: { role: typeof role === "string" ? role : null }
-    };
+  const roleValue = roleSelection.value ?? roleSelection;
+  let runtime = resolveModelRuntime(roleValue?.model);
+  if (!runtime) {
+    return { ok: false, reason: "role_model_unknown", detail: refusalDetail({ role, model: roleValue?.model }) };
   }
 
-  const modelSpec = selection.model_spec
-    ?? (typeof selection.model === "string" ? resolveModel(selection.model) : null);
+  if (appToken !== null && modelToken === null) {
+    const override = resolveExplicitOverrideSelection({ role, app: appToken, model: modelToken });
+    if (!override || override.ok !== true) return override;
+    if (appToken !== null && override.app !== runtime.app) {
+      return {
+        ok: false,
+        reason: "launcher_override_app_model_mismatch",
+        detail: refusalDetail({ role, app_token: appToken, derived_app: runtime.app, model: runtime.model })
+      };
+    }
+  }
   return {
     ok: true,
-    app: selection.app,
-    model: selection.model ?? null,
-    backend: modelSpec?.backend ?? null
+    ...targetProjection,
+    app: runtime.app,
+    model: runtime.model,
+    backend: runtime.backend,
+    backend_profile: runtime.backend_profile,
+    default_effort: runtime.default_effort,
+    model_spec: runtime.model_spec
+  };
+}
+
+function classifyDispatchTarget(target) {
+  if (typeof target !== "string" || target.trim().length === 0) return null;
+  const value = target.trim();
+  if (DISPATCH_TARGET_GRAMMAR.initiative.test(value)) return "initiative";
+  if (DISPATCH_TARGET_GRAMMAR.wk.test(value)) return "wk";
+  if (DISPATCH_TARGET_GRAMMAR.slice.test(value)) return "slice";
+  return null;
+}
+
+function resolveTargetRoleProjection({ target, targetRole, role }) {
+  const canonicalTarget = typeof target === "string" && target.trim().length > 0
+    ? target.trim()
+    : null;
+  const canonicalRole = typeof role === "string" && role.length > 0 ? role : null;
+  const requestedRole = typeof targetRole === "string" && targetRole.length > 0
+    ? targetRole
+    : canonicalRole;
+  const routeKind = classifyDispatchTarget(canonicalTarget);
+  if (canonicalTarget === null || routeKind === null) {
+    return {
+      ok: false,
+      reason: "malformed_dispatch_target",
+      detail: refusalDetail({ target: canonicalTarget, target_role: requestedRole })
+    };
+  }
+  if (!validateLauncherFamilyRole(canonicalRole).ok ||
+      requestedRole !== canonicalRole ||
+      !TARGET_ROLE_MATRIX[canonicalRole]?.has(routeKind)) {
+    return {
+      ok: false,
+      reason: "unsupported_target_role_relationship",
+      detail: refusalDetail({ target: canonicalTarget, target_role: requestedRole, role: canonicalRole })
+    };
+  }
+  return {
+    ok: true,
+    target: canonicalTarget,
+    target_role: requestedRole,
+    routeKind,
+    applicable: true
   };
 }
 
 export function resolveLaunchSelection({
   role,
+  target = null,
+  target_role = null,
   subject,
   caller_session_id,
   app: requestedApp,
@@ -111,6 +224,9 @@ export function resolveLaunchSelection({
     role,
     app: requestedApp,
     model: dispatchModel,
+    target: target ?? subject,
+    target_role,
+    subject,
     workspaceDir: workspace_dir,
     configRootDir: config_root_dir
   });
@@ -124,7 +240,8 @@ export function resolveLaunchSelection({
       )
     };
   }
-  const { app, model: resolvedModel, backend: resolvedBackend } = selection;
+  const { app, model: resolvedModel, backend: resolvedBackend,
+    backend_profile: resolvedBackendProfile, default_effort: resolvedDefaultEffort } = selection;
 
   const familyExecutor = executors[app] ?? null;
   if (typeof familyExecutor !== "function") {
@@ -138,7 +255,8 @@ export function resolveLaunchSelection({
           app,
           missing_backend: familyAwareWiring
             ? `workspace_agent_dispatch_backend.launch_executors.${app}`
-            : "workspace_agent_dispatch_backend.launch_executor"
+            : "workspace_agent_dispatch_backend.launch_executor",
+          authority_limb: "mechanical_failure"
         }
       )
     };
@@ -179,8 +297,14 @@ export function resolveLaunchSelection({
   return {
     ok: true,
     app,
+    target: selection.target,
+    target_role: selection.target_role,
+    routeKind: selection.routeKind,
+    applicable: selection.applicable,
     resolvedModel,
     resolvedBackend,
+    resolvedBackendProfile,
+    resolvedDefaultEffort,
     familyExecutor,
     familyExecutorRegistryEntry
   };
@@ -190,6 +314,8 @@ export function createPlanLaunch({ executors }) {
   return function planLaunch(input = {}) {
     const {
       role = null,
+      target = null,
+      target_role = null,
       subject = null,
       app: requestedApp = null,
       model: requestedModel = null,
@@ -197,17 +323,24 @@ export function createPlanLaunch({ executors }) {
       config_root_dir = null
     } = input;
 
-    const planRefusal = (reason, detail) => Object.freeze({
+    const planRefusal = (reason, detail, resolved = null) => Object.freeze({
       schema_version: WORKSPACE_AGENT_DISPATCH_PLAN_SCHEMA_VERSION,
       dry_run: true,
       accepted: false,
       role: typeof role === "string" ? role : null,
-      app: typeof requestedApp === "string" ? requestedApp : null,
+      app: resolved?.app ?? (typeof requestedApp === "string" ? requestedApp : null),
       subject: typeof subject === "string" ? subject : null,
-      model: null,
+      target: resolved?.target ?? (typeof (target ?? subject) === "string" ? (target ?? subject) : null),
+      target_role: resolved?.target_role ?? null,
+      routeKind: resolved?.routeKind ?? null,
+      applicable: resolved?.applicable ?? null,
+      model: resolved?.model ?? null,
+      backend: resolved?.backend ?? null,
+      backend_profile: resolved?.backend_profile ?? null,
+      default_effort: resolved?.default_effort ?? null,
       workspace_dir: workspace_dir ?? null,
       executor_available: false,
-      refusal: Object.freeze({ reason, detail: detail ?? null })
+      refusal: Object.freeze({ reason, detail: refusalDetail(detail) })
     });
 
     const dispatchModel = normalizeDispatchModelHint(requestedModel);
@@ -224,13 +357,22 @@ export function createPlanLaunch({ executors }) {
       role,
       app: requestedApp,
       model: dispatchModel,
+      target: target ?? subject,
+      target_role,
+      subject,
       workspaceDir: workspace_dir,
       configRootDir: config_root_dir
     });
     if (!selection.ok) {
       return planRefusal(selection.reason, selection.detail ?? null);
     }
-    const { app, model: resolvedModel, backend: resolvedBackend } = selection;
+    const {
+      app,
+      model: resolvedModel,
+      backend: resolvedBackend,
+      backend_profile: resolvedBackendProfile,
+      default_effort: resolvedDefaultEffort
+    } = selection;
 
     if (!validateLauncherFamilyRole(role).ok) {
       return planRefusal("unsupported_role", { role });
@@ -240,7 +382,14 @@ export function createPlanLaunch({ executors }) {
       return planRefusal("subject_required", null);
     }
 
-    const executor_available = typeof executors[app] === "function";
+    const executor_available = typeof executors?.[app] === "function";
+    if (!executor_available) {
+      return planRefusal(BACKEND_FAMILY_UNAVAILABLE_REASONS[app], {
+        app,
+        selected_model: resolvedModel,
+        backend: resolvedBackend
+      }, selection);
+    }
 
     return Object.freeze({
       schema_version: WORKSPACE_AGENT_DISPATCH_PLAN_SCHEMA_VERSION,
@@ -249,6 +398,12 @@ export function createPlanLaunch({ executors }) {
       role,
       app,
       backend: resolvedBackend,
+      backend_profile: resolvedBackendProfile,
+      default_effort: resolvedDefaultEffort,
+      target: selection.target,
+      target_role: selection.target_role,
+      routeKind: selection.routeKind,
+      applicable: selection.applicable,
       subject,
       model: resolvedModel,
       workspace_dir: workspace_dir ?? null,

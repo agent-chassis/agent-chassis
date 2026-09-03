@@ -8,8 +8,8 @@ import {
 
 const HELP_TEXT = `Usage: wiki bootstrap [--repo <org/repo>] [--dir <path>] [--profile <standard|research>] [--extensions a,b,c]
 
-Static instruction seeding only. Seeds wiki core surfaces and IN-0001
-adoption work into the target repo directory. The target repo owns
+Static instruction seeding only. Seeds wiki core surfaces and an in-progress
+IN-0001 placeholder for the target repository's first real work. The target repo owns
 running its own MCP setup, wiki search/read, work-record validation,
 graph-impact, preflight, and dispatch verification from its own context.
 No MCP, dispatch, graph-impact, preflight, or readiness work runs against
@@ -54,11 +54,10 @@ export async function runBootstrap(argv) {
 
   const ai = result.adoptionInitiative;
   const adoptionState = ai.created ? "created" : "kept";
-  console.log(`IN-0001 adoption initiative: ${adoptionState} ${ai.path}`);
+  console.log(`IN-0001 first-work placeholder: ${adoptionState} ${ai.path}`);
   console.log(
     `  Required checks: ${ai.requiredChecks.length} | Owned work items: ${ai.ownedWork.length}`
   );
-
   if (ai.created && ai.ownedWork.length > 0) {
     console.log(`  Owned work: ${ai.ownedWork.join(", ")}`);
   }
@@ -90,102 +89,34 @@ export async function runBootstrap(argv) {
     }
   }
 
-  const awr = result.adoptionWorkRecords;
-  const trackerId = awr
-    ? (awr.created[0]?.recordId || awr.kept[0]?.recordId || "WK-0001")
-    : "WK-0001";
-  if (awr) {
-    const seeded = [
-      ...awr.created.map((r) => `${r.recordId} (created)`),
-      ...awr.kept.map((r) => `${r.recordId} (kept)`)
-    ];
-    console.log(
-      `Adoption work records: ${seeded.length > 0 ? seeded.join(", ") : "none"}`
-    );
-  }
-
   console.log("");
-  console.log("Next steps:");
+  console.log("Next steps for a new repository:");
   console.log("  1. Inspect the bootstrap-created files:");
   console.log("       git status --short");
   console.log(
-    "  2. Run first-run AgentChassis setup for AGENTS.md review, launcher template selection, and launcher config:"
+    "  2. Run AgentChassis setup for launcher configuration and the exact root-guidance commands:"
   );
   console.log("       npx agent-chassis setup");
   console.log(
-    "  3. Review and commit the bootstrap-created files, AGENTS.md, and launcher config:"
+    "  3. Follow setup's printed commands to create AGENTS.md and CLAUDE.md, stage the new-repository surfaces, build the code index, and start IN-0001."
   );
-  console.log("       git status --short");
-  console.log("       git add wiki .gitignore AGENTS.md agent-launch.toml");
-  console.log('       git commit -m "bootstrap wiki adoption surfaces"');
-  console.log(
-    "  4. After the review/commit checkpoint: build the repo-code-index"
-  );
-  console.log("     sidecar:");
-  console.log('       npx wiki code-index build --dir "$PWD"');
-  console.log("       # or, when the repo defines the wiki script:");
-  console.log('       npm run wiki -- code-index build --dir "$PWD"');
-  console.log("       # zero-local-script fallback:");
-  console.log('       npx -p @agent-chassis/core wiki code-index build --dir "$PWD"');
-  console.log(
-    `  5. Launch the seeded IN-0001 adoption orchestrator (it drives the ${trackerId}`
-  );
-  console.log(
-    "     adoption slices; do not run them by hand). Orchestrator launch is a"
-  );
-  console.log(
-    "     human/operator action. The copied agent-launch.toml selects the family:"
-  );
-  console.log("       npx agent-launch orchestrator IN-0001");
-  console.log("       # zero-local-script fallback:");
-  console.log(
-    "       npx -p @agent-chassis/core agent-launch orchestrator IN-0001"
-  );
-  console.log(
-    `  6. After the orchestrator completes the ${trackerId} adoption work, run the`
-  );
-  console.log(
-    "     structured first-run adoption readiness check. Bootstrap does not run it"
-  );
-  console.log(
-    "     and makes no readiness claim; the check reports per-check status and is"
-  );
-  console.log("     read-only (it persists no evidence):");
-  console.log('       npx wiki adoption verify --dir "$PWD" --json');
-  console.log("       # optional shorthand, only when the repo defines a wiki npm script:");
-  console.log('       npm run wiki -- adoption verify --dir "$PWD" --json');
-  console.log("       # zero-local-script fallback:");
-  console.log('       npx -p @agent-chassis/core wiki adoption verify --dir "$PWD" --json');
   console.log("");
   console.log(
-    `Bootstrap seeds adoption surfaces only. ${trackerId} is the seeded adoption`
-  );
-  console.log(
-    "tracker the orchestrator drives. Bootstrap writes the gitignored local"
+    "Bootstrap writes the gitignored local"
   );
   console.log(
     "wiki/.wiki-mcp.json declaration (regenerated each run, not committed) and"
   );
   console.log(
-    "creates no adoption guide: the adoption guide is the single package-owned"
+    "creates no root AGENTS.md or CLAUDE.md. Fresh bootstrap creates only the"
   );
   console.log(
-    "docs/adoption.md shipped with @agent-chassis/core. The root AGENTS.md is an"
+    "in-progress IN-0001 first-work placeholder and no work record. Existing-repository"
   );
   console.log(
-    "operator first-run prerequisite: create or adapt it from"
+    "adoption is deferred and is not part of this path."
   );
   console.log(
-    "wiki/templates/AGENTS.md.boilerplate.md before launcher config,"
+    "Bootstrap also does not configure global MCP client settings."
   );
-  console.log(
-    "code-index, or IN-0001 orchestration."
-  );
-  console.log(
-    "Bootstrap also does not configure global MCP client settings. The IN-0001"
-  );
-  console.log(
-    "orchestrator owns"
-  );
-  console.log("completing the adoption work above.");
 }

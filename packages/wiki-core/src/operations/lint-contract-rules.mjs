@@ -1,4 +1,4 @@
-import { readFile, stat } from "node:fs/promises";
+import { open, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { buildGeneratedViews } from "./generate.mjs";
 import { scanInternalLeaks } from "./generate-area-readme-projection.mjs";
@@ -134,7 +134,24 @@ export async function lintRepoContract({
   return { allocatorState, allocatorStateValid };
 }
 
-export async function lintExecutableArtifacts({ targetDir, addFinding }) {
+async function readFirstTwoBytes(filePath) {
+  const handle = await open(filePath, "r");
+  try {
+    const buffer = Buffer.alloc(2);
+    const { bytesRead } = await handle.read(buffer, 0, 2, 0);
+    return buffer.subarray(0, bytesRead);
+  } finally {
+    await handle.close();
+  }
+}
+
+export async function lintExecutableArtifacts({
+  targetDir,
+  addFinding,
+  getCanonicalPrefix = null,
+  instrumentation = null,
+  readPrefix = readFirstTwoBytes
+}) {
   for (const tree of ["docs", "wiki"]) {
     const treePath = path.join(targetDir, tree);
     if (!(await pathExists(treePath))) {
@@ -168,7 +185,13 @@ export async function lintExecutableArtifacts({ targetDir, addFinding }) {
       }
 
       try {
-        const raw = await readFile(filePath);
+        const capturedPrefix = typeof getCanonicalPrefix === "function"
+          ? getCanonicalPrefix(relPath)
+          : null;
+        const raw = capturedPrefix === null ? await readPrefix(filePath) : capturedPrefix;
+        if (capturedPrefix === null && typeof instrumentation?.increment === "function") {
+          instrumentation.increment("shebang_prefix_bytes_read", raw.length);
+        }
         if (raw.length >= 2 && raw[0] === 0x23 && raw[1] === 0x21) {
           addFinding("error", `${relPath}: file begins with shebang (#!) at byte zero under ${tree}/`, {
             code: "executable_artifact_shebang",
@@ -186,13 +209,14 @@ export async function lintGeneratedViews({
   targetDir,
   profile,
   resolvedExtensionNamespaces,
-  addFinding
+  addFinding,
+  generatedBuild = null
 }) {
-  const generated = await buildGeneratedViews({
+  const generated = generatedBuild || (await buildGeneratedViews({
     dir: targetDir,
     profile,
     extensionNamespaces: resolvedExtensionNamespaces
-  });
+  }));
   const areaReadmePaths = generated.areaReadmePaths || new Set();
   for (const [filePath, expectedContent] of generated.outputs) {
     const relativePath = path.relative(targetDir, filePath).replaceAll(path.sep, "/");

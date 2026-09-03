@@ -1,0 +1,13 @@
+{
+  "schema_version": "controlled-contract-test-validity-post-delivery-certification-result.v1",
+  "profile_id": "proof.verification.test-validity",
+  "profile_version": "3.0.0",
+  "passed_positive_cases": ["complete-authenticated-positive-facts"],
+  "passed_single_axis_weakenings": [
+    "failed-candidate",
+    "inert-falsifier",
+    "unproven-traversal",
+    "prohibited-shortcut"
+  ],
+  "semantic_judgment": "exact_pack_evaluator"
+}

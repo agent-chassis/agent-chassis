@@ -1,0 +1,1940 @@
+{
+  "schema_version": "controlled-contract-verification-profile.v1",
+  "contract_schema_version": "controlled-acceptance-contract.v1",
+  "vocabulary_version": "controlled-contract-vocabulary.v1",
+  "vocabulary_signature_digest": "596a4c44d98aed1d31dd9ab3842fc054be6f8ffa3d62a3867a3966e75ecab742",
+  "vocabulary_algebra_digest": "0fbea1e7377baeef1869cbc55dc588ef5509ed40c768ce2a3c4f58be1133cf9c",
+  "vocabulary_definitions_digest": "bb3d2a63cb6fc8c62b9bc36d29d07549dea6ad85e32badb0cbb3cacfd6ad4759",
+  "vocabulary_complete_digest": "45484504f06968c6b4ac812c24b9f1b6e47e1d34ba21fefebde8dd85d1290fa9",
+  "profile_id": "proof.single-use.replay-refusal",
+  "profile_version": "2.0.0",
+  "evaluation_stages": [
+    "pre_dispatch"
+  ],
+  "verification_falsifier_policy": "controlled_complement_per_target",
+  "reference_roles": [
+    {
+      "role": "operation",
+      "allowed_type_terms": [
+        "cc:operation",
+        "cc:capability",
+        "cc:command"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "single_use_authority",
+      "allowed_type_terms": [
+        "cc:authority",
+        "cc:capability",
+        "cc:configuration"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "input",
+      "allowed_type_terms": [
+        "cc:actor",
+        "cc:artifact",
+        "cc:configuration",
+        "cc:entity"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "first_attempt",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "first_result",
+      "allowed_type_terms": [
+        "cc:event",
+        "cc:artifact"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "replay_attempt",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "replay_refusal",
+      "allowed_type_terms": [
+        "cc:event",
+        "cc:artifact"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "effect_subject",
+      "allowed_type_terms": [
+        "cc:resource"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "effect_occurrence_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "effect_occurrence",
+      "allowed_type_terms": [
+        "cc:event",
+        "cc:artifact",
+        "cc:entity"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "effect_state_before",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "effect_state_after_first",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "effect_state_after_replay",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "observation_before",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:evidence"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "observation_after_first",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:evidence"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "observation_after_replay",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:evidence"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "expected_success_state",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "first_result_state",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "success_criterion",
+      "allowed_type_terms": [
+        "cc:criterion",
+        "cc:invariant"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "success_verification",
+      "allowed_type_terms": [
+        "cc:process",
+        "cc:test"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "first_effect_verification",
+      "allowed_type_terms": [
+        "cc:process",
+        "cc:test"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "consumption_verification",
+      "allowed_type_terms": [
+        "cc:process",
+        "cc:test"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "replay_refusal_verification",
+      "allowed_type_terms": [
+        "cc:process",
+        "cc:test"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "replay_occurrence_verification",
+      "allowed_type_terms": [
+        "cc:process",
+        "cc:test"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "replay_effect_verification",
+      "allowed_type_terms": [
+        "cc:process",
+        "cc:test"
+      ],
+      "allowed_identity_kinds": [
+        "repository_path",
+        "code_symbol",
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "first_use_failure_condition",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:criterion",
+        "cc:invariant",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "no_first_effect_condition",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:criterion",
+        "cc:invariant",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "authority_still_live_condition",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:criterion",
+        "cc:invariant",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "replay_accepted_condition",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:criterion",
+        "cc:invariant",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "duplicate_effect_condition",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:criterion",
+        "cc:invariant",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    }
+  ],
+  "number_roles": [
+    {
+      "role": "effect_occurrence_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 1,
+      "maximum": 1
+    }
+  ],
+  "distinct_reference_role_sets": [
+    {
+      "roles": [
+        "first_attempt",
+        "first_result",
+        "replay_attempt",
+        "replay_refusal"
+      ]
+    },
+    {
+      "roles": [
+        "effect_state_before",
+        "effect_state_after_first",
+        "effect_state_after_replay",
+        "expected_success_state",
+        "first_result_state"
+      ]
+    },
+    {
+      "roles": [
+        "observation_before",
+        "observation_after_first",
+        "observation_after_replay"
+      ]
+    },
+    {
+      "roles": [
+        "success_verification",
+        "first_effect_verification",
+        "consumption_verification",
+        "replay_refusal_verification",
+        "replay_occurrence_verification",
+        "replay_effect_verification"
+      ]
+    },
+    {
+      "roles": [
+        "first_use_failure_condition",
+        "no_first_effect_condition",
+        "authority_still_live_condition",
+        "replay_accepted_condition",
+        "duplicate_effect_condition"
+      ]
+    }
+  ],
+  "reference_binding_patterns": [],
+  "reference_role_count_bindings": [],
+  "claim_patterns": [
+    {
+      "pattern_id": "authority-authorizes-first-use",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "single_use_authority",
+        "operator": "reference:authorizes",
+        "applicability_context": {
+          "mode": "where",
+          "operand_roles": [
+            "operation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "input"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "effect-population-membership",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "effect_occurrence_population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "effect_occurrence"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "effect-population-cardinality",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "effect_occurrence_population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value_role": "effect_occurrence_count"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "operation-writes-effect-subject",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "operation",
+        "operator": "reference:writes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "effect_subject"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "effect-state-before-first-use",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "effect_subject",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "before",
+          "operand_roles": [
+            "first_attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "effect_state_before"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "observation-before-records-state",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "observation_before",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "before",
+          "operand_roles": [
+            "first_attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "effect_state_before"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "first-attempt-performs-operation",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "first_attempt",
+        "operator": "reference:performs",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "operation"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "first-attempt-uses-authority",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "first_attempt",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "single_use_authority"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "first-attempt-uses-input",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "first_attempt",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "input"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "first-attempt-creates-effect",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "first_attempt",
+        "operator": "reference:creates",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "effect_occurrence"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "first-attempt-precedes-result",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "first_attempt",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "first_result"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "first-result-accepts-attempt",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "first_result",
+        "operator": "reference:accepts",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "first_attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "first_attempt"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "expected-success-state-conforms",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "expected_success_state",
+        "operator": "reference:conforms_to",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "success_criterion"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "first-result-has-state",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "first_result",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "first_attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "first_result_state"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "first-result-observation-records-state",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "observation_after_first",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "first_result"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "first_result_state"
+          },
+          {
+            "kind": "reference",
+            "role": "effect_state_after_first"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "first-result-matches-expected-success",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "first_result_state",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "first_result"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "expected_success_state"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "success-verification-reads-result",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "success_verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "first_result"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "observation_after_first"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "success-verification",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "success_verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "first_result"
+          }
+        ]
+      },
+      "falsifying_proposition_template": {
+        "subject_role": "first_result_state",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "first_use_failure_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "expected_success_state"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "audit",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ]
+    },
+    {
+      "pattern_id": "effect-state-after-first-use",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "effect_subject",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "first_result"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "effect_state_after_first"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "first-use-changes-effect-state",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "effect_state_after_first",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "first_result"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "effect_state_before"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "first-effect-verification-reads-states",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "first_effect_verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "first_result"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "observation_before"
+          },
+          {
+            "kind": "reference",
+            "role": "observation_after_first"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "first-effect-verification",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "first_effect_verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "effect_subject"
+          }
+        ]
+      },
+      "falsifying_proposition_template": {
+        "subject_role": "effect_state_after_first",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "no_first_effect_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "effect_state_before"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "audit",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ]
+    },
+    {
+      "pattern_id": "first-result-precedes-replay",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "first_result",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "replay_attempt"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "replay-performs-same-operation",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "replay_attempt",
+        "operator": "reference:performs",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "first_result"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "operation"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "replay-uses-same-authority",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "replay_attempt",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "first_result"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "single_use_authority"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "replay-uses-same-input",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "replay_attempt",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "first_result"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "input"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "authority-consumed-after-first-use",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST_NOT"
+      ],
+      "proposition_template": {
+        "subject_role": "single_use_authority",
+        "operator": "reference:authorizes",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "first_result"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "input"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "consumption-verification-reads-replay",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "consumption_verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "replay_attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "first_result"
+          },
+          {
+            "kind": "reference",
+            "role": "replay_attempt"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "consumption-verification",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "consumption_verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "single_use_authority"
+          }
+        ]
+      },
+      "falsifying_proposition_template": {
+        "subject_role": "single_use_authority",
+        "operator": "reference:authorizes",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "authority_still_live_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "input"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "audit",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ]
+    },
+    {
+      "pattern_id": "replay-attempt-precedes-refusal",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "replay_attempt",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "replay_refusal"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "replay-refusal-rejects-replay",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "replay_refusal",
+        "operator": "reference:rejects",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "replay_attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "replay_attempt"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "replay-is-not-accepted",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST_NOT"
+      ],
+      "proposition_template": {
+        "subject_role": "replay_refusal",
+        "operator": "reference:accepts",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "replay_attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "replay_attempt"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "replay-refusal-verification-reads-events",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "replay_refusal_verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "replay_refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "replay_attempt"
+          },
+          {
+            "kind": "reference",
+            "role": "replay_refusal"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "replay-refusal-verification",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "replay_refusal_verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "replay_refusal"
+          }
+        ]
+      },
+      "falsifying_proposition_template": {
+        "subject_role": "replay_refusal",
+        "operator": "reference:accepts",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "replay_accepted_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "replay_attempt"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "audit",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ]
+    },
+    {
+      "pattern_id": "replay-does-not-create-effect",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST_NOT"
+      ],
+      "proposition_template": {
+        "subject_role": "replay_attempt",
+        "operator": "reference:creates",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "first_result"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "effect_occurrence"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "replay-occurrence-verification-reads-events",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "replay_occurrence_verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "replay_refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "replay_attempt"
+          },
+          {
+            "kind": "reference",
+            "role": "replay_refusal"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "replay-occurrence-verification",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "replay_occurrence_verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "effect_occurrence"
+          }
+        ]
+      },
+      "falsifying_proposition_template": {
+        "subject_role": "replay_attempt",
+        "operator": "reference:creates",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "duplicate_effect_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "effect_occurrence"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "audit",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ]
+    },
+    {
+      "pattern_id": "effect-state-after-replay",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "effect_subject",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "replay_refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "effect_state_after_replay"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "observation-after-replay-records-state",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "observation_after_replay",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "replay_refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "effect_state_after_replay"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "effect-state-stable-after-replay",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "effect_state_after_replay",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "replay_refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "effect_state_after_first"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "replay-effect-verification-reads-states",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "replay_effect_verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "replay_refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "observation_after_first"
+          },
+          {
+            "kind": "reference",
+            "role": "observation_after_replay"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "replay-effect-verification",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "replay_effect_verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "effect_subject"
+          },
+          {
+            "kind": "reference",
+            "role": "effect_occurrence"
+          }
+        ]
+      },
+      "falsifying_proposition_template": {
+        "subject_role": "effect_state_after_replay",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "duplicate_effect_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "effect_state_after_first"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "audit",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ]
+    }
+  ],
+  "falsifier_condition_bindings": [
+    {
+      "relation_pattern_id": "success-verifies-first-result",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "first_use_failure_condition"
+        ]
+      }
+    },
+    {
+      "relation_pattern_id": "first-effect-verifies-transition",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "no_first_effect_condition"
+        ]
+      }
+    },
+    {
+      "relation_pattern_id": "consumption-verifies-authority",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "authority_still_live_condition"
+        ]
+      }
+    },
+    {
+      "relation_pattern_id": "refusal-verifies-replay",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "replay_accepted_condition"
+        ]
+      }
+    },
+    {
+      "relation_pattern_id": "replay-occurrence-verifies-no-create",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "duplicate_effect_condition"
+        ]
+      }
+    },
+    {
+      "relation_pattern_id": "replay-effect-verifies-stability",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "duplicate_effect_condition"
+        ]
+      }
+    }
+  ],
+  "relation_patterns": [
+    {
+      "pattern_id": "success-verifies-first-result",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "success-verification",
+      "target_claim_pattern_id": "first-result-matches-expected-success"
+    },
+    {
+      "pattern_id": "first-effect-verifies-transition",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "first-effect-verification",
+      "target_claim_pattern_id": "first-use-changes-effect-state"
+    },
+    {
+      "pattern_id": "consumption-verifies-authority",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "consumption-verification",
+      "target_claim_pattern_id": "authority-consumed-after-first-use"
+    },
+    {
+      "pattern_id": "refusal-verifies-replay",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "replay-refusal-verification",
+      "target_claim_pattern_id": "replay-is-not-accepted"
+    },
+    {
+      "pattern_id": "replay-occurrence-verifies-no-create",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "replay-occurrence-verification",
+      "target_claim_pattern_id": "replay-does-not-create-effect"
+    },
+    {
+      "pattern_id": "replay-effect-verifies-stability",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "replay-effect-verification",
+      "target_claim_pattern_id": "effect-state-stable-after-replay"
+    }
+  ],
+  "collection_patterns": [
+    {
+      "pattern_id": "proof-sequence",
+      "required_by_stage": "pre_dispatch",
+      "collection_kind": "ordered_sequence",
+      "match_mode": "subsequence",
+      "candidate_quantifier": "all_covering",
+      "collection_purpose": "proof_single_use_replay_refusal_sequence",
+      "member_claim_pattern_ids": [
+        "effect-state-before-first-use",
+        "observation-before-records-state",
+        "first-attempt-performs-operation",
+        "first-attempt-precedes-result",
+        "first-result-accepts-attempt",
+        "effect-state-after-first-use",
+        "first-use-changes-effect-state",
+        "first-result-precedes-replay",
+        "replay-performs-same-operation",
+        "authority-consumed-after-first-use",
+        "replay-attempt-precedes-refusal",
+        "replay-refusal-rejects-replay",
+        "replay-is-not-accepted",
+        "effect-state-after-replay",
+        "effect-state-stable-after-replay"
+      ]
+    },
+    {
+      "pattern_id": "proof-population",
+      "required_by_stage": "pre_dispatch",
+      "collection_kind": "closed_set",
+      "match_mode": "exact",
+      "candidate_quantifier": "all_covering",
+      "collection_purpose": "proof_single_use_replay_refusal_population",
+      "member_claim_pattern_ids": [
+        "authority-authorizes-first-use",
+        "effect-population-membership",
+        "effect-population-cardinality",
+        "operation-writes-effect-subject",
+        "effect-state-before-first-use",
+        "observation-before-records-state",
+        "first-attempt-performs-operation",
+        "first-attempt-uses-authority",
+        "first-attempt-uses-input",
+        "first-attempt-creates-effect",
+        "first-attempt-precedes-result",
+        "first-result-accepts-attempt",
+        "expected-success-state-conforms",
+        "first-result-has-state",
+        "first-result-observation-records-state",
+        "first-result-matches-expected-success",
+        "success-verification-reads-result",
+        "success-verification",
+        "effect-state-after-first-use",
+        "first-use-changes-effect-state",
+        "first-effect-verification-reads-states",
+        "first-effect-verification",
+        "first-result-precedes-replay",
+        "replay-performs-same-operation",
+        "replay-uses-same-authority",
+        "replay-uses-same-input",
+        "authority-consumed-after-first-use",
+        "consumption-verification-reads-replay",
+        "consumption-verification",
+        "replay-attempt-precedes-refusal",
+        "replay-refusal-rejects-replay",
+        "replay-is-not-accepted",
+        "replay-refusal-verification-reads-events",
+        "replay-refusal-verification",
+        "replay-does-not-create-effect",
+        "replay-occurrence-verification-reads-events",
+        "replay-occurrence-verification",
+        "effect-state-after-replay",
+        "observation-after-replay-records-state",
+        "effect-state-stable-after-replay",
+        "replay-effect-verification-reads-states",
+        "replay-effect-verification"
+      ]
+    }
+  ],
+  "resolver_fact_patterns": [],
+  "evidence_patterns": [],
+  "satisfaction_expression": {
+    "all_of": [
+      {
+        "pattern": "authority-authorizes-first-use"
+      },
+      {
+        "pattern": "effect-population-membership"
+      },
+      {
+        "pattern": "effect-population-cardinality"
+      },
+      {
+        "pattern": "operation-writes-effect-subject"
+      },
+      {
+        "pattern": "effect-state-before-first-use"
+      },
+      {
+        "pattern": "observation-before-records-state"
+      },
+      {
+        "pattern": "first-attempt-performs-operation"
+      },
+      {
+        "pattern": "first-attempt-uses-authority"
+      },
+      {
+        "pattern": "first-attempt-uses-input"
+      },
+      {
+        "pattern": "first-attempt-creates-effect"
+      },
+      {
+        "pattern": "first-attempt-precedes-result"
+      },
+      {
+        "pattern": "first-result-accepts-attempt"
+      },
+      {
+        "pattern": "expected-success-state-conforms"
+      },
+      {
+        "pattern": "first-result-has-state"
+      },
+      {
+        "pattern": "first-result-observation-records-state"
+      },
+      {
+        "pattern": "first-result-matches-expected-success"
+      },
+      {
+        "pattern": "success-verification-reads-result"
+      },
+      {
+        "pattern": "success-verification"
+      },
+      {
+        "pattern": "effect-state-after-first-use"
+      },
+      {
+        "pattern": "first-use-changes-effect-state"
+      },
+      {
+        "pattern": "first-effect-verification-reads-states"
+      },
+      {
+        "pattern": "first-effect-verification"
+      },
+      {
+        "pattern": "first-result-precedes-replay"
+      },
+      {
+        "pattern": "replay-performs-same-operation"
+      },
+      {
+        "pattern": "replay-uses-same-authority"
+      },
+      {
+        "pattern": "replay-uses-same-input"
+      },
+      {
+        "pattern": "authority-consumed-after-first-use"
+      },
+      {
+        "pattern": "consumption-verification-reads-replay"
+      },
+      {
+        "pattern": "consumption-verification"
+      },
+      {
+        "pattern": "replay-attempt-precedes-refusal"
+      },
+      {
+        "pattern": "replay-refusal-rejects-replay"
+      },
+      {
+        "pattern": "replay-is-not-accepted"
+      },
+      {
+        "pattern": "replay-refusal-verification-reads-events"
+      },
+      {
+        "pattern": "replay-refusal-verification"
+      },
+      {
+        "pattern": "replay-does-not-create-effect"
+      },
+      {
+        "pattern": "replay-occurrence-verification-reads-events"
+      },
+      {
+        "pattern": "replay-occurrence-verification"
+      },
+      {
+        "pattern": "effect-state-after-replay"
+      },
+      {
+        "pattern": "observation-after-replay-records-state"
+      },
+      {
+        "pattern": "effect-state-stable-after-replay"
+      },
+      {
+        "pattern": "replay-effect-verification-reads-states"
+      },
+      {
+        "pattern": "replay-effect-verification"
+      },
+      {
+        "pattern": "success-verifies-first-result"
+      },
+      {
+        "pattern": "first-effect-verifies-transition"
+      },
+      {
+        "pattern": "consumption-verifies-authority"
+      },
+      {
+        "pattern": "refusal-verifies-replay"
+      },
+      {
+        "pattern": "replay-occurrence-verifies-no-create"
+      },
+      {
+        "pattern": "replay-effect-verifies-stability"
+      },
+      {
+        "pattern": "proof-sequence"
+      },
+      {
+        "pattern": "proof-population"
+      }
+    ]
+  }
+}

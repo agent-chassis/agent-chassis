@@ -494,24 +494,13 @@ async function readExtensionPages(targetDir, extensionNamespaces) {
 }
 
 async function readCanonicalWorkRecordLoads(targetDir) {
-  const {
-    getWorkRecordDirectory,
-    listWorkRecordJsonPaths,
-    loadWorkRecordByPath
-  } = await import("./work-record-store.mjs");
-
-  const workRecordDirectory = getWorkRecordDirectory(targetDir);
-  const discoveredPaths = await listWorkRecordJsonPaths(targetDir);
-  const canonicalWorkRecordPaths = discoveredPaths.filter((workRecordPath) => {
-    return (
-      path.dirname(workRecordPath) === workRecordDirectory &&
-      /^WK-\d{4}\.json$/.test(path.basename(workRecordPath))
-    );
-  });
-
-  return Promise.all(
-    canonicalWorkRecordPaths.map((workRecordPath) =>
-      loadWorkRecordByPath({ dir: targetDir, path: workRecordPath })
-    )
+  const { createWorkRecordCorpusSnapshot } = await import(
+    "./work-record-corpus-snapshot.mjs"
   );
+  const snapshot = await createWorkRecordCorpusSnapshot({ dir: targetDir });
+  try {
+    return snapshot.loads;
+  } finally {
+    snapshot.release();
+  }
 }

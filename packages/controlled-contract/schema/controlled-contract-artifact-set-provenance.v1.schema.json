@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "controlled-contract-artifact-set-provenance.v1.schema.json",
+  "title": "controlled-contract artifact-set provenance carrier",
+  "$comment": "Composition carrier only. Authenticated provenance facts are owned by controlled-contract-authentication-provenance-capture.v1, exact-binding identity by controlled-contract-exact-binding-result.v1, member ordering by deterministic-lexicographic-ordering scalarCompare, population completeness by population-semantics-v1, and carrier identity by proof-aware-digest domainSeparatedDigest. Structural JSON validation never establishes any of them.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "authentication_provenance_capture",
+    "complete_capture_source_set_sha256",
+    "binding_set_sha256",
+    "package_population",
+    "artifact_population",
+    "artifact_set_sha256"
+  ],
+  "properties": {
+    "schema_version": { "const": "controlled-contract-artifact-set-provenance.v1" },
+    "authentication_provenance_capture": {
+      "$comment": "Package-produced capture admitted through deriveAuthenticationProvenanceOccurrenceCapture. Its closed shape is owned by controlled-contract-authentication-provenance-capture.v1 and is validated against that schema, never restated here.",
+      "type": "object"
+    },
+    "complete_capture_source_set_sha256": { "$ref": "#/$defs/sha256" },
+    "binding_set_sha256": {
+      "$comment": "Input field carried from the exact-binding owner's result. It never produces the artifact-set identity.",
+      "$ref": "#/$defs/sha256"
+    },
+    "package_population": {
+      "allOf": [
+        { "$ref": "#/$defs/bound_population" },
+        {
+          "type": "object",
+          "properties": {
+            "population_id": { "const": "ref-artifact-set-package-population" },
+            "members": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/package_member" }
+            }
+          }
+        }
+      ]
+    },
+    "artifact_population": {
+      "allOf": [
+        { "$ref": "#/$defs/bound_population" },
+        {
+          "type": "object",
+          "properties": {
+            "population_id": { "const": "ref-artifact-set-packed-artifact-population" },
+            "members": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/artifact_member" }
+            }
+          }
+        }
+      ]
+    },
+    "artifact_set_sha256": {
+      "$comment": "domainSeparatedDigest('controlled-contract-artifact-set-provenance.v1', {schema_version, authentication_provenance_capture, complete_capture_source_set_sha256, binding_set_sha256, package_population, artifact_population}).",
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "type_term": {
+      "$comment": "Membership is checked against the controlled vocabulary's type terms, which remain that owner's responsibility.",
+      "type": "string",
+      "minLength": 1
+    },
+    "member_id": { "type": "string", "minLength": 1 },
+    "declared_version": { "type": "string", "minLength": 1 },
+    "bound_population": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "population_version",
+        "population_id",
+        "completeness",
+        "authenticated",
+        "ordered",
+        "cardinality",
+        "complete_capture_source_set_sha256",
+        "members"
+      ],
+      "properties": {
+        "population_version": { "const": "controlled-contract.complete-population.v1" },
+        "population_id": { "type": "string", "minLength": 1 },
+        "completeness": { "const": "exact" },
+        "authenticated": { "const": true },
+        "ordered": { "const": true },
+        "cardinality": { "type": "integer", "minimum": 0 },
+        "complete_capture_source_set_sha256": { "$ref": "#/$defs/sha256" },
+        "members": { "type": "array" }
+      }
+    },
+    "package_member": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "member_id",
+        "type_term",
+        "declared_version",
+        "declared_content_sha256"
+      ],
+      "properties": {
+        "member_id": { "$ref": "#/$defs/member_id" },
+        "type_term": { "$ref": "#/$defs/type_term" },
+        "declared_version": { "$ref": "#/$defs/declared_version" },
+        "declared_content_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "artifact_member": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "member_id",
+        "type_term",
+        "package_member_id",
+        "declared_version",
+        "declared_content_sha256"
+      ],
+      "properties": {
+        "member_id": { "$ref": "#/$defs/member_id" },
+        "type_term": { "$ref": "#/$defs/type_term" },
+        "package_member_id": { "$ref": "#/$defs/member_id" },
+        "declared_version": { "$ref": "#/$defs/declared_version" },
+        "declared_content_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    }
+  }
+}

@@ -1,153 +1,70 @@
 
 
 import {
-  setWorkRecordStatusByUnit,
-  setWorkRecordTaskByUnit
+  setWorkRecordStatusByUnit
 } from "@agent-chassis/wiki-core/src/operations/work-records.mjs";
 import {
   setWorkRecordClosureByUnit
 } from "@agent-chassis/wiki-core";
 import {
-  editWorkRecordContractByUnit,
-  buildCloseoutLintSummary
+  editWorkRecordContractByUnit
 } from "@agent-chassis/wiki-core/src/operations/work-record-contract-edit.mjs";
 import {
   runWorkspaceWorkRecordReadySliceRoute,
   validateOptionalExpectedSourceDigest
 } from "./work-record-write-route-helpers.mjs";
 import {
-  WORK_UNIT_FACET_PROVENANCE_VALUES,
-  WORK_UNIT_FEATURE_VECTOR_ACTIVITY_KIND_VALUES,
-  WORK_UNIT_FEATURE_VECTOR_ARTIFACT_KIND_VALUES,
-  WORK_UNIT_FEATURE_VECTOR_GRANULARITY_VALUES,
-  WORK_UNIT_FEATURE_VECTOR_VERIFICATION_METHOD_VALUES
+  WORK_RECORD_REVIEW_PURPOSE_VALUES,
+  WORK_RECORD_STATUS_VALUES
 } from "@agent-chassis/wiki-core/src/lib/work-record-schema-constants.mjs";
+
 import {
-  WORK_RECORD_EXPECTED_EDIT_TARGET_KIND_VALUES,
-  WORK_RECORD_EXPECTED_EDIT_TARGET_OPERATION_VALUES
-} from "@agent-chassis/wiki-core/src/lib/work-record-target-metrics.mjs";
+  READY_PRIORITY_VALUES,
+  READY_SHAPING_MODE_VALUES,
+  READY_SLICE_WORK_KIND_VALUES,
+  readyAcceptance,
+  readyExpectedEditTarget,
+  readyNonemptyString,
+  readyRepositoryPath,
+  readySliceAgentNotes,
+  readySliceDispatchIntent
+} from "./work-record-write-tool-schema-vocabulary.mjs";
+
+import { MCP_WRITE_SEMANTICS } from "./register-tool.mjs";
+import {
+  registerWorkRecordListFieldCompatibilityTool,
+  registerWorkRecordTaskAndGeneralEditTools
+} from "./work-record-authored-field-tools.mjs";
 
 export const WORKSPACE_WORK_RECORD_READY_SLICE_TOOL_NAME =
   "workspace_work_record_ready_slice";
 
-const READY_SLICE_STATUS_VALUES = [
-  "inbox",
-  "todo",
-  "active",
-  "review",
-  "done",
-  "blocked",
-  "parked",
-  "cancelled"
-];
-const READY_SLICE_WORK_KIND_VALUES = ["implementation", "review", "redteam"];
-const READY_SLICE_PRIORITY_VALUES = ["low", "medium", "high", "critical"];
-const READY_SLICE_SHAPING_VALUES = ["implementation", "reviewer", "redteam"];
-const READY_SLICE_ATTESTATION_ACTION_VALUES = [
-  "preserve_or_refuse",
-  "invalidate_for_review"
-];
-
-function addReadySliceSchemaIssue(context, path, message) {
-  context.addIssue({ code: "custom", path: [path], message });
-}
-
-function isReadySliceRepositoryPath(value) {
-  const normalized = value.startsWith("./") ? value.slice(2) : value;
-  const segments = normalized.split("/");
-  return !(
-    !normalized ||
-    normalized.startsWith("/") ||
-    normalized.startsWith("~") ||
-    /^[A-Za-z]:/u.test(normalized) ||
-    normalized.includes("\\") ||
-    normalized.includes("\0") ||
-    segments.some((segment) => !segment || segment === "." || segment === "..")
+function shapeContractEditResponse(
+  shapeResponse,
+  createResponse,
+  workspaceRepo,
+  result,
+  verbose
+) {
+  const response = shapeResponse(
+    createResponse(workspaceRepo, result),
+    { verbose: Boolean(verbose) }
   );
+  return {
+    ...response,
+    generation_transition: result?.generation_transition ?? null
+  };
 }
 
 export function createReadySliceInputSchema(z) {
-  const nonemptyString = z.string().trim().min(1);
-  const repositoryPath = nonemptyString.refine(isReadySliceRepositoryPath, {
-    message: "must be a canonical repository-relative POSIX path"
-  });
-  const provenanceValue = z.enum(WORK_UNIT_FACET_PROVENANCE_VALUES).nullable();
-  const acceptanceProvenance = z
-    .object({
-      text: provenanceValue.optional(),
-      verification_method: provenanceValue.optional(),
-      evidence_target: provenanceValue.optional()
-    })
-    .strict();
-  const targetProvenance = z
-    .object({
-      path: provenanceValue.optional(),
-      name: provenanceValue.optional(),
-      kind: provenanceValue.optional(),
-      operation: provenanceValue.optional(),
-      activity_kind: provenanceValue.optional(),
-      artifact_kind: provenanceValue.optional(),
-      granularity: provenanceValue.optional(),
-      optional: provenanceValue.optional()
-    })
-    .strict();
-  const acceptanceCriterion = z.union([
-    nonemptyString,
-    z
-      .object({
-        text: nonemptyString,
-        verification_method: z
-          .enum(WORK_UNIT_FEATURE_VECTOR_VERIFICATION_METHOD_VALUES)
-          .nullable()
-          .optional(),
-        evidence_target: z.string().nullable().optional(),
-        facet_provenance: acceptanceProvenance.optional()
-      })
-      .strict()
-  ]);
-  const acceptance = z
-    .object({
-      criteria: z.array(acceptanceCriterion).min(1),
-      validation: z.array(nonemptyString).min(1)
-    })
-    .strict();
-  const expectedTarget = z
-    .object({
-      path: repositoryPath,
-      name: nonemptyString,
-      kind: z.enum(WORK_RECORD_EXPECTED_EDIT_TARGET_KIND_VALUES),
-      operation: z.enum(WORK_RECORD_EXPECTED_EDIT_TARGET_OPERATION_VALUES),
-      activity_kind: z
-        .enum(WORK_UNIT_FEATURE_VECTOR_ACTIVITY_KIND_VALUES)
-        .nullable()
-        .optional(),
-      artifact_kind: z
-        .enum(WORK_UNIT_FEATURE_VECTOR_ARTIFACT_KIND_VALUES)
-        .nullable()
-        .optional(),
-      granularity: z
-        .enum(WORK_UNIT_FEATURE_VECTOR_GRANULARITY_VALUES)
-        .nullable()
-        .optional(),
-      optional: z.boolean().optional(),
-      facet_provenance: targetProvenance.optional()
-    })
-    .strict();
-  const dispatchIntent = z
-    .object({
-      intended_agent_role: z.enum(["worker", "reviewer", "redteam"]),
-      target_unit: z.literal("slice"),
-      requires_graph_impact: z.boolean(),
-      requires_escalation: z.boolean()
-    })
-    .strict();
-  const agentNotes = z
-    .union([z.string(), z.array(z.string())])
-    .refine(
-      (value) =>
-        Buffer.byteLength(Array.isArray(value) ? value.join("\n") : value, "utf8") <= 8192,
-      { message: "agent_notes must be at most 8192 UTF-8 bytes after LF joining" }
-    );
+
+  const nonemptyString = () => readyNonemptyString(z);
+  const repositoryPath = () => readyRepositoryPath(z);
+
+  const acceptance = () => readyAcceptance(z, { structuredCriteria: true });
+
+  const expectedTarget = () =>
+    readyExpectedEditTarget(z, { coarseFacets: true, facetProvenance: true });
 
   return z
     .object({
@@ -158,169 +75,101 @@ export function createReadySliceInputSchema(z) {
         .string()
         .regex(/^sha256:[0-9a-f]{64}$/)
         .optional(),
-      shaping_mode: z.enum(READY_SLICE_SHAPING_VALUES).optional(),
-      attestation_action: z
-        .enum(READY_SLICE_ATTESTATION_ACTION_VALUES)
-        .optional(),
+      shaping_mode: z.enum(READY_SHAPING_MODE_VALUES).optional(),
       verbose: z.boolean().optional(),
-      title: nonemptyString.optional(),
-      status: z.enum(READY_SLICE_STATUS_VALUES).optional(),
+      title: nonemptyString().optional(),
+      status: z.enum(WORK_RECORD_STATUS_VALUES).optional(),
       work_kind: z.enum(READY_SLICE_WORK_KIND_VALUES).optional(),
-      review_purpose: z.enum(["standalone", "terminal_whole_wk"]).optional(),
+      review_purpose: z.enum(WORK_RECORD_REVIEW_PURPOSE_VALUES).optional(),
 
       completion_policy: z.string().optional(),
-      priority: z.enum(READY_SLICE_PRIORITY_VALUES).optional(),
-      owner: nonemptyString.optional(),
-      depends_on: z.array(nonemptyString).optional(),
-      read_scope: z.array(nonemptyString).min(1).optional(),
-      repo_paths: z.array(repositoryPath).min(1).optional(),
-      write_scope: z.array(repositoryPath).optional(),
-      dispatch_intent: dispatchIntent.optional(),
-      acceptance: acceptance.optional(),
-      expected_edit_targets: z.array(expectedTarget).optional(),
+      priority: z.enum(READY_PRIORITY_VALUES).optional(),
+      owner: nonemptyString().optional(),
+      depends_on: z.array(nonemptyString()).optional(),
+      read_scope: z.array(nonemptyString()).min(1).optional(),
+      repo_paths: z.array(repositoryPath()).min(1).optional(),
+      write_scope: z.array(repositoryPath()).optional(),
+      dispatch_intent: readySliceDispatchIntent(z).optional(),
+      acceptance: acceptance().optional(),
+      expected_edit_targets: z.array(expectedTarget()).optional(),
       expected_changed_line_budget: z.number().int().nonnegative().nullable().optional(),
-      agent_notes: agentNotes.optional()
+      agent_notes: readySliceAgentNotes(z).optional()
     })
-    .strict()
-    .superRefine((args, context) => {
-      const create = args.slice_id === undefined;
-      const mode = args.shaping_mode ?? (create ? "implementation" : null);
-      const expectedShape = {
-        implementation: { workKind: "implementation", role: "worker" },
-        reviewer: { workKind: "review", role: "reviewer" },
-        redteam: { workKind: "redteam", role: "redteam" }
-      }[mode];
-
-      if (create) {
-        for (const field of ["title", "read_scope", "repo_paths", "acceptance"]) {
-          if (args[field] === undefined) {
-            addReadySliceSchemaIssue(context, field, `${field} is required on create`);
-          }
-        }
-      }
-      if (
-        create &&
-        args.attestation_action === "invalidate_for_review"
-      ) {
-        addReadySliceSchemaIssue(
-          context,
-          "attestation_action",
-          "creation cannot invalidate an attestation"
-        );
-      }
-      if (
-        (mode === "reviewer" || mode === "redteam") &&
-        args.attestation_action === "invalidate_for_review"
-      ) {
-        addReadySliceSchemaIssue(
-          context,
-          "attestation_action",
-          "findings-only shaping cannot invalidate an implementation attestation"
-        );
-      }
-      if (expectedShape && args.work_kind !== undefined && args.work_kind !== expectedShape.workKind) {
-        addReadySliceSchemaIssue(
-          context,
-          "work_kind",
-          "work_kind contradicts shaping_mode"
-        );
-      }
-      if (args.review_purpose !== undefined &&
-          (mode === "implementation" || mode === "redteam")) {
-        addReadySliceSchemaIssue(context, "review_purpose", "review_purpose is valid only for reviewer shaping");
-      }
-      if (
-        expectedShape &&
-        args.dispatch_intent !== undefined &&
-        args.dispatch_intent.intended_agent_role !== expectedShape.role
-      ) {
-        addReadySliceSchemaIssue(
-          context,
-          "dispatch_intent",
-          "dispatch_intent contradicts shaping_mode"
-        );
-      }
-      if (mode === "implementation") {
-        if (create && (!Array.isArray(args.write_scope) || args.write_scope.length === 0)) {
-          addReadySliceSchemaIssue(
-            context,
-            "write_scope",
-            "implementation write_scope is required and non-empty on create"
-          );
-        }
-        if (
-          create &&
-          (!Array.isArray(args.expected_edit_targets) ||
-            args.expected_edit_targets.length === 0)
-        ) {
-          addReadySliceSchemaIssue(
-            context,
-            "expected_edit_targets",
-            "implementation expected_edit_targets is required and non-empty on create"
-          );
-        }
-        if (args.write_scope !== undefined && args.write_scope.length === 0) {
-          addReadySliceSchemaIssue(
-            context,
-            "write_scope",
-            "implementation write_scope must be non-empty"
-          );
-        }
-        if (
-          args.expected_edit_targets !== undefined &&
-          args.expected_edit_targets.length === 0
-        ) {
-          addReadySliceSchemaIssue(
-            context,
-            "expected_edit_targets",
-            "implementation expected_edit_targets must be non-empty"
-          );
-        }
-      }
-      if (mode === "reviewer" || mode === "redteam") {
-        if (args.write_scope?.length > 0) {
-          addReadySliceSchemaIssue(
-            context,
-            "write_scope",
-            "reviewer/redteam write_scope must be empty"
-          );
-        }
-        if (args.expected_edit_targets?.some((target) => target.operation !== "inspect")) {
-          addReadySliceSchemaIssue(
-            context,
-            "expected_edit_targets",
-            "reviewer/redteam expected_edit_targets must be an inspection plan"
-          );
-        }
-      }
-    });
+    .strict();
 }
 
 const CLOSEOUT_LINT_STATUS_TRIGGER_VALUES = ["review", "done"];
 const CLOSEOUT_LINT_FINDING_LIMIT = 3;
 
-function closeoutWriteApplied(result) {
-  return Boolean(result?.valid) && (Boolean(result?.written) || Boolean(result?.no_op));
+export class CloseoutLintResultContractError extends Error {
+  constructor(message, result) {
+    super(message);
+    this.name = "CloseoutLintResultContractError";
+    this.code = "closeout_lint_result_contract_error";
+    this.result_tuple = Object.freeze({
+      valid: Boolean(result?.valid),
+      written: Boolean(result?.written),
+      no_op: Boolean(result?.no_op)
+    });
+  }
 }
 
-function closeoutLintNotApplicable(reason) {
+function closeoutLintDeferred(reason, applicable, nextAction) {
   return {
     ran: false,
-    applicable: false,
+    applicable,
     ok: null,
     cleanly_closeable: null,
     generated_views: "not_evaluated",
     reason,
-    next_action: reason
+    next_action: nextAction
   };
 }
 
-async function resolveCloseoutLint({ workspaceDir, applicable, notApplicableReason }) {
-  if (!applicable) {
-    return closeoutLintNotApplicable(notApplicableReason);
+export function buildDeferredCloseoutLint({ result, transitionApplicable }) {
+  const valid = Boolean(result?.valid);
+  const written = Boolean(result?.written);
+  const noOp = Boolean(result?.no_op);
+
+  if (written && noOp) {
+    throw new CloseoutLintResultContractError(
+      "closeout mutation result cannot be both written and no_op",
+      result
+    );
   }
-  const summary = await buildCloseoutLintSummary({ dir: workspaceDir });
-  return { applicable: true, ...summary };
+  if (noOp && !valid) {
+    throw new CloseoutLintResultContractError(
+      "closeout mutation result cannot be no_op and invalid",
+      result
+    );
+  }
+  if (written && !valid) {
+    return closeoutLintDeferred(
+      "persisted_but_invalid",
+      false,
+      "repair the persisted invalid work record before requesting repository verification"
+    );
+  }
+  if (!written && !noOp) {
+    return closeoutLintDeferred(
+      "write_not_applied",
+      false,
+      "repair the reported mutation diagnostics and retry the write"
+    );
+  }
+  if (!transitionApplicable) {
+    return closeoutLintDeferred(
+      "transition_not_applicable",
+      false,
+      "repository closeout verification applies only to status review/done or a closure mutation"
+    );
+  }
+  const reason = noOp ? "deferred_after_no_op" : "deferred_after_write";
+  return closeoutLintDeferred(
+    reason,
+    true,
+    "after all intended closeout mutations, call workspace_generate_and_lint once to verify the repository state observed by that invocation"
+  );
 }
 
 function compactCloseoutLintFinding(finding) {
@@ -382,6 +231,13 @@ export function shapeCloseoutLintResponse(closeoutLint, { verbose = false } = {}
       : []
   };
 
+  if (closeoutLint?.ran === false && closeoutLint?.generated_views) {
+    compactCloseoutLint.generated_views = closeoutLint.generated_views;
+  }
+  if (closeoutLint?.reason) {
+    compactCloseoutLint.reason = closeoutLint.reason;
+  }
+
   if (closeoutLint?.next_action) {
     compactCloseoutLint.next_action = closeoutLint.next_action;
   }
@@ -419,19 +275,31 @@ export function registerWorkRecordWriteTools({
 }) {
   const {
     WORK_RECORD_STATUS_VALUES,
-    WORK_RECORD_CONTRACT_LIST_FIELDS,
     WORKSPACE_WORK_RECORD_SET_STATUS_TOOL_NAME,
-    WORKSPACE_WORK_RECORD_SET_TASK_TOOL_NAME,
     WORKSPACE_WORK_RECORD_REFRESH_ADMISSION_METRICS_TOOL_NAME,
     WORKSPACE_WORK_RECORD_REFRESH_TARGET_RESOLUTION_EVIDENCE_TOOL_NAME,
     WORKSPACE_WORK_RECORD_CLEANUP_DERIVED_EVIDENCE_TOOL_NAME
   } = constants;
+  const authoredFieldDependencies = {
+    registerTool,
+    workspaceRepos,
+    z,
+    jsonContent,
+    errorContent,
+    resolveWorkspaceRepo,
+    shapeWriteResponse,
+    createCompactWorkRecordEditResponse,
+    createCompactContractEditResponse,
+    validateOptionalExpectedSourceDigest,
+    constants
+  };
 
   registerTool(
     WORKSPACE_WORK_RECORD_SET_STATUS_TOOL_NAME,
     {
+      writeSemantics: MCP_WRITE_SEMANTICS.NONE,
       description:
-        "Write-capable: set the status of a WK or slice (`unit`) through the validated work-record persistence path, honoring an optional expected_source_digest for stale-write protection. Transitions to review or done also run an advisory closeout lint.",
+        "Set a WK or slice status through validated persistence. Write-capable; optional expected_source_digest rejects stale writes. Review/done verification is deferred to workspace_generate_and_lint.",
       inputSchema: z
         .object({
           repo: z.string().optional(),
@@ -447,19 +315,27 @@ export function registerWorkRecordWriteTools({
         const workspace = resolveWorkspaceRepo(workspaceRepos, args.repo);
         const digestValidation = validateOptionalExpectedSourceDigest(args.expected_source_digest ?? null);
         if (!digestValidation.ok) {
+          const result = {
+            valid: false,
+            written: false,
+            no_op: false,
+            changed_fields: [],
+            status: null,
+            task: null,
+            source_digest: null,
+            expected_source_digest: args.expected_source_digest ?? null,
+            current_source_digest: null,
+            diagnostics: [digestValidation.diagnostic]
+          };
           return jsonContent(
-            shapeWriteResponse(
-              createCompactWorkRecordEditResponse(workspace.repo, {
-                valid: false,
-                written: false,
-                no_op: false,
-                changed_fields: [],
-                status: null,
-                task: null,
-                source_digest: null,
-                expected_source_digest: args.expected_source_digest ?? null,
-                current_source_digest: null,
-                diagnostics: [digestValidation.diagnostic]
+            attachCloseoutLintResponse(
+              shapeWriteResponse(
+                createCompactWorkRecordEditResponse(workspace.repo, result),
+                { verbose: Boolean(args.verbose) }
+              ),
+              buildDeferredCloseoutLint({
+                result,
+                transitionApplicable: CLOSEOUT_LINT_STATUS_TRIGGER_VALUES.includes(args.status)
               }),
               { verbose: Boolean(args.verbose) }
             )
@@ -472,15 +348,10 @@ export function registerWorkRecordWriteTools({
           expectedSourceDigest: digestValidation.value
         });
         const response = createCompactWorkRecordEditResponse(workspace.repo, result);
-
-        const writeApplied = closeoutWriteApplied(result);
         const triggersLint = CLOSEOUT_LINT_STATUS_TRIGGER_VALUES.includes(args.status);
-        const closeoutLint = await resolveCloseoutLint({
-          workspaceDir: workspace.dir,
-          applicable: writeApplied && triggersLint,
-          notApplicableReason: !writeApplied
-            ? "the status write was not applied; no closeout lint was run"
-            : `status '${args.status}' does not trigger closeout lint (only transitions to review or done do)`
+        const closeoutLint = buildDeferredCloseoutLint({
+          result,
+          transitionApplicable: triggersLint
         });
         return jsonContent(
           attachCloseoutLintResponse(
@@ -495,70 +366,14 @@ export function registerWorkRecordWriteTools({
     }
   );
 
-  registerTool(
-    WORKSPACE_WORK_RECORD_SET_TASK_TOOL_NAME,
-    {
-      description:
-        "Write-capable: mark a work-record task done on a WK or slice (`unit`), selecting the task by exact `text` or zero-based `index`, through the validated work-record persistence path, honoring an optional expected_source_digest for stale-write protection.",
-      inputSchema: z
-        .object({
-          repo: z.string().optional(),
-          unit: z.string(),
-          text: z.string().optional(),
-          index: z
-            .union([z.number().int().nonnegative(), z.string().regex(/^(0|[1-9][0-9]*)$/)])
-            .optional(),
-          expected_source_digest: z.string().optional(),
-          verbose: z.boolean().optional()
-        })
-        .strict()
-    },
-    async (args) => {
-      try {
-        const workspace = resolveWorkspaceRepo(workspaceRepos, args.repo);
-        const digestValidation = validateOptionalExpectedSourceDigest(args.expected_source_digest ?? null);
-        if (!digestValidation.ok) {
-          return jsonContent(
-            shapeWriteResponse(
-              createCompactWorkRecordEditResponse(workspace.repo, {
-                valid: false,
-                written: false,
-                no_op: false,
-                changed_fields: [],
-                status: null,
-                task: null,
-                source_digest: null,
-                expected_source_digest: args.expected_source_digest ?? null,
-                current_source_digest: null,
-                diagnostics: [digestValidation.diagnostic]
-              }),
-              { verbose: Boolean(args.verbose) }
-            )
-          );
-        }
-        const result = await setWorkRecordTaskByUnit({
-          dir: workspace.dir,
-          unitAddress: args.unit,
-          text: args.text,
-          index: args.index,
-          expectedSourceDigest: digestValidation.value
-        });
-        return jsonContent(
-          shapeWriteResponse(createCompactWorkRecordEditResponse(workspace.repo, result), {
-            verbose: Boolean(args.verbose)
-          })
-        );
-      } catch (error) {
-        return errorContent(error);
-      }
-    }
-  );
+  registerWorkRecordTaskAndGeneralEditTools(authoredFieldDependencies);
 
   registerTool(
     "workspace_work_record_set_closure",
     {
+      writeSemantics: MCP_WRITE_SEMANTICS.WHOLE_FIELD_REPLACEMENT,
       description:
-        "Write-capable: apply a structured closure patch (summary, validation, follow_ups) to a WK or slice (`unit`). Validates against the canonical schema and refuses if a supplied expected_source_digest no longer matches the on-disk record.",
+        "Patch a WK or slice closure through validated persistence. Write-capable; optional expected_source_digest rejects stale writes. Repository verification is deferred.",
       inputSchema: z
         .object({
           repo: z.string().optional(),
@@ -598,11 +413,9 @@ export function registerWorkRecordWriteTools({
           closure: result.closure ?? null,
           diagnostics: result.diagnostics ?? []
         };
-
-        const closeoutLint = await resolveCloseoutLint({
-          workspaceDir: workspace.dir,
-          applicable: closeoutWriteApplied(result),
-          notApplicableReason: "the closure write was not applied; no closeout lint was run"
+        const closeoutLint = buildDeferredCloseoutLint({
+          result,
+          transitionApplicable: true
         });
         return jsonContent(
           attachCloseoutLintResponse(
@@ -620,8 +433,9 @@ export function registerWorkRecordWriteTools({
   registerTool(
     WORKSPACE_WORK_RECORD_READY_SLICE_TOOL_NAME,
     {
+      writeSemantics: MCP_WRITE_SEMANTICS.WHOLE_FIELD_REPLACEMENT,
       description:
-        "Write-capable: atomically create or update one independently executable tracker-local slice contract using ready-slice-contract.v1. The strict whole-object schema rejects unknown properties and arbitrary nested patches; omitted update fields preserve exact persisted values, while supplied fields replace whole fields after normalization. Creation allocates the next SLICE-### and applies documented defaults. implementation/reviewer/redteam shaping owns work_kind, dispatch role, target_unit, write_scope constraints, and findings-only inspection constraints. The operation performs one load-to-write CAS and one full-persistence-snapshot CAS under the store lock, never returns the private snapshot digest, invalidates only an explicitly selected unit/current-digest attestation carry when valid, and never mutates sidecars. An optional completion_policy authors the DEC-0173 record-level completion policy, currently forge_confirmed_merge, and is accepted only while shaping the terminal whole-WK review slice; the core planner remains the authority on the accepted values and that placement rule, and the field carries no forge observation, merge evidence, candidate identity, closeout, or publication authority. Success/no-op returns only ready-slice-structural-readiness.v1; this closed structural vocabulary is read-only and is not dispatch readiness, dependency policy, admission evidence, Node Engine evaluation, launch, provisioning, or backend selection. A post-persistence projection failure remains contract_persisted:true with persisted whole-record and reviewed-unit digests and projection_internal. workspace_agent_dispatch remains the separate WK-1567 dispatch-owned evidence-derivation and launch-intent call.",
+        "Create or update one independently executable slice under ready-slice-contract.v1. Write-capable. Creation allocates the next slice ID; omitted update fields preserve stored values. Use the four common expected_edit_targets fields; advanced facets are optional. Unknown shapes refuse. Role shaping enforces read/write boundaries. The lock-bound CAS returns structural readiness only. completion_policy is terminal-review-only; after projection_internal, inspect the persisted record before retrying.",
       inputSchema: createReadySliceInputSchema(z)
     },
     async (args) => {
@@ -640,8 +454,9 @@ export function registerWorkRecordWriteTools({
   registerTool(
     "workspace_work_record_upsert_slice",
     {
+      writeSemantics: MCP_WRITE_SEMANTICS.NESTED_MERGE_REPLACEMENT,
       description:
-        "Write-capable: create-if-absent / update-if-present a tracker-local slice on a WK (`unit`). Omit `slice.id` to create the next `SLICE-###` id; an explicit id selects an existing slice or, for new slices, must be an ordinal id because explicit new semantic ids are refused by the core planner. Validates the edited record against work-record.v1 before writing and refuses to persist a schema-invalid result.",
+        "Create or update a tracker-local WK slice. Write-capable. Omit slice.id to allocate the next ordinal ID; an explicit ID selects an existing slice or must be a new ordinal. Invalid prospective records refuse before persistence.",
       inputSchema: z
         .object({
           repo: z.string().optional(),
@@ -681,9 +496,13 @@ export function registerWorkRecordWriteTools({
           verbose: Boolean(args.verbose)
         });
         return jsonContent(
-          shapeWriteResponse(createCompactContractEditResponse(workspace.repo, result), {
-            verbose: Boolean(args.verbose)
-          })
+          shapeContractEditResponse(
+            shapeWriteResponse,
+            createCompactContractEditResponse,
+            workspace.repo,
+            result,
+            args.verbose
+          )
         );
       } catch (error) {
         return errorContent(error);
@@ -694,8 +513,9 @@ export function registerWorkRecordWriteTools({
   registerTool(
     "workspace_work_record_delete_slice",
     {
+      writeSemantics: MCP_WRITE_SEMANTICS.NONE,
       description:
-        "Write-capable: delete a tracker-local slice from a WK, addressed by a slice-scoped `unit` or an explicit `slice_id`. Validates the edited record against work-record.v1 before writing.",
+        "Delete a tracker-local WK slice selected by slice-scoped unit or slice_id. Write-capable; the prospective work record must validate before persistence.",
       inputSchema: z
         .object({
           repo: z.string().optional(),
@@ -735,9 +555,13 @@ export function registerWorkRecordWriteTools({
           verbose: Boolean(args.verbose)
         });
         return jsonContent(
-          shapeWriteResponse(createCompactContractEditResponse(workspace.repo, result), {
-            verbose: Boolean(args.verbose)
-          })
+          shapeContractEditResponse(
+            shapeWriteResponse,
+            createCompactContractEditResponse,
+            workspace.repo,
+            result,
+            args.verbose
+          )
         );
       } catch (error) {
         return errorContent(error);
@@ -745,72 +569,26 @@ export function registerWorkRecordWriteTools({
     }
   );
 
-  registerTool(
-    "workspace_work_record_set_list_field",
-    {
-      description:
-        "Write-capable: set one controlled list-valued contract field (`field`/`values`) at record or slice scope, selected by `unit`; slice scope accepts only the slice-relevant subset of fields. Validates against work-record.v1 before writing.",
-      inputSchema: z
-        .object({
-          repo: z.string().optional(),
-          unit: z.string(),
-          field: z.enum(WORK_RECORD_CONTRACT_LIST_FIELDS),
-          values: z.array(z.string()),
-          expected_source_digest: z.string().optional(),
-          verbose: z.boolean().optional()
-        })
-        .strict()
-    },
-    async (args) => {
-      try {
-        const workspace = resolveWorkspaceRepo(workspaceRepos, args.repo);
-        const digestValidation = validateOptionalExpectedSourceDigest(args.expected_source_digest ?? null);
-        if (!digestValidation.ok) {
-          return jsonContent(
-            shapeWriteResponse(
-              createCompactContractEditResponse(workspace.repo, {
-                operation: "set_list_field",
-                valid: false,
-                written: false,
-                no_op: false,
-                changed_fields: [],
-                diagnostics: [digestValidation.diagnostic],
-                next_action: "supply a valid expected_source_digest (sha256:<64 lowercase hex>) or omit the field"
-              }),
-              { verbose: Boolean(args.verbose) }
-            )
-          );
-        }
-        const result = await editWorkRecordContractByUnit({
-          dir: workspace.dir,
-          unitAddress: args.unit,
-          operation: "set_list_field",
-          params: { field: args.field, values: args.values },
-          expectedSourceDigest: digestValidation.value,
-          verbose: Boolean(args.verbose)
-        });
-        return jsonContent(
-          shapeWriteResponse(createCompactContractEditResponse(workspace.repo, result), {
-            verbose: Boolean(args.verbose)
-          })
-        );
-      } catch (error) {
-        return errorContent(error);
-      }
-    }
-  );
+  registerWorkRecordListFieldCompatibilityTool(authoredFieldDependencies);
 
   registerTool(
     "workspace_work_record_set_acceptance",
     {
+      writeSemantics: MCP_WRITE_SEMANTICS.WHOLE_FIELD_REPLACEMENT,
       description:
-        "Write-capable: set acceptance.criteria and/or acceptance.validation at record or slice scope for a WK, selected by `unit`. This is the only contract setter that may repair a structurally parsed invalid base, and only when the persisted record is already canonical and every base error is confined to the selected acceptance subtree; every other setter remains fail-closed. Object-shaped acceptance preserves an omitted criteria/validation sibling exactly, while missing or non-object acceptance requires both arrays as a whole replacement. The server guards the post-normalization persisted diff to caller-named acceptance paths plus enumerated server-managed fields, fully validates the prospective record, and performs one CAS-protected write. Compact responses preserve diagnostic order and codes, but diagnostic count and fields may be bounded; `diagnostics_truncation` reports compaction, and `detail_available` identifies verbose retrieval. `verbose:true` returns complete core diagnostics, while responses requiring no truncation retain their existing shape. The strict schema grants no arbitrary invalid-record edit or caller-controlled authority input.",
+        "Set WK- or slice-scoped acceptance criteria and/or validation. Write-capable and the only contract setter allowed to repair an invalid base whose errors are confined to the selected acceptance subtree. Omitted criteria or validation is preserved only when acceptance is already object-shaped; otherwise supply both arrays. verbose:true returns complete diagnostics.",
       inputSchema: z
         .object({
           repo: z.string().optional(),
           unit: z.string(),
           criteria: z.array(z.string()).optional(),
-          validation: z.array(z.string()).optional(),
+          validation: z.array(z.union([
+            z.string(),
+            z.object({
+              command: z.string(),
+              verification_ids: z.array(z.string())
+            }).strict()
+          ])).optional(),
           expected_source_digest: z.string().optional(),
           verbose: z.boolean().optional()
         })
@@ -845,9 +623,13 @@ export function registerWorkRecordWriteTools({
           verbose: Boolean(args.verbose)
         });
         return jsonContent(
-          shapeWriteResponse(createCompactContractEditResponse(workspace.repo, result), {
-            verbose: Boolean(args.verbose)
-          })
+          shapeContractEditResponse(
+            shapeWriteResponse,
+            createCompactContractEditResponse,
+            workspace.repo,
+            result,
+            args.verbose
+          )
         );
       } catch (error) {
         return errorContent(error);
@@ -858,8 +640,9 @@ export function registerWorkRecordWriteTools({
   registerTool(
     "workspace_work_record_shape_review_unit",
     {
+      writeSemantics: MCP_WRITE_SEMANTICS.NONE,
       description:
-        "Write-capable: shape a WK or tracker-local slice (`unit`) into a findings-only review unit — set work_kind to 'review', force write_scope to [], and point the dispatch intent at the reviewer role. Validates against work-record.v1 before writing.",
+        "Shape a WK or slice as a findings-only review unit by setting work_kind review, empty write_scope, and reviewer dispatch intent. Write-capable; invalid prospective records refuse.",
       inputSchema: z
         .object({
           repo: z.string().optional(),
@@ -899,9 +682,13 @@ export function registerWorkRecordWriteTools({
           verbose: Boolean(args.verbose)
         });
         return jsonContent(
-          shapeWriteResponse(createCompactContractEditResponse(workspace.repo, result), {
-            verbose: Boolean(args.verbose)
-          })
+          shapeContractEditResponse(
+            shapeWriteResponse,
+            createCompactContractEditResponse,
+            workspace.repo,
+            result,
+            args.verbose
+          )
         );
       } catch (error) {
         return errorContent(error);
@@ -912,8 +699,9 @@ export function registerWorkRecordWriteTools({
   registerTool(
     WORKSPACE_WORK_RECORD_REFRESH_ADMISSION_METRICS_TOOL_NAME,
     {
+      writeSemantics: MCP_WRITE_SEMANTICS.NONE,
       description:
-        "Write-capable: refresh stored worker-admission derived evidence for a WK or slice (`unit` or `id`) through the canonical admission refresh path, honoring an optional expected_source_digest.",
+        "Refresh stored worker-admission derived evidence for a WK or slice. Write-capable; the canonical route honors optional expected_source_digest stale-write protection.",
       inputSchema: z
         .object({
           repo: z.string().optional(),
@@ -941,8 +729,9 @@ export function registerWorkRecordWriteTools({
   registerTool(
     WORKSPACE_WORK_RECORD_REFRESH_TARGET_RESOLUTION_EVIDENCE_TOOL_NAME,
     {
+      writeSemantics: MCP_WRITE_SEMANTICS.NONE,
       description:
-        "Write-capable: refresh target-resolution evidence for a WK or slice (`unit` or `id`) through the canonical worker-admission derived-evidence refresh path, honoring an optional expected_source_digest. A strict input schema rejects caller-carried policy fields.",
+        "Refresh stored target-resolution evidence for a WK or slice. Write-capable; optional expected_source_digest protects the canonical write, and caller-carried policy fields refuse.",
       inputSchema: z
         .object({
           repo: z.string().optional(),
@@ -970,8 +759,9 @@ export function registerWorkRecordWriteTools({
   registerTool(
     WORKSPACE_WORK_RECORD_CLEANUP_DERIVED_EVIDENCE_TOOL_NAME,
     {
+      writeSemantics: MCP_WRITE_SEMANTICS.NONE,
       description:
-        "Report or prune oversized worker-admission derived evidence on a WK. Cleanup is whole-record: pass a record-level `id` or `unit` (a slice address resolves to its parent). Dry-run by default; pass `write: true` to persist the pruned record through the validated work-record path with stale-source protection. Keeps the newest usable worker-admission entry per unit and never drops graph-impact or other non-worker-admission evidence.",
+        "Report or prune oversized worker-admission derived evidence for a whole WK; slice addresses resolve to the parent. Dry-run by default; write:true persists with stale-source protection. Cleanup keeps the newest usable entry per unit and preserves other evidence classes.",
       inputSchema: z
         .object({
           repo: z.string().optional(),

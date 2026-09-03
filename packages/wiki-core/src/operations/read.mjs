@@ -12,11 +12,18 @@ import {
   loadWorkRecordByPath
 } from "../lib/work-record-store.mjs";
 import {
+  classifyKindRecordSource,
+  loadKindRecordById,
+  loadKindRecordByPath,
+  resolveKindRecordIdentity
+} from "../lib/kind-record-store.mjs";
+import {
   TRACKER_SLICE_DETAIL_SUPPRESSED_STATUSES,
   calculateSliceAgentNotesBytes,
   shouldSuppressTrackerSliceDetail
 } from "../lib/work-record-projection-helpers.mjs";
 import { projectSelectedWorkRecordUnit } from "../lib/work-record-selected-unit-projection.mjs";
+import { projectWorkRecordCompactOmissions } from "../lib/work-record-summary.mjs";
 
 const WORK_RECORD_ID_PATTERN = /^(WK|IN|DEC|SRC)-\d+$/;
 const WORK_RECORD_RELATIVE_PREFIX = `${WORK_RECORD_DIRECTORY_NAME}/`;
@@ -190,21 +197,21 @@ function buildSliceCounts(slices) {
 }
 
 function buildTrackerSliceDetailOmissionMetadata(slices, includedSlices, returnedSlices) {
+  const omissions = projectWorkRecordCompactOmissions({
+    record: { slices },
+    returnedSliceIds: returnedSlices.map((slice) => slice.id)
+  });
+  const withheldByStatus = omissions.slices.by_status ?? {};
+
   const suppressedByStatus = {};
   let suppressedTotal = 0;
   for (const status of TRACKER_SLICE_DETAIL_SUPPRESSED_STATUSES) {
-    suppressedByStatus[status] = 0;
-  }
-  for (const slice of slices) {
-    if (!shouldSuppressTrackerSliceDetail(slice)) {
-      continue;
-    }
-    const status = slice.status ?? "unknown";
-    suppressedByStatus[status] = (suppressedByStatus[status] || 0) + 1;
-    suppressedTotal += 1;
+    const withheld = Number.isInteger(withheldByStatus[status]) ? withheldByStatus[status] : 0;
+    suppressedByStatus[status] = withheld;
+    suppressedTotal += withheld;
   }
 
-  const currentSlicesOmittedCount = Math.max(0, includedSlices.length - returnedSlices.length);
+  const currentSlicesOmittedCount = Math.max(0, omissions.slices.omitted_count - suppressedTotal);
   return {
     suppressed_statuses: TRACKER_SLICE_DETAIL_SUPPRESSED_STATUSES,
     suppressed_total: suppressedTotal,
@@ -347,6 +354,37 @@ async function readWorkRecordJsonByPath(targetDir, absolutePath, relativePath, p
     include_raw,
     selected_slice
   });
+}
+
+function serializeJsonKindRecord(kindRecord, { relativePath, pageKind }) {
+  const record = kindRecord.record ?? null;
+  const result = {
+    format: "json-kind-record",
+    relativePath,
+    pageKind,
+    id: kindRecord.record_id,
+    record_id: kindRecord.record_id,
+    record_kind: kindRecord.record_kind,
+    title: record?.title ?? kindRecord.record_id ?? null,
+    source_classification: kindRecord.source_classification,
+    canonical_record_path: kindRecord.canonical_record_path,
+    source_digest: kindRecord.source_digest,
+    valid: kindRecord.valid,
+    classification: kindRecord.classification,
+    diagnostics: kindRecord.diagnostics ?? []
+  };
+  if (record !== null) {
+    result.record = record;
+  }
+  return result;
+}
+
+async function readKindRecordJsonByPath(targetDir, relativePath, pageKind) {
+  const kindRecord = await loadKindRecordByPath({
+    repoRoot: targetDir,
+    sourcePath: relativePath
+  });
+  return serializeJsonKindRecord(kindRecord, { relativePath, pageKind });
 }
 
 const GRAPH_EVIDENCE_SIDECAR_PAGE_KIND = "work-records-graph-evidence";
@@ -514,9 +552,17 @@ export async function readWikiPage({
     targetDir,
     requestedPath
   );
-  ensureReadablePathSuffix(relativePath, requestedPath);
-
   const pageKind = pageKindForPath(relativePath, context.extensionNamespaces);
+  const kindRecordSource = await classifyKindRecordSource(relativePath);
+
+  if (
+    kindRecordSource.recognized &&
+    kindRecordSource.source_classification === "canonical"
+  ) {
+    return await readKindRecordJsonByPath(targetDir, relativePath, pageKind);
+  }
+
+  ensureReadablePathSuffix(relativePath, requestedPath);
 
   if (isGraphEvidenceSidecarRelativePath(relativePath)) {
     return await readGraphEvidenceSidecarByPath(absolutePath, relativePath, {
@@ -571,6 +617,18 @@ export async function getWikiRecord({
     extensionNamespaces
   });
   const normalizedId = String(id);
+  const kindRecordIdentity = await resolveKindRecordIdentity(normalizedId);
+
+  if (kindRecordIdentity.recognized) {
+    const kindRecord = await loadKindRecordById({ repoRoot: targetDir, id: normalizedId });
+    return serializeJsonKindRecord(kindRecord, {
+      relativePath: kindRecordIdentity.canonical_record_path,
+      pageKind: pageKindForPath(
+        kindRecordIdentity.canonical_record_path,
+        context.extensionNamespaces
+      )
+    });
+  }
 
   if (isWorkRecordId(normalizedId)) {
     const workRecord = await loadWorkRecordById({ dir: targetDir, id: normalizedId });

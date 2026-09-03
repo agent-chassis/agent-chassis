@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -16,6 +16,8 @@ import { inspectProofPackBindings } from
   "../lib/proof-pack-binding-assistance.mjs";
 import { canonicalJson } from "../lib/contract-assessment.mjs";
 import { validateProofPlan } from "../lib/multi-pack-assessment.mjs";
+import { migrateControlledAcceptanceContractV02ToV1 } from
+  "../lib/stable-v1-migration.mjs";
 import { buildProofPlanFixture } from "./proof-plan-fixture.mjs";
 import { buildRefusalBeforeEffectsFixture } from
   "./proof-packs/refusal-before-effects-fixture.mjs";
@@ -23,16 +25,31 @@ import { buildRetryConvergenceFixture } from
   "./proof-packs/retry-convergence-v1-fixture.mjs";
 import { buildDormancyNonactivationFixture } from
   "./proof-packs/dormancy-nonactivation-v1-fixture.mjs";
+import { buildStableTestProofPopulation } from
+  "./support/stable-v1-proof-pack-runtime.mjs";
+
+function stabilizeFixture(value) {
+  const fixture = structuredClone(value);
+  fixture.contract.test_proofs = buildStableTestProofPopulation(fixture.contract);
+  fixture.input.input_version = "controlled-contract-verification-profile-input.v1";
+  fixture.input.stable_evaluation = {};
+  return fixture;
+}
 
 const execFileAsync = promisify(execFile);
+const childEnvironment = () => {
+  const environment = { ...process.env };
+  delete environment.NODE_TEST_CONTEXT;
+  return environment;
+};
 const V1 = {
   profile_id: "proof.authorization.refusal-before-effects",
-  profile_version: "1.0.0"
+  profile_version: "2.0.0"
 };
 const V1_INTENT = "controlled-proof-intent.refusal-before-effects";
 const V2 = {
   profile_id: "proof.dormancy.nonactivation",
-  profile_version: "1.0.0"
+  profile_version: "2.0.0"
 };
 const V2_INTENT = "controlled-proof-intent.dormancy-nonactivation";
 
@@ -41,6 +58,80 @@ function request(intents, packs) {
     schema_version: "controlled-contract-proof-plan-request.v1",
     requested_intents: intents,
     selected_packs: packs
+  };
+}
+
+async function testValidityFixture() {
+  const [base, input] = await Promise.all([
+    readFile(new URL("../examples/minimal-controlled-acceptance-contract-v034.json",
+      import.meta.url), "utf8").then(JSON.parse),
+    readFile(new URL(
+      "../profiles/proof.verification.test-validity/1.0.0/evaluation-input.template.json",
+      import.meta.url), "utf8").then(JSON.parse)
+  ]);
+  input.verification_id = "claim-suite-covers-component";
+  input.test_proof_id = "test-proof-suite-covers-component";
+  input.evaluation_stage = "pre_dispatch";
+  input.falsifier_executions[0].failure_proposition_id = "prop-component-absent";
+  input.falsifier_executions[0].mutation.target_verification_id = input.verification_id;
+  const modulePath = "packages/controlled-contract/lib/test-proof-contract.mjs";
+  const provider = (provider_id, capability) => ({
+    provider_id, provider_version: "1.0.0", capability
+  });
+  const { input_version: _inputVersion, evaluation_stage, ...testValidity } = input;
+  return {
+    contract: migrateControlledAcceptanceContractV02ToV1({
+      contract: base,
+      testProofs: [{
+        test_proof_id: input.test_proof_id,
+        verification_claim_id: input.verification_id,
+        system_under_test_boundary: {
+          boundary_id: input.candidate_execution.observed_boundary_id, kind: "module",
+          runtime_module_path: modulePath, subject_reference_ids: ["ref-component"]
+        },
+        observable_result: {
+          observable_id: input.candidate_execution.observed_observable_id,
+          kind: "return_value", proposition_id: "prop-suite-covers-component"
+        },
+        candidate_execution_provider: provider("launcher.node-test", "candidate_execution"),
+        falsifiers: [{
+          falsifier_id: input.falsifier_executions[0].falsifier_id,
+          strategy: "dependency_failure", proposition_id: "prop-component-absent",
+          expected_outcome: "verification_fails",
+          mutation: {
+            mutation_id: input.falsifier_executions[0].mutation.mutation_id,
+            mechanism: "module_substitution", target_kind: "module", module_path: modulePath
+          },
+          execution_provider: provider(
+            "launcher.node-test-module-fault", "falsifier_execution")
+        }],
+        traversal_provider: {
+          mode: "provider", ...provider(
+            "launcher.node-test-v8-coverage", "boundary_traversal"),
+          boundary_kind: "module", observation_mechanism: "node_test_v8_coverage",
+          observation_seam: "node_test_structured_assertion",
+          evidence_artifact_type: "boundary_trace"
+        },
+        coverage_disposition: {
+          baseline_id: "coverage-baseline-package-suite",
+          baseline_state: "complete_executed_inventory",
+          items: input.test_inventory.declared_test_ids.map((test_id) => ({
+            test_id, disposition: "preserved"
+          }))
+        },
+        prohibited_shortcuts: ["source_text_inspection"]
+      }]
+    }),
+    input: {
+      input_version: "controlled-contract-verification-profile-input.v1",
+      evaluation_stage,
+      reference_bindings: [
+        { role: "component", reference_ids: ["ref-component"] },
+        { role: "suite", reference_ids: ["ref-suite"] }
+      ],
+      number_bindings: [], claim_pattern_bindings: [], resolver_facts: [],
+      delivered_evidence: [], stable_evaluation: { test_validity: [testValidity] }
+    }
   };
 }
 
@@ -73,8 +164,10 @@ function mergeContracts(fixtures) {
   const result = structuredClone(first.contract);
   for (const fixture of rest) for (const field of [
     "references", "propositions", "claims", "relations", "collections",
-    "residue", "annotations"
+    "residue", "annotations", "test_proofs"
   ]) result[field].push(...structuredClone(fixture.contract[field]));
+  result.test_proofs.sort((left, right) => left.verification_claim_id.localeCompare(
+    right.verification_claim_id));
   return result;
 }
 
@@ -115,7 +208,7 @@ function expectCode(code) {
 test("compiler reproduces a manually derived v1 proof plan exactly", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "cc-plan-compiler-v1-"));
   try {
-    const fixture = buildRefusalBeforeEffectsFixture();
+    const fixture = stabilizeFixture(buildRefusalBeforeEffectsFixture());
     const contractPath = path.join(root, "contract.json");
     const evaluationPath = path.join(root, "evaluation.json");
     await Promise.all([
@@ -145,10 +238,51 @@ test("compiler reproduces a manually derived v1 proof plan exactly", async () =>
   }
 });
 
+test("compiler builds a stable pre-dispatch test-validity plan without runtime selection",
+  async () => {
+    const fixture = await testValidityFixture();
+    const evaluationPath = "test-validity.json";
+    const plan = await buildProofPlan({
+      contract: fixture.contract,
+      request: request(["controlled-proof-intent.test-verification-validity"], [{
+        profile_id: "proof.verification.test-validity",
+        profile_version: "2.0.0",
+        evaluation_input_path: evaluationPath
+      }]),
+      evaluationInputs: { [evaluationPath]: fixture.input }
+    });
+    assert.equal(plan.packs[0].profile_id, "proof.verification.test-validity");
+    assert.equal(validateProofPlan(plan), true);
+    assert.equal(fixture.input.evaluation_stage, "pre_dispatch");
+    assert.equal(Object.hasOwn(
+      fixture.contract.test_proofs[0], "runtime_test_selection"), false);
+    await assert.rejects(() => buildProofPlan({
+      contract: fixture.contract,
+      request: request([V1_INTENT], [{
+        ...V1,
+        evaluation_input_path: "legacy-v0.2-only.json"
+      }]),
+      evaluationInputs: { "legacy-v0.2-only.json": fixture.input }
+    }), (error) => error.code === "proof_plan_request_evaluation_input_invalid");
+    const partial = structuredClone(fixture.contract);
+    delete partial.test_proof_version;
+    await assert.rejects(() => buildProofPlan({
+      contract: partial,
+      request: request(["controlled-proof-intent.test-verification-validity"], [{
+        profile_id: "proof.verification.test-validity",
+        profile_version: "2.0.0",
+        evaluation_input_path: evaluationPath
+      }]),
+      evaluationInputs: { [evaluationPath]: fixture.input }
+    }), (error) => error.code === "proof_plan_compiler_contract_invalid" &&
+      error.details.diagnostics.diagnostics.length > 0);
+  });
+
 test("compiler reproduces exact-binding digests and paths without placeholders", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "cc-plan-compiler-v2-"));
   try {
-    const fixture = buildDormancyNonactivationFixture({ domain: "compiler" });
+    const fixture = stabilizeFixture(
+      buildDormancyNonactivationFixture({ domain: "compiler" }));
     const sources = dormancySources(fixture);
     const contractPath = path.join(root, "contract.json");
     const evaluationPath = path.join(root, "evaluation.json");
@@ -189,8 +323,8 @@ test("compiler reproduces exact-binding digests and paths without placeholders",
 });
 
 test("property, intent, pack, and binding-map order cannot change output bytes", async () => {
-  const refusal = namespaceFixture(buildRefusalBeforeEffectsFixture(), "refusal");
-  const retry = namespaceFixture(buildRetryConvergenceFixture(), "retry");
+  const refusal = namespaceFixture(stabilizeFixture(buildRefusalBeforeEffectsFixture()), "refusal");
+  const retry = namespaceFixture(stabilizeFixture(buildRetryConvergenceFixture()), "retry");
   const contract = mergeContracts([refusal, retry]);
   const refusalPath = "/capture/refusal.json";
   const retryPath = "/capture/retry.json";
@@ -200,7 +334,7 @@ test("property, intent, pack, and binding-map order cannot change output bytes",
       V1_INTENT, "controlled-proof-intent.retry-convergence"
     ], [{ ...V1, evaluation_input_path: refusalPath }, {
       profile_id: "proof.failure.retry-convergence",
-      profile_version: "1.0.0",
+      profile_version: "2.0.0",
       evaluation_input_path: retryPath
     }]),
     evaluationInputs: {
@@ -216,7 +350,7 @@ test("property, intent, pack, and binding-map order cannot change output bytes",
     request: {
       selected_packs: [{
         evaluation_input_path: retryPath,
-        profile_version: "1.0.0",
+        profile_version: "2.0.0",
         profile_id: "proof.failure.retry-convergence"
       }, { evaluation_input_path: refusalPath, ...V1 }],
       requested_intents: [
@@ -230,7 +364,7 @@ test("property, intent, pack, and binding-map order cannot change output bytes",
 });
 
 test("request rejects digest substitution, duplicates, stale and unadmitted packs", async () => {
-  const fixture = buildRefusalBeforeEffectsFixture();
+  const fixture = stabilizeFixture(buildRefusalBeforeEffectsFixture());
   const inputPath = "evaluation.json";
   const compile = (selected, extra = {}) => buildProofPlan({
     contract: fixture.contract,
@@ -249,13 +383,13 @@ test("request rejects digest substitution, duplicates, stale and unadmitted pack
   }]), expectCode("proof_plan_request_pack_version_stale"));
   await assert.rejects(() => compile([{
     profile_id: "proof.unadmitted.near-match",
-    profile_version: "1.0.0",
+    profile_version: "2.0.0",
     evaluation_input_path: inputPath
   }]), expectCode("proof_plan_request_pack_unadmitted"));
 });
 
 test("omitted, uncovered, mismatched, and ambiguous intent assignments fail closed", async () => {
-  const fixture = buildRefusalBeforeEffectsFixture();
+  const fixture = stabilizeFixture(buildRefusalBeforeEffectsFixture());
   const inputPath = "evaluation.json";
   const compilerInput = (requestedIntents, selectedPacks) => ({
     contract: fixture.contract,
@@ -272,28 +406,28 @@ test("omitted, uncovered, mismatched, and ambiguous intent assignments fail clos
   }), expectCode("proof_plan_request_schema_invalid"));
   await assert.rejects(() => buildProofPlan(compilerInput([V1_INTENT], [{
     profile_id: "proof.failure.retry-convergence",
-    profile_version: "1.0.0",
+    profile_version: "2.0.0",
     evaluation_input_path: inputPath
   }])), expectCode("proof_plan_request_selection_incomplete"));
   await assert.rejects(() => buildProofPlan(compilerInput([
     "controlled-proof-intent.protected-effect-nonmutation"
   ], [{ ...V1, evaluation_input_path: inputPath }, {
     profile_id: "proof.state.bounded-interval-nonmutation",
-    profile_version: "1.0.0",
+    profile_version: "2.0.0",
     evaluation_input_path: "bounded.json"
   }])), (error) => expectCode("proof_plan_request_selection_incomplete")(error) &&
     error.details.diagnostics[0].code === "proof_plan_request_intent_ambiguous");
 });
 
 test("swapped or invalid evaluation inputs fail before a plan is emitted", async () => {
-  const refusal = namespaceFixture(buildRefusalBeforeEffectsFixture(), "refusal");
-  const retry = namespaceFixture(buildRetryConvergenceFixture(), "retry");
+  const refusal = namespaceFixture(stabilizeFixture(buildRefusalBeforeEffectsFixture()), "refusal");
+  const retry = namespaceFixture(stabilizeFixture(buildRetryConvergenceFixture()), "retry");
   const contract = mergeContracts([refusal, retry]);
   const refusalPath = "refusal.json";
   const retryPath = "retry.json";
   const selected = [{ ...V1, evaluation_input_path: refusalPath }, {
     profile_id: "proof.failure.retry-convergence",
-    profile_version: "1.0.0",
+    profile_version: "2.0.0",
     evaluation_input_path: retryPath
   }];
   await assert.rejects(() => buildProofPlan({
@@ -311,7 +445,8 @@ test("swapped or invalid evaluation inputs fail before a plan is emitted", async
 });
 
 test("missing exact caller inputs are all reported with stable typed diagnostics", async () => {
-  const fixture = buildDormancyNonactivationFixture({ domain: "missing" });
+  const fixture = stabilizeFixture(
+    buildDormancyNonactivationFixture({ domain: "missing" }));
   await assert.rejects(() => buildProofPlan({
     contract: fixture.contract,
     request: request([V2_INTENT], [{ ...V2, exact_capture: {} }])
@@ -332,7 +467,8 @@ test("missing exact caller inputs are all reported with stable typed diagnostics
 });
 
 test("exact path escape and exact-source swaps are mechanically visible", async () => {
-  const fixture = buildDormancyNonactivationFixture({ domain: "exact-swap" });
+  const fixture = stabilizeFixture(
+    buildDormancyNonactivationFixture({ domain: "exact-swap" }));
   const evaluationPath = "/capture/evaluation.json";
   const sources = dormancySources(fixture);
   const build = (exactCapture) => buildProofPlan({
@@ -373,7 +509,7 @@ test("exact path escape and exact-source swaps are mechanically visible", async 
 test("file compiler binds relative request paths and CLI emits the same canonical plan", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "cc-plan-compiler-cli-"));
   try {
-    const fixture = buildRefusalBeforeEffectsFixture();
+    const fixture = stabilizeFixture(buildRefusalBeforeEffectsFixture());
     const contractPath = path.join(root, "contract.json");
     const evaluationPath = path.join(root, "evaluation.json");
     const requestPath = path.join(root, "request.json");
@@ -389,7 +525,7 @@ test("file compiler binds relative request paths and CLI emits the same canonica
     const { stdout, stderr } = await execFileAsync(process.execPath, [
       new URL("../bin/build-proof-plan.mjs", import.meta.url).pathname,
       "--input", contractPath, "--request", requestPath
-    ]);
+    ], { env: childEnvironment() });
     assert.equal(stderr, "");
     assert.equal(stdout, canonicalProofPlanJson(expected));
     const emitted = JSON.parse(stdout);
@@ -404,7 +540,7 @@ test("CLI help exposes only genuine caller choices and explicit non-selection", 
   const { stdout, stderr } = await execFileAsync(process.execPath, [
     new URL("../bin/build-proof-plan.mjs", import.meta.url).pathname,
     "--help"
-  ]);
+  ], { env: childEnvironment() });
   assert.equal(stderr, "");
   assert.match(stdout, /--input <contract\.json>/u);
   assert.match(stdout, /--request <proof-plan-request\.json>/u);
@@ -415,7 +551,8 @@ test("CLI help exposes only genuine caller choices and explicit non-selection", 
 test("file compiler rejects exact capture identities that do not bind its files", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "cc-plan-path-conflict-"));
   try {
-    const fixture = buildDormancyNonactivationFixture({ domain: "path-conflict" });
+    const fixture = stabilizeFixture(
+      buildDormancyNonactivationFixture({ domain: "path-conflict" }));
     const contractPath = path.join(root, "contract.json");
     const evaluationPath = path.join(root, "evaluation.json");
     const requestPath = path.join(root, "request.json");
@@ -442,7 +579,7 @@ test("file compiler rejects exact capture identities that do not bind its files"
 });
 
 test("compiler rejects caller substrate overrides and bounds malformed requests", async () => {
-  const fixture = buildRefusalBeforeEffectsFixture();
+  const fixture = stabilizeFixture(buildRefusalBeforeEffectsFixture());
   await assert.rejects(() => buildProofPlan({
     contract: fixture.contract,
     request: request([], []),
@@ -457,7 +594,8 @@ test("compiler rejects caller substrate overrides and bounds malformed requests"
 });
 
 test("schema-valid exact-source expansion fails the canonical plan byte bound", async () => {
-  const fixture = buildDormancyNonactivationFixture({ domain: "size-bound" });
+  const fixture = stabilizeFixture(
+    buildDormancyNonactivationFixture({ domain: "size-bound" }));
   const evaluationPath = "/capture/evaluation.json";
   const sources = dormancySources(fixture);
   sources["extra-artifact"] = {
@@ -481,7 +619,7 @@ test("schema-valid exact-source expansion fails the canonical plan byte bound", 
 });
 
 test("compiler validates large contracts without materializing binding assistance", async () => {
-  const fixture = buildRefusalBeforeEffectsFixture();
+  const fixture = stabilizeFixture(buildRefusalBeforeEffectsFixture());
   fixture.contract.references.push(...Array.from({ length: 900 }, (_, index) => {
     const suffix = String(index).padStart(4, "0");
     return {

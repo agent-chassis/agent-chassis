@@ -18,18 +18,19 @@ Two framing rules first:
 
 ## How the repo-local `.env` is read
 
-The repo-local `.env` lives at `<workspace>/.env` and is read by a narrow,
-allowlisted reader (`packages/wiki-core/src/lib/node-engine-env-bootstrap.mjs`),
+The repo-local `.env` lives at `<workspace>/.env` and is read by an explicit-key
+reader (`packages/wiki-core/src/lib/node-engine-env-bootstrap.mjs`),
 not a general dotenv loader:
 
-- Only **allowlisted keys** are ever imported; unsupported keys are ignored
+- Only the reader's **listed keys** are imported; unsupported keys are ignored
   (never funneled through the secret bootstrap path). The sections below document
   each surface's keys; hosted-tier onboarding keys are provided to onboarded beta
   users separately and are not fully listed here.
 - An explicit environment value **wins** — the repo `.env` never overrides a
   value already set in the launcher-minted environment.
-- Secret values are copied **value-free**: the reader returns only key *names*
-  and counts, never the value, so credentials are never logged or echoed.
+- For its diagnostics, the reader returns key *names* and counts rather than
+  values. This is the exact parser/result contract, not a general AgentChassis
+  credential-leak-prevention guarantee.
 - **Malformed lines are ignored** with a value-free count (never a throw); an
   **absent or unreadable `.env` is a no-op**.
 - Values are **not** expanded or interpolated — this is a credential carrier,
@@ -38,7 +39,7 @@ not a general dotenv loader:
 - The repo-local `.env` is read keyed on the workspace directory
   (`WIKI_MCP_WORKSPACE_DIR` for the MCP server; the launch input's workspace dir
   for the launcher-owned host wiki-MCP server), so launcher surfaces share one
-  parser and allowlist.
+  parser and key list.
 
 > `.env.example` at the repo root is **operator documentation only** — the
 > launcher does not read it. Copy the keys you need into the real
@@ -136,6 +137,7 @@ repo-local `.env` keys.
 | Key | Purpose |
 |---|---|
 | `AGENT_LAUNCH_RUNTIME_STATE_DIR` | Root for mutable launcher runtime state (nonces, token state). Must resolve outside the repo / `HOME` / `XDG` roots; defaults to an OS-tmpdir location when unset (`packages/agent-launch-core/src/lib/config.mjs`). |
+| `AGENT_CHASSIS_MCP_TRANSCRIPT_ROOT` | Optional observability **destination** that arms the launcher's dormant stdio-MCP transcript capture. Unset (the default) means the conduit spawns the host wiki-MCP server exactly as it always did and records nothing. When set it must be an absolute path to an existing real directory this uid owns at mode `0700`; the launcher re-validates it and mints every per-session directory itself, and anything else disables capture with a diagnostic rather than refusing the launch. It selects no policy, transport, tool surface, or authority, and it is not repo-local `.env` configuration. See [Agent-launch confinement and MCP conduit](agent-launch-confinement-mcp-conduit.md). |
 
 Other `AGENT_LAUNCH_*` variables (role-guard, isolation, bin-dir) are
 launcher-internal plumbing minted from canonical config

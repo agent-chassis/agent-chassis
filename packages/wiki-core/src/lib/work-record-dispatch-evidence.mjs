@@ -74,6 +74,8 @@ export function collectDerivedEvidence({
         slice_id: entry.slice_id,
         external_repo: entry.external_repo,
         selected_status: entry.selected_status,
+        target_work_kind: entry.target_work_kind,
+        failure_code: entry.failure_code,
         marker: entry.marker,
         provenance: entry.provenance,
         reason: entry.reason

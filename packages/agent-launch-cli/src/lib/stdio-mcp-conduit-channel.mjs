@@ -1,10 +1,12 @@
 
 
 import {
+  accessSync,
   constants as fsConstants,
   fstatSync,
   lstatSync,
   openSync,
+  realpathSync,
   readdirSync,
   unlinkSync
 } from "node:fs";
@@ -32,6 +34,63 @@ export const STDIO_MCP_LOCAL_CONNECTOR_DESTINATION =
   "/run/agent-launch/stdio-mcp-unix-connector.mjs";
 const STDIO_MCP_LOCAL_CONNECTOR_SOURCE = path.join(
   path.dirname(fileURLToPath(import.meta.url)), "stdio-mcp-unix-connector.mjs");
+
+function resolveLauncherConnectorNodeExecutable() {
+  const candidate = process.execPath;
+  if (typeof candidate !== "string" || candidate.length === 0 ||
+      candidate.includes("\0") || !path.isAbsolute(candidate)) {
+    fail(STDIO_MCP_CONDUIT_ERROR_CODES.INPUT_INVALID,
+      "launcher Node executable must be an absolute path");
+  }
+  let executable;
+  try {
+    executable = realpathSync(candidate);
+  } catch (error) {
+    fail(STDIO_MCP_CONDUIT_ERROR_CODES.INPUT_INVALID,
+      "launcher Node executable could not be canonicalized",
+      { errno: error?.code ?? null });
+  }
+  let stats;
+  try {
+    stats = lstatSync(executable);
+  } catch (error) {
+    fail(STDIO_MCP_CONDUIT_ERROR_CODES.INPUT_INVALID,
+      "launcher Node executable could not be inspected",
+      { errno: error?.code ?? null });
+  }
+  if (!path.isAbsolute(executable) || !stats.isFile() || stats.isSymbolicLink()) {
+    fail(STDIO_MCP_CONDUIT_ERROR_CODES.INPUT_INVALID,
+      "launcher Node executable must resolve to an absolute regular file");
+  }
+  try {
+    accessSync(executable, fsConstants.X_OK);
+  } catch (error) {
+    fail(STDIO_MCP_CONDUIT_ERROR_CODES.INPUT_INVALID,
+      "launcher Node executable is not executable",
+      { errno: error?.code ?? null });
+  }
+  return executable;
+}
+
+const STDIO_MCP_LOCAL_CONNECTOR_NODE_EXECUTABLE =
+  resolveLauncherConnectorNodeExecutable();
+
+function connectorNodeNamespaceDirectoryArgs() {
+  const root = path.parse(STDIO_MCP_LOCAL_CONNECTOR_NODE_EXECUTABLE).root;
+  const directories = [];
+  let current = path.dirname(STDIO_MCP_LOCAL_CONNECTOR_NODE_EXECUTABLE);
+  while (current !== root) {
+    directories.unshift(current);
+    current = path.dirname(current);
+  }
+  return directories.flatMap((directory) => ["--dir", directory]);
+}
+
+const STDIO_MCP_LOCAL_CONNECTOR_NODE_NAMESPACE_ARGS = Object.freeze([
+  ...connectorNodeNamespaceDirectoryArgs(),
+  "--ro-bind", STDIO_MCP_LOCAL_CONNECTOR_NODE_EXECUTABLE,
+  STDIO_MCP_LOCAL_CONNECTOR_NODE_EXECUTABLE
+]);
 
 const STDIO_MCP_CONDUIT_NAMESPACE_PARENT = path.dirname(STDIO_MCP_CONDUIT_ROOT);
 
@@ -444,7 +503,7 @@ export function projectStdioMcpChannelClientRegistration(binding) {
   if (binding?.transport === STDIO_MCP_CONDUIT_TRANSPORT_LOCAL) {
     localBackingState(TRUSTED_LOCAL_BINDING_BACKINGS.get(binding));
     return Object.freeze({
-      command: "/usr/bin/node",
+      command: STDIO_MCP_LOCAL_CONNECTOR_NODE_EXECUTABLE,
       args: Object.freeze([STDIO_MCP_LOCAL_CONNECTOR_DESTINATION]),
       env: Object.freeze({})
     });
@@ -466,6 +525,7 @@ export function projectStdioMcpChannelNamespaceArgs(binding) {
     const backing = projectStdioMcpChannelLocalBacking(
       TRUSTED_LOCAL_BINDING_BACKINGS.get(binding));
     return Object.freeze([
+      ...STDIO_MCP_LOCAL_CONNECTOR_NODE_NAMESPACE_ARGS,
       "--dir", path.dirname(STDIO_MCP_LOCAL_ENDPOINT_PATH),
       "--ro-bind", STDIO_MCP_LOCAL_CONNECTOR_SOURCE,
       STDIO_MCP_LOCAL_CONNECTOR_DESTINATION,

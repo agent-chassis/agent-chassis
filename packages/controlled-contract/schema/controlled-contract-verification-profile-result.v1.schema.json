@@ -1,0 +1,503 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "controlled-contract-verification-profile-result.v1",
+  "type": "object",
+  "required": [
+    "result_version",
+    "authority",
+    "profile",
+    "evaluation_stage",
+    "profile_valid",
+    "input_valid",
+    "contract_valid",
+    "satisfaction",
+    "satisfaction_trace",
+    "pattern_results",
+    "binding_analysis",
+    "ambiguity_analysis",
+    "diagnostics",
+    "total_count",
+    "returned_count",
+    "omitted_count",
+    "truncated",
+    "contract",
+    "vocabulary",
+    "admission",
+    "stable_evaluation"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "result_version": {
+      "type": "string",
+      "enum": [
+        "controlled-contract-verification-profile-result.v1"
+      ]
+    },
+    "authority": {
+      "type": "object",
+      "required": [
+        "kind",
+        "authoritative"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "free_tier_local"
+          ]
+        },
+        "authoritative": {
+          "type": "boolean",
+          "enum": [
+            false
+          ]
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "required": [
+        "profile_id",
+        "profile_version"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "profile_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "profile_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "evaluation_stage": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "profile_valid": {
+      "type": "boolean"
+    },
+    "input_valid": {
+      "type": "boolean"
+    },
+    "contract_valid": {
+      "type": "boolean"
+    },
+    "satisfaction": {
+      "type": "string",
+      "enum": [
+        "satisfied",
+        "unsatisfied",
+        "indeterminate",
+        "invalid"
+      ]
+    },
+    "satisfaction_trace": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/satisfaction_trace"
+        }
+      ]
+    },
+    "pattern_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "pattern_id",
+          "pattern_kind",
+          "status",
+          "matched_ids"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "pattern_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+          },
+          "pattern_kind": {
+            "type": "string",
+            "enum": [
+              "reference_binding",
+              "claim",
+              "relation",
+              "collection",
+              "resolver_fact",
+              "evidence",
+              "binding_constraint"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "satisfied",
+              "unsatisfied",
+              "indeterminate",
+              "inactive"
+            ]
+          },
+          "matched_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "binding_analysis": {
+      "type": "object",
+      "required": [
+        "unbound_reference_roles",
+        "unbound_number_roles",
+        "reference_roles_without_eligible_candidates",
+        "directly_blocked_pattern_ids",
+        "direct_binding_blockers",
+        "reference_binding_blockers",
+        "downstream_blocked_pattern_ids"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "unbound_reference_roles": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          }
+        },
+        "unbound_number_roles": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          }
+        },
+        "reference_roles_without_eligible_candidates": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          }
+        },
+        "directly_blocked_pattern_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+          }
+        },
+        "direct_binding_blockers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "pattern_id",
+              "proposition_reference_roles",
+              "proposition_number_roles",
+              "falsifier_reference_roles",
+              "falsifier_number_roles"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "pattern_id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+              },
+              "proposition_reference_roles": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]*$"
+                }
+              },
+              "proposition_number_roles": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]*$"
+                }
+              },
+              "falsifier_reference_roles": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]*$"
+                }
+              },
+              "falsifier_number_roles": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]*$"
+                }
+              }
+            }
+          }
+        },
+        "reference_binding_blockers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "pattern_id",
+              "reference_roles"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "pattern_id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+              },
+              "reference_roles": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]*$"
+                }
+              }
+            }
+          }
+        },
+        "downstream_blocked_pattern_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+          }
+        }
+      }
+    },
+    "ambiguity_analysis": {
+      "type": "object",
+      "required": [
+        "directly_ambiguous_pattern_ids",
+        "downstream_ambiguous_pattern_ids"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "directly_ambiguous_pattern_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+          }
+        },
+        "downstream_ambiguous_pattern_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+          }
+        }
+      }
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "total_count": { "type": "integer", "minimum": 0 },
+    "returned_count": { "type": "integer", "minimum": 0, "maximum": 64 },
+    "omitted_count": { "type": "integer", "minimum": 0 },
+    "truncated": { "type": "boolean" },
+    "contract": {
+      "type": "object",
+      "required": [
+        "schema_version"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "enum": [
+            "controlled-acceptance-contract.v1"
+          ]
+        }
+      }
+    },
+    "vocabulary": {
+      "type": "object",
+      "required": [
+        "version",
+        "signature_digest",
+        "algebra_digest",
+        "definitions_digest",
+        "complete_digest"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "type": "string",
+          "enum": [
+            "controlled-contract-vocabulary.v1"
+          ]
+        },
+        "signature_digest": {
+          "type": "string",
+          "enum": [
+            "596a4c44d98aed1d31dd9ab3842fc054be6f8ffa3d62a3867a3966e75ecab742"
+          ]
+        },
+        "algebra_digest": {
+          "type": "string",
+          "enum": [
+            "0fbea1e7377baeef1869cbc55dc588ef5509ed40c768ce2a3c4f58be1133cf9c"
+          ]
+        },
+        "definitions_digest": {
+          "type": "string",
+          "enum": [
+            "bb3d2a63cb6fc8c62b9bc36d29d07549dea6ad85e32badb0cbb3cacfd6ad4759"
+          ]
+        },
+        "complete_digest": {
+          "type": "string",
+          "enum": [
+            "45484504f06968c6b4ac812c24b9f1b6e47e1d34ba21fefebde8dd85d1290fa9"
+          ]
+        }
+      }
+    },
+    "admission": {
+      "type": "object",
+      "required": [
+        "kind",
+        "profile_digest",
+        "adequacy_attested"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "unadmitted_direct"
+          ]
+        },
+        "profile_digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "adequacy_attested": {
+          "type": "boolean",
+          "enum": [
+            false
+          ]
+        }
+      }
+    },
+    "stable_evaluation": {
+      "type": "object",
+      "required": [
+        "semantic_request_count",
+        "test_validity_evaluated",
+        "diagnostic_count",
+        "satisfaction"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "semantic_request_count": { "type": "integer", "minimum": 0 },
+        "test_validity_evaluated": { "type": "boolean" },
+        "diagnostic_count": { "type": "integer", "minimum": 0 },
+        "satisfaction": { "enum": ["satisfied", "unsatisfied"] }
+      }
+    }
+  },
+  "$defs": {
+    "satisfaction_trace": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "status",
+            "pattern_id",
+            "pattern_status"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "pattern"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "satisfied",
+                "unsatisfied",
+                "indeterminate"
+              ]
+            },
+            "pattern_id": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+            },
+            "pattern_status": {
+              "type": "string",
+              "enum": [
+                "satisfied",
+                "unsatisfied",
+                "indeterminate",
+                "inactive"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "status",
+            "children"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "all_of",
+                "any_of"
+              ]
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "satisfied",
+                "unsatisfied",
+                "indeterminate"
+              ]
+            },
+            "children": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/satisfaction_trace"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "$id": "https://agent-chassis.dev/controlled-contract/controlled-contract-verification-profile-result.v1.schema.json"
+}

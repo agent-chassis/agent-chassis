@@ -30,6 +30,8 @@ import {
   assertBubblewrapAvailable,
   buildBubblewrapLaunchPlan
 } from "./launch-isolation.mjs";
+import { FINDINGS_DEPENDENCY_PROJECTION_EVIDENCE_SCHEMA_VERSION } from
+  "./workspace-agent-dispatch-run-receipt-schema.mjs";
 
 export const TERMINAL_CANDIDATE_VALIDATION_SCHEMA_VERSION =
   "agent_launch.reviewer_validation_evidence.v2";
@@ -39,6 +41,8 @@ export const TERMINAL_CANDIDATE_VALIDATION_CODES = Object.freeze({
   DEPENDENCY_UNAVAILABLE: "agent_launch.terminal_candidate_validation.dependency_unavailable.v1",
   DEPENDENCY_REDIRECTED: "agent_launch.terminal_candidate_validation.dependency_redirected.v1",
   DEPENDENCY_STALE: "agent_launch.terminal_candidate_validation.dependency_stale.v1",
+  DEPENDENCY_MOUNTPOINT_OCCUPIED:
+    "agent_launch.terminal_candidate_validation.dependency_mountpoint_occupied.v1",
   MOUNT_IDENTITY_CHANGED:
     "agent_launch.terminal_candidate_validation.dependency_mount_identity_changed.v1",
   TARGET_INVALID: "agent_launch.terminal_candidate_validation.target_invalid.v1",
@@ -49,7 +53,9 @@ export const DEPENDENCY_PROJECTION_UNAVAILABLE_REASONS = Object.freeze({
   DEPENDENCY_ROOT_UNAVAILABLE: "dependency_root_unavailable",
   DEPENDENCY_PATH_ABSENT: "dependency_path_absent",
   DEPENDENCY_PATH_REDIRECTED: "dependency_path_redirected",
-  DEPENDENCY_STATE_UNSTABLE: "dependency_state_unstable"
+  DEPENDENCY_STATE_UNSTABLE: "dependency_state_unstable",
+
+  CHECKOUT_DEPENDENCY_TREE_PRESENT: "checkout_dependency_tree_present"
 });
 
 const OPTIONAL_PROJECTION_UNAVAILABLE_VALIDATION_CODES = new Map([
@@ -58,7 +64,10 @@ const OPTIONAL_PROJECTION_UNAVAILABLE_VALIDATION_CODES = new Map([
   [TERMINAL_CANDIDATE_VALIDATION_CODES.DEPENDENCY_REDIRECTED,
     DEPENDENCY_PROJECTION_UNAVAILABLE_REASONS.DEPENDENCY_PATH_REDIRECTED],
   [TERMINAL_CANDIDATE_VALIDATION_CODES.DEPENDENCY_STALE,
-    DEPENDENCY_PROJECTION_UNAVAILABLE_REASONS.DEPENDENCY_STATE_UNSTABLE]
+    DEPENDENCY_PROJECTION_UNAVAILABLE_REASONS.DEPENDENCY_STATE_UNSTABLE],
+
+  [TERMINAL_CANDIDATE_VALIDATION_CODES.DEPENDENCY_MOUNTPOINT_OCCUPIED,
+    DEPENDENCY_PROJECTION_UNAVAILABLE_REASONS.CHECKOUT_DEPENDENCY_TREE_PRESENT]
 ]);
 
 const OPTIONAL_PROJECTION_ABSENT_SYSTEM_ERROR_CODES = new Map([
@@ -72,6 +81,19 @@ const DEPENDENCY_PROJECTION_SCHEMA_VERSION =
   "agent_launch.reviewer_dependency_projection.v1";
 const DEPENDENCY_PROJECTION_METADATA = ".agent-launch-projection.json";
 const PROJECTION_BUILD_ATTEMPTS = 3;
+const FINDINGS_DEPENDENCY_PROJECTION_EVIDENCE_FIELDS = Object.freeze([
+  "schema_version",
+  "selected",
+  "unavailability_reason",
+  "projection_identity",
+  "installation_digest",
+  "retained_projection_root",
+  "mount_destination",
+  "frozen_read_only_binds"
+]);
+const DEPENDENCY_PROJECTION_UNAVAILABLE_REASON_VALUES = new Set(
+  Object.values(DEPENDENCY_PROJECTION_UNAVAILABLE_REASONS)
+);
 
 export class TerminalCandidateValidationError extends Error {
   constructor(message, { code, detail = null, cause = null } = {}) {
@@ -293,6 +315,29 @@ function quarantineInvalidProjection(root) {
     "invalid reviewer dependency projection could not be quarantined", { projection_root: root });
 }
 
+function assertReviewerDependencyMountpointAvailable(checkoutPath) {
+  const destination = path.join(checkoutPath, "node_modules");
+  let stat;
+  try {
+    stat = lstatSync(destination);
+  } catch (error) {
+
+    if (error?.code === "ENOENT" || error?.code === "ENOTDIR") return null;
+    throw error;
+  }
+  if (stat.isSymbolicLink() || !stat.isDirectory()) {
+    fail(TERMINAL_CANDIDATE_VALIDATION_CODES.DEPENDENCY_MOUNTPOINT_OCCUPIED,
+      "reviewed checkout supplies its own node_modules path; no launcher dependency projection is mounted",
+      { mountpoint: destination, kind: stat.isSymbolicLink() ? "symlink" : "file" });
+  }
+  if (readdirSync(destination).length !== 0) {
+    fail(TERMINAL_CANDIDATE_VALIDATION_CODES.DEPENDENCY_MOUNTPOINT_OCCUPIED,
+      "reviewed checkout supplies its own node_modules tree; no launcher dependency projection is mounted",
+      { mountpoint: destination, kind: "directory" });
+  }
+  return null;
+}
+
 export function prepareReviewerDependencyProjection({
   mainRepo,
   checkoutPath,
@@ -311,6 +356,12 @@ export function prepareReviewerDependencyProjection({
     fail(TERMINAL_CANDIDATE_VALIDATION_CODES.INVALID_ARGUMENT,
       "reviewer dependency projection must be an absolute launcher path outside canonical repository state");
   }
+  if (typeof checkoutPath !== "string" || !path.isAbsolute(checkoutPath)) {
+    fail(TERMINAL_CANDIDATE_VALIDATION_CODES.INVALID_ARGUMENT,
+      "reviewer dependency projection requires an absolute reviewed checkout path");
+  }
+
+  assertReviewerDependencyMountpointAvailable(checkoutPath);
   if (existsSync(projectionRoot)) {
     const legacyStat = lstatSync(projectionRoot);
     if (!legacyStat.isDirectory() || legacyStat.isSymbolicLink()) {
@@ -432,6 +483,169 @@ export function selectOptionalReviewerDependencyProjection({
       projection: null
     });
   }
+}
+
+function freezeDependencyBinds(binds) {
+  return Object.freeze(binds.map((bind) => Object.freeze({
+    src: bind.src,
+    dst: bind.dst
+  })));
+}
+
+function freezeFindingsDependencyProjectionEvidence(selection, checkoutPath) {
+  const projection = selection.projection;
+  const selected = selection.selected === true;
+  return Object.freeze({
+    schema_version: FINDINGS_DEPENDENCY_PROJECTION_EVIDENCE_SCHEMA_VERSION,
+    selected,
+    unavailability_reason: selected ? null : selection.reason_code,
+    projection_identity: selected ? projection.projection_identity : null,
+    installation_digest: selected ? projection.installation_digest : null,
+    retained_projection_root: selected ? projection.projection_root : null,
+    mount_destination: path.join(checkoutPath, "node_modules"),
+    frozen_read_only_binds: selected
+      ? freezeDependencyBinds(projection.read_only_binds)
+      : Object.freeze([])
+  });
+}
+
+export function findingsDependencyProjectionEvidenceFromProof(proof, checkoutPath) {
+  if (proof === null || proof === undefined) return null;
+  const selected = proof.projection_selected === true;
+  const selection = Object.freeze({
+    selected,
+    reason_code: selected ? null : proof.projection_unavailable_reason,
+    projection: selected
+      ? Object.freeze({
+          projection_identity: proof.projection_identity,
+          installation_digest: proof.dependency_installation_digest,
+          projection_root: proof.projection_root,
+          read_only_binds: proof.reviewer_read_only_binds
+        })
+      : null
+  });
+  return freezeFindingsDependencyProjectionEvidence(selection, checkoutPath);
+}
+
+function assertFindingsDependencyProjectionEvidence(evidence, checkoutPath) {
+  const expectedDestination = path.join(checkoutPath, "node_modules");
+  if (typeof evidence !== "object" || evidence === null ||
+      Object.keys(evidence).sort().join("\0") !==
+        FINDINGS_DEPENDENCY_PROJECTION_EVIDENCE_FIELDS.slice().sort().join("\0") ||
+      evidence.schema_version !== FINDINGS_DEPENDENCY_PROJECTION_EVIDENCE_SCHEMA_VERSION ||
+      typeof evidence.selected !== "boolean" ||
+      evidence.mount_destination !== expectedDestination ||
+      !Array.isArray(evidence.frozen_read_only_binds)) {
+    fail(TERMINAL_CANDIDATE_VALIDATION_CODES.MOUNT_IDENTITY_CHANGED,
+      "retained findings dependency projection evidence is malformed", {
+        checkout_path: checkoutPath
+      });
+  }
+  if (evidence.selected !== true) {
+    if (!DEPENDENCY_PROJECTION_UNAVAILABLE_REASON_VALUES.has(
+      evidence.unavailability_reason
+    ) || evidence.projection_identity !== null ||
+        evidence.installation_digest !== null ||
+        evidence.retained_projection_root !== null ||
+        evidence.frozen_read_only_binds.length !== 0) {
+      fail(TERMINAL_CANDIDATE_VALIDATION_CODES.MOUNT_IDENTITY_CHANGED,
+        "retained unselected findings dependency evidence is inconsistent");
+    }
+    return evidence;
+  }
+  if (!/^sha256:[0-9a-f]{64}$/u.test(evidence.projection_identity ?? "") ||
+      !/^sha256:[0-9a-f]{64}$/u.test(evidence.installation_digest ?? "") ||
+      typeof evidence.retained_projection_root !== "string" ||
+      !path.isAbsolute(evidence.retained_projection_root) ||
+      evidence.unavailability_reason !== null ||
+      evidence.frozen_read_only_binds.length === 0 ||
+      !evidence.frozen_read_only_binds.some((bind) =>
+        isPlainMountBind(bind) &&
+        bind.src === evidence.retained_projection_root &&
+        bind.dst === expectedDestination)) {
+    fail(TERMINAL_CANDIDATE_VALIDATION_CODES.MOUNT_IDENTITY_CHANGED,
+      "retained selected findings dependency evidence is inconsistent");
+  }
+  for (const bind of evidence.frozen_read_only_binds) {
+    if (!isPlainMountBind(bind)) {
+      fail(TERMINAL_CANDIDATE_VALIDATION_CODES.MOUNT_IDENTITY_CHANGED,
+        "retained findings dependency projection carries a malformed bind", { bind });
+    }
+  }
+  return evidence;
+}
+
+export function selectImmutableFindingsDependencyProjection({
+  mainRepo,
+  checkoutPath,
+  projectionRoot,
+  retainedEvidence = null
+} = {}) {
+  if (retainedEvidence === null) {
+    const selection = selectOptionalReviewerDependencyProjection({
+      mainRepo,
+      checkoutPath,
+      projectionRoot
+    });
+    return Object.freeze({
+      ...selection,
+      evidence: freezeFindingsDependencyProjectionEvidence(selection, checkoutPath)
+    });
+  }
+  const evidence = assertFindingsDependencyProjectionEvidence(
+    retainedEvidence,
+    checkoutPath
+  );
+  const frozenEvidence = Object.isFrozen(evidence) &&
+      Object.isFrozen(evidence.frozen_read_only_binds) &&
+      evidence.frozen_read_only_binds.every((bind) => Object.isFrozen(bind))
+    ? evidence
+    : Object.freeze({
+        ...evidence,
+        frozen_read_only_binds: freezeDependencyBinds(
+          evidence.frozen_read_only_binds
+        )
+      });
+  if (frozenEvidence.selected !== true) {
+    return Object.freeze({
+      selected: false,
+      reason_code: frozenEvidence.unavailability_reason,
+      projection: null,
+      evidence: frozenEvidence
+    });
+  }
+
+  assertReviewerDependencyMountpointAvailable(checkoutPath);
+  const proof = Object.freeze({
+    projection_selected: true,
+    projection_root: frozenEvidence.retained_projection_root,
+    projection_identity: frozenEvidence.projection_identity,
+    dependency_installation_digest: frozenEvidence.installation_digest,
+    reviewer_read_only_bind: frozenEvidence.frozen_read_only_binds.find((bind) =>
+      bind.src === frozenEvidence.retained_projection_root &&
+      bind.dst === frozenEvidence.mount_destination),
+    reviewer_read_only_binds: frozenEvidence.frozen_read_only_binds
+  });
+  assertSelectedDependencyMountIntegrity(proof);
+  const projection = Object.freeze({
+    schema_version: DEPENDENCY_PROJECTION_SCHEMA_VERSION,
+    projection_identity: frozenEvidence.projection_identity,
+    installation_digest: frozenEvidence.installation_digest,
+    projection_root: frozenEvidence.retained_projection_root,
+    read_only_bind: proof.reviewer_read_only_bind,
+    substrate_read_only_binds: Object.freeze(
+      frozenEvidence.frozen_read_only_binds.filter((bind) =>
+        bind !== proof.reviewer_read_only_bind)
+    ),
+    read_only_binds: frozenEvidence.frozen_read_only_binds,
+    workspace_links_resolve_against_reviewed_checkout: true
+  });
+  return Object.freeze({
+    selected: true,
+    reason_code: null,
+    projection,
+    evidence: frozenEvidence
+  });
 }
 
 export function assertSelectedDependencyMountIntegrity(proof) {
@@ -673,7 +887,7 @@ function runStep({ spawn, nodePath, flag, target, checkoutPath, env, runtime, de
   });
 }
 
-export function runTerminalCandidateValidation({
+export async function runTerminalCandidateValidation({
   binding,
   materialization,
   target,
@@ -685,7 +899,7 @@ export function runTerminalCandidateValidation({
   if (typeof spawn !== "function" || typeof runGit !== "function") {
     fail(TERMINAL_CANDIDATE_VALIDATION_CODES.INVALID_ARGUMENT, "launcher validation dependencies are missing");
   }
-  verifyTerminalCandidateCheckout({ binding, candidateRoot: materialization?.candidate_root, runGit });
+  await verifyTerminalCandidateCheckout({ binding, candidateRoot: materialization?.candidate_root, runGit });
 
   const dependencies = verifyTerminalCandidateDependencies({ binding, materialization });
   const resolvedTarget = resolveTarget(materialization.checkout_path, target);
@@ -729,7 +943,7 @@ export function runTerminalCandidateValidation({
   } finally {
     if (createdDependencyMountpoint) rmSync(dependencyMountpoint, { recursive: true, force: true });
   }
-  verifyTerminalCandidateCheckout({ binding, candidateRoot: materialization.candidate_root, runGit });
+  await verifyTerminalCandidateCheckout({ binding, candidateRoot: materialization.candidate_root, runGit });
   return Object.freeze({
     schema_version: TERMINAL_CANDIDATE_VALIDATION_SCHEMA_VERSION,
     unit: binding.canonical_wk_id,
@@ -759,14 +973,14 @@ export function runTerminalCandidateValidation({
   });
 }
 
-export function runAllTerminalCandidateValidations({ targets, ...options } = {}) {
+export async function runAllTerminalCandidateValidations({ targets, ...options } = {}) {
   if (!Array.isArray(targets) || targets.some((target) => typeof target !== "string" || target.length === 0)) {
     fail(TERMINAL_CANDIDATE_VALIDATION_CODES.INVALID_ARGUMENT,
       "terminal lifecycle requires every canonical whole-WK validation target");
   }
   const results = [];
   for (const target of targets) {
-    const result = runTerminalCandidateValidation({ ...options, target });
+    const result = await runTerminalCandidateValidation({ ...options, target });
     results.push(result);
   }
   return Object.freeze(results);

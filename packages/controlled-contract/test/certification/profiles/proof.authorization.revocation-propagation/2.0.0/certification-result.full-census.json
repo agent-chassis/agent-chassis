@@ -1,0 +1,1829 @@
+{
+  "tool_version": "controlled-contract-proof-pack-adequacy-check.experimental.v0.1",
+  "authority": {
+    "kind": "experimental_local",
+    "authoritative": false
+  },
+  "pack": {
+    "profile_id": "proof.authorization.revocation-propagation",
+    "profile_version": "2.0.0",
+    "profile_digest": "929eb7e1972324f1a7bea2d7d33796d2d106523ce9243240b1b716d09f2ac7a1",
+    "guarantee_digest": "573f7757b9134bdcd7929c205b6e8aea8316944787432cea7a5fba7b45b5c718",
+    "adequacy_digest": "69efc7302bb22f6ce13788e3f69af87c577e7860cd3466be424eef581d4b2163"
+  },
+  "passed": true,
+  "control_count": 33,
+  "negative_fixture_count": 123,
+  "coverage_witness_count": 123,
+  "diagnostics": [],
+  "observations": {
+    "schema_version": "controlled-contract-proof-pack-adequacy-run.experimental.v0.1",
+    "profile_id": "proof.authorization.revocation-propagation",
+    "profile_version": "2.0.0",
+    "profile_digest": "929eb7e1972324f1a7bea2d7d33796d2d106523ce9243240b1b716d09f2ac7a1",
+    "guarantee_digest": "573f7757b9134bdcd7929c205b6e8aea8316944787432cea7a5fba7b45b5c718",
+    "controls": [
+      {
+        "control_id": "accepted-post-revocation-attempt",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "api-gateway-credential",
+        "category": "positive",
+        "implementation_outcome": "passed",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "concurrency-outside-the-declared-revocation-propagation-attempt-order",
+        "category": "exclusion",
+        "implementation_outcome": "boundary_demonstrated",
+        "profile_satisfaction": "not_evaluated"
+      },
+      {
+        "control_id": "consumers-attempts-resources-and-effects-outside-declared-complete-populations",
+        "category": "exclusion",
+        "implementation_outcome": "boundary_demonstrated",
+        "profile_satisfaction": "not_evaluated"
+      },
+      {
+        "control_id": "delivered-evidence-authenticity-or-plan-implementation",
+        "category": "exclusion",
+        "implementation_outcome": "boundary_demonstrated",
+        "profile_satisfaction": "not_evaluated"
+      },
+      {
+        "control_id": "dishonest-authority-event-state-population-identity-and-role-grounding",
+        "category": "exclusion",
+        "implementation_outcome": "boundary_demonstrated",
+        "profile_satisfaction": "not_evaluated"
+      },
+      {
+        "control_id": "distributed-signing-key",
+        "category": "positive",
+        "implementation_outcome": "passed",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "edge-cache-session",
+        "category": "positive",
+        "implementation_outcome": "passed",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "eventual-delivery-propagation-liveness-or-wall-clock-bound",
+        "category": "exclusion",
+        "implementation_outcome": "boundary_demonstrated",
+        "profile_satisfaction": "not_evaluated"
+      },
+      {
+        "control_id": "missing-aggregate-mutation-prohibition",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "missing-aggregate-write-prohibition",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "missing-applied-state-equivalence",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "missing-attempt-authority-use",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "missing-attempt-consumer-target",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "missing-attempt-refusal",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "missing-consumer-authority-read",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "missing-consumer-state-application",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "missing-consumer-state-verification",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "missing-mutation-verification",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "missing-pointwise-mutation-prohibition",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "missing-pointwise-write-prohibition",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "missing-propagation-attempt-order",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "missing-refusal-verification",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "missing-refused-population-equivalence",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "missing-revocation-authority-link",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "missing-revocation-propagation-order",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "missing-revoked-state-record",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "missing-verifier-revocation-spine",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "missing-write-verification",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "post-revocation-protected-mutation",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "post-revocation-protected-write",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "unsatisfied"
+      },
+      {
+        "control_id": "runtime-truth-or-authenticity-of-authored-claims",
+        "category": "exclusion",
+        "implementation_outcome": "boundary_demonstrated",
+        "profile_satisfaction": "not_evaluated"
+      },
+      {
+        "control_id": "stale-consumer",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "unsatisfied"
+      }
+    ]
+  },
+  "negative_fixture_results": [
+    {
+      "fixture_id": "reject-claim-all-post-revocation-attempts-refused-modalities",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-all-post-revocation-attempts-refused-proposition-applicability-mode",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-all-post-revocation-attempts-refused-proposition-applicability-operands",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-applied-state-equals-revoked-state-modalities",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-applied-state-equals-revoked-state-proposition-applicability-mode",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-applied-state-equals-revoked-state-proposition-applicability-operands",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-attempt-does-not-mutate-protected-effects-modalities",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-attempt-does-not-mutate-protected-effects-proposition-applicability-mode",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-attempt-does-not-mutate-protected-effects-proposition-applicability-operands",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-attempt-does-not-mutate-protected-effects-proposition-operand-0-role",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-attempt-does-not-mutate-protected-effects-proposition-operator",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-attempt-does-not-write-protected-effects-modalities",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-attempt-does-not-write-protected-effects-proposition-applicability-mode",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-attempt-does-not-write-protected-effects-proposition-applicability-operands",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-attempt-does-not-write-protected-effects-proposition-operand-0-role",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-attempt-does-not-write-protected-effects-proposition-operator",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-attempt-is-refused-modalities",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-attempt-is-refused-proposition-applicability-mode",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-attempt-is-refused-proposition-applicability-operands",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-attempt-is-refused-proposition-operand-0-role",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-attempt-is-refused-proposition-operator",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-attempt-targets-consumer-population-modalities",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-attempt-targets-consumer-population-proposition-applicability-mode",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-attempt-targets-consumer-population-proposition-applicability-operands",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-attempt-targets-consumer-population-proposition-operand-0-role",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-attempt-targets-consumer-population-proposition-operator",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-attempt-uses-revoked-authority-modalities",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-attempt-uses-revoked-authority-proposition-applicability-mode",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-attempt-uses-revoked-authority-proposition-applicability-operands",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-attempt-uses-revoked-authority-proposition-operand-0-role",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-attempt-uses-revoked-authority-proposition-operator",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-consumer-applies-revoked-state-during-propagation-modalities",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-consumer-applies-revoked-state-during-propagation-proposition-applicability-mode",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-consumer-applies-revoked-state-during-propagation-proposition-applicability-operands",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-consumer-applies-revoked-state-during-propagation-proposition-operand-0-role",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-consumer-applies-revoked-state-during-propagation-proposition-operator",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-consumer-observes-authority-during-propagation-modalities",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-consumer-observes-authority-during-propagation-proposition-applicability-mode",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-consumer-observes-authority-during-propagation-proposition-applicability-operands",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-consumer-observes-authority-during-propagation-proposition-operand-0-role",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-each-consumer-observes-authority-during-propagation-proposition-operator",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-no-post-revocation-attempt-mutates-protected-effects-modalities",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-no-post-revocation-attempt-mutates-protected-effects-proposition-applicability-mode",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-no-post-revocation-attempt-mutates-protected-effects-proposition-applicability-operands",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-no-post-revocation-attempt-writes-protected-effects-modalities",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-no-post-revocation-attempt-writes-protected-effects-proposition-applicability-mode",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-no-post-revocation-attempt-writes-protected-effects-proposition-applicability-operands",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-patterns",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-propagation-interval-precedes-each-attempt-modalities",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-propagation-interval-precedes-each-attempt-proposition-operator",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-propagation-interval-precedes-each-attempt-proposition-subject",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-revocation-invalidates-authority-modalities",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-revocation-invalidates-authority-proposition-operand-0-role",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-revocation-invalidates-authority-proposition-operator",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-revocation-invalidates-authority-proposition-subject",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-revocation-precedes-propagation-interval-modalities",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-revocation-precedes-propagation-interval-proposition-operand-0-role",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-revocation-precedes-propagation-interval-proposition-operator",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-revocation-precedes-propagation-interval-proposition-subject",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-revocation-records-revoked-state-modalities",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-revocation-records-revoked-state-proposition-operand-0-role",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-revocation-records-revoked-state-proposition-operator",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-revocation-records-revoked-state-proposition-subject",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-verification-reads-shared-revocation-graph-modalities",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-verification-reads-shared-revocation-graph-proposition-operand-0-role",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-verification-reads-shared-revocation-graph-proposition-operand-1-role",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-verification-reads-shared-revocation-graph-proposition-operand-2-role",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-verification-reads-shared-revocation-graph-proposition-operand-3-role",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-verification-reads-shared-revocation-graph-proposition-operand-4-role",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-verification-reads-shared-revocation-graph-proposition-operand-5-role",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-verification-reads-shared-revocation-graph-proposition-operand-6-role",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-verification-reads-shared-revocation-graph-proposition-operand-7-role",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-verification-reads-shared-revocation-graph-proposition-operator",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-verification-reads-shared-revocation-graph-proposition-subject",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-verify-all-attempts-refused-modalities",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-verify-all-attempts-refused-proposition-operand-0-role",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-verify-all-attempts-refused-proposition-operator",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-verify-all-attempts-refused-proposition-subject",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-verify-all-attempts-refused-verification-methods",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-verify-consumer-applied-state-modalities",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-verify-consumer-applied-state-proposition-operand-0-role",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-verify-consumer-applied-state-proposition-operator",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-verify-consumer-applied-state-proposition-subject",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-verify-consumer-applied-state-verification-methods",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-verify-no-protected-mutation-modalities",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-verify-no-protected-mutation-proposition-operand-0-role",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-verify-no-protected-mutation-proposition-operator",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-verify-no-protected-mutation-proposition-subject",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-verify-no-protected-mutation-verification-methods",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-verify-no-protected-write-modalities",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-verify-no-protected-write-proposition-operand-0-role",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-verify-no-protected-write-proposition-operator",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-verify-no-protected-write-proposition-subject",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-claim-verify-no-protected-write-verification-methods",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-distinct-reference-role-sets",
+      "outcome": "rejected",
+      "profile_satisfaction": "invalid"
+    },
+    {
+      "fixture_id": "reject-falsifier-condition-bindings",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-number-roles",
+      "outcome": "rejected",
+      "profile_satisfaction": "invalid"
+    },
+    {
+      "fixture_id": "reject-reference-binding-patterns",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-reference-role-count-bindings",
+      "outcome": "rejected",
+      "profile_satisfaction": "invalid"
+    },
+    {
+      "fixture_id": "reject-relation-patterns",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    },
+    {
+      "fixture_id": "reject-role-accepted-attempt-condition-types",
+      "outcome": "rejected",
+      "profile_satisfaction": "invalid"
+    },
+    {
+      "fixture_id": "reject-role-applied-state-population-types",
+      "outcome": "rejected",
+      "profile_satisfaction": "invalid"
+    },
+    {
+      "fixture_id": "reject-role-applied-states-types",
+      "outcome": "rejected",
+      "profile_satisfaction": "invalid"
+    },
+    {
+      "fixture_id": "reject-role-attempt-population-types",
+      "outcome": "rejected",
+      "profile_satisfaction": "invalid"
+    },
+    {
+      "fixture_id": "reject-role-attempts-types",
+      "outcome": "rejected",
+      "profile_satisfaction": "invalid"
+    },
+    {
+      "fixture_id": "reject-role-authority-types",
+      "outcome": "rejected",
+      "profile_satisfaction": "invalid"
+    },
+    {
+      "fixture_id": "reject-role-consumer-population-types",
+      "outcome": "rejected",
+      "profile_satisfaction": "invalid"
+    },
+    {
+      "fixture_id": "reject-role-consumers-types",
+      "outcome": "rejected",
+      "profile_satisfaction": "invalid"
+    },
+    {
+      "fixture_id": "reject-role-post-revocation-mutation-condition-types",
+      "outcome": "rejected",
+      "profile_satisfaction": "invalid"
+    },
+    {
+      "fixture_id": "reject-role-post-revocation-write-condition-types",
+      "outcome": "rejected",
+      "profile_satisfaction": "invalid"
+    },
+    {
+      "fixture_id": "reject-role-propagation-interval-types",
+      "outcome": "rejected",
+      "profile_satisfaction": "invalid"
+    },
+    {
+      "fixture_id": "reject-role-protected-effect-population-types",
+      "outcome": "rejected",
+      "profile_satisfaction": "invalid"
+    },
+    {
+      "fixture_id": "reject-role-protected-effects-types",
+      "outcome": "rejected",
+      "profile_satisfaction": "invalid"
+    },
+    {
+      "fixture_id": "reject-role-refused-attempt-population-types",
+      "outcome": "rejected",
+      "profile_satisfaction": "invalid"
+    },
+    {
+      "fixture_id": "reject-role-refused-attempts-types",
+      "outcome": "rejected",
+      "profile_satisfaction": "invalid"
+    },
+    {
+      "fixture_id": "reject-role-refused-state-types",
+      "outcome": "rejected",
+      "profile_satisfaction": "invalid"
+    },
+    {
+      "fixture_id": "reject-role-revocation-event-types",
+      "outcome": "rejected",
+      "profile_satisfaction": "invalid"
+    },
+    {
+      "fixture_id": "reject-role-revoked-state-population-types",
+      "outcome": "rejected",
+      "profile_satisfaction": "invalid"
+    },
+    {
+      "fixture_id": "reject-role-revoked-state-types",
+      "outcome": "rejected",
+      "profile_satisfaction": "invalid"
+    },
+    {
+      "fixture_id": "reject-role-revoked-states-types",
+      "outcome": "rejected",
+      "profile_satisfaction": "invalid"
+    },
+    {
+      "fixture_id": "reject-role-stale-consumer-condition-types",
+      "outcome": "rejected",
+      "profile_satisfaction": "invalid"
+    },
+    {
+      "fixture_id": "reject-role-verification-types",
+      "outcome": "rejected",
+      "profile_satisfaction": "invalid"
+    },
+    {
+      "fixture_id": "reject-satisfaction-expression",
+      "outcome": "rejected",
+      "profile_satisfaction": "unsatisfied"
+    }
+  ],
+  "coverage_witness_results": [
+    {
+      "surface_id": "claim-all-post-revocation-attempts-refused-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-all-post-revocation-attempts-refused-modalities",
+      "variant_id": "reject-claim-all-post-revocation-attempts-refused-modalities",
+      "weakened_profile_digest": "341840aeb7798076d5cb1aee27b461e705f9f1429c6f83a27d584a22e91ad54b",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-all-post-revocation-attempts-refused-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-all-post-revocation-attempts-refused-proposition-applicability-mode",
+      "variant_id": "reject-claim-all-post-revocation-attempts-refused-proposition-applicability-mode",
+      "weakened_profile_digest": "0df6ec70bbf7c3ae567e8d3a99a6f202cadd07ce2891a2b9f0e7af3b01481f9c",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-all-post-revocation-attempts-refused-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-all-post-revocation-attempts-refused-proposition-applicability-operands",
+      "variant_id": "reject-claim-all-post-revocation-attempts-refused-proposition-applicability-operands",
+      "weakened_profile_digest": "1a870a8ddd93159e8551ee5de269c8f2ac561f3acd46c33abb5933761c7bb0ab",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-applied-state-equals-revoked-state-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-applied-state-equals-revoked-state-modalities",
+      "variant_id": "reject-claim-applied-state-equals-revoked-state-modalities",
+      "weakened_profile_digest": "dff9453e3739834aa8dab3573b99f387cd5ff800ef4cd00a79154a5e2149d15d",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-applied-state-equals-revoked-state-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-applied-state-equals-revoked-state-proposition-applicability-mode",
+      "variant_id": "reject-claim-applied-state-equals-revoked-state-proposition-applicability-mode",
+      "weakened_profile_digest": "b854a7c3cafc7b0be3653119a48f12f075116e2bffaf8ad02838c09c4eb7608c",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-applied-state-equals-revoked-state-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-applied-state-equals-revoked-state-proposition-applicability-operands",
+      "variant_id": "reject-claim-applied-state-equals-revoked-state-proposition-applicability-operands",
+      "weakened_profile_digest": "dd1bc126209c91edc51d077fa0c5e9e3720b1d3f1477bfca82dab5c28558fdfd",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-attempt-does-not-mutate-protected-effects-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-each-attempt-does-not-mutate-protected-effects-modalities",
+      "variant_id": "reject-claim-each-attempt-does-not-mutate-protected-effects-modalities",
+      "weakened_profile_digest": "d0812d71c8e3fbfdb140408be31e5025f58b2539bf8e535e9c57384a33a353dc",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-attempt-does-not-mutate-protected-effects-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-attempt-does-not-mutate-protected-effects-proposition-applicability-mode",
+      "variant_id": "reject-claim-each-attempt-does-not-mutate-protected-effects-proposition-applicability-mode",
+      "weakened_profile_digest": "3b2f06386ca1e89f190744daabf9abdbade76a9246226eed79552a02d9da8867",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-attempt-does-not-mutate-protected-effects-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-attempt-does-not-mutate-protected-effects-proposition-applicability-operands",
+      "variant_id": "reject-claim-each-attempt-does-not-mutate-protected-effects-proposition-applicability-operands",
+      "weakened_profile_digest": "53e756d0ea6f0b49e341ce8ce896355efa31e260c72818746e7c2cabb2913654",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-attempt-does-not-mutate-protected-effects-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-attempt-does-not-mutate-protected-effects-proposition-operand-0-role",
+      "variant_id": "reject-claim-each-attempt-does-not-mutate-protected-effects-proposition-operand-0-role",
+      "weakened_profile_digest": "f3a13743d413d4f1d8c7a7a804a1cad2a756fc96d707ea4ee14a7b7a8aafa98c",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-attempt-does-not-mutate-protected-effects-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-attempt-does-not-mutate-protected-effects-proposition-operator",
+      "variant_id": "reject-claim-each-attempt-does-not-mutate-protected-effects-proposition-operator",
+      "weakened_profile_digest": "a73094e04f720eabf95ee47d206d5366f9205594a1774ca008870956ca3d9089",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-attempt-does-not-write-protected-effects-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-each-attempt-does-not-write-protected-effects-modalities",
+      "variant_id": "reject-claim-each-attempt-does-not-write-protected-effects-modalities",
+      "weakened_profile_digest": "c020714eee0121a93389d0a7484f04696c9c3de82152699f4b0511ca5db087b3",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-attempt-does-not-write-protected-effects-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-attempt-does-not-write-protected-effects-proposition-applicability-mode",
+      "variant_id": "reject-claim-each-attempt-does-not-write-protected-effects-proposition-applicability-mode",
+      "weakened_profile_digest": "9942495f615411c794644f8a57b4e601d5342b12b9f98218a875fd316ea11615",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-attempt-does-not-write-protected-effects-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-attempt-does-not-write-protected-effects-proposition-applicability-operands",
+      "variant_id": "reject-claim-each-attempt-does-not-write-protected-effects-proposition-applicability-operands",
+      "weakened_profile_digest": "366aafc876201672aab107f1b3ae49087d293ddbd0d3c8e655b93fb83829c198",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-attempt-does-not-write-protected-effects-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-attempt-does-not-write-protected-effects-proposition-operand-0-role",
+      "variant_id": "reject-claim-each-attempt-does-not-write-protected-effects-proposition-operand-0-role",
+      "weakened_profile_digest": "47da7fad07e045d4b5fb1752a7a99267db3e0230b0c2054b2648fe848ca9ca08",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-attempt-does-not-write-protected-effects-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-attempt-does-not-write-protected-effects-proposition-operator",
+      "variant_id": "reject-claim-each-attempt-does-not-write-protected-effects-proposition-operator",
+      "weakened_profile_digest": "6a7f3e8461d391e97ea4a57df2993b3aa95f9d39528ba7b2734139b0b5a7c159",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-attempt-is-refused-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-each-attempt-is-refused-modalities",
+      "variant_id": "reject-claim-each-attempt-is-refused-modalities",
+      "weakened_profile_digest": "0638b2e7bf619307ff917e72b98b027b4b01f8a8a04602eb6ecab26c89a284ed",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-attempt-is-refused-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-attempt-is-refused-proposition-applicability-mode",
+      "variant_id": "reject-claim-each-attempt-is-refused-proposition-applicability-mode",
+      "weakened_profile_digest": "b05fce8c8a00c9fa40c289d79aca9ffea40b805c8131e3dcf631249f5087a31f",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-attempt-is-refused-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-attempt-is-refused-proposition-applicability-operands",
+      "variant_id": "reject-claim-each-attempt-is-refused-proposition-applicability-operands",
+      "weakened_profile_digest": "bb1ce6f17ec5ed617b0e3ea5a7b882e6733983887017f479aae674238e3757e8",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-attempt-is-refused-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-attempt-is-refused-proposition-operand-0-role",
+      "variant_id": "reject-claim-each-attempt-is-refused-proposition-operand-0-role",
+      "weakened_profile_digest": "39b8c988597af4b31b85d71a83487abb30b066d297ff6cd47c584e40a28843cb",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-attempt-is-refused-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-attempt-is-refused-proposition-operator",
+      "variant_id": "reject-claim-each-attempt-is-refused-proposition-operator",
+      "weakened_profile_digest": "aa64f284f336bfef903e6b28ac850ca4466c523873a52a465ca2b49422523cb9",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-attempt-targets-consumer-population-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-each-attempt-targets-consumer-population-modalities",
+      "variant_id": "reject-claim-each-attempt-targets-consumer-population-modalities",
+      "weakened_profile_digest": "974ad9ac32444163afb0bdf5471ffc89379418837c46f2e350e17515528cb6c7",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-attempt-targets-consumer-population-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-attempt-targets-consumer-population-proposition-applicability-mode",
+      "variant_id": "reject-claim-each-attempt-targets-consumer-population-proposition-applicability-mode",
+      "weakened_profile_digest": "b893ea0beb94baf671abcc1e42a93f2f6f4bd7b09890885bbc3dc77fc3f769bc",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-attempt-targets-consumer-population-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-attempt-targets-consumer-population-proposition-applicability-operands",
+      "variant_id": "reject-claim-each-attempt-targets-consumer-population-proposition-applicability-operands",
+      "weakened_profile_digest": "4092eea35f70162981950baf2a01748cf4906a6e0a9c1a1a4bd6d0ba20da2f2c",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-attempt-targets-consumer-population-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-attempt-targets-consumer-population-proposition-operand-0-role",
+      "variant_id": "reject-claim-each-attempt-targets-consumer-population-proposition-operand-0-role",
+      "weakened_profile_digest": "8f070ae9dbfdfa3b9b577ac4de37c3ba6d5b6479b6479d6695eab38bcf0cd73b",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-attempt-targets-consumer-population-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-attempt-targets-consumer-population-proposition-operator",
+      "variant_id": "reject-claim-each-attempt-targets-consumer-population-proposition-operator",
+      "weakened_profile_digest": "bea1d767d6f7c0c3a7ede83f2d584ec44e01bf28c741b9071b678f717c876538",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-attempt-uses-revoked-authority-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-each-attempt-uses-revoked-authority-modalities",
+      "variant_id": "reject-claim-each-attempt-uses-revoked-authority-modalities",
+      "weakened_profile_digest": "5ba0d325608f444bd68fe8b87e4e8faeee8fb444ed6a890b58b969614db6e379",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-attempt-uses-revoked-authority-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-attempt-uses-revoked-authority-proposition-applicability-mode",
+      "variant_id": "reject-claim-each-attempt-uses-revoked-authority-proposition-applicability-mode",
+      "weakened_profile_digest": "5a36d7c506dbffb4f30797267f6df3c2b8f36284fba69921c78c604efeb88b5c",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-attempt-uses-revoked-authority-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-attempt-uses-revoked-authority-proposition-applicability-operands",
+      "variant_id": "reject-claim-each-attempt-uses-revoked-authority-proposition-applicability-operands",
+      "weakened_profile_digest": "1647d233e24f1f5b8228b6deab4191874c4d2ecc87efbdccf630248fe1d71221",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-attempt-uses-revoked-authority-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-attempt-uses-revoked-authority-proposition-operand-0-role",
+      "variant_id": "reject-claim-each-attempt-uses-revoked-authority-proposition-operand-0-role",
+      "weakened_profile_digest": "215c9bdeaf3f8a3e40e3c7387c1e87084e3456e5a12cf1ace959fa698f301fe4",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-attempt-uses-revoked-authority-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-attempt-uses-revoked-authority-proposition-operator",
+      "variant_id": "reject-claim-each-attempt-uses-revoked-authority-proposition-operator",
+      "weakened_profile_digest": "44a37603a97e9e57c8491523aef3878ec2bf0e229b8bbbb0d0fdee45dad5af57",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-consumer-applies-revoked-state-during-propagation-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-each-consumer-applies-revoked-state-during-propagation-modalities",
+      "variant_id": "reject-claim-each-consumer-applies-revoked-state-during-propagation-modalities",
+      "weakened_profile_digest": "49a9e783f4711718d55c15029d27e5ff17d02e5bd421ee5f27f0a6753d1154f7",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-consumer-applies-revoked-state-during-propagation-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-consumer-applies-revoked-state-during-propagation-proposition-applicability-mode",
+      "variant_id": "reject-claim-each-consumer-applies-revoked-state-during-propagation-proposition-applicability-mode",
+      "weakened_profile_digest": "593abf6832d02d36630278289f4209876f9e1dc6397f86f800d903854ecfc1cf",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-consumer-applies-revoked-state-during-propagation-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-consumer-applies-revoked-state-during-propagation-proposition-applicability-operands",
+      "variant_id": "reject-claim-each-consumer-applies-revoked-state-during-propagation-proposition-applicability-operands",
+      "weakened_profile_digest": "051b58a0113b1f81bb5a8f7649df28abf912daf1489639beac86b5e3f3daa03d",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-consumer-applies-revoked-state-during-propagation-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-consumer-applies-revoked-state-during-propagation-proposition-operand-0-role",
+      "variant_id": "reject-claim-each-consumer-applies-revoked-state-during-propagation-proposition-operand-0-role",
+      "weakened_profile_digest": "975dc9efc407b44c4b145d027a2972b7e7cf89a8a835c7707d579beda4fe40ee",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-consumer-applies-revoked-state-during-propagation-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-consumer-applies-revoked-state-during-propagation-proposition-operator",
+      "variant_id": "reject-claim-each-consumer-applies-revoked-state-during-propagation-proposition-operator",
+      "weakened_profile_digest": "89ee86ca8a745eb4ad70dd2a47b502b600ff9dbc23af3d54d65f0a2625993e8e",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-consumer-observes-authority-during-propagation-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-each-consumer-observes-authority-during-propagation-modalities",
+      "variant_id": "reject-claim-each-consumer-observes-authority-during-propagation-modalities",
+      "weakened_profile_digest": "ea35e7a135d1af215e522e1036ed5af4e2ec94c3426d2959e71bf33fb2904b9d",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-consumer-observes-authority-during-propagation-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-consumer-observes-authority-during-propagation-proposition-applicability-mode",
+      "variant_id": "reject-claim-each-consumer-observes-authority-during-propagation-proposition-applicability-mode",
+      "weakened_profile_digest": "8b92add4176bef8512d18aaf636d525e4a89f6b8339eefeef5712dd8e70d35a0",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-consumer-observes-authority-during-propagation-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-consumer-observes-authority-during-propagation-proposition-applicability-operands",
+      "variant_id": "reject-claim-each-consumer-observes-authority-during-propagation-proposition-applicability-operands",
+      "weakened_profile_digest": "6409d181d3a6a96a2272c3e3fc5802d169d1997732f4b9d90403704ad3d5d01f",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-consumer-observes-authority-during-propagation-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-consumer-observes-authority-during-propagation-proposition-operand-0-role",
+      "variant_id": "reject-claim-each-consumer-observes-authority-during-propagation-proposition-operand-0-role",
+      "weakened_profile_digest": "1278107c8636145ca4aecc45d35b73a6cd3ed8d2e5b3d4251cc5c4e11a461e83",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-each-consumer-observes-authority-during-propagation-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-each-consumer-observes-authority-during-propagation-proposition-operator",
+      "variant_id": "reject-claim-each-consumer-observes-authority-during-propagation-proposition-operator",
+      "weakened_profile_digest": "85572f9c213f6322003a1fc724eb23fc3e0a68fa4317b2dc13fade368f78eedf",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-no-post-revocation-attempt-mutates-protected-effects-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-no-post-revocation-attempt-mutates-protected-effects-modalities",
+      "variant_id": "reject-claim-no-post-revocation-attempt-mutates-protected-effects-modalities",
+      "weakened_profile_digest": "c4b183b292721f682937e37ada6dfe0a9373e8f47e865fc5c7afe635f9b1bd1b",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-no-post-revocation-attempt-mutates-protected-effects-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-no-post-revocation-attempt-mutates-protected-effects-proposition-applicability-mode",
+      "variant_id": "reject-claim-no-post-revocation-attempt-mutates-protected-effects-proposition-applicability-mode",
+      "weakened_profile_digest": "2a94334e4c732b6f87669543179ca807a51d93fce0a53c969bf2a40e5abc97a5",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-no-post-revocation-attempt-mutates-protected-effects-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-no-post-revocation-attempt-mutates-protected-effects-proposition-applicability-operands",
+      "variant_id": "reject-claim-no-post-revocation-attempt-mutates-protected-effects-proposition-applicability-operands",
+      "weakened_profile_digest": "a6c94420b677d0ef9b548c7a4e68ca7e240cae44b98ef81cdd22f5c4aea2e132",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-no-post-revocation-attempt-writes-protected-effects-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-no-post-revocation-attempt-writes-protected-effects-modalities",
+      "variant_id": "reject-claim-no-post-revocation-attempt-writes-protected-effects-modalities",
+      "weakened_profile_digest": "6af152cff5a4e6fdb348206bf9fe3948f0ec2fb03b304bca27e83742cc8e8c7c",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-no-post-revocation-attempt-writes-protected-effects-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-no-post-revocation-attempt-writes-protected-effects-proposition-applicability-mode",
+      "variant_id": "reject-claim-no-post-revocation-attempt-writes-protected-effects-proposition-applicability-mode",
+      "weakened_profile_digest": "ee3ff07fcd4344eb24522b7fbd3bdb18e382f60d80af27d7dff4287a1d6987ad",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-no-post-revocation-attempt-writes-protected-effects-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-no-post-revocation-attempt-writes-protected-effects-proposition-applicability-operands",
+      "variant_id": "reject-claim-no-post-revocation-attempt-writes-protected-effects-proposition-applicability-operands",
+      "weakened_profile_digest": "9574f8454fd70ce78d532e795e2e3366d9646cf900e3c14a4a89e589b9e00eb9",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-patterns",
+      "weakening_class": "deletion",
+      "fixture_id": "reject-claim-patterns",
+      "variant_id": "reject-claim-patterns",
+      "weakened_profile_digest": "cdeb8d12ca2b0c579cf42308555826d931d9f0a561b16ff60c53c7b97b5bdf44",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-propagation-interval-precedes-each-attempt-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-propagation-interval-precedes-each-attempt-modalities",
+      "variant_id": "reject-claim-propagation-interval-precedes-each-attempt-modalities",
+      "weakened_profile_digest": "3cd4f60901195539f8804169905f33af49ce9cbefc3ce1ee3ee54297fbdfaa03",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-propagation-interval-precedes-each-attempt-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-propagation-interval-precedes-each-attempt-proposition-operator",
+      "variant_id": "reject-claim-propagation-interval-precedes-each-attempt-proposition-operator",
+      "weakened_profile_digest": "6392ec4f73de8fdfe327fd18bc7ad34c0b8befda3f68a8a88bced3f0e7600790",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-propagation-interval-precedes-each-attempt-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-propagation-interval-precedes-each-attempt-proposition-subject",
+      "variant_id": "reject-claim-propagation-interval-precedes-each-attempt-proposition-subject",
+      "weakened_profile_digest": "cee08901d1c8401f9ef81eb137aa9e82c68fbceefce926fffd0951ab8a330971",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-revocation-invalidates-authority-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-revocation-invalidates-authority-modalities",
+      "variant_id": "reject-claim-revocation-invalidates-authority-modalities",
+      "weakened_profile_digest": "88616790adf3f7eaac019a5c608cf1f64c04c29b1b72c2a39906681a9ca7a3c7",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-revocation-invalidates-authority-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-revocation-invalidates-authority-proposition-operand-0-role",
+      "variant_id": "reject-claim-revocation-invalidates-authority-proposition-operand-0-role",
+      "weakened_profile_digest": "f1dd3da575cadd3ad6e331aec5b99a937d1d92693ea66c060a9c4af04d4b37a7",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-revocation-invalidates-authority-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-revocation-invalidates-authority-proposition-operator",
+      "variant_id": "reject-claim-revocation-invalidates-authority-proposition-operator",
+      "weakened_profile_digest": "fb8ced5a21de825fe09a9ea4daf7db63b811b270956fdfa60776cd88d2fc11f2",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-revocation-invalidates-authority-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-revocation-invalidates-authority-proposition-subject",
+      "variant_id": "reject-claim-revocation-invalidates-authority-proposition-subject",
+      "weakened_profile_digest": "b99e4463d77d0cc887c01859f28ef2ccecfc335ce61a85dd5f03caecdd546043",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-revocation-precedes-propagation-interval-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-revocation-precedes-propagation-interval-modalities",
+      "variant_id": "reject-claim-revocation-precedes-propagation-interval-modalities",
+      "weakened_profile_digest": "41fbe945c3263a91bf0776bb8bee79dc35a0c6b148d1b48b6400211357725dd1",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-revocation-precedes-propagation-interval-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-revocation-precedes-propagation-interval-proposition-operand-0-role",
+      "variant_id": "reject-claim-revocation-precedes-propagation-interval-proposition-operand-0-role",
+      "weakened_profile_digest": "4e96c39f9610f3ae988301897c0d181db6ccb58f732279b655824fef3fe9832a",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-revocation-precedes-propagation-interval-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-revocation-precedes-propagation-interval-proposition-operator",
+      "variant_id": "reject-claim-revocation-precedes-propagation-interval-proposition-operator",
+      "weakened_profile_digest": "a9b68273540ea36f15f247048732ac42527d72c4f1d5d6a3c4b30f43646e8d1c",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-revocation-precedes-propagation-interval-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-revocation-precedes-propagation-interval-proposition-subject",
+      "variant_id": "reject-claim-revocation-precedes-propagation-interval-proposition-subject",
+      "weakened_profile_digest": "a286bc681540fc494026b8f59a558f9062e7a661883d7c60f7ec9c5152a57b9e",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-revocation-records-revoked-state-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-revocation-records-revoked-state-modalities",
+      "variant_id": "reject-claim-revocation-records-revoked-state-modalities",
+      "weakened_profile_digest": "01ecac9563a0f36f3fbf1b6b7700d5d09d317f781d0e32bf38c2e012f92a9624",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-revocation-records-revoked-state-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-revocation-records-revoked-state-proposition-operand-0-role",
+      "variant_id": "reject-claim-revocation-records-revoked-state-proposition-operand-0-role",
+      "weakened_profile_digest": "be27163453230ed12fa215bcf9b1c76dd288be89812de844bf5839e731a05f8c",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-revocation-records-revoked-state-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-revocation-records-revoked-state-proposition-operator",
+      "variant_id": "reject-claim-revocation-records-revoked-state-proposition-operator",
+      "weakened_profile_digest": "f8471860d3ec057f62046d49b4c4158ed9f4c90b8c5153186fd7eb954ea6fedc",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-revocation-records-revoked-state-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-revocation-records-revoked-state-proposition-subject",
+      "variant_id": "reject-claim-revocation-records-revoked-state-proposition-subject",
+      "weakened_profile_digest": "7bb99309550f7fbf5d69123b35a8662d41a0413f1ba94c38c505423acc01d45c",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verification-reads-shared-revocation-graph-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-verification-reads-shared-revocation-graph-modalities",
+      "variant_id": "reject-claim-verification-reads-shared-revocation-graph-modalities",
+      "weakened_profile_digest": "2c007f66d8df139e7c8a1a2e78618f250b4d8ef173fa66f07a0f8ed095007593",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verification-reads-shared-revocation-graph-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verification-reads-shared-revocation-graph-proposition-operand-0-role",
+      "variant_id": "reject-claim-verification-reads-shared-revocation-graph-proposition-operand-0-role",
+      "weakened_profile_digest": "0ef5f9bca30e033b2e3221fd9fcfb3e1df98d8f2e4af32d1cb425351efac6152",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verification-reads-shared-revocation-graph-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verification-reads-shared-revocation-graph-proposition-operand-1-role",
+      "variant_id": "reject-claim-verification-reads-shared-revocation-graph-proposition-operand-1-role",
+      "weakened_profile_digest": "29e8b262c2fbcdac4dc93ac3db2116a21b80c4499a2ecc27fc19f0ba67ec118f",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verification-reads-shared-revocation-graph-proposition-operand-2-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verification-reads-shared-revocation-graph-proposition-operand-2-role",
+      "variant_id": "reject-claim-verification-reads-shared-revocation-graph-proposition-operand-2-role",
+      "weakened_profile_digest": "12493b109ed4e68a02ea719a871136f61ea5e00fb956a694d8e5e24a8337b4fb",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verification-reads-shared-revocation-graph-proposition-operand-3-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verification-reads-shared-revocation-graph-proposition-operand-3-role",
+      "variant_id": "reject-claim-verification-reads-shared-revocation-graph-proposition-operand-3-role",
+      "weakened_profile_digest": "20a48223a1e3c27e7d71ac7b99b8eeee422948340ea0947155c23a5253b128d2",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verification-reads-shared-revocation-graph-proposition-operand-4-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verification-reads-shared-revocation-graph-proposition-operand-4-role",
+      "variant_id": "reject-claim-verification-reads-shared-revocation-graph-proposition-operand-4-role",
+      "weakened_profile_digest": "95abf6f5ca6b963a66e95de7c1dfc534f4e6aef96034e60cd34538e353157dc5",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verification-reads-shared-revocation-graph-proposition-operand-5-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verification-reads-shared-revocation-graph-proposition-operand-5-role",
+      "variant_id": "reject-claim-verification-reads-shared-revocation-graph-proposition-operand-5-role",
+      "weakened_profile_digest": "e97fad45bd1ec0aae1a5b3c41a650875c20fc85f2f4eecf485bd15ac348976ff",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verification-reads-shared-revocation-graph-proposition-operand-6-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verification-reads-shared-revocation-graph-proposition-operand-6-role",
+      "variant_id": "reject-claim-verification-reads-shared-revocation-graph-proposition-operand-6-role",
+      "weakened_profile_digest": "51345409a3854a88fbce69d9b7d0a628ed0fe698713b1d88532f4ae96f0d678d",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verification-reads-shared-revocation-graph-proposition-operand-7-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verification-reads-shared-revocation-graph-proposition-operand-7-role",
+      "variant_id": "reject-claim-verification-reads-shared-revocation-graph-proposition-operand-7-role",
+      "weakened_profile_digest": "74360df55e4f62bc7476a8457a686c820d161bd89a66cbf78b3bac5d32232113",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verification-reads-shared-revocation-graph-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verification-reads-shared-revocation-graph-proposition-operator",
+      "variant_id": "reject-claim-verification-reads-shared-revocation-graph-proposition-operator",
+      "weakened_profile_digest": "631b55e208c70694ffeb33c68833ed08ab3b453d382388d69c293da3b970dbe5",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verification-reads-shared-revocation-graph-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verification-reads-shared-revocation-graph-proposition-subject",
+      "variant_id": "reject-claim-verification-reads-shared-revocation-graph-proposition-subject",
+      "weakened_profile_digest": "ef9494b9c005f33dd1c8541b633f261f6a706c4fae151674892eb1581ccae4d9",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-all-attempts-refused-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-verify-all-attempts-refused-modalities",
+      "variant_id": "reject-claim-verify-all-attempts-refused-modalities",
+      "weakened_profile_digest": "b6f6f99f63b6c3a2683e0abf0cf5e5d6f251e856a7bcc857ed5106fce7e611bc",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-all-attempts-refused-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verify-all-attempts-refused-proposition-operand-0-role",
+      "variant_id": "reject-claim-verify-all-attempts-refused-proposition-operand-0-role",
+      "weakened_profile_digest": "a1fa826a5aae693bb55b42d9fafb05abd4ade41a45383e6ae7f6ed9d082ad2be",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-all-attempts-refused-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verify-all-attempts-refused-proposition-operator",
+      "variant_id": "reject-claim-verify-all-attempts-refused-proposition-operator",
+      "weakened_profile_digest": "a4f19e2b677d302c39eb300eae962f0e680a73b19343256ec420a594ae36468b",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-all-attempts-refused-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verify-all-attempts-refused-proposition-subject",
+      "variant_id": "reject-claim-verify-all-attempts-refused-proposition-subject",
+      "weakened_profile_digest": "05c8f45bb5bd5bd5b572bf04d9e24d5ce3c0a1931992c656ac9e92186847fc58",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-all-attempts-refused-verification-methods",
+      "weakening_class": "verification_method_broadening",
+      "fixture_id": "reject-claim-verify-all-attempts-refused-verification-methods",
+      "variant_id": "reject-claim-verify-all-attempts-refused-verification-methods",
+      "weakened_profile_digest": "4dd93d8c2beb8d6247c7a17b93456c47020861c95fdaafa8d9e7b9a20c4cb4a7",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-consumer-applied-state-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-verify-consumer-applied-state-modalities",
+      "variant_id": "reject-claim-verify-consumer-applied-state-modalities",
+      "weakened_profile_digest": "a5c1e28f39bda81345c2fac475a5990c5df2a4512d2a9b4eeb6c6cbc1deb2d01",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-consumer-applied-state-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verify-consumer-applied-state-proposition-operand-0-role",
+      "variant_id": "reject-claim-verify-consumer-applied-state-proposition-operand-0-role",
+      "weakened_profile_digest": "b0c217e60046d27c140f7787b5bfe6e33d85b48f1970f44fe865dee12263b1fe",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-consumer-applied-state-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verify-consumer-applied-state-proposition-operator",
+      "variant_id": "reject-claim-verify-consumer-applied-state-proposition-operator",
+      "weakened_profile_digest": "355ba19490e0af866a61a3b374051e89148c3fd22d6b403cdb90c08f667630a9",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-consumer-applied-state-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verify-consumer-applied-state-proposition-subject",
+      "variant_id": "reject-claim-verify-consumer-applied-state-proposition-subject",
+      "weakened_profile_digest": "d7534d4c1a01a9ed957e05feaa9c22fef1aab990e665c1672e630553f7ed2d74",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-consumer-applied-state-verification-methods",
+      "weakening_class": "verification_method_broadening",
+      "fixture_id": "reject-claim-verify-consumer-applied-state-verification-methods",
+      "variant_id": "reject-claim-verify-consumer-applied-state-verification-methods",
+      "weakened_profile_digest": "207a3e6322d557d07e25a060bd1cd503909487ab7ee5451c436de3f36a19f90f",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-no-protected-mutation-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-verify-no-protected-mutation-modalities",
+      "variant_id": "reject-claim-verify-no-protected-mutation-modalities",
+      "weakened_profile_digest": "5803de7be76005733279d3ae47a684520967f06606068bbfcac613b9bf1cf233",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-no-protected-mutation-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verify-no-protected-mutation-proposition-operand-0-role",
+      "variant_id": "reject-claim-verify-no-protected-mutation-proposition-operand-0-role",
+      "weakened_profile_digest": "7b90c097245e66684ebda247982093c7476a8cae1ab40542106f12b90eaf3c8b",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-no-protected-mutation-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verify-no-protected-mutation-proposition-operator",
+      "variant_id": "reject-claim-verify-no-protected-mutation-proposition-operator",
+      "weakened_profile_digest": "bcdfd4a6d57f9d061006102b9a3ce404bcba047cc540f0b0e8c77c5695315500",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-no-protected-mutation-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verify-no-protected-mutation-proposition-subject",
+      "variant_id": "reject-claim-verify-no-protected-mutation-proposition-subject",
+      "weakened_profile_digest": "81087dc43337288623f7cdf1e7212fc0e654a0a7a27654916697220df80f00b3",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-no-protected-mutation-verification-methods",
+      "weakening_class": "verification_method_broadening",
+      "fixture_id": "reject-claim-verify-no-protected-mutation-verification-methods",
+      "variant_id": "reject-claim-verify-no-protected-mutation-verification-methods",
+      "weakened_profile_digest": "8b5666b444bd4f508c7495a5a3991f20aba6fd54a97e98a86bcb091c3fc199dd",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-no-protected-write-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-claim-verify-no-protected-write-modalities",
+      "variant_id": "reject-claim-verify-no-protected-write-modalities",
+      "weakened_profile_digest": "1c857f45135fb1922128b8def3d8e730ab0a711086e177a15b434dbe3b20a44e",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-no-protected-write-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verify-no-protected-write-proposition-operand-0-role",
+      "variant_id": "reject-claim-verify-no-protected-write-proposition-operand-0-role",
+      "weakened_profile_digest": "d9993bc4326529c7da4f045d72a1e1adf85b8c3dd54f042e9ad5dc593254c321",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-no-protected-write-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verify-no-protected-write-proposition-operator",
+      "variant_id": "reject-claim-verify-no-protected-write-proposition-operator",
+      "weakened_profile_digest": "7580aefdd7c025db446c416a0665dcf59308b98160385a861b59ee8d96c87f89",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-no-protected-write-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "reject-claim-verify-no-protected-write-proposition-subject",
+      "variant_id": "reject-claim-verify-no-protected-write-proposition-subject",
+      "weakened_profile_digest": "f1c068861d312f4cadc68c52db0c6dbfe66cb9b5a80817928c3df8e6b881176b",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "claim-verify-no-protected-write-verification-methods",
+      "weakening_class": "verification_method_broadening",
+      "fixture_id": "reject-claim-verify-no-protected-write-verification-methods",
+      "variant_id": "reject-claim-verify-no-protected-write-verification-methods",
+      "weakened_profile_digest": "38b75405e54ca4353ec5003251f5632ddd5763a4132891d1538b8cccbc9deb38",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "distinct-reference-role-sets",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "reject-distinct-reference-role-sets",
+      "variant_id": "reject-distinct-reference-role-sets",
+      "weakened_profile_digest": "0d15189794911dc63b638a004c22cf5944779ff92c6ce1f2da80c17d198b971f",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "falsifier-condition-bindings",
+      "weakening_class": "falsifier_weakening",
+      "fixture_id": "reject-falsifier-condition-bindings",
+      "variant_id": "reject-falsifier-condition-bindings",
+      "weakened_profile_digest": "0b4842cb9d341ad40243729303009688a1fff751e2863570783d79e12336b356",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "number-roles",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "reject-number-roles",
+      "variant_id": "reject-number-roles",
+      "weakened_profile_digest": "1c3de8c9e08169c43828efe537c60fc2dbca32743a9d451129bb14e671ed80d3",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "reference-binding-patterns",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "reject-reference-binding-patterns",
+      "variant_id": "reject-reference-binding-patterns",
+      "weakened_profile_digest": "3d474caeef55d75e5671c6a2115f6598af504c85c573f4bfe9eab4be38cfee39",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "reference-role-count-bindings",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "reject-reference-role-count-bindings",
+      "variant_id": "reject-reference-role-count-bindings",
+      "weakened_profile_digest": "b23553c424beef13edba960af89a619308ba163e869cd38327483570f58ea3c6",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "relation-patterns",
+      "weakening_class": "relation_weakening",
+      "fixture_id": "reject-relation-patterns",
+      "variant_id": "reject-relation-patterns",
+      "weakened_profile_digest": "b8d224cc8fc5580c20c1de0b2ae867c3b9aa799a19c112de8f710396f7e47a32",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-accepted-attempt-condition-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-accepted-attempt-condition-types",
+      "variant_id": "reject-role-accepted-attempt-condition-types",
+      "weakened_profile_digest": "9b678d6649ebe4ca30645f58ead0128a3d3ede28ee135ea596c60259c0ce81f3",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-applied-state-population-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-applied-state-population-types",
+      "variant_id": "reject-role-applied-state-population-types",
+      "weakened_profile_digest": "a62eead21cfe990c0aa72afede217dd5e10cb93e62506a74c5d6517d397040b3",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-applied-states-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-applied-states-types",
+      "variant_id": "reject-role-applied-states-types",
+      "weakened_profile_digest": "aebc7158e8381f0a4a602695a7baba761282feda0ebc52205d4a5bc18cf10549",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-attempt-population-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-attempt-population-types",
+      "variant_id": "reject-role-attempt-population-types",
+      "weakened_profile_digest": "f9208a704f978cd83ea6cdf96dea34da74417659a25b395386a483786ea4756c",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-attempts-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-attempts-types",
+      "variant_id": "reject-role-attempts-types",
+      "weakened_profile_digest": "bafcdee0af76ab327f2ed930f78bf7ec04f2bb283c396dac2849594c30ade512",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-authority-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-authority-types",
+      "variant_id": "reject-role-authority-types",
+      "weakened_profile_digest": "b510670464d1704e616cfdac8415b6dfe825d07abf3ed5bf66d2e98a24234c6e",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-consumer-population-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-consumer-population-types",
+      "variant_id": "reject-role-consumer-population-types",
+      "weakened_profile_digest": "04dacc57afda06258792747f13393a64cad240697e0013f075ffd95bc48dc420",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-consumers-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-consumers-types",
+      "variant_id": "reject-role-consumers-types",
+      "weakened_profile_digest": "41d438e1dda13dcf936c1449a00f61ee613e22214128ce5a07b7db01b0083e20",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-post-revocation-mutation-condition-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-post-revocation-mutation-condition-types",
+      "variant_id": "reject-role-post-revocation-mutation-condition-types",
+      "weakened_profile_digest": "cf65ef1eb07ba4a327c7fbb76e6fe95dcdda7e4d15ae25c5e7e20e6b7676ffaf",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-post-revocation-write-condition-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-post-revocation-write-condition-types",
+      "variant_id": "reject-role-post-revocation-write-condition-types",
+      "weakened_profile_digest": "df82826c90246a6ffe91961f11d483739cbf7b924393eb7a3e599b2984dba69f",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-propagation-interval-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-propagation-interval-types",
+      "variant_id": "reject-role-propagation-interval-types",
+      "weakened_profile_digest": "ae6a0ed6f80747173cb5426e4daab0679022278d8e13465570b935515be8cac7",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-protected-effect-population-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-protected-effect-population-types",
+      "variant_id": "reject-role-protected-effect-population-types",
+      "weakened_profile_digest": "ca45cd01e11d28e395f5b991b472afa157aab8698a9603c38a09d1da60ce6b20",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-protected-effects-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-protected-effects-types",
+      "variant_id": "reject-role-protected-effects-types",
+      "weakened_profile_digest": "11adbf5e0d073886fb9bd5d7382502113987e899b71051204c71063b5987a7b4",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-refused-attempt-population-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-refused-attempt-population-types",
+      "variant_id": "reject-role-refused-attempt-population-types",
+      "weakened_profile_digest": "9de431f6ce6ee27bf390c4d2eae4f10d5218566cb5fcea75bc73094d3478d7ef",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-refused-attempts-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-refused-attempts-types",
+      "variant_id": "reject-role-refused-attempts-types",
+      "weakened_profile_digest": "bafcdee0af76ab327f2ed930f78bf7ec04f2bb283c396dac2849594c30ade512",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-refused-state-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-refused-state-types",
+      "variant_id": "reject-role-refused-state-types",
+      "weakened_profile_digest": "8cbc96f9734e3d03f3ff99244cd1f89324d520d6f7ff29072c69fccb72a37ddc",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-revocation-event-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-revocation-event-types",
+      "variant_id": "reject-role-revocation-event-types",
+      "weakened_profile_digest": "dc5c86fdba5e2e29b9f2be6044f8d2676f3c03c954e509f5750fafa8bdf28529",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-revoked-state-population-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-revoked-state-population-types",
+      "variant_id": "reject-role-revoked-state-population-types",
+      "weakened_profile_digest": "dd58974309ee35f95b001fe8ed53712ee5b6a56d03778290b6274b80684250eb",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-revoked-state-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-revoked-state-types",
+      "variant_id": "reject-role-revoked-state-types",
+      "weakened_profile_digest": "aebc7158e8381f0a4a602695a7baba761282feda0ebc52205d4a5bc18cf10549",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-revoked-states-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-revoked-states-types",
+      "variant_id": "reject-role-revoked-states-types",
+      "weakened_profile_digest": "aebc7158e8381f0a4a602695a7baba761282feda0ebc52205d4a5bc18cf10549",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-stale-consumer-condition-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-stale-consumer-condition-types",
+      "variant_id": "reject-role-stale-consumer-condition-types",
+      "weakened_profile_digest": "ca6513a2fbe10891eae7fe7016b3faa912c5fe609cf9374db71164cfbaa6ba9f",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "role-verification-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-role-verification-types",
+      "variant_id": "reject-role-verification-types",
+      "weakened_profile_digest": "2cb8e791b821a385bbea5366fcde88ac1ccf96b4ca3b5c1995c5cc17d68bb673",
+      "outcome": "survived"
+    },
+    {
+      "surface_id": "satisfaction-expression",
+      "weakening_class": "satisfaction_branch_broadening",
+      "fixture_id": "reject-satisfaction-expression",
+      "variant_id": "reject-satisfaction-expression",
+      "weakened_profile_digest": "9225b8d5eacc4991c8aeb41f4b2835eb8a3ca8346f57aaae4770b838361fe03c",
+      "outcome": "survived"
+    }
+  ]
+}

@@ -1,8 +1,8 @@
-import { VOCABULARY_DIGESTS } from "../../vocabulary/cv.experimental.0.34.mjs";
+import { VOCABULARY_DIGESTS } from "../../vocabulary/controlled-contract-vocabulary.v1.mjs";
 import {
-  EVALUATION_INPUT_VERSION_V034,
-  PROFILE_SCHEMA_VERSION_V034
-} from "../../lib/verification-profile-v034.mjs";
+  EVALUATION_INPUT_VERSION_V1,
+  PROFILE_SCHEMA_VERSION_V1
+} from "./stable-v1-proof-pack-runtime.mjs";
 
 const unconditional = () => ({ mode: "unconditional", operand_reference_ids: [] });
 const templateUnconditional = () => ({ mode: "unconditional", operand_roles: [] });
@@ -17,9 +17,9 @@ function reference(referenceId, typeTerm = "cc:resource") {
 
 function contractBuilder() {
   const contract = {
-    schema_version: "controlled-acceptance-contract.experimental.v0.2",
-    vocabulary_version: "cv.experimental.0.34",
-    profile_id: "acceptance-contract.standard.experimental.v0.2",
+    schema_version: "controlled-acceptance-contract.v1",
+    vocabulary_version: "controlled-contract-vocabulary.v1",
+    profile_id: "acceptance-contract.standard.v1",
     references: [],
     propositions: [],
     claims: [],
@@ -74,11 +74,11 @@ function contractBuilder() {
 
 function profileBase(profileId, referenceRoles) {
   return {
-    schema_version: PROFILE_SCHEMA_VERSION_V034,
+    schema_version: PROFILE_SCHEMA_VERSION_V1,
     profile_id: profileId,
     profile_version: "0.0.1",
-    contract_schema_version: "controlled-acceptance-contract.experimental.v0.2",
-    vocabulary_version: "cv.experimental.0.34",
+    contract_schema_version: "controlled-acceptance-contract.v1",
+    vocabulary_version: "controlled-contract-vocabulary.v1",
     vocabulary_signature_digest: VOCABULARY_DIGESTS.signature,
     vocabulary_algebra_digest: VOCABULARY_DIGESTS.algebra,
     vocabulary_definitions_digest: VOCABULARY_DIGESTS.definitions,
@@ -103,7 +103,7 @@ function profileBase(profileId, referenceRoles) {
 
 function evaluationInput(referenceBindings) {
   return {
-    input_version: EVALUATION_INPUT_VERSION_V034,
+    input_version: EVALUATION_INPUT_VERSION_V1,
     evaluation_stage: "post_delivery",
     reference_bindings: referenceBindings,
     number_bindings: [],

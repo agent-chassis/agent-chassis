@@ -480,14 +480,24 @@ units, and the launcher must not refuse them solely because a worker would have
 returned `not_implementation`.
 
 Read-only readiness still fails closed for canonical record problems such as
-missing JSON, missing slice, invalid record shape, unresolved or blocked
-dependency evidence under the active profile, required missing graph-impact
-evidence, or required missing/stale preparation-audit evidence. A
-`blocked_dependency` readiness — for example a slice that depends on another
-slice whose status is `blocked` or whose address cannot be resolved against
-canonical WK JSON — refuses the launch with shared dependency evidence drawn
-from `dispatch_readiness_dependencies` and the
-`dispatch_readiness_preparation_audit` envelope.
+missing JSON, missing slice, invalid record shape, mechanical dependency fact-
+resolution failure, required missing graph-impact evidence, or required
+missing/stale preparation-audit evidence. Dependency lifecycle status does not
+refuse readiness: wiki-core resolves the record-level plus selected-slice
+population from canonical WK JSON, keeps supplied dependency facts non-
+authoritative, and surfaces missing or unknown canonical `target_work_kind` as
+the existing mechanical `blocked_dependency` evidence.
+
+For managed implementation dispatch, the subject must still be the exact
+canonical implementation slice. Canonical review and redteam dependencies need
+no ref or initiative-derived Git identity. Only canonical implementation
+dependencies enter the launcher's Git-integrity checks; replay equivalence is
+conjunctive with exact canonical identity and address, initiative,
+`canonical_wk_json` provenance, one authenticated marker match, captured WK tip,
+ancestry, and stability. The slice-DAG done frontier is not admission authority,
+and repo-qualified external edges keep their existing mechanical disposition
+without cross-repository ref derivation. This pre-provisioning resolution is
+decision free substrate; a configured CCE may still decide organization policy.
 
 If a read-only WK/slice target requires graph-impact evidence, wrappers may
 transport a runtime graph envelope through the same file-backed bridge used by
@@ -563,7 +573,7 @@ What this changes for an operator:
   The launcher resolves and freezes the exact committed slice ref/tip from
   canonical state. The reviewer receives full required read visibility and
   `write_scope: []`; the implementation slice retains its declared write scope.
-- Reviewer and redteam results are append-only advisory evidence. Clean output,
+- Reviewer and redteam results form immutable advisory history. Clean output,
   findings, reviewer count, and reviewer agreement neither authorize nor veto a
   corrective dispatch.
 - A recovered run reports `final_result: null`. That means no agent report was

@@ -16,9 +16,17 @@ underlying surfaces:
   subcommands.
 
 Those packages in turn pull in their shared `@agent-chassis/*` dependencies
-(`@agent-chassis/wiki-core` and `@agent-chassis/agent-launch-core`) from the
-same registry. A repo that prefers to pin the surfaces separately can install
+(`@agent-chassis/wiki-core`, `@agent-chassis/agent-launch-core`, and
+`@agent-chassis/controlled-contract`) from the same registry. Controlled-contract
+is installed transitively through wiki-core (and therefore through core). A repo
+that prefers to pin the surfaces separately can install
 the three top-level packages directly instead of `@agent-chassis/core`.
+
+Consumers importing controlled-contract directly should declare it directly:
+
+```bash
+npm install --save-dev @agent-chassis/controlled-contract
+```
 
 ## Package Distribution
 
@@ -89,10 +97,14 @@ npx agent-chassis setup
 
 The setup command runs bootstrap, guides launcher template selection for the
 detected Claude or Codex CLI, copies `agent-launch.toml` only when absent, runs
-`npx agent-launch init-config`, and prints the next code-index and orchestrator
-commands. It intentionally does not copy `AGENTS.md`; review
-`wiki/templates/AGENTS.md.boilerplate.md` and adapt it into the repo root
-because the operating contract is repo-specific.
+`npx agent-launch init-config`, and prints the remaining commands. It never
+creates, reads, modifies, or deletes root `AGENTS.md` or `CLAUDE.md`. In a new
+repository, run the exact printed commands before staging:
+
+```sh
+cat wiki/templates/AGENTS.md.boilerplate.md >> AGENTS.md
+printf '@AGENTS.md\n' > CLAUDE.md
+```
 
 To pin the underlying surfaces individually instead, install
 `@agent-chassis/wiki-cli @agent-chassis/wiki-mcp @agent-chassis/agent-launch-cli`.
@@ -149,10 +161,10 @@ Bootstrap is **static seeding only**, run once by an operator from the new repo
 root. In one command it:
 
 1. Seeds the wiki core surfaces when missing (`wiki/schema.md`,
-   `wiki/conventions.md`, `wiki/index.md`, `wiki/catalog.md`, and the owned
-   `IN-0001` adoption initiative), syncs the record templates plus the
-   `wiki/templates/AGENTS.md.boilerplate.md` install helper for the operator's
-   first-run `AGENTS.md` setup, and resyncs `wiki/.wiki-contract.json` while
+   `wiki/conventions.md`, `wiki/index.md`, `wiki/catalog.md`, and an in-progress
+   `IN-0001` first-work placeholder), syncs the record templates plus the
+   directly appendable `wiki/templates/AGENTS.md.boilerplate.md` helper, and
+   resyncs `wiki/.wiki-contract.json` while
    preserving local `vocab.topics.local` and `inference.paths` entries.
 2. Generates the repo-local `wiki/.wiki-mcp.json` workspace declaration (schema
    `wiki-mcp-workspace.v1`) recording the repo alias and resolved root. This is a
@@ -169,10 +181,6 @@ For a research-corpus repo with extension namespaces:
 npx wiki bootstrap --profile research --extensions organizations,people,themes,signals
 ```
 
-Bootstrap is idempotent and non-overwriting: rerunning it preserves `IN-0001`,
-seeded work records, and any repo-specific edits, and only fills in missing
-bootstrap surfaces.
-
 This is the single standard bootstrap path for a consuming repo: it makes the
 lexical search index usable immediately, while the graph-backed code-index
 sidecar build remains a separate follow-up step after the worktree is clean
@@ -182,13 +190,8 @@ again.
 
 Bootstrap does **not**:
 
-- create `AGENTS.md` (repo-local operating authority; adapt the bootstrap-seeded
-  `wiki/templates/AGENTS.md.boilerplate.md` helper template and commit it
-  yourself),
-- create an adoption guide of any kind — the adoption guide is the single
-  package-owned, repo-neutral [docs/adoption.md](adoption.md) shipped with
-  `@agent-chassis/core`, and repository-specific adoption state lives in the
-  canonical `IN-0001` and `WK-0001` records,
+- create, read, modify, or delete root `AGENTS.md` or `CLAUDE.md`,
+- seed `WK-0001` or any adoption lifecycle,
 - write global MCP client config (bootstrap does generate the gitignored
   repo-local `wiki/.wiki-mcp.json` declaration — alias plus resolved root — but
   it does not edit `~/.codex/config.toml` or any global MCP client settings; see
@@ -197,14 +200,14 @@ Bootstrap does **not**:
   repo files, make the worktree clean again (for example by committing those
   changes) before running `wiki code-index build`; until then,
   `workspace_code_index_status` reports `staleness: missing`,
-- run any readiness, dispatch, graph-impact, or coordination-preflight check
+- run adoption verification or any readiness, dispatch, graph-impact, or coordination-preflight check
   against the target repo.
 
-After seeding, the target repo owns running every adoption check itself from its
-own context. The seeded `IN-0001` and `WK-0001` records enumerate that adoption
-backlog and are the authority on it. See the package-owned
-[docs/adoption.md](adoption.md) for the repo-neutral install and first-run
-procedure.
+Fresh installation proceeds directly from the operator-created root guidance
+and ordinary launcher setup to `npx agent-launch orchestrator IN-0001`.
+Existing-repository adoption, merging, migration, compatibility, and rerun
+behavior are deferred. The legacy adoption-verify implementation remains
+available but is not invoked, advertised, or required by this fresh path.
 
 ## MCP Configuration
 

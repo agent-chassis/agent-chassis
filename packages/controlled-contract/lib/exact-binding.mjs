@@ -11,9 +11,15 @@ import {
 import {
   assertCanonicalProjectionResult,
   executeDeterministicProjection,
+  validateDeterministicProjectionGraph,
   validateDeterministicProjectionPopulation,
+  validateDeterministicProjectionReference,
   validateDeterministicProjectionRelation
 } from "./deterministic-projection.mjs";
+import {
+  assertCapturedExactBindingResult,
+  registerCapturedExactBindingResult
+} from "./exact-binding-runtime-registry.mjs";
 
 const RESULT_VERSION = "controlled-contract-exact-binding-result.v1";
 const SHA256 = /^[0-9a-f]{64}$/u;
@@ -37,13 +43,12 @@ const REQUIRED_BINDING_FIELDS = new Set([
   "content_sha256", "byte_length", "role_coverage"
 ]);
 const COVERAGE_FIELDS = new Set([
-  "role", "coverage", "projection", "population_id", "reference_ids"
+  "role", "coverage", "projection", "population_id", "projection_id", "reference_ids"
 ]);
 const REQUIRED_COVERAGE_FIELDS = Object.freeze([
   "role", "coverage", "projection", "reference_ids"
 ]);
 const INTERNAL_CAPTURE_AUTHORITY = Symbol("exact-binding-internal-capture-authority");
-const CAPTURED_RESULTS = new WeakSet();
 
 function diagnostic(code, message, fields = {}) {
   return { code, message, ...fields };
@@ -94,7 +99,8 @@ function semanticDeclarationDiagnostics(declaration) {
     ));
     for (const coverage of requirement.role_coverage) {
       const allowed = requirement.binding_kind === "artifact_bytes"
-        ? ["artifact_subject", "projection_result_population"].includes(
+        ? ["artifact_subject", "projection_result_population",
+          "projection_result_reference"].includes(
           coverage.projection
         )
         : ["snapshot_subject", "snapshot_population"].includes(coverage.projection);
@@ -116,9 +122,31 @@ function semanticDeclarationDiagnostics(declaration) {
         } else diagnostics.push(...validateDeterministicProjectionPopulation(
           owningRelations[0].transformer_id, coverage.population_id
         ).map((entry) => ({ ...entry, requirement_id: requirement.requirement_id })));
-      } else if (coverage.population_id !== undefined) diagnostics.push(diagnostic(
+      } else if (coverage.projection === "projection_result_reference") {
+        const owningRelations = relations.filter(({ operator, result_requirement_id: id }) =>
+          operator === "deterministic_projection" && id === requirement.requirement_id
+        );
+        if (owningRelations.length !== 1 || typeof coverage.projection_id !== "string") {
+          diagnostics.push(diagnostic(
+            "projection_reference_coverage_invalid",
+            "projection-result reference coverage needs one owning projection and a projection id",
+            { requirement_id: requirement.requirement_id }
+          ));
+        } else diagnostics.push(...validateDeterministicProjectionReference(
+          owningRelations[0].transformer_id, coverage.projection_id
+        ).map((entry) => ({ ...entry, requirement_id: requirement.requirement_id })));
+      } else if (coverage.population_id !== undefined ||
+          coverage.projection_id !== undefined) diagnostics.push(diagnostic(
         "projection_population_coverage_invalid",
-        "population_id is allowed only for projection-result population coverage",
+        "projection identifiers are allowed only for their projection-result coverage kind",
+        { requirement_id: requirement.requirement_id }
+      ));
+      if (coverage.projection === "projection_result_population" &&
+          coverage.projection_id !== undefined ||
+          coverage.projection === "projection_result_reference" &&
+          coverage.population_id !== undefined) diagnostics.push(diagnostic(
+        "projection_coverage_identifier_mismatch",
+        "projection-result coverage carries the wrong identifier field",
         { requirement_id: requirement.requirement_id }
       ));
     }
@@ -163,7 +191,24 @@ function semanticDeclarationDiagnostics(declaration) {
       diagnostics.push(...validateDeterministicProjectionRelation(relation));
     }
   }
+  diagnostics.push(...projectedEvaluationBindingDiagnostics(declaration));
   return diagnostics.sort(diagnosticsOrder);
+}
+
+function projectedEvaluationBindingDiagnostics(declaration) {
+  const opt = declaration.projected_evaluation_binding;
+  if (opt === undefined) return [];
+  const owning = declaration.relations.filter(({ operator, result_requirement_id: id }) =>
+    operator === "deterministic_projection" && id === opt.result_requirement_id
+  );
+  if (owning.length !== 1) return [diagnostic(
+    "projected_evaluation_binding_result_invalid",
+    "projected-evaluation binding needs exactly one owning deterministic projection",
+    { requirement_id: opt.result_requirement_id }
+  )];
+  return validateDeterministicProjectionGraph(
+    owning[0].transformer_id, opt.graph_projection_id
+  ).map((entry) => ({ ...entry, requirement_id: opt.result_requirement_id }));
 }
 
 function assertCanonicalDeclarationFile(rawBytes) {
@@ -274,14 +319,18 @@ function validateBinding(binding, index) {
           REQUIRED_COVERAGE_FIELDS.some((key) => !Object.hasOwn(coverage, key)) ||
           !ID.test(coverage.role ?? "") || coverage.coverage !== "exact" ||
           !["artifact_subject", "snapshot_subject", "snapshot_population",
-            "projection_result_population"]
+            "projection_result_population", "projection_result_reference"]
             .includes(coverage.projection) ||
           (coverage.projection === "projection_result_population"
             ? !ID.test(coverage.population_id ?? "")
             : coverage.population_id !== undefined) ||
+          (coverage.projection === "projection_result_reference"
+            ? !ID.test(coverage.projection_id ?? "")
+            : coverage.projection_id !== undefined) ||
           !Array.isArray(coverage.reference_ids) ||
           !sortedUnique(coverage.reference_ids) ||
-          (["artifact_subject", "snapshot_subject"].includes(coverage.projection) &&
+          (["artifact_subject", "snapshot_subject", "projection_result_reference"]
+            .includes(coverage.projection) &&
             coverage.reference_ids.length !== 1)) {
         invalid("binding_role_coverage_invalid", "binding role coverage is invalid");
       } else roles.push(coverage.role);
@@ -400,6 +449,7 @@ function coreEvaluate({
         if (!actual || actual.coverage !== "exact" ||
             actual.projection !== expectedCoverage.projection ||
             actual.population_id !== expectedCoverage.population_id ||
+            actual.projection_id !== expectedCoverage.projection_id ||
             !expectedReferences ||
             JSON.stringify(actual.reference_ids) !== JSON.stringify(expectedReferences)) {
           unsatisfied = true;
@@ -420,6 +470,18 @@ function coreEvaluate({
       if (relation.operator === "same_content_sha256") {
         const observed = operands.map(({ content_sha256: digest }) => digest);
         const status = new Set(observed).size === 1 ? "satisfied" : "unsatisfied";
+        if (status === "unsatisfied") unsatisfied = true;
+        relationResults.push({
+          relation_id: relation.relation_id,
+          operator: relation.operator,
+          requirement_ids: [...relation.requirement_ids],
+          status,
+          observed_content_sha256: observed
+        });
+      } else if (relation.operator === "distinct_content_sha256") {
+        const observed = operands.map(({ content_sha256: digest }) => digest);
+        const status = new Set(observed).size === observed.length
+          ? "satisfied" : "unsatisfied";
         if (status === "unsatisfied") unsatisfied = true;
         relationResults.push({
           relation_id: relation.relation_id,
@@ -489,7 +551,7 @@ function coreEvaluate({
               );
             }
           }
-          assertCanonicalProjectionResult(resultBytes);
+          assertCanonicalProjectionResult(relation.transformer_id, resultBytes);
           const derivedBytes = executeDeterministicProjection(
             relation.transformer_id, sourceBytes
           );
@@ -558,18 +620,27 @@ function coreEvaluate({
     "exact_binding_result_internal_invalid"
   );
   const frozen = deepFreeze(result);
-  if (captureVerified) CAPTURED_RESULTS.add(frozen);
+  if (captureVerified) registerCapturedExactBindingResult(frozen);
   return frozen;
 }
 
-function assertCapturedExactBindingResult(result) {
-  if (!CAPTURED_RESULTS.has(result) || !Object.isFrozen(result)) {
+function exactBindingSupplementContext({ result, declaration, declarationDigest,
+  sourceSet }) {
+  assertCapturedExactBindingResult(result);
+  const declarationDiagnostics = semanticDeclarationDiagnostics(declaration);
+  if (declarationDiagnostics.length > 0 ||
+      declarationDigest !== result.context.exact_binding_declaration_digest) {
     throw new ExactBindingError(
-      "exact_binding_result_unrecognized",
-      "aggregate proof requires the exact result returned by deterministic capture"
+      "exact_binding_supplement_declaration_mismatch",
+      "supplement context requires the exact captured declaration"
     );
   }
-  return result;
+  return deepFreeze({
+    declaration: structuredClone(declaration),
+    declaration_digest: declarationDigest,
+    result: structuredClone(result),
+    source_set: structuredClone(sourceSet)
+  });
 }
 
 function evaluateExactBindingsV1(input) {
@@ -594,7 +665,7 @@ function evaluateCaptureFailureExactBindingsV1(input, failure, authority) {
     bindings: [],
     internalCaptureFailure: failure
   }, false);
-  CAPTURED_RESULTS.add(result);
+  registerCapturedExactBindingResult(result);
   return result;
 }
 
@@ -606,5 +677,6 @@ export {
   evaluateCaptureFailureExactBindingsV1,
   evaluateCapturedExactBindingsV1,
   evaluateExactBindingsV1,
+  exactBindingSupplementContext,
   semanticDeclarationDiagnostics
 };

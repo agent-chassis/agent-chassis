@@ -245,7 +245,6 @@ export function verifyClaudeArgvPromptContract({ argv, prompt } = {}) {
 export const CLAUDE_WORKER_DISALLOWED_NATIVE_WRITE_TOOLS = Object.freeze([
   "Edit",
   "Write",
-  "MultiEdit",
   "NotebookEdit"
 ]);
 
@@ -783,8 +782,7 @@ export function resolveClaudeLauncherRoleWritePosture(role) {
 
 export function resolveClaudeLauncherWriteScope({
   role,
-  writeScope,
-  launcherOwnedExactSliceReview = false
+  writeScope
 }) {
   const writePosture = resolveClaudeLauncherRoleWritePosture(role);
   if (
@@ -793,8 +791,7 @@ export function resolveClaudeLauncherWriteScope({
   ) {
     const gated = gateRoleWriteScope({
       role: writePosture.role,
-      write_scope: writeScope,
-      launcher_owned_exact_slice_review: launcherOwnedExactSliceReview === true
+      write_scope: writeScope
     });
     return gated.ok ? { ok: true, writeScope: gated.write_scope } : { ok: false, refusal: gated.refusal.refusal };
   }
@@ -888,7 +885,8 @@ export function defaultBuildClaudeBwrapPlan({
   runtimeRoots = [],
 
   readOnlyRoots = [],
-  findingsRole = null,
+  protectGitMetadata = false,
+  provisionedWorktreeGitIdentity = null,
   stdioMcpConduit = null,
 
   workerScopeAuthority = null,
@@ -945,7 +943,8 @@ export function defaultBuildClaudeBwrapPlan({
     writeScope,
     runtimeRoots,
     readOnlyRoots,
-    findingsRole,
+    protectGitMetadata,
+    provisionedWorktreeGitIdentity,
     stdioMcpConduit,
     workerScopeAuthority,
 
@@ -988,7 +987,9 @@ export function createDefaultClaudeBwrapIsolatedSpawn({
 
       runtimeRoots: Array.isArray(opts?.runtimeRoots) ? opts.runtimeRoots : [],
       readOnlyRoots: Array.isArray(opts?.readOnlyRoots) ? opts.readOnlyRoots : [],
-      findingsRole: opts?.findingsRole ?? null,
+      protectGitMetadata: opts?.protectGitMetadata === true,
+      provisionedWorktreeGitIdentity:
+        opts?.provisionedWorktreeGitIdentity ?? opts?.provisionedWorktreeGitBinding ?? null,
       stdioMcpConduit: opts?.stdioMcpConduit ?? null,
 
       workerScopeAuthority: opts?.workerScopeAuthority ?? null,
@@ -1002,9 +1003,7 @@ export function createDefaultClaudeBwrapIsolatedSpawn({
     return spawnIsolated(plan, {
       env: opts?.env,
       stdio: opts?.stdio,
-      detached: false,
-
-      terminalReviewSpawnBarrier: opts?.terminalReviewSpawnBarrier ?? null
+      detached: false
     });
   };
 }
@@ -1054,6 +1053,8 @@ export function defaultBuildClaudeCommandLine({
 
   acceptanceCriteria = [],
   acceptanceValidation = [],
+
+  canonicalRepo = null,
 
   nativeRepoWriteMechanism = CLAUDE_FAMILY_NATIVE_REPO_WRITE_MECHANISM,
   schemaConstrainedTerminalResult = false,
@@ -1140,6 +1141,7 @@ export function defaultBuildClaudeCommandLine({
         workspaceDir,
         acceptanceCriteria,
         acceptanceValidation,
+        canonicalRepo,
 
         terminalStructuredRoleResultMode: resolveTerminalStructuredRoleResultMode({
           schemaConstrained: constrained,

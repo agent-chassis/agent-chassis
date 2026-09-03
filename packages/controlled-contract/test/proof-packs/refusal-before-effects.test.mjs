@@ -32,20 +32,20 @@ import {
   validateProofPackAdequacy
 } from "../support/proof-pack-adequacy.mjs";
 import {
-  evaluateVerificationProfileV034,
-  validateProfileSchemaV034,
-  validateProfileSemanticsV034
-} from "../../lib/verification-profile-v034.mjs";
+  evaluateStableProofPackFixtureV1,
+  validateProfileSchemaV1,
+  validateProfileSemanticsV1
+} from "../support/stable-v1-proof-pack-runtime.mjs";
 
 const packDirectory = new URL(
-  "../certification/profiles/proof.authorization.refusal-before-effects/1.0.0/",
+  "../certification/profiles/proof.authorization.refusal-before-effects/2.0.0/",
   import.meta.url
 );
 const packDirectoryPath = fileURLToPath(packDirectory);
 const adequacy = JSON.parse(await readFile(new URL("adequacy.json", packDirectory), "utf8"));
 
 function evaluateFixture(fixture) {
-  return evaluateVerificationProfileV034({
+  return evaluateStableProofPackFixtureV1({
     contract: fixture.contract,
     profile: fixture.profile,
     evaluation_input: fixture.input
@@ -53,9 +53,9 @@ function evaluateFixture(fixture) {
 }
 
 test("refusal-before-effects profile and adequacy declarations are bound and valid", async () => {
-  assert.equal(validateProfileSchemaV034(REFUSAL_BEFORE_EFFECTS_PROFILE), true,
-    JSON.stringify(validateProfileSchemaV034.errors));
-  assert.deepEqual(validateProfileSemanticsV034(REFUSAL_BEFORE_EFFECTS_PROFILE), []);
+  assert.equal(validateProfileSchemaV1(REFUSAL_BEFORE_EFFECTS_PROFILE), true,
+    JSON.stringify(validateProfileSchemaV1.errors));
+  assert.deepEqual(validateProfileSemanticsV1(REFUSAL_BEFORE_EFFECTS_PROFILE), []);
   assert.equal(validateProofPackAdequacy(adequacy), true,
     JSON.stringify(validateProofPackAdequacy.errors));
   assert.equal(adequacy.profile_digest, profileDigest(REFUSAL_BEFORE_EFFECTS_PROFILE));
@@ -176,9 +176,10 @@ test("one truthful protected-member effect falsifies the population prohibition"
     ));
     assert.equal(result.satisfaction, "invalid", mutantId);
     assert.ok(result.diagnostics.some(({ code, diagnostics = [] }) =>
-      code === "controlled_contract_invalid" && diagnostics.some(
+      code === "direct_proposition_contradiction" ||
+      (code === "controlled_contract_invalid" && diagnostics.some(
         ({ code: nestedCode }) => nestedCode === "direct_proposition_contradiction"
-      )
+      ))
     ), mutantId);
   }
 });
@@ -339,9 +340,9 @@ test("fully re-digested guarantee-critical weakenings fail the semantic adequacy
 
   for (const [name, mutate] of Object.entries(weakenings)) {
     const weakened = mutate(structuredClone(REFUSAL_BEFORE_EFFECTS_PROFILE));
-    assert.equal(validateProfileSchemaV034(weakened), true,
-      `${name}: ${JSON.stringify(validateProfileSchemaV034.errors)}`);
-    assert.deepEqual(validateProfileSemanticsV034(weakened), [], name);
+    assert.equal(validateProfileSchemaV1(weakened), true,
+      `${name}: ${JSON.stringify(validateProfileSchemaV1.errors)}`);
+    assert.deepEqual(validateProfileSemanticsV1(weakened), [], name);
     const diagnostics = await semanticAdequacyDiagnostics(weakened);
     assert.ok(diagnostics.length > 0, name);
     assert.equal(diagnostics.some(({ code }) => code === "adequacy_run_binding_mismatch"),

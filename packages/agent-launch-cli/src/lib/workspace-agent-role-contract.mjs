@@ -2,6 +2,10 @@ import {
   TERMINAL_STRUCTURED_ROLE_RESULT_MODES,
   renderTerminalStructuredRoleResultContract
 } from '@agent-chassis/agent-launch-core/src/lib/work-record-launch-prompt.mjs';
+import {
+  projectWorkRecordTestProofValidation,
+  renderWorkRecordValidationEntry,
+} from '@agent-chassis/wiki-core/src/lib/work-record-test-proof-bindings.mjs';
 
 export { TERMINAL_STRUCTURED_ROLE_RESULT_MODES };
 
@@ -35,6 +39,29 @@ export const LAUNCHER_FAMILY_ROLE_CONTRACT_ROLES = Object.freeze([
   'redteam',
 ]);
 
+export const LAUNCHER_AGENT_SESSION_ROLE_POPULATIONS = Object.freeze({
+  orchestrator: Object.freeze({
+    lifecycle_position: 'coordination',
+    review_purpose: null,
+    completion_transport: 'coordinator_control',
+  }),
+  worker: Object.freeze({
+    lifecycle_position: 'implementation',
+    review_purpose: null,
+    completion_transport: 'managed_slice_delivery',
+  }),
+  reviewer: Object.freeze({
+    lifecycle_position: 'findings_only',
+    review_purpose: Object.freeze(['standalone', 'terminal_whole_wk']),
+    completion_transport: Object.freeze(['standalone_findings', 'workspace_submit_for_review']),
+  }),
+  redteam: Object.freeze({
+    lifecycle_position: 'findings_only',
+    review_purpose: Object.freeze(['standalone', 'terminal_whole_wk']),
+    completion_transport: Object.freeze(['standalone_findings', 'workspace_submit_for_review']),
+  }),
+});
+
 export const LAUNCHER_ORCHESTRATOR_PROMPT_MODES = Object.freeze({
   INTERACTIVE: 'interactive',
   HEADLESS: 'headless',
@@ -42,7 +69,9 @@ export const LAUNCHER_ORCHESTRATOR_PROMPT_MODES = Object.freeze({
 
 export const LAUNCHER_ORCHESTRATOR_HEADLESS_DIRECTIVE = [
   'Run UNATTENDED to completion, then EXIT.',
-  'Complete the full orchestration lifecycle end-to-end — design, dispatch, wait for the dispatched roles, review, and report — without pausing for human input at any step.',
+  'Complete your assigned work without pausing for human interaction.',
+  'Follow canonical repository guidance, your assigned initiative or WK, and authoritative structured tool results.',
+  'Report the outcome and exit.',
   'There is no interactive terminal and no human to prompt or resume: do not wait for input, do not ask for confirmation, and do not leave the session open after you have reported.',
 ].join(' ');
 
@@ -52,13 +81,11 @@ export const LAUNCHER_FAMILY_ROLE_CONTRACT_SHAPES = Object.freeze({
   redteam: 'findings_only',
 });
 
-const FINDINGS_ONLY_TOOL_SURFACE_GUIDANCE = [
-  'Broad read-only source inspection is allowed.',
-  'Use the launcher-provided actual native command tool for repository inspection and declared validation without interactive approval.',
-  'The reviewed checkout and Git metadata remain read-only; validation scratch, cache, and output belong only in launcher-provided temporary locations.',
-  'You have no write grant, so do not modify files or attempt native Edit/Write tools.',
-  'stock Edit/Write tools are not part of the launch contract.',
-].join(' ');
+export const LAUNCHER_FINDINGS_COMPLETION_TRANSPORTS = Object.freeze({
+  MANAGED_TERMINAL_RESULT: 'managed_terminal_result',
+  WORKSPACE_SUBMIT_FOR_REVIEW: 'workspace_submit_for_review',
+  NOT_APPLICABLE: 'not_applicable',
+});
 
 const IMPLEMENTATION_TOOL_SURFACE_GUIDANCE = [
   'Your repo read/write access is exactly the launcher-provided session contract, not inferred from filesystem layout or bwrap internals.',
@@ -162,6 +189,22 @@ function normalizeSubjectPath(subject) {
   return raw;
 }
 
+function renderFindingsSnapshotAcceptanceInstruction(subject) {
+  const assignedUnit = toStringValue(subject).trim();
+  const subjectPath = normalizeSubjectPath(subject);
+  const sliceMatch = assignedUnit.match(/^(WK-\d{4})#(SLICE-\d{3})$/u);
+  const readArguments = sliceMatch
+    ? JSON.stringify({ path: subjectPath, selected_slice: sliceMatch[2] })
+    : JSON.stringify({ path: subjectPath });
+  const selectionInstruction = sliceMatch
+    ? `Assigned unit: ${assignedUnit}; selected_slice is only the bare slice id. `
+    : `Assigned unit: ${assignedUnit}; use its record-level result. `;
+  return `Snapshot acceptance: workspace_read_page arguments ${readArguments}. ` +
+    selectionInstruction +
+    `Use its criteria and validation. ` +
+    'No live-main reads or inline mutable-record bytes.';
+}
+
 function resolveRoleShape(role) {
   const normalizedRole = toStringValue(role).trim().toLowerCase();
   if (normalizedRole === 'reviewer' || normalizedRole === 'redteam') {
@@ -194,6 +237,25 @@ function resolveSubjectAcceptanceContract(input) {
       ? input.acceptance
       : {};
 
+  const authoredValidation =
+    input.acceptanceValidation ??
+    input.acceptance_validation ??
+    acceptance.validation ??
+    input.validation ??
+    [];
+  const validationProjection = projectWorkRecordTestProofValidation({
+    selectedUnit: {
+      acceptance: {
+        validation: Array.isArray(authoredValidation) ? authoredValidation : [authoredValidation],
+      },
+    },
+  });
+  if (validationProjection.status !== 'valid') {
+    throw new LauncherRoleContractError('launcher role contract acceptance validation is invalid', {
+      code: 'acceptance_validation_invalid',
+      detail: { diagnostics: validationProjection.diagnostics },
+    });
+  }
   return {
     criteria: normalizeAcceptanceContractValues(
       input.acceptanceCriteria ??
@@ -201,12 +263,7 @@ function resolveSubjectAcceptanceContract(input) {
         acceptance.criteria ??
         input.criteria
     ),
-    validation: normalizeAcceptanceContractValues(
-      input.acceptanceValidation ??
-        input.acceptance_validation ??
-        acceptance.validation ??
-        input.validation
-    ),
+    validation: validationProjection.validation_entries.map(renderWorkRecordValidationEntry),
   };
 }
 
@@ -238,28 +295,10 @@ function classifyFromText(text) {
     return 'ambiguous';
   }
 
-  const hasFindingsMarker =
-    content.includes(LAUNCHER_ROLE_CONTRACT_FINDINGS_ONLY_MARKER) ||
-    normalized.includes('findings only. do not modify files.') ||
-    normalized.includes('broad read-only source inspection') ||
-    normalized.includes('non-mutating read-only commands and focused validation') ||
-    normalized.includes('you have no write grant, so do not modify files or attempt native edit/write tools.') ||
-    normalized.includes('stock edit/write tools are not part of the launch contract') ||
-    normalized.includes('do not update the work record');
-
+  const hasFindingsMarker = content.includes(LAUNCHER_ROLE_CONTRACT_FINDINGS_ONLY_MARKER);
   const hasImplementationMarker =
     content.includes(LAUNCHER_ROLE_CONTRACT_IMPLEMENTATION_MARKER) ||
-    normalized.includes('implementation workers may use launcher-granted native edit/write only for files explicitly listed in assigned write_scope') ||
-    normalized.includes('native edit/write only for files explicitly listed in assigned write_scope') ||
-    normalized.includes('implementation worker for ') ||
-    normalized.includes('repo read/write access is exactly the launcher-provided session contract') ||
-    normalized.includes('native edit/write only to explicitly assigned write_scope paths') ||
-    normalized.includes('modify only files inside the assigned write_scope') ||
-    normalized.includes('structured mcp/work-record tools') ||
-    normalized.includes('native edit/write tools only when the launcher grants write authority for your assigned write_scope and bwrap') ||
-    normalized.includes('stock edit/write tools are only allowed within granted write authority') ||
-    normalized.includes('stop and report a blocker') ||
-    normalized.includes('needed access or structured tools are unavailable');
+    normalized.includes('implementation worker for ');
 
   if (hasFindingsMarker && hasImplementationMarker) {
     return 'ambiguous';
@@ -335,16 +374,26 @@ reviewPromptSubjectPath[Symbol.toPrimitive] = (hint) => {
 };
 
 export function launcherRoleToolSurfaceGuidance(input = {}) {
-  const { role, shape, mode } =
-    input && typeof input === 'object' ? input : { role: input };
-  const normalizedShape = toStringValue(shape ?? mode ?? resolveRoleShape(role)).trim();
-  return normalizedShape === LAUNCHER_FAMILY_ROLE_CONTRACT_SHAPES.reviewer
-    ? FINDINGS_ONLY_TOOL_SURFACE_GUIDANCE
-    : IMPLEMENTATION_TOOL_SURFACE_GUIDANCE;
+
+  return IMPLEMENTATION_TOOL_SURFACE_GUIDANCE;
 }
 
 export function classifyLauncherRoleContractShape(input = {}) {
   return classifyFromText(input);
+}
+
+export function classifyLauncherFindingsCompletionTransport({
+  role,
+  canonicalRepo,
+} = {}) {
+  const normalizedRole = toStringValue(role).trim().toLowerCase();
+  if (normalizedRole === 'reviewer' && toStringValue(canonicalRepo).trim()) {
+    return LAUNCHER_FINDINGS_COMPLETION_TRANSPORTS.MANAGED_TERMINAL_RESULT;
+  }
+  if (normalizedRole === 'reviewer' || normalizedRole === 'redteam') {
+    return LAUNCHER_FINDINGS_COMPLETION_TRANSPORTS.WORKSPACE_SUBMIT_FOR_REVIEW;
+  }
+  return LAUNCHER_FINDINGS_COMPLETION_TRANSPORTS.NOT_APPLICABLE;
 }
 
 export function renderLauncherFamilyRoleContract(options = {}) {
@@ -367,7 +416,12 @@ export function renderLauncherFamilyRoleContract(options = {}) {
   const workspaceDir = toStringValue(input.workspaceDir).trim();
 
   const canonicalRepo = toStringValue(input.canonicalRepo).trim();
-  const isManagedReviewer = role === 'reviewer' && canonicalRepo !== '';
+  const completionTransport = classifyLauncherFindingsCompletionTransport({
+    role,
+    canonicalRepo,
+  });
+  const isManagedReviewer =
+    completionTransport === LAUNCHER_FINDINGS_COMPLETION_TRANSPORTS.MANAGED_TERMINAL_RESULT;
 
   const lines = [
     role === 'worker' ? LAUNCHER_ROLE_CONTRACT_IMPLEMENTATION_MARKER : LAUNCHER_ROLE_CONTRACT_FINDINGS_ONLY_MARKER,
@@ -393,12 +447,15 @@ export function renderLauncherFamilyRoleContract(options = {}) {
     lines.push(writeScopeBlock);
   }
 
-  const acceptanceBlocks = renderAcceptanceContractSections(input);
+  const acceptanceBlocks = role === 'worker'
+    ? renderAcceptanceContractSections(input)
+    : [];
   if (acceptanceBlocks.length) {
     lines.push(...acceptanceBlocks);
   }
 
   if (role !== 'worker') {
+    lines.push(renderFindingsSnapshotAcceptanceInstruction(subject));
     lines.push(LAUNCHER_FINDINGS_SCOPE_EXCLUSION);
   }
 
@@ -417,7 +474,7 @@ export function renderLauncherFamilyRoleContract(options = {}) {
     lines.push('If assigned source access or the closed-input commit capability is unavailable, stop and report a blocker rather than trying environment overrides or alternate delivery paths.');
   } else if (isManagedReviewer) {
     lines.push('Do not call workspace_submit_for_review.');
-    lines.push('Complete by returning your terminal structured findings result for trusted-runtime capture.');
+    lines.push('Complete by returning your findings response for trusted-runtime capture.');
   } else {
     lines.push('When findings-only reviewer or redteam work is complete, call workspace_submit_for_review; it moves only the assigned unit to review.');
     if (role === 'redteam') {
@@ -430,12 +487,18 @@ export function renderLauncherFamilyRoleContract(options = {}) {
     lines.push(notesBlock);
   }
 
+  const selectedTerminalResultMode = input.terminalStructuredRoleResultMode
+    ?? input.structuredRoleResultMode;
+  const terminalResultMode = role === 'worker'
+    ? selectedTerminalResultMode ?? TERMINAL_STRUCTURED_ROLE_RESULT_MODES.FENCED
+    : selectedTerminalResultMode === TERMINAL_STRUCTURED_ROLE_RESULT_MODES.SCHEMA_CONSTRAINED
+      ? TERMINAL_STRUCTURED_ROLE_RESULT_MODES.SCHEMA_CONSTRAINED
+      : TERMINAL_STRUCTURED_ROLE_RESULT_MODES.FREE_PROSE;
   lines.push(renderTerminalStructuredRoleResultContract({
     role,
     subject,
-    mode: input.terminalStructuredRoleResultMode
-      ?? input.structuredRoleResultMode
-      ?? TERMINAL_STRUCTURED_ROLE_RESULT_MODES.FENCED,
+
+    mode: terminalResultMode,
   }));
 
   return lines.filter(Boolean).join('\n\n');
@@ -511,6 +574,7 @@ export function renderLauncherFamilyOrchestratorPrompt(options = {}) {
     input.subjectPath ?? input.initiative ?? input.subject ?? input.threadName
   );
   const workspaceDir = toStringValue(input.workspaceDir).trim();
+  const focus = toStringValue(input.focus);
 
   const lines = [
     `# ${appName} orchestrator prompt`,
@@ -537,12 +601,17 @@ export function renderLauncherFamilyOrchestratorPrompt(options = {}) {
     lines.push(LAUNCHER_ORCHESTRATOR_HEADLESS_DIRECTIVE);
   }
 
+  if (headless && focus.trim()) {
+    lines.push(focus);
+  }
+
   return lines.filter(Boolean).join('\n\n');
 }
 
 const launcherRoleContractExports = Object.freeze({
   LAUNCHER_FAMILY_ROLE_CONTRACT_ROLES,
   LAUNCHER_FAMILY_ROLE_CONTRACT_SHAPES,
+  LAUNCHER_FINDINGS_COMPLETION_TRANSPORTS,
   LAUNCHER_ROLE_CONTRACT_FINDINGS_ONLY_MARKER,
   LAUNCHER_ROLE_CONTRACT_IMPLEMENTATION_MARKER,
   LAUNCHER_ROLE_CONTRACT_PUBLIC_SEAM_MARKER,
@@ -551,6 +620,7 @@ const launcherRoleContractExports = Object.freeze({
   LAUNCHER_ORCHESTRATOR_HEADLESS_DIRECTIVE,
   TERMINAL_STRUCTURED_ROLE_RESULT_MODES,
   LauncherRoleContractError,
+  classifyLauncherFindingsCompletionTransport,
   classifyLauncherRoleContractShape,
   launcherRoleToolSurfaceGuidance,
   renderImplementationWorkerPrompt,

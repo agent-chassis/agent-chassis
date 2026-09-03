@@ -2,7 +2,12 @@
 
 import { lstatSync, readFileSync, realpathSync } from "node:fs";
 import path from "node:path";
-import { computeWorkRecordSourceDigest } from "@agent-chassis/wiki-core";
+import {
+  CONTROLLED_CONTRACT_PRIVATE_PATH_ROOT,
+  collectControlledContractPrivateScopeIntersections,
+  computeWorkRecordSourceDigest,
+  excludeControlledContractPrivatePaths
+} from "@agent-chassis/wiki-core";
 import {
   WK_SUBJECT_RE,
   EXACT_IMPLEMENTATION_SLICE_RE,
@@ -137,9 +142,19 @@ export function resolveFrozenWorkerScopeAuthority({ mainRepo, subject, record, s
   validateScopePathType(repo, `wiki/work-records/${match[1]}.json`, "canonical work-record source");
   const recordRealPath = realpathSync(recordPath);
   assertPathWithin(repo, recordRealPath, "canonical work-record source");
-  const readScope = normalizeCanonicalScope(slice.read_scope, "read_scope", recordPath, { required: false });
-  const repoPaths = normalizeCanonicalScope(slice.repo_paths, "repo_paths", recordPath, { required: false });
-  const writeScope = normalizeCanonicalScope(slice.write_scope, "write_scope", recordPath);
+  const privateScopePolicyFacts = collectControlledContractPrivateScopeIntersections(slice, {
+    unitAddress: subject,
+    status: slice.status ?? null
+  });
+  const readScope = excludeControlledContractPrivatePaths(normalizeCanonicalScope(
+    slice.read_scope, "read_scope", recordPath, { required: false }
+  ));
+  const repoPaths = excludeControlledContractPrivatePaths(normalizeCanonicalScope(
+    slice.repo_paths, "repo_paths", recordPath, { required: false }
+  ));
+  const writeScope = excludeControlledContractPrivatePaths(normalizeCanonicalScope(
+    slice.write_scope, "write_scope", recordPath
+  ));
   const reader = openScopeExistenceBase({ mainRepo: repo, scopeBase, deps });
 
   const validateReadable = (entry, label, options) => (
@@ -175,7 +190,10 @@ export function resolveFrozenWorkerScopeAuthority({ mainRepo, subject, record, s
     read_scope: readScope,
     repo_paths: repoPaths,
     readable_scope: Object.freeze([...new Set([...readScope, ...repoPaths])].sort()),
-    write_scope: writeScope
+    write_scope: writeScope,
+
+    scope_exclusions: Object.freeze([CONTROLLED_CONTRACT_PRIVATE_PATH_ROOT]),
+    private_scope_policy_facts: privateScopePolicyFacts
   });
 }
 

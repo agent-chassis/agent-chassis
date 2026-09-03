@@ -5,6 +5,7 @@ export {
   WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES,
   WorktreeSubstrateError,
   defaultRunGit,
+  defaultRunGitAsync,
   perWkBranchRef,
   perWkWorktreePath,
   worktreeIdentityStoreDir

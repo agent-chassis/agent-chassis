@@ -32,6 +32,20 @@ function canonicalJsonBytes(value, { file = false } = {}) {
 }
 function sha256(value) { return createHash("sha256").update(value).digest("hex"); }
 function canonicalDigest(value) { return sha256(canonicalJsonBytes(value)); }
+function parseCanonicalDocument(bytes, label) {
+  let value;
+  try {
+    value = JSON.parse(Buffer.from(bytes).toString("utf8"));
+  } catch (error) {
+    throw new ExactBindingError("projection_input_json_invalid",
+      `${label} is not valid JSON`, { label, cause: error.message });
+  }
+  if (!Buffer.from(bytes).equals(canonicalJsonBytes(value, { file: true }))) {
+    throw new ExactBindingError("projection_input_noncanonical",
+      `${label} must be canonical JSON plus exactly one LF`, { label });
+  }
+  return value;
+}
 function deepFreeze(value) {
   if (value === null || typeof value !== "object" || Object.isFrozen(value)) return value;
   for (const child of Object.values(value)) deepFreeze(child);
@@ -43,5 +57,12 @@ function sortedUnique(values) {
   );
 }
 
+function unsupportedObjectKeys(value, allowedKeys) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return [];
+  const allowed = new Set(allowedKeys);
+  return Object.keys(value).filter((key) => !allowed.has(key)).sort(compareCodeUnits);
+}
+
 export { ExactBindingError, canonicalDigest, canonicalJsonBytes, canonicalValue,
-  compareCodeUnits, deepFreeze, sha256, sortedUnique };
+  compareCodeUnits, deepFreeze, parseCanonicalDocument, sha256, sortedUnique,
+  unsupportedObjectKeys };

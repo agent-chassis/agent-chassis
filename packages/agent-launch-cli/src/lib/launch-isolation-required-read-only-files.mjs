@@ -16,6 +16,7 @@ import {
   fail,
   isWithinRepo
 } from "./launch-isolation-errors.mjs";
+import { safeDescribeRefusedMountpoint } from "./launch-isolation-mountpoint-diagnostics.mjs";
 
 const FILE_IDENTITY_KEYS = Object.freeze([
   "dev",
@@ -150,43 +151,64 @@ function projectionMountpointIdentity(dst) {
   });
 }
 
-function inspectProjectionMountpoint(dst) {
+function refuseMountpoint(code, message, dst, diagnosticsContext, extra = null) {
+  fail(code, message, {
+    ...(extra ?? {}),
+    mountpoint_diagnostics: safeDescribeRefusedMountpoint(dst, {
+      ...diagnosticsContext,
+      code,
+      message
+    })
+  });
+}
+
+function inspectProjectionMountpoint(dst, diagnosticsContext = {}) {
   let lst;
   try {
     lst = lstatSync(dst);
   } catch (error) {
-    fail(
+    refuseMountpoint(
       BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.PATH_NOT_DIRECTORY,
       `read-only projection mountpoint must exist as a directory: ${dst}`,
+      dst,
+      diagnosticsContext,
       { errno: error?.code ?? null }
     );
   }
   if (lst.isSymbolicLink() || !lst.isDirectory()) {
-    fail(
+    refuseMountpoint(
       BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.PATH_NOT_DIRECTORY,
-      `read-only projection mountpoint must be a real directory and may not be a symlink: ${dst}`
+      `read-only projection mountpoint must be a real directory and may not be a symlink: ${dst}`,
+      dst,
+      diagnosticsContext
     );
   }
   let real;
   try {
     real = realpathSync(dst);
   } catch (error) {
-    fail(
+    refuseMountpoint(
       BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.PATH_NOT_DIRECTORY,
       `read-only projection mountpoint realpath failed: ${dst}`,
+      dst,
+      diagnosticsContext,
       { errno: error?.code ?? null }
     );
   }
   if (real !== dst) {
-    fail(
+    refuseMountpoint(
       BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.PATH_OUTSIDE_REPO,
-      `read-only projection mountpoint may not contain symlink-substituted components: ${dst} -> ${real}`
+      `read-only projection mountpoint may not contain symlink-substituted components: ${dst} -> ${real}`,
+      dst,
+      diagnosticsContext
     );
   }
   if (readdirSync(dst).length !== 0) {
-    fail(
+    refuseMountpoint(
       BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.PATH_NOT_DIRECTORY,
-      `read-only projection mountpoint must be empty: ${dst}`
+      `read-only projection mountpoint must be empty: ${dst}`,
+      dst,
+      diagnosticsContext
     );
   }
   return Object.freeze({ path: dst, identity: projectionMountpointIdentity(dst) });
@@ -253,7 +275,9 @@ export function prepareReadOnlyProjectionMountpoints(readOnlyBinds, {
   writableRoots = [],
   runtimeRoots = [],
   writableFiles = [],
-  sparseWorkerNamespace = null
+  sparseWorkerNamespace = null,
+
+  launchContext = null
 } = {}) {
   if (!Array.isArray(readOnlyBinds)) {
     fail(
@@ -316,7 +340,10 @@ export function prepareReadOnlyProjectionMountpoints(readOnlyBinds, {
         }
       }
 
-      entries.push(Object.freeze({ ...inspectProjectionMountpoint(dst), src }));
+      entries.push(Object.freeze({
+        ...inspectProjectionMountpoint(dst, { ...(launchContext ?? {}), phase: "isolation_plan" }),
+        src
+      }));
     }
   } catch (error) {
     for (let i = createdPaths.length - 1; i >= 0; i -= 1) {
@@ -331,7 +358,7 @@ export function prepareReadOnlyProjectionMountpoints(readOnlyBinds, {
   return Object.freeze(entries);
 }
 
-export function assertReadOnlyProjectionMountpointsUnchanged(entries) {
+export function assertReadOnlyProjectionMountpointsUnchanged(entries, launchContext = null) {
   if (!Array.isArray(entries)) {
     fail(
       BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.PLAN_INVALID,
@@ -345,7 +372,10 @@ export function assertReadOnlyProjectionMountpointsUnchanged(entries) {
         "read-only projection mountpoint has invalid pinned identity state"
       );
     }
-    const current = inspectProjectionMountpoint(entry.path);
+    const current = inspectProjectionMountpoint(entry.path, {
+      ...(launchContext ?? {}),
+      phase: "isolation_pre_spawn"
+    });
     if (current.identity.dev !== entry.identity.dev || current.identity.ino !== entry.identity.ino) {
       fail(
         BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.PATH_NOT_DIRECTORY,

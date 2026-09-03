@@ -1,6 +1,6 @@
 {
   "name": "agent-chassis",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "workspaces": [
     "packages/controlled-contract",
@@ -18,7 +18,8 @@
     "test": "node tests/run-tests.mjs unit",
     "test:integration": "node tests/run-tests.mjs integration",
     "test:all": "node tests/run-tests.mjs all",
-    "test:list": "node tests/run-tests.mjs list"
+    "test:list": "node tests/run-tests.mjs list",
+    "test:wk2405": "node tests/helpers/run-wk2405-focused.mjs"
   },
   "repository": {
     "type": "git",
@@ -30,12 +31,12 @@
     "web-tree-sitter": "0.26.9"
   },
   "devDependencies": {
-    "@agent-chassis/agent-launch-cli": "^0.6.0",
-    "@agent-chassis/agent-launch-core": "^0.6.0",
-    "@agent-chassis/controlled-contract": "^0.1.0",
-    "@agent-chassis/core": "^0.6.0",
-    "@agent-chassis/wiki-cli": "^0.6.0",
-    "@agent-chassis/wiki-core": "^0.6.0",
-    "@agent-chassis/wiki-mcp": "^0.6.0"
+    "@agent-chassis/agent-launch-cli": "^0.7.0",
+    "@agent-chassis/agent-launch-core": "^0.7.0",
+    "@agent-chassis/controlled-contract": "^0.7.0",
+    "@agent-chassis/core": "^0.7.0",
+    "@agent-chassis/wiki-cli": "^0.7.0",
+    "@agent-chassis/wiki-core": "^0.7.0",
+    "@agent-chassis/wiki-mcp": "^0.7.0"
   }
 }

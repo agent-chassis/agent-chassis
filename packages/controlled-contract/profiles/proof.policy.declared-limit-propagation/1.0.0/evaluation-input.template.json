@@ -1,0 +1,138 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.experimental.v0.2",
+  "evaluation_stage": "post_delivery",
+  "reference_bindings": [
+    {
+      "role": "guidance_subject",
+      "reference_ids": [
+        "ref-lgp-guidance-subject"
+      ]
+    },
+    {
+      "role": "policy_artifact",
+      "reference_ids": [
+        "ref-lgp-policy-artifact"
+      ]
+    },
+    {
+      "role": "guidance_artifact",
+      "reference_ids": [
+        "ref-lgp-guidance-artifact"
+      ]
+    },
+    {
+      "role": "propagation_report",
+      "reference_ids": [
+        "ref-lgp-propagation-report"
+      ]
+    },
+    {
+      "role": "verification",
+      "reference_ids": [
+        "ref-lgp-verification"
+      ]
+    },
+    {
+      "role": "mismatch_condition",
+      "reference_ids": [
+        "ref-lgp-mismatch-condition"
+      ]
+    },
+    {
+      "role": "limit_population",
+      "reference_ids": [
+        "ref-lgp-declared-limit-population"
+      ]
+    },
+    {
+      "role": "declared_limits",
+      "reference_ids": [
+        "ref-lgp-limit-1cf2462dbf783967e4408e886e4569a77da29314f99d4e6f78fed80de817b185",
+        "ref-lgp-limit-9ae507a9dd39ee5b7c7e285da2c0846521c8ae8d80feeae5504e0c981d53f5fa",
+        "ref-lgp-limit-b1211b244051d91c504a84830a4b36d4eab849edefaeba88c91b9b18b2c531ac",
+        "ref-lgp-limit-e6845188b1d2aebdf19d13c1613d7a49b5806a7fe336ec775fa182b36719bbc1"
+      ]
+    },
+    {
+      "role": "unit_population",
+      "reference_ids": [
+        "ref-lgp-measurement-unit-population"
+      ]
+    },
+    {
+      "role": "measurement_units",
+      "reference_ids": [
+        "ref-lgp-unit-55b36d3271d6431800df0b64022f3c2532c7d13bb4fe2d79706877e658daed7d",
+        "ref-lgp-unit-88a02a1340063f90354c9149d18dd9b86b5f4deb7be8cdc77c465a0c1577bbc6",
+        "ref-lgp-unit-8d956d4d1c2719f08b943a656e725873a09daec182ab2c173601f6e38c98385b"
+      ]
+    },
+    {
+      "role": "association_population",
+      "reference_ids": [
+        "ref-lgp-guidance-association-population"
+      ]
+    },
+    {
+      "role": "guidance_associations",
+      "reference_ids": [
+        "ref-lgp-association-1cf2462dbf783967e4408e886e4569a77da29314f99d4e6f78fed80de817b185",
+        "ref-lgp-association-9ae507a9dd39ee5b7c7e285da2c0846521c8ae8d80feeae5504e0c981d53f5fa",
+        "ref-lgp-association-b1211b244051d91c504a84830a4b36d4eab849edefaeba88c91b9b18b2c531ac",
+        "ref-lgp-association-e6845188b1d2aebdf19d13c1613d7a49b5806a7fe336ec775fa182b36719bbc1"
+      ]
+    },
+    {
+      "role": "surface_population",
+      "reference_ids": [
+        "ref-lgp-guidance-surface-population"
+      ]
+    },
+    {
+      "role": "guidance_surfaces",
+      "reference_ids": [
+        "ref-lgp-guidance-surface"
+      ]
+    },
+    {
+      "role": "key_population",
+      "reference_ids": [
+        "ref-lgp-policy-key-population"
+      ]
+    },
+    {
+      "role": "policy_keys",
+      "reference_ids": [
+        "ref-lgp-key-1cf2462dbf783967e4408e886e4569a77da29314f99d4e6f78fed80de817b185",
+        "ref-lgp-key-9ae507a9dd39ee5b7c7e285da2c0846521c8ae8d80feeae5504e0c981d53f5fa",
+        "ref-lgp-key-b1211b244051d91c504a84830a4b36d4eab849edefaeba88c91b9b18b2c531ac",
+        "ref-lgp-key-e6845188b1d2aebdf19d13c1613d7a49b5806a7fe336ec775fa182b36719bbc1"
+      ]
+    }
+  ],
+  "number_bindings": [
+    {
+      "role": "declared_limits_count",
+      "value": 4
+    },
+    {
+      "role": "measurement_units_count",
+      "value": 3
+    },
+    {
+      "role": "guidance_associations_count",
+      "value": 4
+    },
+    {
+      "role": "guidance_surfaces_count",
+      "value": 1
+    },
+    {
+      "role": "policy_keys_count",
+      "value": 4
+    }
+  ],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": []
+}

@@ -3,133 +3,193 @@
   "packs": [
     {
       "profile_id": "proof.atomicity.failure-boundary",
-      "profile_version": "1.0.0",
-      "path": "profiles/proof.atomicity.failure-boundary/1.0.0"
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.atomicity.failure-boundary/2.0.0"
+    },
+    {
+      "profile_id": "proof.authentication.direct-source-provenance",
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.authentication.direct-source-provenance/2.0.0"
     },
     {
       "profile_id": "proof.authorization.failed-attempt-nonconsumption",
-      "profile_version": "1.0.0",
-      "path": "profiles/proof.authorization.failed-attempt-nonconsumption/1.0.0"
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.authorization.failed-attempt-nonconsumption/2.0.0"
     },
     {
       "profile_id": "proof.authorization.refusal-before-effects",
-      "profile_version": "1.0.0",
-      "path": "profiles/proof.authorization.refusal-before-effects/1.0.0"
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.authorization.refusal-before-effects/2.0.0"
     },
     {
       "profile_id": "proof.authorization.revocation-propagation",
-      "profile_version": "1.0.0",
-      "path": "profiles/proof.authorization.revocation-propagation/1.0.0"
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.authorization.revocation-propagation/2.0.0"
     },
     {
       "profile_id": "proof.cancellation.isolation",
-      "profile_version": "1.0.0",
-      "path": "profiles/proof.cancellation.isolation/1.0.0"
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.cancellation.isolation/2.0.0"
     },
     {
       "profile_id": "proof.compatibility.behavioral-preservation",
-      "profile_version": "1.0.0",
-      "path": "profiles/proof.compatibility.behavioral-preservation/1.0.0"
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.compatibility.behavioral-preservation/2.0.0"
     },
     {
       "profile_id": "proof.completeness.lossless-projection",
-      "profile_version": "1.0.0",
-      "path": "profiles/proof.completeness.lossless-projection/1.0.0"
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.completeness.lossless-projection/2.0.0"
     },
     {
       "profile_id": "proof.concurrency.single-winner-effect",
-      "profile_version": "1.0.0",
-      "path": "profiles/proof.concurrency.single-winner-effect/1.0.0"
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.concurrency.single-winner-effect/2.0.0"
     },
     {
       "profile_id": "proof.design.implementation-readiness",
-      "profile_version": "1.0.0",
-      "path": "profiles/proof.design.implementation-readiness/1.0.0"
+      "profile_version": "2.1.0",
+      "path": "profiles/proof.design.implementation-readiness/2.1.0"
     },
     {
       "profile_id": "proof.dormancy.nonactivation",
-      "profile_version": "1.0.0",
-      "path": "profiles/proof.dormancy.nonactivation/1.0.0"
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.dormancy.nonactivation/2.0.0"
     },
     {
       "profile_id": "proof.failure.cleanup-noninterference",
-      "profile_version": "1.0.0",
-      "path": "profiles/proof.failure.cleanup-noninterference/1.0.0"
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.failure.cleanup-noninterference/2.0.0"
     },
     {
       "profile_id": "proof.failure.retry-convergence",
-      "profile_version": "1.0.0",
-      "path": "profiles/proof.failure.retry-convergence/1.0.0"
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.failure.retry-convergence/2.0.0"
     },
     {
       "profile_id": "proof.failure.settlement-and-cleanup",
-      "profile_version": "1.0.0",
-      "path": "profiles/proof.failure.settlement-and-cleanup/1.0.0"
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.failure.settlement-and-cleanup/2.0.0"
+    },
+    {
+      "profile_id": "proof.failure.supplementary-isolation",
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.failure.supplementary-isolation/2.0.0"
     },
     {
       "profile_id": "proof.idempotency.effect-nonduplication",
+      "profile_version": "3.0.0",
+      "path": "profiles/proof.idempotency.effect-nonduplication/3.0.0"
+    },
+    {
+      "profile_id": "proof.input.caller-authority-confinement",
       "profile_version": "2.0.0",
-      "path": "profiles/proof.idempotency.effect-nonduplication/2.0.0"
+      "path": "profiles/proof.input.caller-authority-confinement/2.0.0"
     },
     {
       "profile_id": "proof.integration.prefix-safety",
-      "profile_version": "1.0.0",
-      "path": "profiles/proof.integration.prefix-safety/1.0.0"
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.integration.prefix-safety/2.0.0"
     },
     {
       "profile_id": "proof.lifecycle.bounded-state-stability",
-      "profile_version": "1.0.0",
-      "path": "profiles/proof.lifecycle.bounded-state-stability/1.0.0"
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.lifecycle.bounded-state-stability/2.0.0"
     },
     {
       "profile_id": "proof.lifecycle.bounded-terminal-stability",
-      "profile_version": "1.0.0",
-      "path": "profiles/proof.lifecycle.bounded-terminal-stability/1.0.0"
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.lifecycle.bounded-terminal-stability/2.0.0"
+    },
+    {
+      "profile_id": "proof.observation.sound-negative",
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.observation.sound-negative/2.0.0"
+    },
+    {
+      "profile_id": "proof.operation.forbidden-noninvocation",
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.operation.forbidden-noninvocation/2.0.0"
+    },
+    {
+      "profile_id": "proof.ordering.lexicographic-conformance",
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.ordering.lexicographic-conformance/2.0.0"
     },
     {
       "profile_id": "proof.ordering.visibility-after-durable-settlement",
-      "profile_version": "1.0.0",
-      "path": "profiles/proof.ordering.visibility-after-durable-settlement/1.0.0"
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.ordering.visibility-after-durable-settlement/2.0.0"
     },
     {
       "profile_id": "proof.ownership.exact-isolation",
-      "profile_version": "1.0.0",
-      "path": "profiles/proof.ownership.exact-isolation/1.0.0"
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.ownership.exact-isolation/2.0.0"
     },
     {
       "profile_id": "proof.ownership.fenced-handoff",
-      "profile_version": "1.0.0",
-      "path": "profiles/proof.ownership.fenced-handoff/1.0.0"
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.ownership.fenced-handoff/2.0.0"
+    },
+    {
+      "profile_id": "proof.pagination.complete-traversal",
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.pagination.complete-traversal/2.0.0"
+    },
+    {
+      "profile_id": "proof.pagination.snapshot-consistency",
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.pagination.snapshot-consistency/2.0.0"
+    },
+    {
+      "profile_id": "proof.pagination.versioned-cursor-refusal",
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.pagination.versioned-cursor-refusal/2.0.0"
+    },
+    {
+      "profile_id": "proof.policy.declared-boundary-record-consistency",
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.policy.declared-boundary-record-consistency/2.0.0"
+    },
+    {
+      "profile_id": "proof.policy.declared-limit-propagation",
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.policy.declared-limit-propagation/2.0.0"
     },
     {
       "profile_id": "proof.readiness.before-success",
-      "profile_version": "1.0.0",
-      "path": "profiles/proof.readiness.before-success/1.0.0"
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.readiness.before-success/2.0.0"
     },
     {
       "profile_id": "proof.result-shape.conformance",
-      "profile_version": "1.0.0",
-      "path": "profiles/proof.result-shape.conformance/1.0.0"
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.result-shape.conformance/2.0.0"
     },
     {
       "profile_id": "proof.result-shape.cross-representation-parity",
-      "profile_version": "1.0.0",
-      "path": "profiles/proof.result-shape.cross-representation-parity/1.0.0"
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.result-shape.cross-representation-parity/2.0.0"
     },
     {
       "profile_id": "proof.scope.write-confinement",
-      "profile_version": "1.0.0",
-      "path": "profiles/proof.scope.write-confinement/1.0.0"
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.scope.write-confinement/2.0.0"
     },
     {
       "profile_id": "proof.single-use.replay-refusal",
-      "profile_version": "1.0.0",
-      "path": "profiles/proof.single-use.replay-refusal/1.0.0"
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.single-use.replay-refusal/2.0.0"
     },
     {
       "profile_id": "proof.state.bounded-interval-nonmutation",
-      "profile_version": "1.0.0",
-      "path": "profiles/proof.state.bounded-interval-nonmutation/1.0.0"
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.state.bounded-interval-nonmutation/2.0.0"
+    },
+    {
+      "profile_id": "proof.verification.test-validity",
+      "profile_version": "2.0.0",
+      "path": "profiles/proof.verification.test-validity/2.0.0"
     }
   ]
 }

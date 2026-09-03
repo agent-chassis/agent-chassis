@@ -1,0 +1,26 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v1",
+  "profile_id": "proof.scope.write-confinement",
+  "profile_version": "2.0.0",
+  "profile_digest": "08d1458f24afc9b2d66fb8d69ad6e2a9b6d5a89011835e295a0ddec90a7ae813",
+  "guarantee": "For one declared execution, every member of the caller-declared observed mutation population belongs to the caller-declared authorized target population; both populations are bound as complete with respect to those caller declarations, the execution is linked to the observed population, and one verification reads the execution and both populations, verifies the subset behavior, and carries the controlled not-subset falsifier.",
+  "guarantee_digest": "d9c43a7ea270def76b5255705d0dbf7285b0a93343fdfa5e80c8cb0ebfb07134",
+  "explicit_exclusions": [
+    "authorized-population-authenticity-and-completeness",
+    "causal-attribution-of-mutations-to-execution",
+    "exact-binding-or-launcher-owned-observation",
+    "observation-completeness-beyond-caller-declaration",
+    "prevention-or-rollback-of-unauthorized-mutation",
+    "runtime-target-existence-or-truth",
+    "snapshot-producer-provenance",
+    "undiscovered-transient-reverted-or-concurrent-mutations"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "36f068cd5d8037f1f7e4f89615d8d92c09bc281ca16e20fcae8d4b10ce4e7ab3",
+    "adequacy_result_digest": "005ccb43e70436f687bea9133ede990aca4b297c61191d2a432f2eb4e83a98f1",
+    "executable_control_count": 38,
+    "negative_fixture_count": 3,
+    "coverage_witness_count": 36
+  }
+}

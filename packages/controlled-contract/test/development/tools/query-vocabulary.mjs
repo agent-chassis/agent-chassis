@@ -8,7 +8,7 @@ import {
   buildAdvisoryVocabularyView,
   describeVocabularyTerms,
   searchVocabulary
-} from "../../../lib/vocabulary-v034.mjs";
+} from "../../../lib/vocabulary-v1.mjs";
 
 const TOOL_VERSION = "controlled-vocabulary-query.experimental.v0.1";
 const VALID_KINDS = new Set([

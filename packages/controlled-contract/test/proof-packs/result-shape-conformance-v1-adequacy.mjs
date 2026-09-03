@@ -1,5 +1,5 @@
 import { PROOF_PACK_ADEQUACY_RUN_VERSION } from "../support/proof-pack-adequacy-constants.mjs";
-import { evaluateVerificationProfileV034 } from "../../lib/verification-profile-v034.mjs";
+import { evaluateStableProofPackFixtureV1 } from "../support/stable-v1-proof-pack-runtime.mjs";
 import {
   RESULT_SHAPE_CONFORMANCE_V1_PROFILE,
   buildResultShapeConformanceFixture,
@@ -14,7 +14,7 @@ import {
 } from "./result-shape-conformance-v1-harness.mjs";
 
 const RESULT_SHAPE_CONFORMANCE_V1_PROFILE_DIGEST =
-  "6f93c19165daf4194aedbe6a376b1e55165f918baf4f29593a32ba9672655f11";
+  "cd8215cefb6f89bffb879b7cdc446c247b534a261e480d612c02c302ccbf572a";
 const RESULT_SHAPE_CONFORMANCE_V1_GUARANTEE_DIGEST =
   "77dd35821e275dadeb0b82724b51343668e1b595860742aea18e6c3570f85e46";
 
@@ -24,7 +24,7 @@ const shapeReferenceId = (shape) =>
   `ref-shape-${shape.replaceAll(/[^a-zA-Z0-9-]/gu, "-")}`;
 
 function evaluateFixture({ contract, input, profile }) {
-  return evaluateVerificationProfileV034({
+  return evaluateStableProofPackFixtureV1({
     contract,
     profile,
     evaluation_input: input

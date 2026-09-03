@@ -11,7 +11,16 @@ import {
 
 export {
   STDIO_MCP_CONDUIT_ERROR_CODES,
+  STDIO_MCP_LIFECYCLE_EVENT_CLASSES,
+  STDIO_MCP_LIFECYCLE_FAILURE_REASONS,
+  STDIO_MCP_LIFECYCLE_PHASES,
+  STDIO_MCP_LIFECYCLE_VALIDATION_RULES,
   StdioMcpConduitError,
+  controlledLifecycleEventClass,
+  controlledLifecycleFailureReason,
+  controlledLifecyclePhase,
+  controlledLifecycleProtocolGeneration,
+  controlledLifecycleValidationRule,
   failStdioMcpConduit
 } from "./stdio-mcp-conduit-errors.mjs";
 export {
@@ -43,7 +52,7 @@ export {
 export const STDIO_MCP_CONDUIT_SCHEMA_VERSION = "launcher-stdio-mcp-conduit.v1";
 
 export const STDIO_MCP_LIFECYCLE_PROTOCOL_GENERATION =
-  "stdio-mcp-conduit-lifecycle-vocabulary.v1";
+  "stdio-mcp-conduit-lifecycle-vocabulary.v2";
 export const STDIO_MCP_LIFECYCLE_PROTOCOL_RECOVERY =
   "deploy one coherent build and restart the long-lived backend";
 

@@ -26,11 +26,23 @@ import {
   isValidPublishedAt,
   isValidStoredTuple,
   managedRunProcessIdentityStoreDir,
+  publishAttemptJournalEvents,
+  readAttemptJournalEvents,
   readManagedRunProcessIdentity,
   replaceAtomically,
   serializeRecord,
+  withAttemptPartitionLock,
   writeExclusive
 } from "./managed-run-process-identity-store.mjs";
+
+import {
+  ATTEMPT_EVENT_KINDS,
+  ATTEMPT_EXECUTION_LIVENESS,
+  ATTEMPT_NEXT_COMMANDS,
+  admitAttemptCommand,
+  reduceAttemptJournal,
+  sameAttempt as sameAttemptTuple
+} from "@agent-chassis/agent-launch-core";
 
 import {
   assessManagedRunProcessIdentityRecord,
@@ -97,255 +109,182 @@ function readReservation(filePath) {
   return parsed === null ? { unreadable: true, errno: null } : parsed;
 }
 
-function parseSuccessorGuardBody(body) {
-  let parsed;
-  try {
-    parsed = JSON.parse(body);
-  } catch {
-    return null;
+function retireAndReserveSuccessorViaJournal({
+  mainRepo, subject, role, priorTuple, reason, evidence, deps, liveness
+}) {
+  if (typeof role !== "string" || role.length === 0) {
+    fail(
+      MANAGED_RUN_PROCESS_IDENTITY_CODES.INVALID_ARG,
+      "a successor reservation requires a non-empty role"
+    );
   }
-  if (!hasExactKeys(parsed, SUCCESSOR_GUARD_KEYS)) return null;
-  if (parsed.schema_version !== MANAGED_RUN_SUBJECT_SUCCESSOR_GUARD_SCHEMA_VERSION) return null;
-  if (typeof parsed.subject !== "string" || parsed.subject.length === 0) return null;
-  if (typeof parsed.guard_id !== "string" || parsed.guard_id.length === 0) return null;
-  if (!isValidProcessIdentity(parsed.owner_launcher)) return null;
-  if (!isValidPublishedAt(parsed.acquired_at)) return null;
-  return parsed;
-}
-
-function readSuccessorGuard(guardPath) {
-  let body;
-  try {
-    body = readFileSync(guardPath, "utf8");
-  } catch (err) {
-    if (err && err.code === "ENOENT") return null;
-    return { unreadable: true, errno: err?.code ?? null };
-  }
-  const parsed = parseSuccessorGuardBody(body);
-  return parsed === null ? { unreadable: true, errno: null } : parsed;
-}
-
-function releaseSuccessorGuard(guardPath, guardId) {
-  const held = readSuccessorGuard(guardPath);
-  if (held === null) return Object.freeze({ released: false, reason: "absent" });
-  if (held.unreadable === true) return Object.freeze({ released: false, reason: "unreadable" });
-  if (held.guard_id !== guardId) {
-    return Object.freeze({ released: false, reason: "held_by_another_launcher" });
-  }
-  try {
-    unlinkSync(guardPath);
-  } catch (error) {
-    if (error?.code === "ENOENT") return Object.freeze({ released: false, reason: "absent" });
-    throw error;
-  }
-  return Object.freeze({ released: true, reason: "guard_id" });
-}
-
-function successorGuardIsProvablyAbandoned({ held, deps }) {
-  let owner;
-  try {
-    owner = assessLiveness(held.owner_launcher, deps);
-  } catch {
-    return { abandoned: false, verdict: MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.UNREADABLE };
-  }
-  if (owner.state === "dead") {
-    return { abandoned: true, verdict: MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.ABSENT };
-  }
-  return {
-    abandoned: false,
-    verdict: owner.state === "alive"
-      ? MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.LIVE
-      : MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.UNRESOLVED
-  };
-}
-
-function acquireSuccessorGuard({ guardPath, subject, deps }) {
+  const repository = journalRepositoryFor(mainRepo);
   let ownerIdentity;
-  let acquiredAt;
+  let reservedAt;
   try {
     ownerIdentity = captureProcessIdentity(process.pid, deps);
-    acquiredAt = readSystemMonotonic(deps);
+    reservedAt = readSystemMonotonic(deps);
   } catch (error) {
     fail(
       MANAGED_RUN_PROCESS_IDENTITY_CODES.IDENTITY_CAPTURE_FAILED,
-      "cannot capture the successor guard owner identity; refusing to reserve (fail closed)",
+      "cannot capture the successor owner identity; refusing to reserve (fail closed)",
       { source_code: error?.code ?? null },
       error
     );
   }
-  const guard = {
-    schema_version: MANAGED_RUN_SUBJECT_SUCCESSOR_GUARD_SCHEMA_VERSION,
-    subject,
-    guard_id: randomUUID(),
-    owner_launcher: {
-      pid: ownerIdentity.pid,
-      starttime: ownerIdentity.starttime,
-      boot_id: ownerIdentity.boot_id
-    },
-    acquired_at: { uptime: acquiredAt.uptime, boot_id: acquiredAt.boot_id }
-  };
-  const contended = (verdict, reason) => Object.freeze({ acquired: false, verdict, reason });
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      writeExclusive(guardPath, serializeRecord(guard));
-      return Object.freeze({ acquired: true, guard: Object.freeze(guard) });
-    } catch (error) {
-      if (error?.code !== MANAGED_RUN_PROCESS_IDENTITY_CODES.STORE_COLLISION) throw error;
-      if (attempt === 1) {
-        return contended(
-          MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.RESERVED,
-          "another launcher is reserving a successor for this unit"
-        );
-      }
-      const held = readSuccessorGuard(guardPath);
-      if (held === null) continue;
-      if (held.unreadable === true) {
-        return contended(
-          MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.UNREADABLE,
-          "the managed-run subject successor guard exists but could not be read as a valid guard"
-        );
-      }
-      const abandonment = successorGuardIsProvablyAbandoned({ held, deps });
-      if (!abandonment.abandoned) {
-        return contended(
-          abandonment.verdict === MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.UNREADABLE
-            ? MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.UNREADABLE
-            : MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.RESERVED,
-          "another launcher holds the managed-run subject successor guard for this unit"
-        );
-      }
-      releaseSuccessorGuard(guardPath, held.guard_id);
+
+  const locked = withAttemptPartitionLock({ mainRepo, repository, subject }, () => {
+    const read = readAttemptJournalEvents({ mainRepo, repository, subject });
+    if (read.refusal !== null) {
+      return {
+        retired: false, may_launch: false,
+        verdict: MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.UNREADABLE,
+        reason: "the managed-run attempt journal for this subject could not be read as a valid sequence",
+        subject, reservation: null
+      };
     }
-  }
-  return contended(
-    MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.RESERVED,
-    "the managed-run subject successor guard could not be acquired"
-  );
-}
-
-function reserveSuccessorForProvenDeadNoDeliverySet({ mainRepo, subject, role, provenDeadSet, deps }) {
-  if (typeof subject !== "string" || subject.length === 0 ||
-      typeof role !== "string" || role.length === 0) {
-    fail(
-      MANAGED_RUN_PROCESS_IDENTITY_CODES.INVALID_ARG,
-      "a proven-dead no-delivery successor requires the exact subject and a non-empty role"
-    );
-  }
-  if (!Array.isArray(provenDeadSet) || provenDeadSet.length === 0) {
-    fail(
-      MANAGED_RUN_PROCESS_IDENTITY_CODES.INVALID_ARG,
-      "a proven-dead no-delivery successor requires a non-empty proven-dead set"
-    );
-  }
-  for (const member of provenDeadSet) {
-    const memberTuple = normalizeManagedRunIdentityTuple(member?.tuple);
-    if (memberTuple.assigned_unit !== subject) {
-      fail(
-        MANAGED_RUN_PROCESS_IDENTITY_CODES.INVALID_ARG,
-        "every proven-dead attempt in the set must name the exact subject"
-      );
+    let events = read.events;
+    const reduced = reduceAttemptJournal({ repository, subject, events, liveness });
+    if (reduced.refusal !== null) {
+      return {
+        retired: false, may_launch: false,
+        verdict: MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.UNREADABLE,
+        reason: "the managed-run attempt journal for this subject could not be reduced",
+        subject, reservation: null
+      };
     }
-  }
-  const filePath = managedRunSubjectReservationFilePath(mainRepo, subject);
 
-  const guardPath = managedRunSubjectSuccessorGuardFilePath(mainRepo, subject);
-  const reservedRefusal = (reason) => Object.freeze({
-    retired: false,
-    may_launch: false,
-    verdict: MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.RESERVED,
-    reason,
-    subject,
-    reservation: null
-  });
-  const guard = acquireSuccessorGuard({ guardPath, subject, deps });
-  if (guard.acquired !== true) {
-    return Object.freeze({
-      retired: false,
-      may_launch: false,
-      verdict: guard.verdict,
-      reason: guard.reason,
-      subject,
-      reservation: null
-    });
-  }
-  try {
+    let retired = false;
+    if (reduced.reservation.held === true) {
+      const holder = reduced.reservation.holder;
 
-    const held = readReservation(filePath);
-    if (held !== null) {
-      if (held.unreadable === true) {
-        return Object.freeze({
-          retired: false,
-          may_launch: false,
-          verdict: MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.UNREADABLE,
-          reason: "the managed-run subject reservation exists but could not be read",
-          subject,
-          reservation: null
+      if (priorTuple === null) {
+        const ownerVerdict = holderOwnerVerdict(events, reduced, deps);
+        if (ownerVerdict !== MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.ABSENT) {
+          return {
+            retired: false, may_launch: false,
+            verdict: ownerVerdict === MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.LIVE
+              ? MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.RESERVED
+              : ownerVerdict,
+            reason: "the current subject reservation owner is not authenticated dead",
+            subject, reservation: null
+          };
+        }
+      }
+
+      if (priorTuple !== null) {
+        const bound = resolveDispatchTupleFor(events, holder);
+        const matches = bound !== null &&
+          sameAttemptTuple(normalizeManagedRunIdentityTuple(bound), normalizeManagedRunIdentityTuple(priorTuple));
+        if (!matches) {
+          return {
+            retired: false, may_launch: false,
+            verdict: MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.MISMATCHED,
+            reason: "the exact prior attempt does not own the subject reservation",
+            subject, reservation: null
+          };
+        }
+      }
+      const step = (kind, payload) => {
+        const admitted = admitAttemptCommand({
+          repository, subject, events, attempt: holder, kind, payload, liveness
         });
+        if (admitted.admitted !== true) return admitted.refusal;
+        events = admitted.events;
+        return null;
+      };
+      if (reduced.current_attempt.terminal !== true) {
+        const refusal = step(ATTEMPT_EVENT_KINDS.ATTEMPT_TERMINAL, { reason, evidence: evidence ?? null });
+        if (refusal !== null) {
+          return {
+            retired: false, may_launch: false,
+            verdict: MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.LIVE,
+            reason: "the prior attempt is not terminal and retains its reservation without exact release proof",
+            subject, reservation: null, refusal: refusal.code
+          };
+        }
       }
-      const abandonment = reservationIsProvablyAbandoned({ mainRepo, held, deps });
-      if (!abandonment.abandoned) {
-        return reservedRefusal("a managed-run subject reservation already designates an attempt for this unit");
+      const releaseRefusal = step(ATTEMPT_EVENT_KINDS.RESERVATION_RELEASED, {});
+      if (releaseRefusal !== null) {
+        return {
+          retired: false, may_launch: false,
+          verdict: MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.LIVE,
+          reason: "the prior attempt retains its reservation without exact release proof",
+          subject, reservation: null, refusal: releaseRefusal.code
+        };
       }
 
-      try {
-        unlinkSync(filePath);
-      } catch (error) {
-        if (error?.code !== "ENOENT") throw error;
+      const bound = resolveDispatchTupleFor(events, holder);
+      if (bound !== null) {
+        const retirement = retireManagedRunProcessIdentity({
+          mainRepo, tuple: normalizeManagedRunIdentityTuple(bound), reason, evidence, deps
+        });
+        if (retirement.retired !== true) {
+          return { ...retirement, may_launch: false, subject, reservation: null };
+        }
       }
+      retired = true;
     }
-    let ownerIdentity;
-    let reservedAt;
-    try {
-      ownerIdentity = captureProcessIdentity(process.pid, deps);
-      reservedAt = readSystemMonotonic(deps);
-    } catch (error) {
-      fail(
-        MANAGED_RUN_PROCESS_IDENTITY_CODES.IDENTITY_CAPTURE_FAILED,
-        "cannot capture the proven-dead no-delivery successor launcher identity",
-        { source_code: error?.code ?? null },
-        error
-      );
-    }
-    const successor = {
-      schema_version: MANAGED_RUN_SUBJECT_RESERVATION_SCHEMA_VERSION,
-      subject,
-      reservation_id: randomUUID(),
-      role,
-      owner_launcher: {
-        pid: ownerIdentity.pid,
-        starttime: ownerIdentity.starttime,
-        boot_id: ownerIdentity.boot_id
+
+    const reservationId = randomUUID();
+    const attempt = reservationAttemptTuple(subject, reservationId);
+    const frozen = frozenFactsFor({ reservationId });
+    const claimed = admitAttemptCommand({
+      repository, subject, events, attempt,
+      kind: ATTEMPT_EVENT_KINDS.RESERVATION_CLAIMED,
+      payload: {
+        role,
+        successor_reason: reason ?? null,
+        owner_launcher: {
+          pid: ownerIdentity.pid, starttime: ownerIdentity.starttime, boot_id: ownerIdentity.boot_id
+        },
+        reserved_at: { uptime: reservedAt.uptime, boot_id: reservedAt.boot_id }
       },
-      reserved_at: { uptime: reservedAt.uptime, boot_id: reservedAt.boot_id },
-      tuple: null
-    };
-    try {
-      writeExclusive(filePath, serializeRecord(successor));
-    } catch (error) {
-      if (error?.code === MANAGED_RUN_PROCESS_IDENTITY_CODES.STORE_COLLISION) {
-        return reservedRefusal("another launcher won the successor reservation for this unit");
-      }
-      throw error;
+      generationDigest: frozen.generationDigest,
+      wkTip: frozen.wkTip,
+      liveness
+    });
+    if (claimed.admitted !== true) {
+      return {
+        retired: false, may_launch: false,
+        verdict: MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.RESERVED,
+        reason: "the successor reservation could not be claimed for this unit",
+        subject, reservation: null
+      };
     }
-    const readBack = readReservation(filePath);
-    if (readBack === null || readBack.unreadable === true ||
-        readBack.reservation_id !== successor.reservation_id || readBack.tuple !== null) {
-      fail(
-        MANAGED_RUN_PROCESS_IDENTITY_CODES.RESERVATION_UNREADABLE,
-        "the proven-dead no-delivery successor reservation did not round-trip"
-      );
-    }
-    return Object.freeze({
-      retired: false,
+
+    publishAttemptJournalEvents({ mainRepo, repository, subject, events: claimed.events });
+    return {
+      retired,
       may_launch: true,
       verdict: MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.ABSENT,
-      reason: "the complete proven-dead no-delivery set was mechanically superseded by a fresh successor reservation",
+      reason: "a successor reservation was established for this unit",
       subject,
-      reservation: Object.freeze({ ...successor, file_path: filePath })
+      reservation: Object.freeze({
+        schema_version: MANAGED_RUN_SUBJECT_RESERVATION_SCHEMA_VERSION,
+        subject,
+        reservation_id: reservationId,
+        role,
+        owner_launcher: {
+          pid: ownerIdentity.pid, starttime: ownerIdentity.starttime, boot_id: ownerIdentity.boot_id
+        },
+        reserved_at: { uptime: reservedAt.uptime, boot_id: reservedAt.boot_id },
+        tuple: null,
+        attempt,
+        file_path: managedRunSubjectReservationFilePath(mainRepo, subject)
+      })
+    };
+  });
+
+  if (locked.acquired !== true) {
+    return Object.freeze({
+      retired: false, may_launch: false,
+      verdict: MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.RESERVED,
+      reason: "another launcher is reserving a successor for this unit",
+      subject, reservation: null
     });
-  } finally {
-    releaseSuccessorGuard(guardPath, guard.guard.guard_id);
   }
+  return Object.freeze(locked.result);
 }
 
 export function retireProvenDeadAndReserveSuccessor({
@@ -355,13 +294,14 @@ export function retireProvenDeadAndReserveSuccessor({
   role,
   reason,
   evidence,
-
   provenDeadSet = null,
-  deps = defaultLivenessDeps
+  deps = defaultLivenessDeps,
+  liveness = ATTEMPT_EXECUTION_LIVENESS.INDETERMINATE
 } = {}) {
-
   if (provenDeadSet !== null) {
-    return reserveSuccessorForProvenDeadNoDeliverySet({ mainRepo, subject, role, provenDeadSet, deps });
+    return retireAndReserveSuccessorViaJournal({
+      mainRepo, subject, role, priorTuple: null, reason, evidence, deps, liveness
+    });
   }
   const normalized = normalizeManagedRunIdentityTuple(tuple);
   if (normalized.assigned_unit !== subject || typeof role !== "string" || role.length === 0) {
@@ -370,110 +310,9 @@ export function retireProvenDeadAndReserveSuccessor({
       "a proven-dead successor requires the exact prior subject and a non-empty role"
     );
   }
-  const filePath = managedRunSubjectReservationFilePath(mainRepo, subject);
-
-  const guardPath = managedRunSubjectSuccessorGuardFilePath(mainRepo, subject);
-  const guard = acquireSuccessorGuard({ guardPath, subject, deps });
-  if (guard.acquired !== true) {
-    return Object.freeze({
-      retired: false,
-      may_launch: false,
-      verdict: guard.verdict,
-      reason: guard.reason,
-      subject,
-      reservation: null
-    });
-  }
-
-  try {
-    const held = readReservation(filePath);
-    if (held === null || held.unreadable === true || held.subject !== subject ||
-        held.tuple === null || !sameTuple(held.tuple, normalized)) {
-      return Object.freeze({
-        retired: false,
-        may_launch: false,
-        verdict: held?.unreadable === true
-          ? MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.UNREADABLE
-          : MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.MISMATCHED,
-        reason: "the exact prior attempt does not own the subject reservation",
-        subject,
-        reservation: null
-      });
-    }
-
-    let ownerIdentity;
-    let reservedAt;
-    try {
-      ownerIdentity = captureProcessIdentity(process.pid, deps);
-      reservedAt = readSystemMonotonic(deps);
-    } catch (error) {
-      fail(
-        MANAGED_RUN_PROCESS_IDENTITY_CODES.IDENTITY_CAPTURE_FAILED,
-        "cannot capture the corrective successor launcher identity",
-        { source_code: error?.code ?? null },
-        error
-      );
-    }
-    const successor = {
-      schema_version: MANAGED_RUN_SUBJECT_RESERVATION_SCHEMA_VERSION,
-      subject,
-      reservation_id: randomUUID(),
-      role,
-      owner_launcher: {
-        pid: ownerIdentity.pid,
-        starttime: ownerIdentity.starttime,
-        boot_id: ownerIdentity.boot_id
-      },
-      reserved_at: { uptime: reservedAt.uptime, boot_id: reservedAt.boot_id },
-      tuple: null
-    };
-
-    const retirement = retireManagedRunProcessIdentity({
-      mainRepo,
-      tuple: normalized,
-      reason,
-      evidence,
-      deps
-    });
-    if (retirement.retired !== true) {
-      return Object.freeze({
-        ...retirement,
-        may_launch: false,
-        subject,
-        reservation: null
-      });
-    }
-
-    const current = readReservation(filePath);
-    if (current === null || current.unreadable === true || current.subject !== subject ||
-        current.reservation_id !== held.reservation_id || current.tuple === null ||
-        !sameTuple(current.tuple, normalized)) {
-      fail(
-        MANAGED_RUN_PROCESS_IDENTITY_CODES.RESERVATION_UNREADABLE,
-        "the prior reservation changed before successor publication",
-        { subject }
-      );
-    }
-    replaceAtomically(filePath, serializeRecord(successor));
-    const readBack = readReservation(filePath);
-    if (readBack === null || readBack.unreadable === true ||
-        readBack.reservation_id !== successor.reservation_id || readBack.tuple !== null) {
-      fail(
-        MANAGED_RUN_PROCESS_IDENTITY_CODES.RESERVATION_UNREADABLE,
-        "the successor reservation did not round-trip"
-      );
-    }
-    return Object.freeze({
-      retired: true,
-      may_launch: true,
-      verdict: MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.ABSENT,
-      reason: "the exact prior attempt was mechanically superseded",
-      subject,
-      reservation: Object.freeze({ ...successor, file_path: filePath })
-    });
-  } finally {
-    releaseSuccessorGuard(guardPath, guard.guard.guard_id);
-  }
+  return retireAndReserveSuccessorViaJournal({
+    mainRepo, subject, role, priorTuple: normalized, reason, evidence, deps, liveness
+  });
 }
 
 export function retireManagedRunAndReserveCorrectiveSuccessor(args = {}) {
@@ -490,54 +329,182 @@ export function retireNoCommitAndReserveSuccessor(args = {}) {
   });
 }
 
-function reservationIsProvablyAbandoned({ mainRepo, held, deps }) {
-  let owner;
-  try {
-    owner = assessLiveness(held.owner_launcher, deps);
-  } catch {
-    return { abandoned: false, verdict: MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.UNREADABLE };
-  }
-  if (owner.state !== "dead") {
-    return {
-      abandoned: false,
-      verdict: owner.state === "alive"
-        ? MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.LIVE
-        : MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.UNRESOLVED,
-      reason: owner.reason
-    };
-  }
-  if (held.tuple === null) {
+function journalRepositoryFor(mainRepo) {
+  return mainRepo;
+}
 
-    return { abandoned: true, verdict: MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.ABSENT };
+function reservationAttemptTuple(subject, reservationId) {
+  return Object.freeze({
+    assigned_unit: subject,
+    launch_ref: "managed-run-subject-reservation",
+    run_id: reservationId,
+    retry_id: 0
+  });
+}
+
+function frozenFactsFor({ generationDigest = null, wkTip = null, reservationId }) {
+  return {
+    generationDigest: generationDigest ?? `reservation-generation:${reservationId}`,
+    wkTip: wkTip ?? `reservation-tip:${reservationId}`
+  };
+}
+
+function loadJournal(mainRepo, subject) {
+  const repository = journalRepositoryFor(mainRepo);
+  const read = readAttemptJournalEvents({ mainRepo, repository, subject });
+  return { repository, ...read };
+}
+
+function reduceSubject(mainRepo, subject, liveness = ATTEMPT_EXECUTION_LIVENESS.INDETERMINATE) {
+  const { repository, events, refusal } = loadJournal(mainRepo, subject);
+  if (refusal !== null) return { repository, events, refusal, reduced: null };
+  return {
+    repository,
+    events,
+    refusal: null,
+    reduced: reduceAttemptJournal({ repository, subject, events, liveness })
+  };
+}
+
+function submitCommand({ mainRepo, subject, attempt, kind, payload = {}, generationDigest = null, wkTip = null, liveness = ATTEMPT_EXECUTION_LIVENESS.INDETERMINATE }) {
+  const repository = journalRepositoryFor(mainRepo);
+  const locked = withAttemptPartitionLock({ mainRepo, repository, subject }, () => {
+    const read = readAttemptJournalEvents({ mainRepo, repository, subject });
+    if (read.refusal !== null) return { admitted: false, refusal: read.refusal };
+    const admitted = admitAttemptCommand({
+      repository, subject, events: read.events, attempt, kind, payload,
+      generationDigest, wkTip, liveness
+    });
+    if (admitted.admitted !== true) return { admitted: false, refusal: admitted.refusal };
+    publishAttemptJournalEvents({ mainRepo, repository, subject, events: admitted.events });
+    return { admitted: true, refusal: null, event: admitted.event, events: admitted.events };
+  });
+  if (locked.acquired !== true) {
+    return { admitted: false, contended: true, refusal: null };
   }
-  const assessed = assessManagedRunProcessIdentityRecord(
-    readManagedRunProcessIdentity({ mainRepo, tuple: held.tuple }),
-    { expectedTuple: held.tuple, deps }
-  );
-  const settled = assessed.verdict === MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.ABSENT ||
-    assessed.verdict === MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.RETIRED;
-  return { abandoned: settled, verdict: assessed.verdict, reason: assessed.reason };
+  return { ...locked.result, contended: false };
+}
+
+function resolveAttempt({ events, reservationId = null, tuple = null }) {
+  let byReservation = null;
+  let byDispatch = null;
+  for (const event of events) {
+    if (reservationId !== null && event.attempt.run_id === reservationId) byReservation = event.attempt;
+    if (tuple !== null && event.kind === ATTEMPT_EVENT_KINDS.PENDING_PUBLISHED) {
+      const bound = event.payload?.dispatch_tuple ?? null;
+      if (bound !== null && sameAttemptTuple(normalizeManagedRunIdentityTuple(bound), normalizeManagedRunIdentityTuple(tuple))) {
+        byDispatch = event.attempt;
+      }
+    }
+  }
+  return byReservation ?? byDispatch;
+}
+
+const PRE_SPAWN_KINDS = new Set([
+  ATTEMPT_EVENT_KINDS.RESERVATION_CLAIMED,
+  ATTEMPT_EVENT_KINDS.PENDING_PUBLISHED,
+  ATTEMPT_EVENT_KINDS.SUPERVISOR_BOUND
+]);
+
+function holderOwnerVerdict(events, reduced, deps) {
+  const holder = reduced.reservation.holder;
+  const claim = events.find((event) =>
+    event.kind === ATTEMPT_EVENT_KINDS.RESERVATION_CLAIMED && sameAttemptTuple(event.attempt, holder));
+  const owner = claim?.payload?.owner_launcher ?? null;
+  if (owner === null || !isValidProcessIdentity(owner)) {
+    return MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.UNRESOLVED;
+  }
+  try {
+    const verdict = assessLiveness(owner, deps);
+    if (verdict.state === "alive") return MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.LIVE;
+    if (verdict.state === "dead") return MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.ABSENT;
+    return MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.UNRESOLVED;
+  } catch {
+    return MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.UNREADABLE;
+  }
+}
+
+function reclaimAbandonedPreSpawnAttempt({ mainRepo, subject, events, reduced, deps }) {
+  if (reduced.reservation.held !== true) return { reclaimed: false };
+  const holder = reduced.reservation.holder;
+  if (!PRE_SPAWN_KINDS.has(reduced.current_attempt.last_kind)) return { reclaimed: false };
+  const claim = events.find((event) =>
+    event.kind === ATTEMPT_EVENT_KINDS.RESERVATION_CLAIMED && sameAttemptTuple(event.attempt, holder));
+  const owner = claim?.payload?.owner_launcher ?? null;
+  if (owner === null || !isValidProcessIdentity(owner)) return { reclaimed: false };
+  let verdict;
+  try {
+    verdict = assessLiveness(owner, deps);
+  } catch {
+    return { reclaimed: false };
+  }
+  if (verdict.state !== "dead") return { reclaimed: false };
+
+  const terminal = submitCommand({
+    mainRepo, subject, attempt: holder,
+    kind: ATTEMPT_EVENT_KINDS.ATTEMPT_TERMINAL,
+    payload: { reason: "abandoned_before_spawn", owner_verdict: "dead" }
+  });
+  if (terminal.admitted !== true) return { reclaimed: false };
+  const released = submitCommand({
+    mainRepo, subject, attempt: holder,
+    kind: ATTEMPT_EVENT_KINDS.RESERVATION_RELEASED, payload: {}
+  });
+  return { reclaimed: released.admitted === true };
 }
 
 export function acquireManagedRunSubjectReservation({
   mainRepo,
   subject,
   role,
-  deps = defaultLivenessDeps
+  deps = defaultLivenessDeps,
+  generationDigest = null,
+  wkTip = null
 } = {}) {
   if (typeof role !== "string" || role.length === 0) {
     fail(MANAGED_RUN_PROCESS_IDENTITY_CODES.INVALID_ARG, "role must be a non-empty string");
   }
-  const filePath = managedRunSubjectReservationFilePath(mainRepo, subject);
+  const { events, refusal, reduced } = reduceSubject(mainRepo, subject);
+  if (refusal !== null || reduced === null || reduced.refusal !== null) {
 
-  const heldReservation = readReservation(filePath);
-  const currentTuple = heldReservation !== null && heldReservation.unreadable !== true
-    ? (heldReservation.tuple ?? null)
-    : null;
+    return Object.freeze({
+      may_launch: false,
+      verdict: MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.UNREADABLE,
+      reason: "the managed-run attempt journal for this subject could not be read as a valid sequence",
+      subject,
+      reservation: null
+    });
+  }
 
+  const currentTuple = reduced.current_attempt === null
+    ? null
+    : (resolveDispatchTupleFor(events, reduced.current_attempt.attempt) ?? null);
   const priorAttempt = assessPriorManagedAttemptsForSubject({ mainRepo, subject, currentTuple, deps });
   if (priorAttempt.may_launch !== true) {
     return Object.freeze({ ...priorAttempt, reservation: null });
+  }
+  let effective = reduced;
+  if (effective.reservation.held === true) {
+
+    const reclaim = reclaimAbandonedPreSpawnAttempt({ mainRepo, subject, events, reduced: effective, deps });
+    if (reclaim.reclaimed === true) {
+      const rereduced = reduceSubject(mainRepo, subject);
+      if (rereduced.reduced !== null && rereduced.reduced.refusal === null) effective = rereduced.reduced;
+    }
+  }
+  if (effective.reservation.held === true) {
+    return Object.freeze({
+      may_launch: false,
+      verdict: MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.RESERVED,
+      reason: "another launcher holds the managed-run subject reservation for this unit",
+      subject,
+      holder: Object.freeze({
+        reservation_id: effective.reservation.holder.run_id,
+        owner_verdict: holderOwnerVerdict(events, effective, deps),
+        tuple: resolveDispatchTupleFor(events, effective.reservation.holder)
+      }),
+      reservation: null
+    });
   }
   let ownerIdentity;
   let reservedAt;
@@ -552,84 +519,82 @@ export function acquireManagedRunSubjectReservation({
       error
     );
   }
-  const reservation = {
-    schema_version: MANAGED_RUN_SUBJECT_RESERVATION_SCHEMA_VERSION,
-    subject,
-    reservation_id: randomUUID(),
-    role,
-    owner_launcher: {
-      pid: ownerIdentity.pid,
-      starttime: ownerIdentity.starttime,
-      boot_id: ownerIdentity.boot_id
+  const reservationId = randomUUID();
+  const attempt = reservationAttemptTuple(subject, reservationId);
+  const frozen = frozenFactsFor({ generationDigest, wkTip, reservationId });
+  const submitted = submitCommand({
+    mainRepo, subject, attempt,
+    kind: ATTEMPT_EVENT_KINDS.RESERVATION_CLAIMED,
+    payload: {
+      role,
+      owner_launcher: {
+        pid: ownerIdentity.pid,
+        starttime: ownerIdentity.starttime,
+        boot_id: ownerIdentity.boot_id
+      },
+      reserved_at: { uptime: reservedAt.uptime, boot_id: reservedAt.boot_id }
     },
-    reserved_at: { uptime: reservedAt.uptime, boot_id: reservedAt.boot_id },
-    tuple: null
-  };
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      writeExclusive(filePath, serializeRecord(reservation));
-      return Object.freeze({
-        may_launch: true,
-        verdict: MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.ABSENT,
-        reason: "no prior managed attempt is recorded for this unit",
-        subject,
-        reservation: Object.freeze({ ...reservation, file_path: filePath })
-      });
-    } catch (error) {
-      if (error?.code !== MANAGED_RUN_PROCESS_IDENTITY_CODES.STORE_COLLISION || attempt === 1) throw error;
-      const held = readReservation(filePath);
-      if (held === null) continue;
-      if (held.unreadable === true) {
-        return Object.freeze({
-          may_launch: false,
-          verdict: MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.UNREADABLE,
-          reason: "the managed-run subject reservation exists but could not be read as a valid reservation",
-          subject,
-          reservation: null
-        });
-      }
-      const abandonment = reservationIsProvablyAbandoned({ mainRepo, held, deps });
-      if (!abandonment.abandoned) {
-        return Object.freeze({
-          may_launch: false,
-          verdict: MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.RESERVED,
-          reason: "another launcher holds the managed-run subject reservation for this unit",
-          subject,
-          holder: Object.freeze({
-            reservation_id: held.reservation_id,
-            owner_verdict: abandonment.verdict,
-            tuple: held.tuple
-          }),
-          reservation: null
-        });
-      }
-
-      try {
-        unlinkSync(filePath);
-      } catch (err) {
-        if (err && err.code !== "ENOENT") throw err;
-      }
-    }
+    generationDigest: frozen.generationDigest,
+    wkTip: frozen.wkTip
+  });
+  if (submitted.contended === true || submitted.admitted !== true) {
+    return Object.freeze({
+      may_launch: false,
+      verdict: MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.RESERVED,
+      reason: "another launcher holds the managed-run subject reservation for this unit",
+      subject,
+      reservation: null
+    });
   }
-  fail(
-    MANAGED_RUN_PROCESS_IDENTITY_CODES.STORE_COLLISION,
-    "the managed-run subject reservation could not be acquired"
-  );
+  return Object.freeze({
+    may_launch: true,
+    verdict: MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.ABSENT,
+    reason: "no prior managed attempt is recorded for this unit",
+    subject,
+    reservation: Object.freeze({
+      schema_version: MANAGED_RUN_SUBJECT_RESERVATION_SCHEMA_VERSION,
+      subject,
+      reservation_id: reservationId,
+      role,
+      owner_launcher: {
+        pid: ownerIdentity.pid,
+        starttime: ownerIdentity.starttime,
+        boot_id: ownerIdentity.boot_id
+      },
+      reserved_at: { uptime: reservedAt.uptime, boot_id: reservedAt.boot_id },
+      tuple: null,
+      attempt,
+      file_path: managedRunSubjectReservationFilePath(mainRepo, subject)
+    })
+  });
+}
+
+function resolveDispatchTupleFor(events, attempt) {
+  for (const event of events) {
+    if (event.kind !== ATTEMPT_EVENT_KINDS.PENDING_PUBLISHED) continue;
+    if (!sameAttemptTuple(event.attempt, attempt)) continue;
+    const bound = event.payload?.dispatch_tuple ?? null;
+    if (bound !== null) return bound;
+  }
   return null;
 }
 
 export function attachTupleToManagedRunSubjectReservation({ mainRepo, reservation, tuple } = {}) {
   const normalized = normalizeManagedRunIdentityTuple(tuple);
-  const filePath = managedRunSubjectReservationFilePath(mainRepo, reservation?.subject);
-  const held = readReservation(filePath);
-  if (held === null || held.unreadable === true || held.reservation_id !== reservation?.reservation_id) {
+  const subject = reservation?.subject;
+  const attempt = reservation?.attempt ?? reservationAttemptTuple(subject, reservation?.reservation_id);
+  const submitted = submitCommand({
+    mainRepo, subject, attempt,
+    kind: ATTEMPT_EVENT_KINDS.PENDING_PUBLISHED,
+    payload: { dispatch_tuple: { ...normalized } }
+  });
+  if (submitted.admitted !== true) {
     fail(
       MANAGED_RUN_PROCESS_IDENTITY_CODES.RESERVATION_UNREADABLE,
       "the managed-run subject reservation is no longer held by this launcher",
-      { subject: reservation?.subject ?? null }
+      { subject: subject ?? null, refusal: submitted.refusal?.code ?? null }
     );
   }
-  replaceAtomically(filePath, serializeRecord({ ...held, tuple: { ...normalized } }));
   return Object.freeze({ ...reservation, tuple: normalized });
 }
 
@@ -637,30 +602,53 @@ export function releaseManagedRunSubjectReservation({
   mainRepo,
   subject,
   reservationId = null,
-  tuple = null
+  tuple = null,
+  liveness = ATTEMPT_EXECUTION_LIVENESS.INDETERMINATE
 } = {}) {
-  const filePath = managedRunSubjectReservationFilePath(mainRepo, subject);
-  const held = readReservation(filePath);
-  if (held === null) return Object.freeze({ released: false, reason: "absent" });
-  if (held.unreadable === true) {
-    return Object.freeze({ released: false, reason: "unreadable" });
-  }
-  const idMatches = reservationId !== null && held.reservation_id === reservationId;
-  const tupleMatches = tuple !== null && held.tuple !== null &&
-    sameTuple(normalizeManagedRunIdentityTuple(held.tuple), normalizeManagedRunIdentityTuple(tuple));
-  if (!idMatches && !tupleMatches) {
+  const { events, refusal, reduced } = reduceSubject(mainRepo, subject, liveness);
+  if (refusal !== null) return Object.freeze({ released: false, reason: "unreadable" });
+  if (reduced === null || reduced.refusal !== null) return Object.freeze({ released: false, reason: "unreadable" });
+  if (reduced.reservation.held !== true) return Object.freeze({ released: false, reason: "absent" });
+
+  const addressed = resolveAttempt({ events, reservationId, tuple });
+  if (addressed === null || !sameAttemptTuple(addressed, reduced.reservation.holder)) {
     return Object.freeze({ released: false, reason: "held_by_another_attempt" });
   }
-  try {
-    unlinkSync(filePath);
-  } catch (err) {
-    if (err && err.code === "ENOENT") return Object.freeze({ released: false, reason: "absent" });
-    fail(
-      MANAGED_RUN_PROCESS_IDENTITY_CODES.STORE_WRITE_FAILED,
-      `failed to release the managed-run subject reservation: ${filePath}`,
-      { errno: err?.code ?? null },
-      err
-    );
+
+  let working = events;
+  if (reduced.current_attempt.terminal !== true) {
+    const terminal = submitCommand({
+      mainRepo, subject, attempt: addressed,
+      kind: ATTEMPT_EVENT_KINDS.ATTEMPT_TERMINAL,
+      payload: { reason: reservationId !== null ? "reservation_released_by_owner" : "retired_by_tuple" },
+      liveness
+    });
+    if (terminal.admitted !== true) {
+      return Object.freeze({
+        released: false,
+        reason: "retained_without_release_proof",
+        refusal: terminal.refusal?.code ?? null
+      });
+    }
+    working = terminal.events;
   }
-  return Object.freeze({ released: true, reason: idMatches ? "reservation_id" : "tuple" });
+
+  const released = submitCommand({
+    mainRepo, subject, attempt: addressed,
+    kind: ATTEMPT_EVENT_KINDS.RESERVATION_RELEASED,
+    payload: {},
+    liveness
+  });
+  if (released.admitted !== true) {
+    return Object.freeze({
+      released: false,
+      reason: "retained_without_release_proof",
+      refusal: released.refusal?.code ?? null
+    });
+  }
+  return Object.freeze({
+    released: true,
+    reason: reservationId !== null ? "reservation_id" : "tuple",
+    release_proof: released.event.payload.release_proof
+  });
 }

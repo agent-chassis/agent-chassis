@@ -26,14 +26,14 @@ import {
   projectionGuaranteeSatisfied
 } from "./lossless-projection-v1-harness.mjs";
 import {
-  evaluateVerificationProfileV034,
-  validateProfileSchemaV034,
-  validateProfileSemanticsV034
-} from "../../lib/verification-profile-v034.mjs";
+  evaluateStableProofPackFixtureV1,
+  validateProfileSchemaV1,
+  validateProfileSemanticsV1
+} from "../support/stable-v1-proof-pack-runtime.mjs";
 import {
   APPLICABILITY_MODES,
   OPERATORS
-} from "../../lib/vocabulary-v034.mjs";
+} from "../../lib/vocabulary-v1.mjs";
 
 const controlledContractRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)), ".."
@@ -41,7 +41,7 @@ const controlledContractRoot = path.resolve(
 const repositoryRoot = path.resolve(controlledContractRoot, "../../..");
 const packDirectory = path.join(
   controlledContractRoot,
-  "certification/profiles/proof.completeness.lossless-projection/1.0.0"
+  "certification/profiles/proof.completeness.lossless-projection/2.0.0"
 );
 
 async function readJson(name) {
@@ -137,7 +137,7 @@ function profileWithReplacement(profile, pointer, value) {
 }
 
 function evaluatesSatisfied(fixture, profile) {
-  return evaluateVerificationProfileV034({ contract: fixture.contract, profile,
+  return evaluateStableProofPackFixtureV1({ contract: fixture.contract, profile,
     evaluation_input: fixture.input }).satisfaction === "satisfied";
 }
 
@@ -282,8 +282,8 @@ test("every claimed coverage binding rejects canonical and rebounds under its we
           if (descriptor) {
             candidate = nestedAlternatives(profile, descriptor).map((alternative) =>
               profileWithReplacement(profile, descriptor.profile_json_pointer, alternative)
-            ).find((possible) => validateProfileSchemaV034(possible) &&
-              validateProfileSemanticsV034(possible).length === 0 &&
+            ).find((possible) => validateProfileSchemaV1(possible) &&
+              validateProfileSemanticsV1(possible).length === 0 &&
               evaluatesSatisfied(expanded, possible));
             candidate ??= coupledOperatorCandidate(profile, descriptor, expanded);
           } else if (fixtureId === "reference-role-variations-base") {
@@ -314,8 +314,8 @@ test("every claimed coverage binding rejects canonical and rebounds under its we
             }
           }
           assert.ok(candidate, `${surface.surface_id}: profile weakening`);
-          assert.equal(validateProfileSchemaV034(candidate), true, surface.surface_id);
-          assert.deepEqual(validateProfileSemanticsV034(candidate), [], surface.surface_id);
+          assert.equal(validateProfileSchemaV1(candidate), true, surface.surface_id);
+          assert.deepEqual(validateProfileSemanticsV1(candidate), [], surface.surface_id);
           assert.equal(evaluatesSatisfied(expanded, candidate), true,
             `${surface.surface_id}: rebound satisfaction`);
           checked += 1;
@@ -384,7 +384,7 @@ test("concrete identity roles reject caller-invented profile terms", () => {
       tool: { kind: "profile_term", term: "invented-tool" }
     }
   });
-  const result = evaluateVerificationProfileV034({
+  const result = evaluateStableProofPackFixtureV1({
     contract: fixture.contract,
     profile: LOSSLESS_PROJECTION_V1_PROFILE,
     evaluation_input: fixture.input
@@ -402,7 +402,7 @@ test("evaluation is pure and invariant to declaration order", () => {
     profile: LOSSLESS_PROJECTION_V1_PROFILE
   });
   const before = canonicalDigest(fixture);
-  const canonical = evaluateVerificationProfileV034({
+  const canonical = evaluateStableProofPackFixtureV1({
     contract: fixture.contract,
     profile: fixture.profile,
     evaluation_input: fixture.input
@@ -421,7 +421,7 @@ test("evaluation is pure and invariant to declaration order", () => {
     "resolver_facts",
     "delivered_evidence"
   ]) reordered.input[key].reverse();
-  const reorderedResult = evaluateVerificationProfileV034({
+  const reorderedResult = evaluateStableProofPackFixtureV1({
     contract: reordered.contract,
     profile: reordered.profile,
     evaluation_input: reordered.input

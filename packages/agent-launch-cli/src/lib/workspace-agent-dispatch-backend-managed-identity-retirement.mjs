@@ -6,8 +6,10 @@ import {
   bindManagedRunSandboxProcessIdentity,
   deriveOuterSandboxKillShape,
   discardManagedRunProcessIdentity,
+  MANAGED_RUN_PROCESS_IDENTITY_RETIREMENT_REASONS,
   MANAGED_RUN_PROCESS_IDENTITY_VERDICTS,
   publishPendingManagedRunProcessIdentity,
+  readManagedRunProcessIdentity,
   releaseManagedRunSubjectReservation,
   retireManagedRunProcessIdentity
 } from "./managed-run-process-identity.mjs";
@@ -22,7 +24,6 @@ import { resolveCanonicalSliceReviewUnit } from "./backend-scope-authority.mjs";
 export function createManagedRunProvenDeathRetirement(ctx, seam) {
   const {
     worktreeProvisioningConfig,
-    correctiveContinuationProofs,
     managedRunIdentityRoot,
     managedRunIdentityDeps
   } = ctx;
@@ -65,6 +66,7 @@ export function createManagedRunProvenDeathRetirement(ctx, seam) {
       mainRepo: managedRunIdentityRoot,
       subject,
       role: "worker",
+      reason: MANAGED_RUN_PROCESS_IDENTITY_RETIREMENT_REASONS.NO_COMMIT_BASE_EQUAL,
       provenDeadSet,
       ...(managedRunIdentityDeps ? { deps: managedRunIdentityDeps } : {})
     });
@@ -93,17 +95,11 @@ export function createManagedRunProvenDeathRetirement(ctx, seam) {
 
   const releaseManagedRunSubjectReservationForLaunch = managedRunIdentityRoot === null
     ? null
-    : (reservation) => {
-        const retained = correctiveContinuationProofs.get(reservation?.subject) ?? null;
-        if (retained?.reservation_id === reservation?.reservation_id) {
-          correctiveContinuationProofs.delete(reservation.subject);
-        }
-        return releaseManagedRunSubjectReservation({
+    : (reservation) => releaseManagedRunSubjectReservation({
           mainRepo: managedRunIdentityRoot,
           subject: reservation?.subject,
           reservationId: reservation?.reservation_id ?? null
         });
-      };
 
   const publishPendingManagedRunIdentity = managedRunIdentityRoot === null
     ? null
@@ -157,6 +153,51 @@ export function createManagedRunProvenDeathRetirement(ctx, seam) {
     });
   };
 
+  const resolveReviewerAttemptProvenDeath = ({
+    assigned_unit, launch_ref, run_id, reviewer_role: reviewerRole
+  }) => {
+    if (managedRunIdentityRoot === null) {
+      return Object.freeze({ proven_dead: false, verdict: "absent",
+        reason: "this backend composes no durable managed-run identity store" });
+    }
+    const tuple = { assigned_unit, launch_ref, run_id, retry_id: 0 };
+    const record = readManagedRunProcessIdentity({ mainRepo: managedRunIdentityRoot, tuple });
+    if (record === null || record.unreadable === true || record.role !== reviewerRole) {
+      return Object.freeze({
+        proven_dead: false,
+        verdict: record?.unreadable === true ? "unreadable" : record === null ? "absent" : "mismatched",
+        reason: record === null
+          ? "reviewer process identity evidence is absent"
+          : record.unreadable === true
+            ? "reviewer process identity evidence is unreadable"
+            : "reviewer process identity role is mismatched"
+      });
+    }
+    const assessed = assessManagedRunProcessIdentity({
+      mainRepo: managedRunIdentityRoot,
+      tuple,
+      ...(managedRunIdentityDeps ? { deps: managedRunIdentityDeps } : {})
+    });
+    if (assessed.verdict !== MANAGED_RUN_PROCESS_IDENTITY_VERDICTS.PROVEN_DEAD) {
+      return Object.freeze({ ...assessed, proven_dead: false });
+    }
+    return Object.freeze({
+      ...assessed,
+      proven_dead: true,
+      process_evidence: Object.freeze({
+        schema_version: "launcher-reviewer-process-death-evidence.v1",
+        verdict: "proven_dead",
+        role: record.role,
+        tuple: Object.freeze({ ...tuple }),
+        launcher_identity: Object.freeze({ ...record.launcher_identity }),
+        published_at: Object.freeze({ ...record.published_at }),
+        sandbox_identity: Object.freeze({ ...record.sandbox_identity }),
+        kill_shape: Object.freeze({ ...record.kill_shape }),
+        liveness: Object.freeze({ ...assessed.liveness })
+      })
+    });
+  };
+
   const retireManagedWorkerIdentity = ({ assigned_unit, launch_ref, run_id, retry_id, reason, evidence }) => {
     if (managedRunIdentityRoot === null) {
       return Object.freeze({ retired: false, reason: "no durable managed-run identity store" });
@@ -197,6 +238,7 @@ export function createManagedRunProvenDeathRetirement(ctx, seam) {
     publishPendingManagedRunIdentity,
     bindManagedRunOuterIdentity,
     resolveManagedWorkerProvenDeath,
+    resolveReviewerAttemptProvenDeath,
     retireManagedWorkerIdentity
   };
 }

@@ -1,10 +1,10 @@
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { constants } from "node:fs";
+import { lstat, mkdir, open, realpath, stat, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import {
   GENERATED_VIEW_NAMES,
   loadCanonicalState,
-  pathExists,
   resolvePageFacets,
   resolveContractContext
 } from "./wiki.mjs";
@@ -52,7 +52,11 @@ function buildIndexRemediation() {
   return {
     cli: "npm run wiki -- build-search-index --dir <repo-dir>",
     mcp: "workspace_build_search_index",
-    note: "Read-only search consumes an existing lexical index. Use the explicit build-search-index capability to create or refresh `.cache/wiki-search/index.json`."
+    note:
+      "Persisting `.cache/wiki-search/index.json` is an optional operator optimization, not a prerequisite for " +
+      "read-only search: when no index exists, read-only search builds the repository's complete corpus in memory " +
+      "and serves the query in the same call. Use the explicit build-search-index capability only to create or " +
+      "refresh the persisted cache."
   };
 }
 
@@ -633,13 +637,14 @@ export async function writeSearchIndex(targetDir, index) {
 
 export async function readSearchIndex(targetDir) {
   const indexPath = getSearchIndexPath(targetDir);
-  if (!(await pathExists(indexPath))) {
-    return null;
-  }
 
+  let initialIndexDetails;
   try {
-    return JSON.parse(await readFile(indexPath, "utf8"));
+    initialIndexDetails = await lstat(indexPath);
   } catch (error) {
+    if (error?.code === "ENOENT") {
+      return null;
+    }
     throw new SearchIndexUnavailableError({
       code: SEARCH_INDEX_DIAGNOSTIC_CODES.READ_FAILED,
       indexPath,
@@ -648,6 +653,94 @@ export async function readSearchIndex(targetDir) {
       cause: error
     });
   }
+
+  let indexHandle;
+
+  try {
+    if (initialIndexDetails.isSymbolicLink()) {
+      throw new Error("persisted lexical search index is a symbolic link");
+    }
+    if (typeof constants.O_NOFOLLOW !== "number") {
+      throw new Error("no-follow file opening is unavailable");
+    }
+
+    indexHandle = await open(indexPath, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const openedIndexDetails = await indexHandle.stat();
+    const targetRoot = await realpath(targetDir);
+    const resolvedIndexPath = await realpath(indexPath);
+    const resolvedIndexDetails = await stat(resolvedIndexPath);
+    const relativeIndexPath = path.relative(targetRoot, resolvedIndexPath);
+    if (
+      !openedIndexDetails.isFile() ||
+      openedIndexDetails.dev !== resolvedIndexDetails.dev ||
+      openedIndexDetails.ino !== resolvedIndexDetails.ino ||
+      relativeIndexPath === "" ||
+      relativeIndexPath.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(relativeIndexPath)
+    ) {
+      throw new Error("persisted lexical search index is not a contained regular file");
+    }
+
+    return validatePersistedSearchIndex(
+      JSON.parse(await indexHandle.readFile("utf8")),
+      indexPath
+    );
+  } catch (error) {
+    throw new SearchIndexUnavailableError({
+      code: SEARCH_INDEX_DIAGNOSTIC_CODES.READ_FAILED,
+      indexPath,
+      message: `Failed to read lexical search index at ${indexPath}: ${error.message}`,
+      remediation: buildIndexRemediation(),
+      cause: error
+    });
+  } finally {
+    await indexHandle?.close();
+  }
+}
+
+function validatePersistedSearchIndex(index, indexPath) {
+  const isRecord = (value) => value && typeof value === "object" && !Array.isArray(value);
+  const hasWriterTimestamp = (value) => {
+    if (typeof value !== "string") {
+      return false;
+    }
+    try {
+      return new Date(value).toISOString() === value;
+    } catch {
+      return false;
+    }
+  };
+  const validChunk = (chunk) => (
+    isRecord(chunk) &&
+    typeof chunk.chunkId === "string" &&
+    typeof chunk.pageKind === "string" &&
+    typeof chunk.relativePath === "string" &&
+    typeof chunk.title === "string" &&
+    typeof chunk.heading === "string" &&
+    typeof chunk.preview === "string" &&
+    typeof chunk.text === "string" &&
+    typeof chunk.authority === "number" &&
+    isRecord(chunk.frontmatter) &&
+    isRecord(chunk.retrievalFacets)
+  );
+
+  if (
+    !isRecord(index) ||
+    !Number.isInteger(index.version) ||
+    index.mode !== "lexical" ||
+    !hasWriterTimestamp(index.builtAt) ||
+    typeof index.sourceSignature !== "string" ||
+    !Number.isInteger(index.chunkCount) ||
+    index.chunkCount < 0 ||
+    !Array.isArray(index.extensionNamespaces) ||
+    !index.extensionNamespaces.every((namespace) => typeof namespace === "string") ||
+    !Array.isArray(index.chunks) ||
+    index.chunkCount !== index.chunks.length ||
+    !index.chunks.every(validChunk)
+  ) {
+    throw new Error("invalid persisted index structure");
+  }
+  return index;
 }
 
 export async function ensureLexicalSearchIndex(
@@ -702,15 +795,17 @@ export async function loadLexicalSearchIndexForRead(
   const existing = await readSearchIndex(targetDir);
 
   if (!existing) {
-    throw new SearchIndexUnavailableError({
-      code: SEARCH_INDEX_DIAGNOSTIC_CODES.MISSING,
-      indexPath,
-      message:
-        `No lexical search index exists at ${indexPath}. ` +
-        `Read-only search does not create the cache; use the explicit build-search-index capability ` +
-        `(CLI \`wiki build-search-index\` or MCP \`workspace_build_search_index\`) before retrying.`,
-      remediation: buildIndexRemediation()
+    const rebuilt = await buildLexicalSearchIndex(targetDir, {
+      profile,
+      extensionNamespaces
     });
+    return {
+      index: rebuilt,
+      indexPath,
+      rebuilt: false,
+      indexState: SEARCH_INDEX_STATE_REBUILT_IN_MEMORY,
+      indexStateReason: "index_missing"
+    };
   }
 
   if (existing.version !== SEARCH_INDEX_VERSION) {

@@ -1,12 +1,25 @@
 import { CONTROLLED_VOCABULARY } from "../vocabulary/cv.experimental.0.34.mjs";
+import { compiledValidators } from "./compiled-validator-cache.mjs";
 import { createNativeContractRuntime } from "./native-contract-runtime.mjs";
 
 const SCHEMA_VERSION = "controlled-acceptance-contract.experimental.v0.1";
 const VOCABULARY_VERSION = "cv.experimental.0.33";
 const PROFILE_ID = "acceptance-contract.standard.experimental.v0.1";
 
+const V034_ONLY_OPERATORS = new Set([
+  "reference:authenticates",
+  "reference:does_not_authenticate",
+  "reference:does_not_have_source_of_record",
+  "reference:does_not_originate_from",
+  "reference:has_source_of_record",
+  "reference:not_observed_in",
+  "reference:observed_in",
+  "reference:originates_from",
+  "reference:subset_of",
+  "reference:not_subset_of"
+]);
 const operators = CONTROLLED_VOCABULARY.operators.map(({ term }) => term).filter(
-  (term) => !["reference:subset_of", "reference:not_subset_of"].includes(term)
+  (term) => !V034_ONLY_OPERATORS.has(term)
 );
 const operatorsByValueKind = Object.freeze(Object.fromEntries(
   ["reference", "boolean", "number", "range"].map((valueKind) => [
@@ -15,7 +28,7 @@ const operatorsByValueKind = Object.freeze(Object.fromEntries(
   ])
 ));
 const typeTerms = CONTROLLED_VOCABULARY.type_terms.map(({ term }) => term).filter(
-  (term) => term !== "cc:population"
+  (term) => !["cc:population", "cc:evidence_occurrence"].includes(term)
 );
 
 const id = (prefix) => ({
@@ -428,9 +441,13 @@ const operandSemanticsByOperator = Object.fromEntries(operators.map((operator) =
     ? { ordering: "significant", duplicates: "significant" }
     : { ordering: "insignificant", duplicates: "ignored" }
 ]));
+const { validateSchema: validateNativeContractSchema } = await compiledValidators(
+  "controlled-contract.native-contract-carrier.v033",
+  { validators: { validateSchema: NATIVE_CONTRACT_SCHEMA } }
+);
 const runtime = createNativeContractRuntime({
   carrierVersion: SCHEMA_VERSION,
-  schema: NATIVE_CONTRACT_SCHEMA,
+  validateSchema: validateNativeContractSchema,
   complementByOperator,
   functionalOperators: [...FUNCTIONAL_OPERATORS],
   operandSemanticsByOperator,

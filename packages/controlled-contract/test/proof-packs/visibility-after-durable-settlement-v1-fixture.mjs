@@ -1,14 +1,14 @@
 import { readFile } from "node:fs/promises";
 
 import {
-  PROFILE_ID_V034,
-  SCHEMA_VERSION_V034,
-  VOCABULARY_VERSION_V034
-} from "../../lib/native-contract-carrier-v034.mjs";
-import { EVALUATION_INPUT_VERSION_V034 } from "../../lib/verification-profile-v034.mjs";
+  PROFILE_ID_V1,
+  SCHEMA_VERSION_V1,
+  VOCABULARY_VERSION_V1
+} from "../../lib/native-contract-carrier-v1.mjs";
+import { EVALUATION_INPUT_VERSION_V1 } from "../support/stable-v1-proof-pack-runtime.mjs";
 
 const VISIBILITY_AFTER_DURABLE_SETTLEMENT_V1_PROFILE = JSON.parse(await readFile(new URL(
-  "../certification/profiles/proof.ordering.visibility-after-durable-settlement/1.0.0/profile.json",
+  "../certification/profiles/proof.ordering.visibility-after-durable-settlement/2.0.0/profile.json",
   import.meta.url
 ), "utf8"));
 
@@ -115,9 +115,9 @@ function buildVisibilityAfterDurableSettlementFixture({
         ? identityOverrides[declaredRole.role](referenceId)
         : identityOverrides[declaredRole.role] ?? identityFor(declaredRole.role, referenceId, domain)) });
   }
-  const contract = { schema_version: SCHEMA_VERSION_V034, vocabulary_version: VOCABULARY_VERSION_V034,
-    profile_id: PROFILE_ID_V034, references: [...referenceById.values()], propositions: [], claims: [],
-    relations: [], collections: [], residue: [], annotations: [] };
+  const contract = { schema_version: SCHEMA_VERSION_V1, vocabulary_version: VOCABULARY_VERSION_V1,
+    profile_id: PROFILE_ID_V1, references: [...referenceById.values()], propositions: [], claims: [],
+    relations: [], collections: [], residue: [], annotations: [], test_proof_version: "controlled-contract-test-proof.v1", test_proofs: [] };
   for (const pattern of profile.reference_binding_patterns) {
     if (pattern.comparison !== "complete_population") continue;
     const [populationRole, memberRole] = pattern.roles;
@@ -159,10 +159,10 @@ function buildVisibilityAfterDurableSettlementFixture({
     return source_claim_id && target_claim_id ? [{ relation_id: `rel-${pattern.pattern_id}`,
       role: pattern.role, source_claim_id, target_claim_id }] : [];
   });
-  const input = { input_version: EVALUATION_INPUT_VERSION_V034, evaluation_stage: evaluationStage,
+  const input = { input_version: EVALUATION_INPUT_VERSION_V1, evaluation_stage: evaluationStage,
     reference_bindings: profile.reference_roles.map(({ role }) => ({ role, reference_ids: [...roleIds[role]] })),
     number_bindings: profile.number_roles.map(({ role }) => ({ role, value: numberValues[role] })),
-    claim_pattern_bindings: [], resolver_facts: [], delivered_evidence: [] };
+    claim_pattern_bindings: [], resolver_facts: [], delivered_evidence: [], stable_evaluation: {} };
   mutateContract?.(contract, { claimIdsByPattern, roleIds, numberValues });
   mutateInput?.(input, { roleIds, numberValues });
   return { contract, input, evaluation_input: input, profile, roleIds, numberValues };

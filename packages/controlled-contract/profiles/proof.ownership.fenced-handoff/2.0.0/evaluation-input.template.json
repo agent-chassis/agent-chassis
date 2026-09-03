@@ -1,0 +1,251 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.v1",
+  "evaluation_stage": "pre_dispatch",
+  "reference_bindings": [
+    {
+      "role": "resource",
+      "reference_ids": [
+        "ref-resource"
+      ]
+    },
+    {
+      "role": "predecessor_authority",
+      "reference_ids": [
+        "ref-predecessor-authority"
+      ]
+    },
+    {
+      "role": "successor_authority",
+      "reference_ids": [
+        "ref-successor-authority"
+      ]
+    },
+    {
+      "role": "predecessor_epoch",
+      "reference_ids": [
+        "ref-predecessor-epoch"
+      ]
+    },
+    {
+      "role": "successor_epoch",
+      "reference_ids": [
+        "ref-successor-epoch"
+      ]
+    },
+    {
+      "role": "fence_event",
+      "reference_ids": [
+        "ref-fence-event"
+      ]
+    },
+    {
+      "role": "successor_activation_event",
+      "reference_ids": [
+        "ref-successor-activation-event"
+      ]
+    },
+    {
+      "role": "predecessor_pre_fence_attempt_population",
+      "reference_ids": [
+        "ref-predecessor-pre-attempt-population"
+      ]
+    },
+    {
+      "role": "predecessor_pre_fence_attempts",
+      "reference_ids": [
+        "ref-predecessor-pre-attempt-1",
+        "ref-predecessor-pre-attempt-2"
+      ]
+    },
+    {
+      "role": "predecessor_post_fence_attempt_population",
+      "reference_ids": [
+        "ref-predecessor-post-attempt-population"
+      ]
+    },
+    {
+      "role": "predecessor_post_fence_attempts",
+      "reference_ids": [
+        "ref-predecessor-post-attempt-1",
+        "ref-predecessor-post-attempt-2"
+      ]
+    },
+    {
+      "role": "successor_post_fence_attempt_population",
+      "reference_ids": [
+        "ref-successor-post-attempt-population"
+      ]
+    },
+    {
+      "role": "successor_post_fence_attempts",
+      "reference_ids": [
+        "ref-successor-post-attempt-1",
+        "ref-successor-post-attempt-2"
+      ]
+    },
+    {
+      "role": "predecessor_effect_population",
+      "reference_ids": [
+        "ref-predecessor-effect-population"
+      ]
+    },
+    {
+      "role": "predecessor_effects",
+      "reference_ids": [
+        "ref-predecessor-effect-1",
+        "ref-predecessor-effect-2"
+      ]
+    },
+    {
+      "role": "successor_effect_population",
+      "reference_ids": [
+        "ref-successor-effect-population"
+      ]
+    },
+    {
+      "role": "successor_effects",
+      "reference_ids": [
+        "ref-successor-effect-1",
+        "ref-successor-effect-2"
+      ]
+    },
+    {
+      "role": "post_fence_predecessor_protected_effect_population",
+      "reference_ids": [
+        "ref-post-fence-predecessor-effect-population"
+      ]
+    },
+    {
+      "role": "post_fence_predecessor_protected_effects",
+      "reference_ids": []
+    },
+    {
+      "role": "active_authority_observation_population",
+      "reference_ids": [
+        "ref-active-observation-population"
+      ]
+    },
+    {
+      "role": "active_authority_observations",
+      "reference_ids": [
+        "ref-pre-fence-observation",
+        "ref-post-fence-observation",
+        "ref-extra-observation"
+      ]
+    },
+    {
+      "role": "dual_active_observation_population",
+      "reference_ids": [
+        "ref-dual-active-observation-population"
+      ]
+    },
+    {
+      "role": "dual_active_observations",
+      "reference_ids": []
+    },
+    {
+      "role": "pre_fence_observation",
+      "reference_ids": [
+        "ref-pre-fence-observation"
+      ]
+    },
+    {
+      "role": "post_fence_observation",
+      "reference_ids": [
+        "ref-post-fence-observation"
+      ]
+    },
+    {
+      "role": "refused_state",
+      "reference_ids": [
+        "ref-refused-state"
+      ]
+    },
+    {
+      "role": "predecessor_effect_window_state",
+      "reference_ids": [
+        "ref-predecessor-effect-window-state"
+      ]
+    },
+    {
+      "role": "before_fence_state",
+      "reference_ids": [
+        "ref-before-fence-state"
+      ]
+    },
+    {
+      "role": "successor_effect_window_state",
+      "reference_ids": [
+        "ref-successor-effect-window-state"
+      ]
+    },
+    {
+      "role": "after_fence_state",
+      "reference_ids": [
+        "ref-after-fence-state"
+      ]
+    },
+    {
+      "role": "predecessor_order_verification",
+      "reference_ids": [
+        "ref-predecessor-order-verification"
+      ]
+    },
+    {
+      "role": "successor_order_verification",
+      "reference_ids": [
+        "ref-successor-order-verification"
+      ]
+    },
+    {
+      "role": "post_fence_refusal_verification",
+      "reference_ids": [
+        "ref-post-fence-refusal-verification"
+      ]
+    },
+    {
+      "role": "dual_active_verification",
+      "reference_ids": [
+        "ref-dual-active-verification"
+      ]
+    }
+  ],
+  "number_bindings": [
+    {
+      "role": "predecessor_pre_fence_attempt_count",
+      "value": 2
+    },
+    {
+      "role": "predecessor_post_fence_attempt_count",
+      "value": 2
+    },
+    {
+      "role": "successor_post_fence_attempt_count",
+      "value": 2
+    },
+    {
+      "role": "predecessor_effect_count",
+      "value": 2
+    },
+    {
+      "role": "successor_effect_count",
+      "value": 2
+    },
+    {
+      "role": "post_fence_predecessor_protected_effect_count",
+      "value": 0
+    },
+    {
+      "role": "active_authority_observation_count",
+      "value": 3
+    },
+    {
+      "role": "dual_active_observation_count",
+      "value": 0
+    }
+  ],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": [],
+  "stable_evaluation": {}
+}

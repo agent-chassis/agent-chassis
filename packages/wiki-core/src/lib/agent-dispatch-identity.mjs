@@ -1,5 +1,7 @@
 
 
+import { computeNormalizedInputDigest } from "./work-record-admission-shared.mjs";
+
 export const AGENT_DISPATCH_IDENTITY_SCHEMA_VERSION = "agent-dispatch-identity.v1";
 
 export const CALLER_ROLE_KIND_VALUES = Object.freeze([

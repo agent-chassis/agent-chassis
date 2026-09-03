@@ -236,3 +236,53 @@ test("workspace_work_record_set_task refuses a stale expected_source_digest", as
     await rm(tempDir, { recursive: true, force: true });
   }
 });
+
+test("workspace_work_record_ready_slice publishes admission_review_target_unit as an optional non-empty string", async () => {
+  const { tempDir } = await createTempWorkspace();
+  try {
+    const tool = createToolRegistry(tempDir).get("workspace_work_record_ready_slice");
+    assert.ok(tool, "the ready-slice tool must be registered");
+
+    const shape = tool.config.inputSchema.shape;
+    assert.ok(
+      Object.hasOwn(shape, "admission_review_target_unit"),
+      "the canonical review-target field must be published on the tool's input schema"
+    );
+
+    const base = {
+      repo: WORKSPACE_REPO,
+      unit: "WK-1160",
+      slice_id: "SLICE-001"
+    };
+
+    assert.equal(tool.config.inputSchema.safeParse(base).success, true);
+    assert.equal(
+      tool.config.inputSchema.safeParse({
+        ...base,
+        admission_review_target_unit: "WK-1160#SLICE-002"
+      }).success,
+      true
+    );
+
+    for (const value of ["", "   ", 7, null, {}]) {
+      assert.equal(
+        tool.config.inputSchema.safeParse({
+          ...base,
+          admission_review_target_unit: value
+        }).success,
+        false,
+        JSON.stringify(value)
+      );
+    }
+
+    assert.equal(
+      tool.config.inputSchema.safeParse({
+        ...base,
+        admission_review_target_units: "WK-1160#SLICE-002"
+      }).success,
+      false
+    );
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});

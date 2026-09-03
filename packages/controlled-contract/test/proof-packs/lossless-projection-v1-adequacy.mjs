@@ -1,5 +1,5 @@
 import { PROOF_PACK_ADEQUACY_RUN_VERSION } from "../support/proof-pack-adequacy-constants.mjs";
-import { evaluateVerificationProfileV034 } from "../../lib/verification-profile-v034.mjs";
+import { evaluateStableProofPackFixtureV1 } from "../support/stable-v1-proof-pack-runtime.mjs";
 import {
   LOSSLESS_PROJECTION_V1_PROFILE,
   buildLosslessProjectionFixture,
@@ -14,7 +14,7 @@ import {
 } from "./lossless-projection-v1-harness.mjs";
 
 const LOSSLESS_PROJECTION_V1_PROFILE_DIGEST =
-  "14a13d53f4582e2b063a1a23e5b17458d2ae9561f553c6129630b4f52cf77204";
+  "9242a7d656d1b54f1cafdeb0ac9f105248cdee209c4f7696fca41a9c5375e18f";
 const LOSSLESS_PROJECTION_V1_GUARANTEE_DIGEST =
   "e999fd999699e6b4f0ce98b59622c11ee30a74f0f6ce150c18a7bb0a9c887a80";
 
@@ -23,7 +23,7 @@ const memberReferenceId = ({ key }) =>
 const reasonReferenceId = (reason) => `ref-reason-${reason}`;
 
 function evaluateFixture({ contract, input, profile }) {
-  return evaluateVerificationProfileV034({
+  return evaluateStableProofPackFixtureV1({
     contract,
     profile,
     evaluation_input: input

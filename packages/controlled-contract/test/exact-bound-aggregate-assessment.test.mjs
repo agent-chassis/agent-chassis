@@ -79,6 +79,7 @@ async function syntheticExactProjection({ first = "same", second = "same",
   const pack = Object.freeze({
     ...loaded,
     admission_version: 2,
+    declaration,
     exact_binding_declaration_digest: exactCanonicalDigest(declaration),
     exact_binding_certification_digest: "c".repeat(64)
   });

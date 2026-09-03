@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-chassis.dev/controlled-contract/controlled-acceptance-contract.experimental.v0.3.schema.json",
+  "title": "controlled-acceptance-contract.experimental.v0.3",
+  "description": "Experimental v0.3 carrier. It preserves the v0.2 controlled proposition graph and adds package-owned test-proof bindings for every test_execution verification claim.",
+  "type": "object",
+  "required": ["schema_version", "vocabulary_version", "profile_id", "references", "propositions", "claims", "relations", "collections", "residue", "annotations", "test_proof_version", "test_proofs"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "controlled-acceptance-contract.experimental.v0.3" },
+    "vocabulary_version": { "const": "cv.experimental.0.34" },
+    "profile_id": { "const": "acceptance-contract.standard.experimental.v0.3" },
+    "references": { "type": "array", "minItems": 1, "items": { "$ref": "controlled-acceptance-contract.experimental.v0.2.schema.json#/$defs/reference" } },
+    "propositions": { "type": "array", "minItems": 1, "items": { "$ref": "controlled-acceptance-contract.experimental.v0.2.schema.json#/$defs/proposition" } },
+    "claims": { "type": "array", "minItems": 1, "items": { "oneOf": [
+      { "$ref": "controlled-acceptance-contract.experimental.v0.2.schema.json#/$defs/declarative_claim" },
+      { "$ref": "controlled-acceptance-contract.experimental.v0.2.schema.json#/$defs/verification_claim" }
+    ] } },
+    "relations": { "type": "array", "items": { "$ref": "controlled-acceptance-contract.experimental.v0.2.schema.json#/$defs/relation" } },
+    "collections": { "type": "array", "items": { "$ref": "controlled-acceptance-contract.experimental.v0.2.schema.json#/$defs/collection" } },
+    "residue": { "type": "array", "items": { "$ref": "controlled-acceptance-contract.experimental.v0.2.schema.json#/$defs/residue" } },
+    "annotations": { "type": "array", "items": { "$ref": "controlled-acceptance-contract.experimental.v0.2.schema.json#/$defs/annotation" } },
+    "test_proof_version": { "const": "controlled-contract-test-proof.v1" },
+    "test_proofs": { "type": "array", "items": { "$ref": "#/$defs/test_proof_binding" } }
+  },
+  "$defs": {
+    "test_proof_id": { "type": "string", "pattern": "^test-proof-[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "boundary_id": { "type": "string", "pattern": "^sut-boundary-[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "observable_id": { "type": "string", "pattern": "^observable-[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "falsifier_id": { "type": "string", "pattern": "^falsifier-[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "coverage_baseline_id": { "type": "string", "pattern": "^coverage-baseline-[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "test_id": { "type": "string", "pattern": "^test-[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "runtime_test_selection": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "test_id"],
+      "properties": {
+        "schema_version": { "const": "controlled-contract-runtime-test-selection.v1" },
+        "test_id": { "type": "string", "pattern": "^test-[a-f0-9]{64}$" }
+      }
+    },
+    "provider_id": { "type": "string", "pattern": "^launcher\\.[a-z0-9]+(?:[.-][a-z0-9]+)*$" },
+    "provider_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "repo_module_path": { "type": "string", "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9_@./-]+\\.(?:cjs|js|mjs)$" },
+    "mutation_id": { "type": "string", "pattern": "^mutation-[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "execution_provider_identity": {
+      "type": "object", "additionalProperties": false,
+      "required": ["provider_id", "provider_version", "capability"],
+      "properties": {
+        "provider_id": { "$ref": "#/$defs/provider_id" },
+        "provider_version": { "$ref": "#/$defs/provider_version" },
+        "capability": { "enum": ["candidate_execution", "falsifier_execution"] }
+      }
+    },
+    "traversal_provider_binding": {
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["mode", "provider_id", "provider_version", "capability", "boundary_kind", "observation_mechanism", "observation_seam", "evidence_artifact_type"],
+          "properties": {
+            "mode": { "const": "provider" },
+            "provider_id": { "$ref": "#/$defs/provider_id" },
+            "provider_version": { "$ref": "#/$defs/provider_version" },
+            "capability": { "const": "boundary_traversal" },
+            "boundary_kind": { "enum": ["api", "cli", "module", "process", "protocol", "repository_state", "runtime_component", "storage"] },
+            "observation_mechanism": { "enum": ["node_test_structured_events", "node_test_v8_coverage"] },
+            "observation_seam": { "enum": ["node_test_structured_assertion"] },
+            "evidence_artifact_type": { "enum": ["boundary_trace", "structured_test_result"] }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["mode", "registry_id", "registry_version"],
+          "properties": {
+            "mode": { "const": "registry_unsupported" },
+            "registry_id": { "const": "launcher.test-proof-provider-registry" },
+            "registry_version": { "const": "1.0.0" }
+          }
+        }
+      ]
+    },
+    "system_under_test_boundary": {
+      "type": "object", "additionalProperties": false,
+      "required": ["boundary_id", "kind", "subject_reference_ids"],
+      "properties": {
+        "boundary_id": { "$ref": "#/$defs/boundary_id" },
+        "kind": { "enum": ["api", "cli", "module", "process", "protocol", "repository_state", "runtime_component", "storage"] },
+        "subject_reference_ids": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "controlled-acceptance-contract.experimental.v0.2.schema.json#/$defs/reference_id" } },
+        "runtime_module_path": { "$ref": "#/$defs/repo_module_path" }
+      },
+      "allOf": [{
+        "if": { "properties": { "kind": { "const": "module" } }, "required": ["kind"] },
+        "then": { "properties": { "runtime_module_path": { "$ref": "#/$defs/repo_module_path" } }, "required": ["runtime_module_path"] },
+        "else": { "properties": { "runtime_module_path": false } }
+      }]
+    },
+    "observable_result": {
+      "type": "object", "additionalProperties": false,
+      "required": ["observable_id", "kind", "proposition_id"],
+      "properties": {
+        "observable_id": { "$ref": "#/$defs/observable_id" },
+        "kind": { "enum": ["exit_status", "persisted_artifact", "protocol_message", "return_value", "side_effect", "state_transition", "structured_diagnostic"] },
+        "proposition_id": { "$ref": "controlled-acceptance-contract.experimental.v0.2.schema.json#/$defs/proposition_id" }
+      }
+    },
+    "falsifier": {
+      "type": "object", "additionalProperties": false,
+      "required": ["falsifier_id", "strategy", "proposition_id", "expected_outcome", "mutation", "execution_provider"],
+      "properties": {
+        "falsifier_id": { "$ref": "#/$defs/falsifier_id" },
+        "strategy": { "enum": ["boundary_bypass", "dependency_failure", "input_mutation", "observable_suppression", "result_inversion", "state_corruption"] },
+        "proposition_id": { "$ref": "controlled-acceptance-contract.experimental.v0.2.schema.json#/$defs/proposition_id" },
+        "expected_outcome": { "const": "verification_fails" },
+        "mutation": {
+          "type": "object", "additionalProperties": false,
+          "required": ["mutation_id", "mechanism", "target_kind", "module_path"],
+          "properties": {
+            "mutation_id": { "$ref": "#/$defs/mutation_id" },
+            "mechanism": { "const": "module_substitution" },
+            "target_kind": { "const": "module" },
+            "module_path": { "$ref": "#/$defs/repo_module_path" }
+          }
+        },
+        "execution_provider": {
+          "allOf": [
+            { "$ref": "#/$defs/execution_provider_identity" },
+            { "type": "object", "properties": { "capability": { "const": "falsifier_execution" } } }
+          ]
+        }
+      }
+    },
+    "coverage_item": {
+      "oneOf": [
+        { "type": "object", "additionalProperties": false, "required": ["test_id", "disposition"], "properties": { "test_id": { "$ref": "#/$defs/test_id" }, "disposition": { "const": "preserved" } } },
+        { "type": "object", "additionalProperties": false, "required": ["test_id", "disposition", "replacement_test_ids"], "properties": { "test_id": { "$ref": "#/$defs/test_id" }, "disposition": { "const": "replaced" }, "replacement_test_ids": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/test_id" } } } },
+        { "type": "object", "additionalProperties": false, "required": ["test_id", "disposition", "reason"], "properties": { "test_id": { "$ref": "#/$defs/test_id" }, "disposition": { "const": "retired" }, "reason": { "enum": ["duplicate_coverage", "invalid_test", "obsolete_behavior", "out_of_scope_reassignment"] } } }
+      ]
+    },
+    "coverage_disposition": {
+      "oneOf": [
+        { "type": "object", "additionalProperties": false, "required": ["baseline_id", "baseline_state", "items"], "properties": { "baseline_id": { "$ref": "#/$defs/coverage_baseline_id" }, "baseline_state": { "const": "no_executed_coverage" }, "items": { "type": "array", "maxItems": 0 } } },
+        { "type": "object", "additionalProperties": false, "required": ["baseline_id", "baseline_state", "items"], "properties": { "baseline_id": { "$ref": "#/$defs/coverage_baseline_id" }, "baseline_state": { "const": "complete_executed_inventory" }, "items": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/coverage_item" } } } }
+      ]
+    },
+    "test_proof_binding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["test_proof_id", "verification_claim_id", "system_under_test_boundary", "observable_result", "candidate_execution_provider", "falsifiers", "traversal_provider", "coverage_disposition", "prohibited_shortcuts"],
+      "properties": {
+        "test_proof_id": { "$ref": "#/$defs/test_proof_id" },
+        "verification_claim_id": { "$ref": "controlled-acceptance-contract.experimental.v0.2.schema.json#/$defs/claim_id" },
+        "runtime_test_selection": { "$ref": "#/$defs/runtime_test_selection" },
+        "system_under_test_boundary": { "$ref": "#/$defs/system_under_test_boundary" },
+        "observable_result": { "$ref": "#/$defs/observable_result" },
+        "candidate_execution_provider": {
+          "allOf": [
+            { "$ref": "#/$defs/execution_provider_identity" },
+            { "type": "object", "properties": { "capability": { "const": "candidate_execution" } } }
+          ]
+        },
+        "falsifiers": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/falsifier" } },
+        "traversal_provider": { "$ref": "#/$defs/traversal_provider_binding" },
+        "coverage_disposition": { "$ref": "#/$defs/coverage_disposition" },
+        "prohibited_shortcuts": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": { "enum": ["coverage_percentage_only", "mock_only_boundary_substitution", "snapshot_only_assertion", "source_text_inspection", "test_count_only", "unexecuted_assertion"] },
+          "contains": { "const": "source_text_inspection" }, "minContains": 1
+        }
+      }
+    }
+  }
+}

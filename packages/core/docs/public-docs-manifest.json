@@ -1,0 +1,532 @@
+{
+  "schema_version": "public-docs-manifest.v1",
+  "package": {
+    "name": "@agent-chassis/core",
+    "version": "0.6.0"
+  },
+  "entry_count": 57,
+  "available_count": 49,
+  "entries": [
+    {
+      "logical_path": "docs/acceptance-coverage-mcp.md",
+      "source_path": "docs/acceptance-coverage-mcp.md",
+      "bundle_path": "docs/acceptance-coverage-mcp.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "5d69fa5a70d02531310cc7bfdf6a5795eb12913555ffcbebbd929670478b3211",
+      "bytes": 32826
+    },
+    {
+      "logical_path": "docs/adoption.md",
+      "source_path": "docs/adoption.md",
+      "bundle_path": "docs/adoption.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "9afed864572c425b17152d1548076ebf43dad1e7b032f8d0259afe32feee3cfd",
+      "bytes": 2045
+    },
+    {
+      "logical_path": "docs/agent-faq.md",
+      "source_path": "docs/agent-faq.md",
+      "bundle_path": "docs/agent-faq.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "ccdef9d1d61dde6d569fe56341c6e19a6c1bad55bf8cc626d0e58fe2b4795ca1",
+      "bytes": 5373
+    },
+    {
+      "logical_path": "docs/agent-launch-conduit-diagnostics.md",
+      "source_path": "docs/agent-launch-conduit-diagnostics.md",
+      "bundle_path": "docs/agent-launch-conduit-diagnostics.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "5e59850b7842bd5ab2b85e84207179d191660a66000f52143f9d9648c1147e59",
+      "bytes": 8181
+    },
+    {
+      "logical_path": "docs/agent-launch-confinement-mcp-conduit.md",
+      "source_path": "docs/agent-launch-confinement-mcp-conduit.md",
+      "bundle_path": "docs/agent-launch-confinement-mcp-conduit.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "7af76c443cffb6502b03df4adc2a3c9e436fbd67e7144e37a99e43de692b2c2c",
+      "bytes": 45948
+    },
+    {
+      "logical_path": "docs/agent-launch-family-runtime-state.md",
+      "source_path": "docs/agent-launch-family-runtime-state.md",
+      "bundle_path": "docs/agent-launch-family-runtime-state.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "4c27c4be18fdbc03a025ece5c203494326da2cb3e00c63d5fc26e9c0c7074b86",
+      "bytes": 7325
+    },
+    {
+      "logical_path": "docs/agent-launch-local-config.md",
+      "source_path": "docs/agent-launch-local-config.md",
+      "bundle_path": "docs/agent-launch-local-config.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "3c87d81ab3e6bacdd4ba31c53fcad5cf6005d83e7a99872de470c52da91e34e4",
+      "bytes": 5382
+    },
+    {
+      "logical_path": "docs/agent-launch-operator-entrypoints.md",
+      "source_path": "docs/agent-launch-operator-entrypoints.md",
+      "bundle_path": "docs/agent-launch-operator-entrypoints.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "760fd7ee09c69cb25d621d88d6088b9e96a71a316324900ea7285a0f89f6068d",
+      "bytes": 5914
+    },
+    {
+      "logical_path": "docs/agent-launch-policy-profiles.md",
+      "source_path": "docs/agent-launch-policy-profiles.md",
+      "bundle_path": "docs/agent-launch-policy-profiles.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "031e647cbb57c4e8abc215f44239f84db5d2850c625a4c99cbd300355fd65e37",
+      "bytes": 6186
+    },
+    {
+      "logical_path": "docs/agent-launch-quickstart.md",
+      "source_path": "docs/agent-launch-quickstart.md",
+      "bundle_path": "docs/agent-launch-quickstart.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "b07c0d3ae6b604f85a58e5b39b56f5c372d4ae8c1dfdd344b6d7e5b0bccddd2b",
+      "bytes": 35448
+    },
+    {
+      "logical_path": "docs/agent-launch-run-provenance.md",
+      "source_path": "docs/agent-launch-run-provenance.md",
+      "bundle_path": "docs/agent-launch-run-provenance.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "5924eb45872ccb549fa78438ed29bf22c052a91b6f00e9b092f985050d5376cf",
+      "bytes": 12591
+    },
+    {
+      "logical_path": "docs/agent-launch-write-scope-preparation.md",
+      "source_path": "docs/agent-launch-write-scope-preparation.md",
+      "bundle_path": "docs/agent-launch-write-scope-preparation.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "b4391289a8349dad54088919eba941e80ae3e48241197b33434c408e50de4c23",
+      "bytes": 6944
+    },
+    {
+      "logical_path": "docs/agent-tool-compliance-and-surface-rationalization.md",
+      "source_path": "docs/agent-tool-compliance-and-surface-rationalization.md",
+      "bundle_path": "docs/agent-tool-compliance-and-surface-rationalization.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "0e114ce5df6f072a6b4932e57b6b29b8489646c3fadb858e32792d09595cd987",
+      "bytes": 18137
+    },
+    {
+      "logical_path": "docs/areas.md",
+      "source_path": "docs/areas.md",
+      "bundle_path": "docs/areas.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "9d3f14e158ad4991273a9096a6938882b46e59396d5bdb93612959149eeb1b1d",
+      "bytes": 4277
+    },
+    {
+      "logical_path": "docs/consumer-owned-docs.md",
+      "source_path": "docs/consumer-owned-docs.md",
+      "bundle_path": "docs/consumer-owned-docs.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "28482259f8d56efeadf1f87c0706183b8cd22d1003586785ea1f8d0c4864cb24",
+      "bytes": 6219
+    },
+    {
+      "logical_path": "docs/enforcement-model.md",
+      "source_path": "docs/enforcement-model.md",
+      "bundle_path": "docs/enforcement-model.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "d4d56e322a8af4e061a6c5f02590d3b84235961116279de75e7eba97609f6310",
+      "bytes": 75894
+    },
+    {
+      "logical_path": "docs/env-reference.md",
+      "source_path": "docs/env-reference.md",
+      "bundle_path": "docs/env-reference.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "b1fe087b49b61a2ab01fd172d52040262fbfe4553698daef79680cb13252a732",
+      "bytes": 8903
+    },
+    {
+      "logical_path": "docs/index.md",
+      "source_path": "docs/index.md",
+      "bundle_path": "docs/index.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "3b41d650f84749290dd7980d37a7007799dd9d9a99f2835fb5fc64fa16a272c0",
+      "bytes": 3263
+    },
+    {
+      "logical_path": "docs/initiative-status.md",
+      "source_path": "docs/initiative-status.md",
+      "bundle_path": "docs/initiative-status.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "bdf1992cd17a6ffd1b5ff8783b428e8e734e5200059d1e53c16b3f2c0a796ffe",
+      "bytes": 11675
+    },
+    {
+      "logical_path": "docs/local-package-install.md",
+      "source_path": "docs/local-package-install.md",
+      "bundle_path": "docs/local-package-install.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "88781b4d83a70a750a39cf87ada705319d9fd9ff2928eabcc225ab6c5e01f603",
+      "bytes": 10564
+    },
+    {
+      "logical_path": "docs/mcp-controlled-contract-operations.md",
+      "source_path": "docs/mcp-controlled-contract-operations.md",
+      "bundle_path": "docs/mcp-controlled-contract-operations.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "aedbd89a8becb15329e2aeaa74431caa656fcb8f9f015bbcfa95114a430fa4e7",
+      "bytes": 56524
+    },
+    {
+      "logical_path": "docs/mcp-dispatch-launch-and-admission.md",
+      "source_path": "docs/mcp-dispatch-launch-and-admission.md",
+      "bundle_path": "docs/mcp-dispatch-launch-and-admission.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "914fa4b88a715d3238ae1c7a5b1cf51edaee9789970b506ed6f7de0e51fcdda7",
+      "bytes": 40728
+    },
+    {
+      "logical_path": "docs/mcp-dispatch-managed-run-lifecycle.md",
+      "source_path": "docs/mcp-dispatch-managed-run-lifecycle.md",
+      "bundle_path": "docs/mcp-dispatch-managed-run-lifecycle.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "c24076644ff365587d0afb835dfca8c7b32e1d0a7a3836f55a4f5cd53f026b62",
+      "bytes": 53672
+    },
+    {
+      "logical_path": "docs/mcp-dispatch-monitoring-and-ownership.md",
+      "source_path": "docs/mcp-dispatch-monitoring-and-ownership.md",
+      "bundle_path": "docs/mcp-dispatch-monitoring-and-ownership.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "ca0f4a1c6edb11f20cce2df033e2b4070b7468d08d153b58f777c4aa95166098",
+      "bytes": 33799
+    },
+    {
+      "logical_path": "docs/mcp-dispatch-runtime-contract.md",
+      "source_path": "docs/mcp-dispatch-runtime-contract.md",
+      "bundle_path": "docs/mcp-dispatch-runtime-contract.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "d968f31625a54546f1dcce12f5bfe4b89db6a0c77c4b9764ae67734648514c74",
+      "bytes": 123849
+    },
+    {
+      "logical_path": "docs/mcp-dispatch-slice-integration.md",
+      "source_path": "docs/mcp-dispatch-slice-integration.md",
+      "bundle_path": "docs/mcp-dispatch-slice-integration.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "cd3c81a95103b3d876e572dcbaec6645d7a68a942b5464b03bb2aba390fe632c",
+      "bytes": 30816
+    },
+    {
+      "logical_path": "docs/mcp-dispatch-terminal-review.md",
+      "source_path": "docs/mcp-dispatch-terminal-review.md",
+      "bundle_path": "docs/mcp-dispatch-terminal-review.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "94b1c3f00f2de2aca13d983ce8f681c82e19d36e3cbdbbbadbc933f0bae1f8db",
+      "bytes": 56300
+    },
+    {
+      "logical_path": "docs/mcp-integration.md",
+      "source_path": "docs/mcp-integration.md",
+      "bundle_path": "docs/mcp-integration.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "f1fcf9ddfc5822947ff5ffffa5879a762a6049847ef0e57e787ecbfc833d0f24",
+      "bytes": 72324
+    },
+    {
+      "logical_path": "docs/mcp-operation-reference.md",
+      "source_path": "docs/mcp-operation-reference.md",
+      "bundle_path": "docs/mcp-operation-reference.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "355108fb95f35b8253147a3058a7d12f71413a9507338b65e9f462b270b2b426",
+      "bytes": 31998
+    },
+    {
+      "logical_path": "docs/mcp-repository-model.md",
+      "source_path": "docs/mcp-repository-model.md",
+      "bundle_path": "docs/mcp-repository-model.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "f912e378d8ca83a44f7a75c65f5ffa9674e71f8ca38f70aa8c3ea4136fbb7f52",
+      "bytes": 20781
+    },
+    {
+      "logical_path": "docs/mcp-tool-registry-reference.md",
+      "source_path": "docs/mcp-tool-registry-reference.md",
+      "bundle_path": "docs/mcp-tool-registry-reference.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "76ec4fde97e0a9b4300f275836743c5256e1ec98264cfc2e50d2d4747914e917",
+      "bytes": 3773
+    },
+    {
+      "logical_path": "docs/operating-model.md",
+      "source_path": "docs/operating-model.md",
+      "bundle_path": "docs/operating-model.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "ed8aabd49b6628e68ded5be13a668e9fb193b28400ff431a86b77721073cf14c",
+      "bytes": 23382
+    },
+    {
+      "logical_path": "docs/package-install.md",
+      "source_path": "docs/package-install.md",
+      "bundle_path": "docs/package-install.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "830c4777538fb867f8c40767637eda1d525a114399ac6f798b5a2e17ebb55732",
+      "bytes": 3347
+    },
+    {
+      "logical_path": "docs/quickstart.md",
+      "source_path": "docs/quickstart.md",
+      "bundle_path": "docs/quickstart.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "61c1e6b9823a4c0e993e8df4b3b75730df5a25f9277125dcd08513aaa1b728d8",
+      "bytes": 13571
+    },
+    {
+      "logical_path": "docs/README-agents.md",
+      "source_path": "docs/README-agents.md",
+      "bundle_path": "docs/README-agents.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "6b220aa2f3b6f72fae386417c0efc88c5ed7370ebf7fdfdd228a43894ccc9bd3",
+      "bytes": 5770
+    },
+    {
+      "logical_path": "docs/test-proof-runtime-identity.md",
+      "source_path": "docs/test-proof-runtime-identity.md",
+      "bundle_path": "docs/test-proof-runtime-identity.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "60a00f9e78de73eef8b07eb97c00342cf07ba1b3769f16b2d8da9d1a362aa8c2",
+      "bytes": 14304
+    },
+    {
+      "logical_path": "docs/tool-discovery-dispatch-runtime.md",
+      "source_path": "docs/tool-discovery-dispatch-runtime.md",
+      "bundle_path": "docs/tool-discovery-dispatch-runtime.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "1f54e452ff103256211e7af25704773f484e6d067ffb868afea6c712df81bc89",
+      "bytes": 23422
+    },
+    {
+      "logical_path": "docs/tool-discovery-fragment-registry.md",
+      "source_path": "docs/tool-discovery-fragment-registry.md",
+      "bundle_path": "docs/tool-discovery-fragment-registry.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "1b5fd80b4098fb4c395fabd0ca3577054e65148f8d069bf4d6a0d751d034a6eb",
+      "bytes": 8190
+    },
+    {
+      "logical_path": "docs/tool-discovery-schema.md",
+      "source_path": "docs/tool-discovery-schema.md",
+      "bundle_path": "docs/tool-discovery-schema.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "fae7d00b2ce7ed040aa989d6b0e4d7991430e53b088ae230c563fee044f1537e",
+      "bytes": 23977
+    },
+    {
+      "logical_path": "docs/tool-discovery-surfaces.md",
+      "source_path": "docs/tool-discovery-surfaces.md",
+      "bundle_path": "docs/tool-discovery-surfaces.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "18019e949b64e575307089e425c9e7270bd350b7c4c097df26d40bac28d77b62",
+      "bytes": 32065
+    },
+    {
+      "logical_path": "docs/tool-discovery-tiers.md",
+      "source_path": "docs/tool-discovery-tiers.md",
+      "bundle_path": "docs/tool-discovery-tiers.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "bfe3955744acbf5c5d98c4372356edae4d100126721dd0e3bebf1d70ed96c603",
+      "bytes": 5794
+    },
+    {
+      "logical_path": "docs/tool-discovery.md",
+      "source_path": "docs/tool-discovery.md",
+      "bundle_path": "docs/tool-discovery.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "6b0b18a21837eea533866695cc5bb725eaacd0e2469284c7d871cbcd37c384a7",
+      "bytes": 26623
+    },
+    {
+      "logical_path": "docs/versioning.md",
+      "source_path": "docs/versioning.md",
+      "bundle_path": "docs/versioning.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "3102b06a60ed589d685d79d214ab066b71a66ae0f1d6192f5c2cc54dfdf15a1f",
+      "bytes": 7272
+    },
+    {
+      "logical_path": "docs/wiki-contract-metadata.md",
+      "source_path": "docs/wiki-contract-metadata.md",
+      "bundle_path": "docs/wiki-contract-metadata.md",
+      "advertised_by_built_in_descriptor": false,
+      "available": true,
+      "sha256": "7b297c41b7ca85188474176b45a5f98a70736c04fb88fe2c419a1475e8a68701",
+      "bytes": 6005
+    },
+    {
+      "logical_path": "docs/work-record-ontology.md",
+      "source_path": "docs/work-record-ontology.md",
+      "bundle_path": "docs/work-record-ontology.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "23be362a6b56bd483cbcbd3f21d4a6acd20f569fce6e3c9e40850c6ae841cb0d",
+      "bytes": 9299
+    },
+    {
+      "logical_path": "docs/work-record-schema.md",
+      "source_path": "docs/work-record-schema.md",
+      "bundle_path": "docs/work-record-schema.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "1427b6f2950bc80283ea96ecc0815ad6671800583b6d2791492a6819279a20ba",
+      "bytes": 11579
+    },
+    {
+      "logical_path": "internal/docs/branch-worktree-dispatch.md",
+      "source_path": "internal/docs/branch-worktree-dispatch.md",
+      "bundle_path": null,
+      "advertised_by_built_in_descriptor": false,
+      "available": false,
+      "sha256": null,
+      "bytes": null,
+      "unavailable_reason": "repository_local_not_packaged"
+    },
+    {
+      "logical_path": "internal/work-record-schema.md",
+      "source_path": "internal/work-record-schema.md",
+      "bundle_path": null,
+      "advertised_by_built_in_descriptor": false,
+      "available": false,
+      "sha256": null,
+      "bytes": null,
+      "unavailable_reason": "repository_local_not_packaged"
+    },
+    {
+      "logical_path": "packages/wiki-core/contract/manifest.json",
+      "source_path": "packages/wiki-core/contract/manifest.json",
+      "bundle_path": "docs/_refs/packages/wiki-core/contract/manifest.json",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "a82ef17bb4668abb73ee8800c3244b115ec171993a31b4100bfa1d0d47a39c91",
+      "bytes": 11774
+    },
+    {
+      "logical_path": "packages/wiki-core/contract/schema.md",
+      "source_path": "packages/wiki-core/contract/schema.md",
+      "bundle_path": "docs/_refs/packages/wiki-core/contract/schema.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "9d5c56638df3f106a569dcea01d32e8af2b82f3bc00f7db839fcce7d17a22729",
+      "bytes": 7888
+    },
+    {
+      "logical_path": "packages/wiki-core/templates/AGENTS.md.boilerplate.md",
+      "source_path": "packages/wiki-core/templates/AGENTS.md.boilerplate.md",
+      "bundle_path": "docs/_refs/packages/wiki-core/templates/AGENTS.md.boilerplate.md",
+      "advertised_by_built_in_descriptor": true,
+      "available": true,
+      "sha256": "2ababe841ff1dad4db06ae26ded5f72bf6ce8b8951fe36c3790d8a10be75281b",
+      "bytes": 19664
+    },
+    {
+      "logical_path": "wiki/decisions/DEC-0134.md",
+      "source_path": "wiki/decisions/DEC-0134.md",
+      "bundle_path": null,
+      "advertised_by_built_in_descriptor": false,
+      "available": false,
+      "sha256": null,
+      "bytes": null,
+      "unavailable_reason": "repository_local_not_packaged"
+    },
+    {
+      "logical_path": "wiki/decisions/DEC-0155.md",
+      "source_path": "wiki/decisions/DEC-0155.md",
+      "bundle_path": null,
+      "advertised_by_built_in_descriptor": false,
+      "available": false,
+      "sha256": null,
+      "bytes": null,
+      "unavailable_reason": "repository_local_not_packaged"
+    },
+    {
+      "logical_path": "wiki/decisions/DEC-0169.md",
+      "source_path": "wiki/decisions/DEC-0169.md",
+      "bundle_path": null,
+      "advertised_by_built_in_descriptor": false,
+      "available": false,
+      "sha256": null,
+      "bytes": null,
+      "unavailable_reason": "repository_local_not_packaged"
+    },
+    {
+      "logical_path": "wiki/initiatives/IN-0021.md",
+      "source_path": "wiki/initiatives/IN-0021.md",
+      "bundle_path": null,
+      "advertised_by_built_in_descriptor": false,
+      "available": false,
+      "sha256": null,
+      "bytes": null,
+      "unavailable_reason": "repository_local_not_packaged"
+    },
+    {
+      "logical_path": "wiki/work-records/WK-1442.json",
+      "source_path": "wiki/work-records/WK-1442.json",
+      "bundle_path": null,
+      "advertised_by_built_in_descriptor": false,
+      "available": false,
+      "sha256": null,
+      "bytes": null,
+      "unavailable_reason": "repository_local_not_packaged"
+    },
+    {
+      "logical_path": "wiki/work-records/WK-1443.json",
+      "source_path": "wiki/work-records/WK-1443.json",
+      "bundle_path": null,
+      "advertised_by_built_in_descriptor": false,
+      "available": false,
+      "sha256": null,
+      "bytes": null,
+      "unavailable_reason": "repository_local_not_packaged"
+    }
+  ]
+}

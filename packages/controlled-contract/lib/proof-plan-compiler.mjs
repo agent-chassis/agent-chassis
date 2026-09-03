@@ -1,8 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-import Ajv2020 from "ajv/dist/2020.js";
-
+import { compiledValidators } from "./compiled-validator-cache.mjs";
 import { loadAdmittedProofPack } from "./admitted-proof-packs.mjs";
 import {
   canonicalDigest,
@@ -19,8 +18,6 @@ import {
   expectedPackSourceDigests,
   validateProofPlan
 } from "./multi-pack-assessment.mjs";
-import { validateAndResolveNativeContractV034 } from
-  "./native-contract-carrier-v034.mjs";
 import {
   PROOF_INTENT_ARTIFACT,
   PROOF_INTENT_DIGESTS,
@@ -29,13 +26,16 @@ import {
 } from "./proof-intent-selection.mjs";
 import { validateSuppliedProofPackBindings } from
   "./proof-pack-binding-assistance.mjs";
+import { validateStableTestProofContract } from "./test-proof-contract-v1.mjs";
 
 const packageRoot = new URL("../", import.meta.url);
 const requestSchema = await readJson(new URL(
   "schema/controlled-contract-proof-plan-request.v1.schema.json", packageRoot
 ));
-const ajv = new Ajv2020({ strict: true, allErrors: true });
-const validateProofPlanRequest = ajv.compile(requestSchema);
+const { validateProofPlanRequest } = await compiledValidators(
+  "controlled-contract.proof-plan-request.v1",
+  { validators: { validateProofPlanRequest: requestSchema } }
+);
 const MAX_PROOF_PLAN_BYTES = 131_072;
 
 class ProofPlanCompilerError extends Error {
@@ -85,11 +85,15 @@ function validateCompilerInput(input, unexpectedArguments) {
     "proof_plan_compiler_contract_invalid",
     "proof-plan compilation requires one controlled contract object"
   );
-  const resolved = validateAndResolveNativeContractV034(input.contract);
-  if (!resolved.schema_valid) throw new ProofPlanCompilerError(
+  const resolved = validateStableTestProofContract(input.contract);
+  if (!resolved.valid) throw new ProofPlanCompilerError(
     "proof_plan_compiler_contract_invalid",
     "the controlled contract is schema-invalid",
-    { diagnostics: structuredClone(resolved.diagnostics) }
+    {
+      contract_family: resolved.family,
+      facts: structuredClone(resolved.facts),
+      diagnostics: structuredClone(resolved.diagnostics)
+    }
   );
   if (!validateProofPlanRequest(input.request)) throw new ProofPlanCompilerError(
     "proof_plan_request_schema_invalid",

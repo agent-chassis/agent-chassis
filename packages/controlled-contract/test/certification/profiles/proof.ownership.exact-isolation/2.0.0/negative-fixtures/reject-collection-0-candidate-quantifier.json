@@ -1,0 +1,1399 @@
+{
+  "schema_version": "controlled-contract-proof-pack-negative-fixture.experimental.v0.1",
+  "fixture_id": "reject-collection-0-candidate-quantifier",
+  "covers": [
+    {
+      "surface_id": "collection-0-candidate-quantifier",
+      "weakening_class": "population_membership_weakening"
+    }
+  ],
+  "contract": {
+    "schema_version": "controlled-acceptance-contract.v1",
+    "vocabulary_version": "controlled-contract-vocabulary.v1",
+    "profile_id": "acceptance-contract.standard.v1",
+    "references": [
+      {
+        "reference_id": "ref-operation",
+        "type_term": "cc:operation",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "tenant_document",
+          "value": "operation"
+        }
+      },
+      {
+        "reference_id": "ref-owned-resource",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "tenant_document",
+          "value": "owned_resource"
+        }
+      },
+      {
+        "reference_id": "ref-legitimate-owner",
+        "type_term": "cc:actor",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "tenant_document",
+          "value": "legitimate_owner"
+        }
+      },
+      {
+        "reference_id": "ref-foreign-subject",
+        "type_term": "cc:actor",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "tenant_document",
+          "value": "foreign_subject"
+        }
+      },
+      {
+        "reference_id": "ref-legitimate-authority",
+        "type_term": "cc:authority",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "tenant_document",
+          "value": "legitimate_authority"
+        }
+      },
+      {
+        "reference_id": "ref-foreign-attempt",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "tenant_document",
+          "value": "foreign_attempt"
+        }
+      },
+      {
+        "reference_id": "ref-protected-interval",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "tenant_document",
+          "value": "protected_interval"
+        }
+      },
+      {
+        "reference_id": "ref-refusal",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "tenant_document",
+          "value": "refusal"
+        }
+      },
+      {
+        "reference_id": "ref-authority-state-before",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "tenant_document",
+          "value": "authority_state_before"
+        }
+      },
+      {
+        "reference_id": "ref-authority-state-after-refusal",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "tenant_document",
+          "value": "authority_state_after_refusal"
+        }
+      },
+      {
+        "reference_id": "ref-authority-observation-before",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "tenant_document",
+          "value": "authority_observation_before"
+        }
+      },
+      {
+        "reference_id": "ref-authority-observation-after",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "tenant_document",
+          "value": "authority_observation_after"
+        }
+      },
+      {
+        "reference_id": "ref-later-valid-attempt",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "tenant_document",
+          "value": "later_valid_attempt"
+        }
+      },
+      {
+        "reference_id": "ref-later-valid-result",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "tenant_document",
+          "value": "later_valid_result"
+        }
+      },
+      {
+        "reference_id": "ref-later-result-state",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "tenant_document",
+          "value": "later_result_state"
+        }
+      },
+      {
+        "reference_id": "ref-expected-success-state",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "tenant_document",
+          "value": "expected_success_state"
+        }
+      },
+      {
+        "reference_id": "ref-result-observation",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "tenant_document",
+          "value": "result_observation"
+        }
+      },
+      {
+        "reference_id": "ref-success-criterion",
+        "type_term": "cc:criterion",
+        "identity": {
+          "kind": "profile_term",
+          "term": "tenant_document:success_criterion"
+        }
+      },
+      {
+        "reference_id": "ref-write-verification",
+        "type_term": "cc:process",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "tenant_document",
+          "value": "write_verification"
+        }
+      },
+      {
+        "reference_id": "ref-mutation-verification",
+        "type_term": "cc:process",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "tenant_document",
+          "value": "mutation_verification"
+        }
+      },
+      {
+        "reference_id": "ref-nonconsumption-verification",
+        "type_term": "cc:process",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "tenant_document",
+          "value": "nonconsumption_verification"
+        }
+      },
+      {
+        "reference_id": "ref-later-success-verification",
+        "type_term": "cc:process",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "tenant_document",
+          "value": "later_success_verification"
+        }
+      },
+      {
+        "reference_id": "ref-foreign-write-condition",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "profile_term",
+          "term": "tenant_document:foreign_write_condition"
+        }
+      },
+      {
+        "reference_id": "ref-foreign-mutation-condition",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "profile_term",
+          "term": "tenant_document:foreign_mutation_condition"
+        }
+      },
+      {
+        "reference_id": "ref-authority-consumption-condition",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "profile_term",
+          "term": "tenant_document:authority_consumption_condition"
+        }
+      },
+      {
+        "reference_id": "ref-later-failure-condition",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "profile_term",
+          "term": "tenant_document:later_failure_condition"
+        }
+      }
+    ],
+    "propositions": [
+      {
+        "proposition_id": "prop-resource-owned-by-legitimate-owner",
+        "subject_reference_id": "ref-owned-resource",
+        "operator": "reference:has_property",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-legitimate-owner"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-authority-authorizes-legitimate-owner",
+        "subject_reference_id": "ref-legitimate-authority",
+        "operator": "reference:authorizes",
+        "applicability_context": {
+          "mode": "where",
+          "operand_reference_ids": [
+            "ref-operation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-legitimate-owner"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-authority-does-not-authorize-foreign-subject",
+        "subject_reference_id": "ref-legitimate-authority",
+        "operator": "reference:authorizes",
+        "applicability_context": {
+          "mode": "where",
+          "operand_reference_ids": [
+            "ref-operation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-foreign-subject"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-foreign-attempt-performs-operation",
+        "subject_reference_id": "ref-foreign-attempt",
+        "operator": "reference:performs",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-operation"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-foreign-attempt-targets-owned-resource",
+        "subject_reference_id": "ref-foreign-attempt",
+        "operator": "reference:targets",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-owned-resource"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-foreign-attempt-uses-foreign-subject",
+        "subject_reference_id": "ref-foreign-attempt",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-foreign-subject"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-foreign-attempt-precedes-protected-interval",
+        "subject_reference_id": "ref-foreign-attempt",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-interval"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-protected-interval-precedes-refusal",
+        "subject_reference_id": "ref-protected-interval",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-refusal"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-refusal-rejects-foreign-attempt",
+        "subject_reference_id": "ref-refusal",
+        "operator": "reference:rejects",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-protected-interval"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-foreign-attempt"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-authority-state-before-foreign-attempt",
+        "subject_reference_id": "ref-legitimate-authority",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "before",
+          "operand_reference_ids": [
+            "ref-foreign-attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-authority-state-before"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-authority-observation-before-records-state",
+        "subject_reference_id": "ref-authority-observation-before",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "before",
+          "operand_reference_ids": [
+            "ref-foreign-attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-authority-state-before"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-no-foreign-write-before-refusal",
+        "subject_reference_id": "ref-foreign-attempt",
+        "operator": "reference:writes",
+        "applicability_context": {
+          "mode": "before",
+          "operand_reference_ids": [
+            "ref-refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-owned-resource"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-write-verification-reads-boundary",
+        "subject_reference_id": "ref-write-verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-foreign-attempt"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-refusal"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-write-isolation-verification",
+        "subject_reference_id": "ref-write-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-owned-resource"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-write-isolation-verification",
+        "subject_reference_id": "ref-foreign-attempt",
+        "operator": "reference:writes",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-foreign-write-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-owned-resource"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-no-foreign-mutation-before-refusal",
+        "subject_reference_id": "ref-foreign-attempt",
+        "operator": "reference:mutates",
+        "applicability_context": {
+          "mode": "before",
+          "operand_reference_ids": [
+            "ref-refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-owned-resource"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-mutation-verification-reads-boundary",
+        "subject_reference_id": "ref-mutation-verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-foreign-attempt"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-refusal"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-mutation-isolation-verification",
+        "subject_reference_id": "ref-mutation-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-owned-resource"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-mutation-isolation-verification",
+        "subject_reference_id": "ref-foreign-attempt",
+        "operator": "reference:mutates",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-foreign-mutation-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-owned-resource"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-authority-state-after-refusal",
+        "subject_reference_id": "ref-legitimate-authority",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-authority-state-after-refusal"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-authority-observation-after-records-state",
+        "subject_reference_id": "ref-authority-observation-after",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-authority-state-after-refusal"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-legitimate-authority-unconsumed",
+        "subject_reference_id": "ref-authority-state-after-refusal",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-authority-state-before"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-nonconsumption-verification-reads-states",
+        "subject_reference_id": "ref-nonconsumption-verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-authority-observation-before"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-authority-observation-after"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-nonconsumption-verification",
+        "subject_reference_id": "ref-nonconsumption-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-legitimate-authority"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-nonconsumption-verification",
+        "subject_reference_id": "ref-authority-state-after-refusal",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-authority-consumption-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-authority-state-before"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-refusal-precedes-later-valid-attempt",
+        "subject_reference_id": "ref-refusal",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-later-valid-attempt"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-later-attempt-performs-operation",
+        "subject_reference_id": "ref-later-valid-attempt",
+        "operator": "reference:performs",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-operation"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-later-attempt-uses-authority",
+        "subject_reference_id": "ref-later-valid-attempt",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-legitimate-authority"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-later-attempt-uses-legitimate-owner",
+        "subject_reference_id": "ref-later-valid-attempt",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-legitimate-owner"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-later-attempt-targets-same-resource",
+        "subject_reference_id": "ref-later-valid-attempt",
+        "operator": "reference:targets",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-owned-resource"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-later-attempt-precedes-result",
+        "subject_reference_id": "ref-later-valid-attempt",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-later-valid-result"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-later-result-accepts-attempt",
+        "subject_reference_id": "ref-later-valid-result",
+        "operator": "reference:accepts",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-later-valid-attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-later-valid-attempt"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-later-result-has-state",
+        "subject_reference_id": "ref-later-valid-result",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-later-valid-attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-later-result-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-expected-state-conforms-to-success",
+        "subject_reference_id": "ref-expected-success-state",
+        "operator": "reference:conforms_to",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-success-criterion"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-result-observation-records-state",
+        "subject_reference_id": "ref-result-observation",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-later-valid-result"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-later-result-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-later-valid-attempt-succeeds",
+        "subject_reference_id": "ref-later-result-state",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-later-valid-result"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-expected-success-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-later-success-verification-reads-result",
+        "subject_reference_id": "ref-later-success-verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-later-valid-result"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-result-observation"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-later-success-verification",
+        "subject_reference_id": "ref-later-success-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-later-valid-result"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-later-success-verification",
+        "subject_reference_id": "ref-later-result-state",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-later-failure-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-expected-success-state"
+          }
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "claim_id": "claim-resource-owned-by-legitimate-owner",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-resource-owned-by-legitimate-owner"
+      },
+      {
+        "claim_id": "claim-authority-authorizes-legitimate-owner",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-authority-authorizes-legitimate-owner"
+      },
+      {
+        "claim_id": "claim-authority-does-not-authorize-foreign-subject",
+        "kind": "evidence",
+        "modality": "MUST_NOT",
+        "proposition_id": "prop-authority-does-not-authorize-foreign-subject"
+      },
+      {
+        "claim_id": "claim-foreign-attempt-performs-operation",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-foreign-attempt-performs-operation"
+      },
+      {
+        "claim_id": "claim-foreign-attempt-targets-owned-resource",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-foreign-attempt-targets-owned-resource"
+      },
+      {
+        "claim_id": "claim-foreign-attempt-uses-foreign-subject",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-foreign-attempt-uses-foreign-subject"
+      },
+      {
+        "claim_id": "claim-foreign-attempt-precedes-protected-interval",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-foreign-attempt-precedes-protected-interval"
+      },
+      {
+        "claim_id": "claim-protected-interval-precedes-refusal",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-protected-interval-precedes-refusal"
+      },
+      {
+        "claim_id": "claim-refusal-rejects-foreign-attempt",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-refusal-rejects-foreign-attempt"
+      },
+      {
+        "claim_id": "claim-authority-state-before-foreign-attempt",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-authority-state-before-foreign-attempt"
+      },
+      {
+        "claim_id": "claim-authority-observation-before-records-state",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-authority-observation-before-records-state"
+      },
+      {
+        "claim_id": "claim-no-foreign-write-before-refusal",
+        "kind": "behavior",
+        "modality": "MUST_NOT",
+        "proposition_id": "prop-no-foreign-write-before-refusal"
+      },
+      {
+        "claim_id": "claim-write-verification-reads-boundary",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-write-verification-reads-boundary"
+      },
+      {
+        "claim_id": "claim-write-isolation-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-write-isolation-verification",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-write-isolation-verification"
+      },
+      {
+        "claim_id": "claim-no-foreign-mutation-before-refusal",
+        "kind": "behavior",
+        "modality": "MUST_NOT",
+        "proposition_id": "prop-no-foreign-mutation-before-refusal"
+      },
+      {
+        "claim_id": "claim-mutation-verification-reads-boundary",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-mutation-verification-reads-boundary"
+      },
+      {
+        "claim_id": "claim-mutation-isolation-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-mutation-isolation-verification",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-mutation-isolation-verification"
+      },
+      {
+        "claim_id": "claim-authority-state-after-refusal",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-authority-state-after-refusal"
+      },
+      {
+        "claim_id": "claim-authority-observation-after-records-state",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-authority-observation-after-records-state"
+      },
+      {
+        "claim_id": "claim-legitimate-authority-unconsumed",
+        "kind": "behavior",
+        "modality": "MUST",
+        "proposition_id": "prop-legitimate-authority-unconsumed"
+      },
+      {
+        "claim_id": "claim-nonconsumption-verification-reads-states",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-nonconsumption-verification-reads-states"
+      },
+      {
+        "claim_id": "claim-nonconsumption-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-nonconsumption-verification",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-nonconsumption-verification"
+      },
+      {
+        "claim_id": "claim-refusal-precedes-later-valid-attempt",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-refusal-precedes-later-valid-attempt"
+      },
+      {
+        "claim_id": "claim-later-attempt-performs-operation",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-later-attempt-performs-operation"
+      },
+      {
+        "claim_id": "claim-later-attempt-uses-authority",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-later-attempt-uses-authority"
+      },
+      {
+        "claim_id": "claim-later-attempt-uses-legitimate-owner",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-later-attempt-uses-legitimate-owner"
+      },
+      {
+        "claim_id": "claim-later-attempt-targets-same-resource",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-later-attempt-targets-same-resource"
+      },
+      {
+        "claim_id": "claim-later-attempt-precedes-result",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-later-attempt-precedes-result"
+      },
+      {
+        "claim_id": "claim-later-result-accepts-attempt",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-later-result-accepts-attempt"
+      },
+      {
+        "claim_id": "claim-later-result-has-state",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-later-result-has-state"
+      },
+      {
+        "claim_id": "claim-expected-state-conforms-to-success",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-expected-state-conforms-to-success"
+      },
+      {
+        "claim_id": "claim-result-observation-records-state",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-result-observation-records-state"
+      },
+      {
+        "claim_id": "claim-later-valid-attempt-succeeds",
+        "kind": "behavior",
+        "modality": "MUST",
+        "proposition_id": "prop-later-valid-attempt-succeeds"
+      },
+      {
+        "claim_id": "claim-later-success-verification-reads-result",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-later-success-verification-reads-result"
+      },
+      {
+        "claim_id": "claim-later-success-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-later-success-verification",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-later-success-verification"
+      }
+    ],
+    "relations": [
+      {
+        "relation_id": "rel-write-verifies-isolation",
+        "role": "verifies",
+        "source_claim_id": "claim-write-isolation-verification",
+        "target_claim_id": "claim-no-foreign-write-before-refusal"
+      },
+      {
+        "relation_id": "rel-mutation-verifies-isolation",
+        "role": "verifies",
+        "source_claim_id": "claim-mutation-isolation-verification",
+        "target_claim_id": "claim-no-foreign-mutation-before-refusal"
+      },
+      {
+        "relation_id": "rel-nonconsumption-verifies-authority",
+        "role": "verifies",
+        "source_claim_id": "claim-nonconsumption-verification",
+        "target_claim_id": "claim-legitimate-authority-unconsumed"
+      },
+      {
+        "relation_id": "rel-later-success-verifies-result",
+        "role": "verifies",
+        "source_claim_id": "claim-later-success-verification",
+        "target_claim_id": "claim-later-valid-attempt-succeeds"
+      }
+    ],
+    "collections": [
+      {
+        "collection_id": "set-proof-sequence",
+        "collection_kind": "ordered_sequence",
+        "purpose": "proof_exact_ownership_isolation_sequence",
+        "member_claim_ids": [
+          "claim-authority-state-before-foreign-attempt",
+          "claim-foreign-attempt-performs-operation",
+          "claim-foreign-attempt-precedes-protected-interval",
+          "claim-no-foreign-write-before-refusal",
+          "claim-no-foreign-mutation-before-refusal",
+          "claim-protected-interval-precedes-refusal",
+          "claim-refusal-rejects-foreign-attempt",
+          "claim-authority-state-after-refusal",
+          "claim-legitimate-authority-unconsumed",
+          "claim-refusal-precedes-later-valid-attempt",
+          "claim-later-attempt-performs-operation",
+          "claim-later-attempt-precedes-result",
+          "claim-later-result-accepts-attempt",
+          "claim-later-valid-attempt-succeeds"
+        ]
+      },
+      {
+        "collection_id": "set-proof-population",
+        "collection_kind": "closed_set",
+        "purpose": "proof_exact_ownership_isolation_population",
+        "member_claim_ids": [
+          "claim-resource-owned-by-legitimate-owner",
+          "claim-authority-authorizes-legitimate-owner",
+          "claim-authority-does-not-authorize-foreign-subject",
+          "claim-foreign-attempt-performs-operation",
+          "claim-foreign-attempt-targets-owned-resource",
+          "claim-foreign-attempt-uses-foreign-subject",
+          "claim-foreign-attempt-precedes-protected-interval",
+          "claim-protected-interval-precedes-refusal",
+          "claim-refusal-rejects-foreign-attempt",
+          "claim-authority-state-before-foreign-attempt",
+          "claim-authority-observation-before-records-state",
+          "claim-no-foreign-write-before-refusal",
+          "claim-write-verification-reads-boundary",
+          "claim-write-isolation-verification",
+          "claim-no-foreign-mutation-before-refusal",
+          "claim-mutation-verification-reads-boundary",
+          "claim-mutation-isolation-verification",
+          "claim-authority-state-after-refusal",
+          "claim-authority-observation-after-records-state",
+          "claim-legitimate-authority-unconsumed",
+          "claim-nonconsumption-verification-reads-states",
+          "claim-nonconsumption-verification",
+          "claim-refusal-precedes-later-valid-attempt",
+          "claim-later-attempt-performs-operation",
+          "claim-later-attempt-uses-authority",
+          "claim-later-attempt-uses-legitimate-owner",
+          "claim-later-attempt-targets-same-resource",
+          "claim-later-attempt-precedes-result",
+          "claim-later-result-accepts-attempt",
+          "claim-later-result-has-state",
+          "claim-expected-state-conforms-to-success",
+          "claim-result-observation-records-state",
+          "claim-later-valid-attempt-succeeds",
+          "claim-later-success-verification-reads-result",
+          "claim-later-success-verification"
+        ]
+      },
+      {
+        "collection_id": "set-proof-sequence-competing",
+        "collection_kind": "ordered_sequence",
+        "purpose": "proof_exact_ownership_isolation_sequence",
+        "member_claim_ids": [
+          "claim-authority-state-before-foreign-attempt",
+          "claim-foreign-attempt-performs-operation",
+          "claim-foreign-attempt-precedes-protected-interval",
+          "claim-no-foreign-write-before-refusal",
+          "claim-no-foreign-mutation-before-refusal",
+          "claim-protected-interval-precedes-refusal",
+          "claim-refusal-rejects-foreign-attempt",
+          "claim-authority-state-after-refusal",
+          "claim-legitimate-authority-unconsumed",
+          "claim-refusal-precedes-later-valid-attempt",
+          "claim-later-attempt-performs-operation",
+          "claim-later-attempt-precedes-result",
+          "claim-later-result-accepts-attempt"
+        ]
+      }
+    ],
+    "residue": [],
+    "annotations": [],
+    "test_proof_version": "controlled-contract-test-proof.v1",
+    "test_proofs": []
+  },
+  "evaluation_input": {
+    "input_version": "controlled-contract-verification-profile-input.v1",
+    "evaluation_stage": "pre_dispatch",
+    "reference_bindings": [
+      {
+        "role": "operation",
+        "reference_ids": [
+          "ref-operation"
+        ]
+      },
+      {
+        "role": "owned_resource",
+        "reference_ids": [
+          "ref-owned-resource"
+        ]
+      },
+      {
+        "role": "legitimate_owner",
+        "reference_ids": [
+          "ref-legitimate-owner"
+        ]
+      },
+      {
+        "role": "foreign_subject",
+        "reference_ids": [
+          "ref-foreign-subject"
+        ]
+      },
+      {
+        "role": "legitimate_authority",
+        "reference_ids": [
+          "ref-legitimate-authority"
+        ]
+      },
+      {
+        "role": "foreign_attempt",
+        "reference_ids": [
+          "ref-foreign-attempt"
+        ]
+      },
+      {
+        "role": "protected_interval",
+        "reference_ids": [
+          "ref-protected-interval"
+        ]
+      },
+      {
+        "role": "refusal",
+        "reference_ids": [
+          "ref-refusal"
+        ]
+      },
+      {
+        "role": "authority_state_before",
+        "reference_ids": [
+          "ref-authority-state-before"
+        ]
+      },
+      {
+        "role": "authority_state_after_refusal",
+        "reference_ids": [
+          "ref-authority-state-after-refusal"
+        ]
+      },
+      {
+        "role": "authority_observation_before",
+        "reference_ids": [
+          "ref-authority-observation-before"
+        ]
+      },
+      {
+        "role": "authority_observation_after",
+        "reference_ids": [
+          "ref-authority-observation-after"
+        ]
+      },
+      {
+        "role": "later_valid_attempt",
+        "reference_ids": [
+          "ref-later-valid-attempt"
+        ]
+      },
+      {
+        "role": "later_valid_result",
+        "reference_ids": [
+          "ref-later-valid-result"
+        ]
+      },
+      {
+        "role": "later_result_state",
+        "reference_ids": [
+          "ref-later-result-state"
+        ]
+      },
+      {
+        "role": "expected_success_state",
+        "reference_ids": [
+          "ref-expected-success-state"
+        ]
+      },
+      {
+        "role": "result_observation",
+        "reference_ids": [
+          "ref-result-observation"
+        ]
+      },
+      {
+        "role": "success_criterion",
+        "reference_ids": [
+          "ref-success-criterion"
+        ]
+      },
+      {
+        "role": "write_verification",
+        "reference_ids": [
+          "ref-write-verification"
+        ]
+      },
+      {
+        "role": "mutation_verification",
+        "reference_ids": [
+          "ref-mutation-verification"
+        ]
+      },
+      {
+        "role": "nonconsumption_verification",
+        "reference_ids": [
+          "ref-nonconsumption-verification"
+        ]
+      },
+      {
+        "role": "later_success_verification",
+        "reference_ids": [
+          "ref-later-success-verification"
+        ]
+      },
+      {
+        "role": "foreign_write_condition",
+        "reference_ids": [
+          "ref-foreign-write-condition"
+        ]
+      },
+      {
+        "role": "foreign_mutation_condition",
+        "reference_ids": [
+          "ref-foreign-mutation-condition"
+        ]
+      },
+      {
+        "role": "authority_consumption_condition",
+        "reference_ids": [
+          "ref-authority-consumption-condition"
+        ]
+      },
+      {
+        "role": "later_failure_condition",
+        "reference_ids": [
+          "ref-later-failure-condition"
+        ]
+      }
+    ],
+    "number_bindings": [],
+    "claim_pattern_bindings": [],
+    "resolver_facts": [],
+    "delivered_evidence": [],
+    "stable_evaluation": {}
+  }
+}

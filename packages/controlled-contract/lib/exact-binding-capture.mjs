@@ -4,18 +4,30 @@ import process from "node:process";
 
 import {
   ExactBindingError,
+  canonicalDigest,
   canonicalJsonBytes,
   compareCodeUnits,
   deepFreeze,
   sha256
 } from "./exact-binding-common.mjs";
-import { projectDeterministicPopulation } from "./deterministic-projection.mjs";
+import {
+  prepareDeterministicProjection
+} from "./deterministic-projection.mjs";
 import {
   INTERNAL_CAPTURE_AUTHORITY,
   evaluateCaptureFailureExactBindingsV1,
   evaluateCapturedExactBindingsV1
 } from "./exact-binding.mjs";
 import { assertBoundaryRequest } from "./exact-binding-plain-data.mjs";
+import {
+  INTERNAL_ENVELOPE_AUTHORITY,
+  buildProjectedEvaluationEnvelope
+} from "./projected-evaluation-binding.mjs";
+import {
+  MAX_ARTIFACT_BYTES,
+  projectedEvaluationEnvelopeFor,
+  registerProjectedEvaluationEnvelope
+} from "./exact-binding-runtime-registry.mjs";
 
 const ARTIFACT_MEDIA_TYPE = "application/octet-stream";
 const REACHABILITY_MEDIA_TYPE =
@@ -52,10 +64,12 @@ function equalStableStat(left, right) {
   );
 }
 
-function validateStableArtifactObservation(before, after, byteLength) {
+function validateStableArtifactObservation(before, after, byteLength, {
+  observedGrowth = false
+} = {}) {
   const first = stableStat(before);
   const second = stableStat(after);
-  if (!equalStableStat(first, second)) throw new ExactBindingError(
+  if (observedGrowth || !equalStableStat(first, second)) throw new ExactBindingError(
     "artifact_capture_changed_during_read",
     "artifact identity or change metadata changed during capture"
   );
@@ -70,6 +84,30 @@ function validateStableArtifactObservation(before, after, byteLength) {
     );
   }
   return first;
+}
+
+async function readBoundedArtifact(handle, initialStat) {
+  if (initialStat.size > BigInt(MAX_ARTIFACT_BYTES)) throw new ExactBindingError(
+    "artifact_capture_source_too_large",
+    "artifact exceeds the per-source capture byte bound"
+  );
+
+  const bytes = Buffer.allocUnsafe(Number(initialStat.size));
+  let offset = 0;
+  while (offset < bytes.length) {
+    const { bytesRead } = await handle.read(
+      bytes, offset, bytes.length - offset, offset
+    );
+    if (bytesRead === 0) break;
+    offset += bytesRead;
+  }
+  let observedGrowth = false;
+  if (offset === bytes.length) {
+    const probe = Buffer.allocUnsafe(1);
+    const { bytesRead } = await handle.read(probe, 0, 1, offset);
+    observedGrowth = bytesRead !== 0;
+  }
+  return Object.freeze({ bytes: bytes.subarray(0, offset), observedGrowth });
 }
 
 function relativeComponents(relativePath) {
@@ -173,10 +211,20 @@ class PinnedCaptureRoot {
         directory, components[components.length - 1], FILE_FLAGS
       );
       const before = await artifact.stat({ bigint: true });
-      const bytes = await artifact.readFile();
+      const capture = await readBoundedArtifact(artifact, before);
       const after = await artifact.stat({ bigint: true });
-      validateStableArtifactObservation(before, after, bytes.byteLength);
-      return Buffer.from(bytes);
+      if (after.size > BigInt(MAX_ARTIFACT_BYTES) ||
+          (capture.observedGrowth && before.size === BigInt(MAX_ARTIFACT_BYTES))) {
+        throw new ExactBindingError(
+          "artifact_capture_source_too_large",
+          "artifact exceeds the per-source capture byte bound"
+        );
+      }
+      validateStableArtifactObservation(
+        before, after, capture.bytes.byteLength,
+        { observedGrowth: capture.observedGrowth }
+      );
+      return Buffer.from(capture.bytes);
     } finally {
       await artifact?.close().catch(() => {});
       for (const handle of directoryHandles.reverse()) await handle.close().catch(() => {});
@@ -332,8 +380,17 @@ function evaluationReferenceMap(evaluationInput) {
   ]));
 }
 
-function coverageFor(requirement, source, evaluationInput, declaration, bytes) {
+function coverageFor(requirement, source, evaluationInput, declaration, bytes, contract) {
   const roleReferences = evaluationReferenceMap(evaluationInput);
+  let projectionReader = null;
+  const projected = () => {
+    if (projectionReader) return projectionReader;
+    const relation = declaration.relations.find(({ operator, result_requirement_id: id }) =>
+      operator === "deterministic_projection" && id === requirement.requirement_id
+    );
+    projectionReader = prepareDeterministicProjection(relation.transformer_id, bytes);
+    return projectionReader;
+  };
   return requirement.role_coverage.map((coverage) => {
     let referenceIds;
     if (coverage.projection === "artifact_subject") {
@@ -341,12 +398,20 @@ function coverageFor(requirement, source, evaluationInput, declaration, bytes) {
     } else if (coverage.projection === "snapshot_subject") {
       referenceIds = [source.snapshot.subject_reference_id];
     } else if (coverage.projection === "projection_result_population") {
-      const relation = declaration.relations.find(({ operator, result_requirement_id: id }) =>
-        operator === "deterministic_projection" && id === requirement.requirement_id
+      referenceIds = projected().population(coverage.population_id);
+    } else if (coverage.projection === "projection_result_reference") {
+      const projectedReference = projected().reference(coverage.projection_id);
+      const contractReference = contract?.references?.find(
+        ({ reference_id: referenceId }) => referenceId === projectedReference.reference_id
       );
-      referenceIds = projectDeterministicPopulation(
-        relation.transformer_id, bytes, coverage.population_id
+      if (!contractReference || contractReference.type_term !== projectedReference.type_term ||
+          canonicalDigest(contractReference.identity) !==
+            projectedReference.grounded_identity_sha256) throw new ExactBindingError(
+        "projection_grounded_identity_mismatch",
+        "projected raw role and grounded identity do not match the captured contract",
+        { role: coverage.role, reference_id: projectedReference.reference_id }
       );
+      referenceIds = [projectedReference.reference_id];
     } else if (source.kind === "complete_reachability_snapshot") {
       referenceIds = source.snapshot.nodes.map(({ reference_id: id }) => id);
     } else {
@@ -358,13 +423,15 @@ function coverageFor(requirement, source, evaluationInput, declaration, bytes) {
       projection: coverage.projection,
       ...(coverage.population_id === undefined
         ? {} : { population_id: coverage.population_id }),
+      ...(coverage.projection_id === undefined
+        ? {} : { projection_id: coverage.projection_id }),
       reference_ids: [...referenceIds].sort(compareCodeUnits)
     };
   }).sort((left, right) => compareCodeUnits(left.role, right.role));
 }
 
 async function captureRequirement(
-  requirement, source, evaluationInput, declaration, pinnedRoot
+  requirement, source, evaluationInput, declaration, pinnedRoot, contract
 ) {
   let bytes;
   let mediaType;
@@ -405,7 +472,9 @@ async function captureRequirement(
       content_sha256: contentDigest,
       source_descriptor_sha256: sha256(canonicalJsonBytes(source)),
       byte_length: bytes.byteLength,
-      role_coverage: coverageFor(requirement, source, evaluationInput, declaration, bytes)
+      role_coverage: coverageFor(
+        requirement, source, evaluationInput, declaration, bytes, contract
+      )
     }
   };
 }
@@ -413,6 +482,7 @@ async function captureRequirement(
 async function captureAndEvaluateExactBindingsV1({
   request,
   declaration,
+  contract,
   evaluationInput,
   context,
   expectedContext = context,
@@ -438,7 +508,7 @@ async function captureAndEvaluateExactBindingsV1({
     if (!source) continue;
     try {
       const captured = await captureRequirement(
-        requirement, source, evaluationInput, declaration, pinnedRoot
+        requirement, source, evaluationInput, declaration, pinnedRoot, contract
       );
       bindings.push(captured.binding);
       capturedBytesByRequirement.set(requirement.requirement_id, captured.bytes);
@@ -453,7 +523,7 @@ async function captureAndEvaluateExactBindingsV1({
       }, INTERNAL_CAPTURE_AUTHORITY);
     }
   }
-  return evaluateCapturedExactBindingsV1({
+  const captured = evaluateCapturedExactBindingsV1({
     declaration,
     evaluationInput,
     context,
@@ -461,9 +531,38 @@ async function captureAndEvaluateExactBindingsV1({
     bindings,
     capturedBytesByRequirement
   }, INTERNAL_CAPTURE_AUTHORITY);
+  const optIn = declaration.projected_evaluation_binding;
+  if (optIn === undefined || !context || typeof context !== "object" ||
+      Array.isArray(context)) return captured;
+  const owning = declaration.relations.find(({ operator, result_requirement_id: id }) =>
+    operator === "deterministic_projection" && id === optIn.result_requirement_id
+  );
+  const resultBytes = capturedBytesByRequirement.get(optIn.result_requirement_id);
+  if (!owning || !Buffer.isBuffer(resultBytes)) return captured;
+  try {
+    registerProjectedEvaluationEnvelope(captured, buildProjectedEvaluationEnvelope({
+      optIn,
+      transformerId: owning.transformer_id,
+      graph: prepareDeterministicProjection(owning.transformer_id, resultBytes)
+        .graph(optIn.graph_projection_id),
+      projectionResultSha256: sha256(resultBytes),
+      context
+    }, INTERNAL_ENVELOPE_AUTHORITY));
+  } catch (error) {
+    return evaluateCaptureFailureExactBindingsV1({
+      declaration, evaluationInput, context, expectedContext
+    }, {
+      code: ID_SAFE_CAPTURE_CODES.has(error?.code)
+        ? error.code : "projected_graph_derivation_failed",
+      message: error?.message ?? "projected contract graph derivation failed",
+      requirement_id: optIn.result_requirement_id
+    }, INTERNAL_CAPTURE_AUTHORITY);
+  }
+  return captured;
 }
 
 const ID_SAFE_CAPTURE_CODES = new Set([
+  "artifact_capture_source_too_large",
   "artifact_capture_byte_length_mismatch",
   "artifact_capture_changed_during_read",
   "artifact_capture_not_regular",
@@ -478,6 +577,31 @@ const ID_SAFE_CAPTURE_CODES = new Set([
   "descriptor_relative_open_failed",
   "mutation_id_duplicate",
   "mutation_digest_shape_invalid",
+  "authentication_witness_binding_mismatch",
+  "authentication_witness_invalid",
+  "attempt_binding_evidence_mismatch",
+  "attempt_binding_witness_invalid",
+  "derived_evidence_refused_by_direct_source_capture",
+  "occurrence_capture_digest_invalid",
+  "occurrence_capture_grounded_identity_invalid",
+  "occurrence_capture_result_invalid",
+  "occurrence_capture_role_invalid",
+  "occurrence_capture_role_splice",
+  "occurrence_capture_text_invalid",
+  "projected_graph_dependency_dangling",
+  "projected_graph_node_identifier_invalid",
+  "projected_graph_node_shape_invalid",
+  "projected_graph_noncanonical",
+  "projected_graph_shape_invalid",
+  "projected_graph_text_invalid",
+  "projection_graph_nondeterministic",
+  "projection_graph_unknown",
+  "projection_grounded_identity_mismatch",
+  "source_authentication_evidence_mismatch",
+  "source_authentication_witness_invalid",
+  "source_of_record_witness_invalid",
+  "target_resolution_evidence_mismatch",
+  "target_resolution_witness_invalid",
   "reachability_edge_duplicate",
   "reachability_edge_endpoint_missing",
   "reachability_node_reference_duplicate",
@@ -486,10 +610,12 @@ const ID_SAFE_CAPTURE_CODES = new Set([
 ]);
 
 export {
+  MAX_ARTIFACT_BYTES,
   PinnedCaptureRoot,
   assertDescriptorCapturePlatform,
   captureAndEvaluateExactBindingsV1,
   normalizeMutationSnapshot,
   normalizeReachabilitySnapshot,
+  projectedEvaluationEnvelopeFor,
   validateStableArtifactObservation
 };

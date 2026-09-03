@@ -1,0 +1,58 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v2",
+  "profile_id": "proof.observation.sound-negative",
+  "profile_version": "2.0.0",
+  "profile_digest": "42485872891100119e4632c3e04be5a3c26e344afb8a3d8e9c5d5119712c4edf",
+  "guarantee": "For one exact captured target, observation attempt, complete declared source and raw-observation populations, and interval, every valid observation is authenticated and directly grounded to its exact target, source of record, attempt, observation position, and raw observation; declared and observed source coverage is complete; every source outcome has one stable endpoint pair; every valid observation fails to match the target; the invalidating-condition population is exactly empty; and the same exact projection derives the sole absent conclusion.",
+  "guarantee_digest": "e632a6e78c5bcabd9e1f87b1ce3f3a8bf877d348f6d810edd0256f3a0ca36f62",
+  "explicit_exclusions": [
+    "authenticated-presence-proof",
+    "copied-transformed-or-derived-provenance",
+    "correctness-or-completeness-of-pre-capture-source-discovery",
+    "cross-pack-occurrence-joins",
+    "evidence-authority-applicability-authority-or-cce-consequences",
+    "evidenced-unavailability-proof",
+    "external-pki-or-legal-identity",
+    "runtime-or-post-capture-truth",
+    "undeclared-sources-observations-conditions-or-mutations"
+  ],
+  "certification": {
+    "method": "executable_semantic_adequacy",
+    "adequacy_declaration_digest": "82e1c0fad02ad022d07b36bad0b384eadb273dc14a29dd1f7fec59ed77b555b2",
+    "adequacy_result_digest": "3ebe995f031736846664960bc5bcaeb7bd9bb33d8a9fd08bf4b54bed69af609c",
+    "executable_control_count": 34,
+    "negative_fixture_count": 0,
+    "coverage_witness_count": 0
+  },
+  "exact_binding": {
+    "declaration_digest": "bd8b186e967b87c41583ad27a59b39be7f2a40ae5d927ef7d68141d1cf2d6107",
+    "certification_result_digest": "68d8a48e1b8c6e2145513b3648e689bfa53297166bf080d7275e53bb8dd60411",
+    "executable_control_count": 15,
+    "binding_kinds": [
+      "artifact_bytes"
+    ],
+    "relation_operators": [
+      "deterministic_projection"
+    ],
+    "corpus_id": "proof-observation-sound-negative-exact-binding",
+    "corpus_version": "1.0.0",
+    "corpus_digest": "c877d48d8385a9a28d9a5b15a7767f6f3e4a6b115e6206cfd744d996ab692dd0",
+    "passed_control_ids": [
+      "admission-context-splice",
+      "capture-source-splice",
+      "crossed-position-associations",
+      "crossed-source-associations",
+      "crossed-target-associations",
+      "declaration-profile-splice",
+      "evaluation-input-splice",
+      "fabricated-selected-claim",
+      "omitted-association-trace-record",
+      "positive-complete-empty-capture",
+      "positive-nonempty-exact-capture",
+      "positive-unicode-exact-capture",
+      "projected-evaluation-opt-in-removal",
+      "projection-result-splice",
+      "unbound-invalidating-condition-population"
+    ]
+  }
+}

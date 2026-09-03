@@ -1,0 +1,61 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v2",
+  "profile_id": "proof.dormancy.nonactivation",
+  "profile_version": "2.0.0",
+  "profile_digest": "d273dae20097835533033248ff776361180baf302cb4668c3dd1caa749021a32",
+  "guarantee": "For one directly constructible and independently registrable declared component, one exact captured complete production reachability snapshot, one exact captured default-configuration artifact, and one exact captured activation-observation artifact, the declared complete graph and production-entrypoint populations contain the selected component and entrypoints, the default configuration declares the component inactive, the declared complete activation-event population has exactly zero members, and a separately bound no-path result covers every declared production entrypoint and that component.",
+  "guarantee_digest": "195abee0ccf37eccb8b59dcb3f7e5c750cce280860015fb880aea55c3953e738",
+  "explicit_exclusions": [
+    "activation-after-the-captured-observation-boundary",
+    "dishonest-complete-population-or-resolver-result",
+    "dishonest-reference-artifact-state-or-identity-grounding",
+    "dynamic-reflection-loading-or-environment-routes-absent-from-the-captured-graph",
+    "independent-proof-that-captured-artifact-bytes-semantically-mean-inactive",
+    "production-path-discovery-outside-the-caller-supplied-complete-snapshot",
+    "resolver-authority-or-independent-transitive-reachability-recomputation",
+    "runtime-authority-pack-applicability-or-cce-consequence"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "18ed4dac1fcbfd1354c30efc91d8a9b4af6bcb371863c87edc56fd46ef90aac2",
+    "adequacy_result_digest": "6dd6ea18875b1ae8a8d8b98f6125408aff1b0f5997df2073912f95c62b2ddb6a",
+    "executable_control_count": 42,
+    "negative_fixture_count": 52,
+    "coverage_witness_count": 52
+  },
+  "exact_binding": {
+    "declaration_digest": "64a00e382cbcd1458ea32edcc532c05d04864bc2a1cad1d5880cad90e228c80f",
+    "certification_result_digest": "d987608192750d752d23cc844f854961464d4e2122d83b24b4772df4497f8fb1",
+    "executable_control_count": 18,
+    "binding_kinds": [
+      "artifact_bytes",
+      "complete_reachability_snapshot"
+    ],
+    "relation_operators": [
+      "distinct_source_descriptor"
+    ],
+    "corpus_id": "proof-dormancy-nonactivation-exact-binding",
+    "corpus_version": "1.0.0",
+    "corpus_digest": "98dfb9c1ce147613e5490bc85670998cd3e46b106a7b691d895befd5ddd42419",
+    "passed_control_ids": [
+      "activation-trace-substituted",
+      "context-admission_digest-mismatch",
+      "context-contract_digest-mismatch",
+      "context-evaluation_input_digest-mismatch",
+      "context-exact_binding_certification_digest-mismatch",
+      "context-exact_binding_declaration_digest-mismatch",
+      "context-profile_digest-mismatch",
+      "context-vocabulary_complete_digest-mismatch",
+      "context-vocabulary_version-mismatch",
+      "default-config-substituted",
+      "distinct-artifact-paths-equal-bytes",
+      "graph-node-added",
+      "graph-node-omitted",
+      "graph-subject-substituted",
+      "positive-compatibility-codec",
+      "positive-feature-gated-scheduler",
+      "positive-plugin-registry",
+      "source-descriptor-reused"
+    ]
+  }
+}

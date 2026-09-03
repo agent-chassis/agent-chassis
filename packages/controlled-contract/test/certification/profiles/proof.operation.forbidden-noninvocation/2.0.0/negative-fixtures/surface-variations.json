@@ -1,0 +1,3962 @@
+{
+  "schema_version": "controlled-contract-proof-pack-negative-fixture.experimental.v0.1",
+  "fixture_id": "surface-variations",
+  "covers": [
+    {
+      "surface_id": "reference-binding-patterns",
+      "weakening_class": "binding_constraint_weakening"
+    },
+    {
+      "surface_id": "distinct-reference-role-sets",
+      "weakening_class": "binding_constraint_weakening"
+    },
+    {
+      "surface_id": "falsifier-condition-bindings",
+      "weakening_class": "falsifier_weakening"
+    },
+    {
+      "surface_id": "satisfaction-expression",
+      "weakening_class": "satisfaction_branch_broadening"
+    },
+    {
+      "surface_id": "claim-patterns",
+      "weakening_class": "deletion"
+    },
+    {
+      "surface_id": "relation-patterns",
+      "weakening_class": "relation_weakening"
+    },
+    {
+      "surface_id": "reference-role-subject-operation-types",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "reference-role-execution-context-types",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "reference-role-forbidden-operation-population-types",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "reference-role-forbidden-operations-types",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "reference-role-verification-types",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "claim-subject-does-not-use-forbidden-operations-modalities",
+      "weakening_class": "modality_broadening"
+    },
+    {
+      "surface_id": "claim-subject-does-not-use-forbidden-operations-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-subject-does-not-use-forbidden-operations-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-noninvocation-subjects-modalities",
+      "weakening_class": "modality_broadening"
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-noninvocation-subjects-proposition-subject",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-noninvocation-subjects-proposition-operator",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-noninvocation-subjects-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-noninvocation-subjects-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-noninvocation-subjects-proposition-operand-2-role",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-noninvocation-subjects-proposition-operand-3-role",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-verify-forbidden-operation-noninvocation-modalities",
+      "weakening_class": "modality_broadening"
+    },
+    {
+      "surface_id": "claim-verify-forbidden-operation-noninvocation-proposition-subject",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-verify-forbidden-operation-noninvocation-proposition-operator",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-verify-forbidden-operation-noninvocation-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-verify-forbidden-operation-noninvocation-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-verify-forbidden-operation-noninvocation-proposition-operand-2-role",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-verify-forbidden-operation-noninvocation-verification-methods",
+      "weakening_class": "proposition_weakening"
+    }
+  ],
+  "contract": {
+    "schema_version": "controlled-acceptance-contract.v1",
+    "vocabulary_version": "controlled-contract-vocabulary.v1",
+    "profile_id": "acceptance-contract.standard.v1",
+    "references": [
+      {
+        "reference_id": "ref-subject-operation",
+        "type_term": "cc:operation",
+        "identity": {
+          "kind": "code_symbol",
+          "repository": "fixture-slice-review",
+          "path": "src/slice-review.mjs",
+          "symbol": "subject_operation"
+        }
+      },
+      {
+        "reference_id": "ref-execution-context",
+        "type_term": "cc:authority",
+        "identity": {
+          "kind": "profile_term",
+          "term": "forbidden-operation-context:slice-review:execution-context"
+        }
+      },
+      {
+        "reference_id": "ref-forbidden-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "forbidden-operation-noninvocation:slice-review",
+          "value": "forbidden-population"
+        }
+      },
+      {
+        "reference_id": "ref-forbidden-operation-1",
+        "type_term": "cc:operation",
+        "identity": {
+          "kind": "code_symbol",
+          "repository": "fixture-slice-review",
+          "path": "src/slice-review.mjs",
+          "symbol": "forbidden_operation_1"
+        }
+      },
+      {
+        "reference_id": "ref-forbidden-operation-2",
+        "type_term": "cc:operation",
+        "identity": {
+          "kind": "code_symbol",
+          "repository": "fixture-slice-review",
+          "path": "src/slice-review.mjs",
+          "symbol": "forbidden_operation_2"
+        }
+      },
+      {
+        "reference_id": "ref-verification",
+        "type_term": "cc:test",
+        "identity": {
+          "kind": "repository_path",
+          "repository": "fixture-slice-review",
+          "path": "tests/forbidden-operation-noninvocation.test.mjs"
+        }
+      }
+    ],
+    "propositions": [
+      {
+        "proposition_id": "prop-forbidden-population-contains",
+        "subject_reference_id": "ref-forbidden-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-execution-context"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-forbidden-operation-1"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-forbidden-operation-2"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-forbidden-population-cardinality",
+        "subject_reference_id": "ref-forbidden-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-execution-context"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-subject-does-not-use-forbidden-operations",
+        "subject_reference_id": "ref-subject-operation",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-execution-context"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-forbidden-operation-1"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-forbidden-operation-2"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-verification-observes-exact-noninvocation-subjects",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-subject-operation"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-execution-context"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-forbidden-population"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-forbidden-operation-1"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-forbidden-operation-2"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-verify-forbidden-operation-noninvocation",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-subject-operation"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-execution-context"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-forbidden-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-verify-forbidden-operation-noninvocation",
+        "subject_reference_id": "ref-subject-operation",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-execution-context"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-forbidden-operation-1"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-forbidden-operation-2"
+          }
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "claim_id": "claim-forbidden-population-contains",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-forbidden-population-contains"
+      },
+      {
+        "claim_id": "claim-forbidden-population-cardinality",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-forbidden-population-cardinality"
+      },
+      {
+        "claim_id": "claim-subject-does-not-use-forbidden-operations",
+        "kind": "behavior",
+        "modality": "MUST_NOT",
+        "proposition_id": "prop-subject-does-not-use-forbidden-operations"
+      },
+      {
+        "claim_id": "claim-verification-observes-exact-noninvocation-subjects",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-verification-observes-exact-noninvocation-subjects"
+      },
+      {
+        "claim_id": "claim-verify-forbidden-operation-noninvocation",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-verify-forbidden-operation-noninvocation",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-verify-forbidden-operation-noninvocation"
+      }
+    ],
+    "relations": [
+      {
+        "relation_id": "rel-verification-targets-forbidden-operation-noninvocation",
+        "role": "verifies",
+        "source_claim_id": "claim-verify-forbidden-operation-noninvocation",
+        "target_claim_id": "claim-subject-does-not-use-forbidden-operations"
+      }
+    ],
+    "collections": [],
+    "residue": [],
+    "annotations": [],
+    "test_proof_version": "controlled-contract-test-proof.v1",
+    "test_proofs": []
+  },
+  "evaluation_input": {
+    "input_version": "controlled-contract-verification-profile-input.v1",
+    "evaluation_stage": "pre_dispatch",
+    "reference_bindings": [
+      {
+        "role": "subject_operation",
+        "reference_ids": [
+          "ref-subject-operation"
+        ]
+      },
+      {
+        "role": "execution_context",
+        "reference_ids": [
+          "ref-execution-context"
+        ]
+      },
+      {
+        "role": "forbidden_operation_population",
+        "reference_ids": [
+          "ref-forbidden-population"
+        ]
+      },
+      {
+        "role": "forbidden_operations",
+        "reference_ids": [
+          "ref-forbidden-operation-1",
+          "ref-forbidden-operation-2"
+        ]
+      },
+      {
+        "role": "verification",
+        "reference_ids": [
+          "ref-verification"
+        ]
+      }
+    ],
+    "number_bindings": [],
+    "claim_pattern_bindings": [],
+    "resolver_facts": [],
+    "delivered_evidence": [],
+    "stable_evaluation": {}
+  },
+  "variations": [
+    {
+      "variant_id": "reference-binding-patterns",
+      "covers": [
+        {
+          "surface_id": "reference-binding-patterns",
+          "weakening_class": "binding_constraint_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions",
+          "value": [
+            {
+              "proposition_id": "prop-forbidden-population-contains",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "reference:contains",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-forbidden-population-cardinality",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "number:has_cardinality",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-subject-does-not-use-forbidden-operations",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verification-observes-exact-noninvocation-subjects",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:reads",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-population"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:covers",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-population"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-falsifier-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "distinct-reference-role-sets",
+      "covers": [
+        {
+          "surface_id": "distinct-reference-role-sets",
+          "weakening_class": "binding_constraint_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-shared-process",
+              "type_term": "cc:process",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-slice-review",
+                "path": "src/slice-review.mjs",
+                "symbol": "shared_process"
+              }
+            },
+            {
+              "reference_id": "ref-execution-context",
+              "type_term": "cc:authority",
+              "identity": {
+                "kind": "profile_term",
+                "term": "forbidden-operation-context:slice-review:execution-context"
+              }
+            },
+            {
+              "reference_id": "ref-forbidden-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "forbidden-operation-noninvocation:slice-review",
+                "value": "forbidden-population"
+              }
+            },
+            {
+              "reference_id": "ref-forbidden-operation-1",
+              "type_term": "cc:operation",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-slice-review",
+                "path": "src/slice-review.mjs",
+                "symbol": "forbidden_operation_1"
+              }
+            },
+            {
+              "reference_id": "ref-forbidden-operation-2",
+              "type_term": "cc:operation",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-slice-review",
+                "path": "src/slice-review.mjs",
+                "symbol": "forbidden_operation_2"
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/propositions",
+          "value": [
+            {
+              "proposition_id": "prop-forbidden-population-contains",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "reference:contains",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-forbidden-population-cardinality",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "number:has_cardinality",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-subject-does-not-use-forbidden-operations",
+              "subject_reference_id": "ref-shared-process",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verification-observes-exact-noninvocation-subjects",
+              "subject_reference_id": "ref-shared-process",
+              "operator": "reference:reads",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-shared-process"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-population"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-shared-process",
+              "operator": "reference:covers",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-shared-process"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-population"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-falsifier-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-shared-process",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_bindings",
+          "value": [
+            {
+              "role": "subject_operation",
+              "reference_ids": [
+                "ref-shared-process"
+              ]
+            },
+            {
+              "role": "execution_context",
+              "reference_ids": [
+                "ref-execution-context"
+              ]
+            },
+            {
+              "role": "forbidden_operation_population",
+              "reference_ids": [
+                "ref-forbidden-population"
+              ]
+            },
+            {
+              "role": "forbidden_operations",
+              "reference_ids": [
+                "ref-forbidden-operation-1",
+                "ref-forbidden-operation-2"
+              ]
+            },
+            {
+              "role": "verification",
+              "reference_ids": [
+                "ref-shared-process"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "falsifier-condition-bindings",
+      "covers": [
+        {
+          "surface_id": "falsifier-condition-bindings",
+          "weakening_class": "falsifier_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions",
+          "value": [
+            {
+              "proposition_id": "prop-forbidden-population-contains",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "reference:contains",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-forbidden-population-cardinality",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "number:has_cardinality",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-subject-does-not-use-forbidden-operations",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verification-observes-exact-noninvocation-subjects",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:reads",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-population"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:covers",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-population"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-falsifier-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "satisfaction-expression",
+      "covers": [
+        {
+          "surface_id": "satisfaction-expression",
+          "weakening_class": "satisfaction_branch_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions",
+          "value": [
+            {
+              "proposition_id": "prop-forbidden-population-contains",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "reference:contains",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-forbidden-population-cardinality",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "number:has_cardinality",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-subject-does-not-use-forbidden-operations",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:covers",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-population"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-falsifier-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claims",
+          "value": [
+            {
+              "claim_id": "claim-forbidden-population-contains",
+              "kind": "evidence",
+              "modality": "MUST",
+              "proposition_id": "prop-forbidden-population-contains"
+            },
+            {
+              "claim_id": "claim-forbidden-population-cardinality",
+              "kind": "evidence",
+              "modality": "MUST",
+              "proposition_id": "prop-forbidden-population-cardinality"
+            },
+            {
+              "claim_id": "claim-subject-does-not-use-forbidden-operations",
+              "kind": "behavior",
+              "modality": "MUST_NOT",
+              "proposition_id": "prop-subject-does-not-use-forbidden-operations"
+            },
+            {
+              "claim_id": "claim-verify-forbidden-operation-noninvocation",
+              "kind": "verification",
+              "modality": "MUST",
+              "proposition_id": "prop-verify-forbidden-operation-noninvocation",
+              "verification_method": "test_execution",
+              "falsifying_proposition_id": "prop-falsifier-verify-forbidden-operation-noninvocation"
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "claim-patterns",
+      "covers": [
+        {
+          "surface_id": "claim-patterns",
+          "weakening_class": "deletion"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions",
+          "value": [
+            {
+              "proposition_id": "prop-forbidden-population-contains",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "reference:contains",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-forbidden-population-cardinality",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "number:has_cardinality",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-subject-does-not-use-forbidden-operations",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:covers",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-population"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-falsifier-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claims",
+          "value": [
+            {
+              "claim_id": "claim-forbidden-population-contains",
+              "kind": "evidence",
+              "modality": "MUST",
+              "proposition_id": "prop-forbidden-population-contains"
+            },
+            {
+              "claim_id": "claim-forbidden-population-cardinality",
+              "kind": "evidence",
+              "modality": "MUST",
+              "proposition_id": "prop-forbidden-population-cardinality"
+            },
+            {
+              "claim_id": "claim-subject-does-not-use-forbidden-operations",
+              "kind": "behavior",
+              "modality": "MUST_NOT",
+              "proposition_id": "prop-subject-does-not-use-forbidden-operations"
+            },
+            {
+              "claim_id": "claim-verify-forbidden-operation-noninvocation",
+              "kind": "verification",
+              "modality": "MUST",
+              "proposition_id": "prop-verify-forbidden-operation-noninvocation",
+              "verification_method": "test_execution",
+              "falsifying_proposition_id": "prop-falsifier-verify-forbidden-operation-noninvocation"
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "relation-patterns",
+      "covers": [
+        {
+          "surface_id": "relation-patterns",
+          "weakening_class": "relation_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions",
+          "value": [
+            {
+              "proposition_id": "prop-forbidden-population-contains",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "reference:contains",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-forbidden-population-cardinality",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "number:has_cardinality",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verification-observes-exact-noninvocation-subjects",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:covers",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-population"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-falsifier-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claims",
+          "value": [
+            {
+              "claim_id": "claim-forbidden-population-contains",
+              "kind": "evidence",
+              "modality": "MUST",
+              "proposition_id": "prop-forbidden-population-contains"
+            },
+            {
+              "claim_id": "claim-forbidden-population-cardinality",
+              "kind": "evidence",
+              "modality": "MUST",
+              "proposition_id": "prop-forbidden-population-cardinality"
+            },
+            {
+              "claim_id": "claim-verification-observes-exact-noninvocation-subjects",
+              "kind": "behavior",
+              "modality": "MUST_NOT",
+              "proposition_id": "prop-verification-observes-exact-noninvocation-subjects"
+            },
+            {
+              "claim_id": "claim-verify-forbidden-operation-noninvocation",
+              "kind": "verification",
+              "modality": "MUST",
+              "proposition_id": "prop-verify-forbidden-operation-noninvocation",
+              "verification_method": "test_execution",
+              "falsifying_proposition_id": "prop-falsifier-verify-forbidden-operation-noninvocation"
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/relations",
+          "value": [
+            {
+              "relation_id": "rel-verification-targets-forbidden-operation-noninvocation",
+              "role": "verifies",
+              "source_claim_id": "claim-verify-forbidden-operation-noninvocation",
+              "target_claim_id": "claim-verification-observes-exact-noninvocation-subjects"
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "reference-role-subject-operation-types",
+      "covers": [
+        {
+          "surface_id": "reference-role-subject-operation-types",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-subject-operation",
+              "type_term": "cc:actor",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-slice-review",
+                "path": "src/slice-review.mjs",
+                "symbol": "subject_operation"
+              }
+            },
+            {
+              "reference_id": "ref-execution-context",
+              "type_term": "cc:authority",
+              "identity": {
+                "kind": "profile_term",
+                "term": "forbidden-operation-context:slice-review:execution-context"
+              }
+            },
+            {
+              "reference_id": "ref-forbidden-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "forbidden-operation-noninvocation:slice-review",
+                "value": "forbidden-population"
+              }
+            },
+            {
+              "reference_id": "ref-forbidden-operation-1",
+              "type_term": "cc:operation",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-slice-review",
+                "path": "src/slice-review.mjs",
+                "symbol": "forbidden_operation_1"
+              }
+            },
+            {
+              "reference_id": "ref-forbidden-operation-2",
+              "type_term": "cc:operation",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-slice-review",
+                "path": "src/slice-review.mjs",
+                "symbol": "forbidden_operation_2"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:test",
+              "identity": {
+                "kind": "repository_path",
+                "repository": "fixture-slice-review",
+                "path": "tests/forbidden-operation-noninvocation.test.mjs"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "reference-role-execution-context-types",
+      "covers": [
+        {
+          "surface_id": "reference-role-execution-context-types",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-subject-operation",
+              "type_term": "cc:operation",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-slice-review",
+                "path": "src/slice-review.mjs",
+                "symbol": "subject_operation"
+              }
+            },
+            {
+              "reference_id": "ref-execution-context",
+              "type_term": "cc:criterion",
+              "identity": {
+                "kind": "profile_term",
+                "term": "forbidden-operation-context:slice-review:execution-context"
+              }
+            },
+            {
+              "reference_id": "ref-forbidden-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "forbidden-operation-noninvocation:slice-review",
+                "value": "forbidden-population"
+              }
+            },
+            {
+              "reference_id": "ref-forbidden-operation-1",
+              "type_term": "cc:operation",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-slice-review",
+                "path": "src/slice-review.mjs",
+                "symbol": "forbidden_operation_1"
+              }
+            },
+            {
+              "reference_id": "ref-forbidden-operation-2",
+              "type_term": "cc:operation",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-slice-review",
+                "path": "src/slice-review.mjs",
+                "symbol": "forbidden_operation_2"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:test",
+              "identity": {
+                "kind": "repository_path",
+                "repository": "fixture-slice-review",
+                "path": "tests/forbidden-operation-noninvocation.test.mjs"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "reference-role-forbidden-operation-population-types",
+      "covers": [
+        {
+          "surface_id": "reference-role-forbidden-operation-population-types",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-subject-operation",
+              "type_term": "cc:operation",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-slice-review",
+                "path": "src/slice-review.mjs",
+                "symbol": "subject_operation"
+              }
+            },
+            {
+              "reference_id": "ref-execution-context",
+              "type_term": "cc:authority",
+              "identity": {
+                "kind": "profile_term",
+                "term": "forbidden-operation-context:slice-review:execution-context"
+              }
+            },
+            {
+              "reference_id": "ref-forbidden-population",
+              "type_term": "cc:scope",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "forbidden-operation-noninvocation:slice-review",
+                "value": "forbidden-population"
+              }
+            },
+            {
+              "reference_id": "ref-forbidden-operation-1",
+              "type_term": "cc:operation",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-slice-review",
+                "path": "src/slice-review.mjs",
+                "symbol": "forbidden_operation_1"
+              }
+            },
+            {
+              "reference_id": "ref-forbidden-operation-2",
+              "type_term": "cc:operation",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-slice-review",
+                "path": "src/slice-review.mjs",
+                "symbol": "forbidden_operation_2"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:test",
+              "identity": {
+                "kind": "repository_path",
+                "repository": "fixture-slice-review",
+                "path": "tests/forbidden-operation-noninvocation.test.mjs"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "reference-role-forbidden-operations-types",
+      "covers": [
+        {
+          "surface_id": "reference-role-forbidden-operations-types",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-subject-operation",
+              "type_term": "cc:operation",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-slice-review",
+                "path": "src/slice-review.mjs",
+                "symbol": "subject_operation"
+              }
+            },
+            {
+              "reference_id": "ref-execution-context",
+              "type_term": "cc:authority",
+              "identity": {
+                "kind": "profile_term",
+                "term": "forbidden-operation-context:slice-review:execution-context"
+              }
+            },
+            {
+              "reference_id": "ref-forbidden-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "forbidden-operation-noninvocation:slice-review",
+                "value": "forbidden-population"
+              }
+            },
+            {
+              "reference_id": "ref-forbidden-operation-1",
+              "type_term": "cc:artifact",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-slice-review",
+                "path": "src/slice-review.mjs",
+                "symbol": "forbidden_operation_1"
+              }
+            },
+            {
+              "reference_id": "ref-forbidden-operation-2",
+              "type_term": "cc:artifact",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-slice-review",
+                "path": "src/slice-review.mjs",
+                "symbol": "forbidden_operation_2"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:test",
+              "identity": {
+                "kind": "repository_path",
+                "repository": "fixture-slice-review",
+                "path": "tests/forbidden-operation-noninvocation.test.mjs"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "reference-role-verification-types",
+      "covers": [
+        {
+          "surface_id": "reference-role-verification-types",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-subject-operation",
+              "type_term": "cc:operation",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-slice-review",
+                "path": "src/slice-review.mjs",
+                "symbol": "subject_operation"
+              }
+            },
+            {
+              "reference_id": "ref-execution-context",
+              "type_term": "cc:authority",
+              "identity": {
+                "kind": "profile_term",
+                "term": "forbidden-operation-context:slice-review:execution-context"
+              }
+            },
+            {
+              "reference_id": "ref-forbidden-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "forbidden-operation-noninvocation:slice-review",
+                "value": "forbidden-population"
+              }
+            },
+            {
+              "reference_id": "ref-forbidden-operation-1",
+              "type_term": "cc:operation",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-slice-review",
+                "path": "src/slice-review.mjs",
+                "symbol": "forbidden_operation_1"
+              }
+            },
+            {
+              "reference_id": "ref-forbidden-operation-2",
+              "type_term": "cc:operation",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-slice-review",
+                "path": "src/slice-review.mjs",
+                "symbol": "forbidden_operation_2"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:artifact",
+              "identity": {
+                "kind": "repository_path",
+                "repository": "fixture-slice-review",
+                "path": "tests/forbidden-operation-noninvocation.test.mjs"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "claim-subject-does-not-use-forbidden-operations-modalities",
+      "covers": [
+        {
+          "surface_id": "claim-subject-does-not-use-forbidden-operations-modalities",
+          "weakening_class": "modality_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/claims",
+          "value": [
+            {
+              "claim_id": "claim-forbidden-population-contains",
+              "kind": "evidence",
+              "modality": "MUST",
+              "proposition_id": "prop-forbidden-population-contains"
+            },
+            {
+              "claim_id": "claim-forbidden-population-cardinality",
+              "kind": "evidence",
+              "modality": "MUST",
+              "proposition_id": "prop-forbidden-population-cardinality"
+            },
+            {
+              "claim_id": "claim-subject-does-not-use-forbidden-operations",
+              "kind": "behavior",
+              "modality": "SHOULD_NOT",
+              "proposition_id": "prop-subject-does-not-use-forbidden-operations"
+            },
+            {
+              "claim_id": "claim-verification-observes-exact-noninvocation-subjects",
+              "kind": "evidence",
+              "modality": "MUST",
+              "proposition_id": "prop-verification-observes-exact-noninvocation-subjects"
+            },
+            {
+              "claim_id": "claim-verify-forbidden-operation-noninvocation",
+              "kind": "verification",
+              "modality": "MUST",
+              "proposition_id": "prop-verify-forbidden-operation-noninvocation",
+              "verification_method": "test_execution",
+              "falsifying_proposition_id": "prop-falsifier-verify-forbidden-operation-noninvocation"
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "claim-subject-does-not-use-forbidden-operations-proposition-applicability-mode",
+      "covers": [
+        {
+          "surface_id": "claim-subject-does-not-use-forbidden-operations-proposition-applicability-mode",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions",
+          "value": [
+            {
+              "proposition_id": "prop-forbidden-population-contains",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "reference:contains",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-forbidden-population-cardinality",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "number:has_cardinality",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-subject-does-not-use-forbidden-operations",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "if",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verification-observes-exact-noninvocation-subjects",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:reads",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-population"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:covers",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-population"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-falsifier-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "claim-subject-does-not-use-forbidden-operations-proposition-applicability-operands",
+      "covers": [
+        {
+          "surface_id": "claim-subject-does-not-use-forbidden-operations-proposition-applicability-operands",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions",
+          "value": [
+            {
+              "proposition_id": "prop-forbidden-population-contains",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "reference:contains",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-forbidden-population-cardinality",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "number:has_cardinality",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-subject-does-not-use-forbidden-operations",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-subject-operation"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verification-observes-exact-noninvocation-subjects",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:reads",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-population"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:covers",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-population"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-falsifier-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "claim-verification-observes-exact-noninvocation-subjects-modalities",
+      "covers": [
+        {
+          "surface_id": "claim-verification-observes-exact-noninvocation-subjects-modalities",
+          "weakening_class": "modality_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/claims",
+          "value": [
+            {
+              "claim_id": "claim-forbidden-population-contains",
+              "kind": "evidence",
+              "modality": "MUST",
+              "proposition_id": "prop-forbidden-population-contains"
+            },
+            {
+              "claim_id": "claim-forbidden-population-cardinality",
+              "kind": "evidence",
+              "modality": "MUST",
+              "proposition_id": "prop-forbidden-population-cardinality"
+            },
+            {
+              "claim_id": "claim-subject-does-not-use-forbidden-operations",
+              "kind": "behavior",
+              "modality": "MUST_NOT",
+              "proposition_id": "prop-subject-does-not-use-forbidden-operations"
+            },
+            {
+              "claim_id": "claim-verification-observes-exact-noninvocation-subjects",
+              "kind": "evidence",
+              "modality": "MUST_NOT",
+              "proposition_id": "prop-verification-observes-exact-noninvocation-subjects"
+            },
+            {
+              "claim_id": "claim-verify-forbidden-operation-noninvocation",
+              "kind": "verification",
+              "modality": "MUST",
+              "proposition_id": "prop-verify-forbidden-operation-noninvocation",
+              "verification_method": "test_execution",
+              "falsifying_proposition_id": "prop-falsifier-verify-forbidden-operation-noninvocation"
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "claim-verification-observes-exact-noninvocation-subjects-proposition-subject",
+      "covers": [
+        {
+          "surface_id": "claim-verification-observes-exact-noninvocation-subjects-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions",
+          "value": [
+            {
+              "proposition_id": "prop-forbidden-population-contains",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "reference:contains",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-forbidden-population-cardinality",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "number:has_cardinality",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-subject-does-not-use-forbidden-operations",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verification-observes-exact-noninvocation-subjects",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:reads",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-population"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:covers",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-population"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-falsifier-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "claim-verification-observes-exact-noninvocation-subjects-proposition-operator",
+      "covers": [
+        {
+          "surface_id": "claim-verification-observes-exact-noninvocation-subjects-proposition-operator",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions",
+          "value": [
+            {
+              "proposition_id": "prop-forbidden-population-contains",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "reference:contains",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-forbidden-population-cardinality",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "number:has_cardinality",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-subject-does-not-use-forbidden-operations",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verification-observes-exact-noninvocation-subjects",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:accepts",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-population"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:covers",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-population"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-falsifier-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "claim-verification-observes-exact-noninvocation-subjects-proposition-operand-0-role",
+      "covers": [
+        {
+          "surface_id": "claim-verification-observes-exact-noninvocation-subjects-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions",
+          "value": [
+            {
+              "proposition_id": "prop-forbidden-population-contains",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "reference:contains",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-forbidden-population-cardinality",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "number:has_cardinality",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-subject-does-not-use-forbidden-operations",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verification-observes-exact-noninvocation-subjects",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:reads",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-population"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:covers",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-population"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-falsifier-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "claim-verification-observes-exact-noninvocation-subjects-proposition-operand-1-role",
+      "covers": [
+        {
+          "surface_id": "claim-verification-observes-exact-noninvocation-subjects-proposition-operand-1-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions",
+          "value": [
+            {
+              "proposition_id": "prop-forbidden-population-contains",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "reference:contains",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-forbidden-population-cardinality",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "number:has_cardinality",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-subject-does-not-use-forbidden-operations",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verification-observes-exact-noninvocation-subjects",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:reads",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-population"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:covers",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-population"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-falsifier-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "claim-verification-observes-exact-noninvocation-subjects-proposition-operand-2-role",
+      "covers": [
+        {
+          "surface_id": "claim-verification-observes-exact-noninvocation-subjects-proposition-operand-2-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions",
+          "value": [
+            {
+              "proposition_id": "prop-forbidden-population-contains",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "reference:contains",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-forbidden-population-cardinality",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "number:has_cardinality",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-subject-does-not-use-forbidden-operations",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verification-observes-exact-noninvocation-subjects",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:reads",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:covers",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-population"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-falsifier-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "claim-verification-observes-exact-noninvocation-subjects-proposition-operand-3-role",
+      "covers": [
+        {
+          "surface_id": "claim-verification-observes-exact-noninvocation-subjects-proposition-operand-3-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions",
+          "value": [
+            {
+              "proposition_id": "prop-forbidden-population-contains",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "reference:contains",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-forbidden-population-cardinality",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "number:has_cardinality",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-subject-does-not-use-forbidden-operations",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verification-observes-exact-noninvocation-subjects",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:reads",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-population"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:covers",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-population"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-falsifier-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "claim-verify-forbidden-operation-noninvocation-modalities",
+      "covers": [
+        {
+          "surface_id": "claim-verify-forbidden-operation-noninvocation-modalities",
+          "weakening_class": "modality_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/claims",
+          "value": [
+            {
+              "claim_id": "claim-forbidden-population-contains",
+              "kind": "evidence",
+              "modality": "MUST",
+              "proposition_id": "prop-forbidden-population-contains"
+            },
+            {
+              "claim_id": "claim-forbidden-population-cardinality",
+              "kind": "evidence",
+              "modality": "MUST",
+              "proposition_id": "prop-forbidden-population-cardinality"
+            },
+            {
+              "claim_id": "claim-subject-does-not-use-forbidden-operations",
+              "kind": "behavior",
+              "modality": "SHOULD_NOT",
+              "proposition_id": "prop-subject-does-not-use-forbidden-operations"
+            },
+            {
+              "claim_id": "claim-verification-observes-exact-noninvocation-subjects",
+              "kind": "evidence",
+              "modality": "MUST",
+              "proposition_id": "prop-verification-observes-exact-noninvocation-subjects"
+            },
+            {
+              "claim_id": "claim-verify-forbidden-operation-noninvocation",
+              "kind": "verification",
+              "modality": "MUST_NOT",
+              "proposition_id": "prop-verify-forbidden-operation-noninvocation",
+              "verification_method": "test_execution",
+              "falsifying_proposition_id": "prop-falsifier-verify-forbidden-operation-noninvocation"
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "claim-verify-forbidden-operation-noninvocation-proposition-subject",
+      "covers": [
+        {
+          "surface_id": "claim-verify-forbidden-operation-noninvocation-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions",
+          "value": [
+            {
+              "proposition_id": "prop-forbidden-population-contains",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "reference:contains",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-forbidden-population-cardinality",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "number:has_cardinality",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-subject-does-not-use-forbidden-operations",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verification-observes-exact-noninvocation-subjects",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:reads",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-population"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:covers",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-population"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-falsifier-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "claim-verify-forbidden-operation-noninvocation-proposition-operator",
+      "covers": [
+        {
+          "surface_id": "claim-verify-forbidden-operation-noninvocation-proposition-operator",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions",
+          "value": [
+            {
+              "proposition_id": "prop-forbidden-population-contains",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "reference:contains",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-forbidden-population-cardinality",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "number:has_cardinality",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-subject-does-not-use-forbidden-operations",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verification-observes-exact-noninvocation-subjects",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:reads",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-population"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:accepts",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-population"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-falsifier-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "claim-verify-forbidden-operation-noninvocation-proposition-operand-0-role",
+      "covers": [
+        {
+          "surface_id": "claim-verify-forbidden-operation-noninvocation-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions",
+          "value": [
+            {
+              "proposition_id": "prop-forbidden-population-contains",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "reference:contains",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-forbidden-population-cardinality",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "number:has_cardinality",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-subject-does-not-use-forbidden-operations",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verification-observes-exact-noninvocation-subjects",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:reads",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-population"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:covers",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-population"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-falsifier-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "claim-verify-forbidden-operation-noninvocation-proposition-operand-1-role",
+      "covers": [
+        {
+          "surface_id": "claim-verify-forbidden-operation-noninvocation-proposition-operand-1-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions",
+          "value": [
+            {
+              "proposition_id": "prop-forbidden-population-contains",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "reference:contains",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-forbidden-population-cardinality",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "number:has_cardinality",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-subject-does-not-use-forbidden-operations",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verification-observes-exact-noninvocation-subjects",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:reads",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-population"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:covers",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-population"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-falsifier-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "claim-verify-forbidden-operation-noninvocation-proposition-operand-2-role",
+      "covers": [
+        {
+          "surface_id": "claim-verify-forbidden-operation-noninvocation-proposition-operand-2-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions",
+          "value": [
+            {
+              "proposition_id": "prop-forbidden-population-contains",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "reference:contains",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-forbidden-population-cardinality",
+              "subject_reference_id": "ref-forbidden-population",
+              "operator": "number:has_cardinality",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-subject-does-not-use-forbidden-operations",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verification-observes-exact-noninvocation-subjects",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:reads",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-population"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:covers",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution-context"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-subject-operation"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-falsifier-verify-forbidden-operation-noninvocation",
+              "subject_reference_id": "ref-subject-operation",
+              "operator": "reference:uses",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-execution-context"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-1"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-forbidden-operation-2"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "claim-verify-forbidden-operation-noninvocation-verification-methods",
+      "covers": [
+        {
+          "surface_id": "claim-verify-forbidden-operation-noninvocation-verification-methods",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/claims",
+          "value": [
+            {
+              "claim_id": "claim-forbidden-population-contains",
+              "kind": "evidence",
+              "modality": "MUST",
+              "proposition_id": "prop-forbidden-population-contains"
+            },
+            {
+              "claim_id": "claim-forbidden-population-cardinality",
+              "kind": "evidence",
+              "modality": "MUST",
+              "proposition_id": "prop-forbidden-population-cardinality"
+            },
+            {
+              "claim_id": "claim-subject-does-not-use-forbidden-operations",
+              "kind": "behavior",
+              "modality": "MUST_NOT",
+              "proposition_id": "prop-subject-does-not-use-forbidden-operations"
+            },
+            {
+              "claim_id": "claim-verification-observes-exact-noninvocation-subjects",
+              "kind": "evidence",
+              "modality": "MUST",
+              "proposition_id": "prop-verification-observes-exact-noninvocation-subjects"
+            },
+            {
+              "claim_id": "claim-verify-forbidden-operation-noninvocation",
+              "kind": "verification",
+              "modality": "MUST",
+              "proposition_id": "prop-verify-forbidden-operation-noninvocation",
+              "verification_method": "inspection",
+              "falsifying_proposition_id": "prop-falsifier-verify-forbidden-operation-noninvocation"
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    }
+  ]
+}

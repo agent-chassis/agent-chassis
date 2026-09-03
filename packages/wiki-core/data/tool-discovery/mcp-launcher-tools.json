@@ -3,9 +3,62 @@
   "kind": "tool-discovery-fragment",
   "repository": "agent-chassis/agent-chassis",
   "fragment": "mcp-launcher-tools.json",
-  "summary": "MCP launcher, runtime diagnostic, dispatch-readiness, and validation-run tools.",
-  "tool_count": 5,
+  "summary": "MCP launcher, runtime diagnostic, dispatch-readiness, run-discovery, and validation-run tools.",
+  "tool_count": 7,
   "tools": [
+    {
+      "tool_name": "workspace_preflight_dispatch",
+      "display_name": "Workspace preflight dispatch",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_preflight_dispatch",
+      "task_ids": [
+        "validate-dispatch"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "operator"
+      ],
+      "priority": 34,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "operator_input",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/work-record-read-tools.mjs",
+        "packages/wiki-core/src/operations/preflight-dispatch.mjs"
+      ],
+      "notes": "Read-only validation of an unpersisted proposed work-record dispatch contract. It does not mutate canonical records or admission evidence.",
+      "use_when": [
+        "Operator needs readiness diagnostics for a proposed record before it is persisted."
+      ],
+      "do_not_use_when": [
+        "The record is canonical; use workspace_validate_dispatch with its durable unit identifier."
+      ],
+      "authoritative_for": [
+        "structural preflight of caller-supplied proposed record content"
+      ],
+      "recommended_first_call": {
+        "operation": "preflight one proposed record",
+        "arguments": {
+          "repo": "$configured_workspace_alias",
+          "proposed_record": "$proposed_record"
+        },
+        "omit_null_arguments": true
+      }
+    },
     {
       "tool_name": "workspace_node_engine_admission_runtime_diagnostic",
       "display_name": "Workspace Chassis Control Engine admission runtime diagnostic",
@@ -161,8 +214,8 @@
           "dispatch_role_call"
         ],
         "arguments": {
-          "unit": "$known_WK_or_slice_unit",
-          "dispatch_role": "$known_role"
+          "unit": "$unit_if_known",
+          "dispatch_role": "$role_if_known"
         },
         "omit_null_arguments": true
       },
@@ -187,6 +240,58 @@
           "notes": "Preferred MCP dispatch-readiness surface for a WK or slice. When required graph impact is stale or missing, it refreshes the canonical current-HEAD graph and may write only ignored code-index graph artifacts, sibling atomic temporary files, the advisory build-lock file, and eight exclusively claimed candidate slots named .index.json.build-lock.json.slot-00.candidate through .index.json.build-lock.json.slot-07.candidate. Candidates are attempted only during the initial absent-lock race, retained but never reused or authoritative, and prevented by an existing persistent shared lock; exhaustion falls back to an independent atomic build. It never mutates canonical WK/evidence, admission sidecars, lifecycle or runtime state, dispatch/backend state, or result evidence, and never launches an agent. A bounded current-HEAD resolver failure preserves its safe typed code: verbose readiness includes graph_impact_failure, while compact output includes graph_impact_failure_code and the fixed remediation as next_action; raw causes are not exposed. Compact by default (decision code, bounded reasons, next action); verbose:true restores the full envelope. Under a valid paid/CCE key posture the readiness envelope also carries Node-Engine-returned admissibility detail: blast-radius level, cluster count, and the CCE verdict/reason codes and recovery. These are NE-returned judgments and are reported as such, distinguished from the raw measured carrier facts the local layer forwards; the local layer renders no threshold verdict of its own (DEC-0125). Set node_engine_admissibility:true to evaluate CCE-exclusive implementation admissibility for a structurally dispatchable unit; only the CCE pack path can return an admit and there is no local admit fallback. CLI fallback is operator-only."
         }
       }
+    },
+    {
+      "tool_name": "workspace_agent_runs_list",
+      "display_name": "Workspace agent runs list",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_agent_runs_list",
+      "task_ids": [
+        "query-agent-run-status"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 129,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "launcher_registry"
+      ],
+      "tier_visibility": [
+        "free_local",
+        "paid_cce"
+      ],
+      "docs_refs": [
+        "docs/mcp-dispatch-managed-run-lifecycle.md",
+        "docs/mcp-operation-reference.md",
+        "docs/tool-discovery-dispatch-runtime.md"
+      ],
+      "source_files": [
+        "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-lifecycle-state.mjs",
+        "packages/wiki-mcp/src/lib/dispatch-run-monitor-routes.mjs",
+        "packages/wiki-core/data/tool-discovery/manifest.json",
+        "packages/wiki-core/data/tool-discovery/mcp-launcher-tools.json"
+      ],
+      "notes": "Read-only current-process discovery for monitor handles lost after hot context compaction. Filter by optional subject and state active, terminal, or all. Results cover only caller-visible runs retained by this backend process; they are not durable, historical, cross-session, or restart recovery. Follow a returned handle with status or wait. After a cold restart, already-returned reviewer/redteam advisory text remains usable; do not re-dispatch, append, or repair its monitor to recover optional metadata or attestation.",
+      "use_when": [
+        "Hot context compaction lost monitor handles while the same backend process is still running."
+      ],
+      "do_not_use_when": [
+        "A monitor handle is already known; use workspace_agent_run_status or workspace_agent_run_wait.",
+        "The backend restarted and the completed reviewer/redteam advisory text was already returned; consume that text directly."
+      ],
+      "authoritative_for": [
+        "current-process caller-visible run discovery"
+      ],
+      "requires_prior_state": [
+        "The same dispatch backend process remains running."
+      ]
     },
     {
       "tool_name": "workspace_run_validation",
@@ -227,7 +332,26 @@
         "packages/wiki-mcp/src/lib/work-record-read-tools.mjs",
         "packages/wiki-mcp/src/server.mjs"
       ],
-      "notes": "Orchestrator/operator MCP route for declared Node test validation without raw shell or raw exec. Managed implementation workers do not receive this tool; a managed worker's own declared-test route is workspace_worker_run_declared_test, whose unit and worktree are launcher-bound rather than caller-supplied. Side effect: process_spawn. Caller input is exactly { unit, target } for the fixed enum command `node_test`; the handler loads the canonical work record/slice for `unit` itself and authorizes `target` solely from that unit's sections.structured_validation.allowed[] entries with command node_test. It then runs `node --check <target>` and, only if check passes, `node --test <target>` using argv arrays with shell:false. Node binary, cwd, env, per-step timeout, and output caps are internal server constants; caller-supplied authority-shaped fields (snapshot, runtime/env policy, node binary, cwd/workspace root, timeout, output cap, source digest, extra args) are rejected. Target must be repo-relative, canonical, existing, .js/.mjs, contained under the workspace repo, and not a symlink escape. Returns structured per-step evidence with node --test reported as skipped when node --check fails. The structured evidence is command-surface validation, not a paid Chassis Control Engine enforcement attestation; arbitrary-command, npm-script, and cross-repo validation remain follow-up scope."
+      "notes": "Orchestrator/operator process-spawn route for declared Node-test validation without raw shell or exec. Managed workers use workspace_worker_run_declared_test instead; its unit and worktree are launcher-bound. Supply exactly { unit, target }. The server loads the selected canonical unit and authorizes only targets declared by acceptance.validation[] entries shaped exactly as {operation: node_test, target, verification_ids}; strings and note objects never authorize execution. It then runs syntax check followed by the test only when syntax passes, using argv without a shell. Binary, workspace, environment, timeouts, output caps, source identity, and extra arguments are server-owned and caller overrides are refused. The target must be an existing canonical repo-relative JavaScript module inside the workspace and not escape through a symlink. Results are structured per-step advisory evidence, with the test marked skipped after syntax failure; they are not enforcement attestation or admission authority. Arbitrary commands, package scripts, and cross-repository validation are unsupported.",
+      "recommended_first_call": {
+        "operation": "run one declared node_test target",
+        "arguments": {
+          "unit": "$selected_unit",
+          "target": "$declared_test_target"
+        }
+      },
+      "use_when": [
+        "Run one Node test target declared by the selected canonical work-record unit."
+      ],
+      "do_not_use_when": [
+        "The target is only named by a text note or is not declared by an exact current-contract validation object."
+      ],
+      "authoritative_for": [
+        "selected-unit declared-test target authorization and confined execution evidence"
+      ],
+      "requires_prior_state": [
+        "A canonical work-record unit declares the exact node_test target in acceptance.validation[]."
+      ]
     },
     {
       "tool_name": "workspace_worker_run_declared_test",
@@ -272,7 +396,30 @@
         "packages/agent-launch-cli/src/lib/managed-worker-test-run-authority.mjs",
         "packages/agent-launch-cli/src/lib/workspace-agent-family-bwrap-plan.mjs"
       ],
-      "notes": "Worker-only launcher-owned capability that lets a managed implementation worker run one of its own unit's DECLARED node tests and read the output before committing (DEC-0158 clauses 3-4). A managed worker's namespace is exactly read_scope union write_scope with no dependency tree, so it cannot execute a test whose system under test imports a workspace package by bare specifier; this capability runs that test LAUNCHER-SIDE, in a separate bubblewrap-confined process against the run's own dense worktree, and returns the output. The worker's namespace is untouched: no new path is bound, mounted, stat-able, or readable inside it, and the worker's mutation set stays exactly its write_scope. Side effect: process_spawn. Caller input is exactly { target }. The unit and the worktree are bound from the dispatched run's launcher-minted identity binding, never from caller input; a caller-supplied unit, record, repo, workspace, worktree, cwd, base, or target set is refused rather than overridden, so a worker cannot select targets from another record's allowed[] or run against the landing checkout. The target is authorized solely from the BOUND unit's sections.structured_validation.allowed[] entries with command node_test; an undeclared target is refused, never widened to something broader. Confinement: repository mounted READ-ONLY with no writable write_scope (so a test byproduct cannot reach the write scope or be staged into the delivery commit), secrets masked, network denied, launcher-minted clean env, and an ephemeral tmpfs as the only writable location. A launcher-owned read-only identity-pinned dependency mount makes bare-specifier workspace imports resolve (DEC-0178 clause 4: launcher-provided non-repository runtime infrastructure is not repository content and needs no scope declaration); an unavailable, stale, or mismatched dependency tree degrades that run and is recorded as advisory evidence, and never refuses a dispatch. Node binary, argv, cwd, env, timeout, and output bounds are launcher facts and cannot be supplied or overridden. Output retains the head AND the tail of each stream so a failing assertion's diagnostics survive a chatty passing run; the elided middle is byte-accounted. The result is advisory: it carries no admission, review, or closure authority, adds no admission metric, and never substitutes for the mandatory findings-only review or authorizes integration."
+      "notes": "Worker-only launcher process-spawn capability for running one Node test declared by the worker's own unit before commit, including tests needing bare workspace-package imports. Supply exactly { target }; launcher-minted run identity binds the unit and dense worktree, and caller unit, record, repository, workspace, base, target set, or execution settings are refused. Only that bound unit's acceptance.validation[] entries shaped exactly as {operation: node_test, target, verification_ids} authorize the target; strings and note objects never authorize execution. The test runs launcher-side in a separate confined process, leaving the worker namespace and mutation set unchanged: the repository and write scope are read-only, secrets are masked, network is denied, the environment is launcher-minted, and only ephemeral temporary storage is writable. An identity-pinned read-only dependency mount may resolve workspace imports; if unavailable, stale, or mismatched, the run degrades with advisory evidence and dispatch is not refused. Binary, arguments, cwd, environment, timeout, and output bounds are launcher facts. Output retains byte-accounted stream heads and tails. Results are advisory only: they grant no admission, review, integration, or closure authority and do not replace findings-only review.",
+      "recommended_first_call": {
+        "operation": "run one launcher-bound declared node_test target",
+        "arguments": {
+          "target": "$declared_test_target"
+        }
+      },
+      "use_when": [
+        "A managed worker needs to run one exact node_test target declared by its launcher-bound unit."
+      ],
+      "do_not_use_when": [
+        "The caller needs to choose a unit, worktree, execution setting, or target not declared by the bound unit."
+      ],
+      "authoritative_for": [
+        "launcher-bound managed-worker declared-test authorization and confined execution evidence"
+      ],
+      "requires_prior_state": [
+        "The launcher-bound unit declares the exact target in a current-contract acceptance.validation[] object."
+      ],
+      "tier_text": {
+        "paid_cce": {
+          "notes": "Worker-only launcher-owned capability that lets a managed implementation worker run one of its own unit's DECLARED node tests and read the output before committing (DEC-0158 clauses 3-4). A managed worker's namespace is exactly read_scope union write_scope with no dependency tree, so it cannot execute a test whose system under test imports a workspace package by bare specifier; this capability runs that test LAUNCHER-SIDE, in a separate bubblewrap-confined process against the run's own dense worktree, and returns the output. The worker's namespace is untouched: no new path is bound, mounted, stat-able, or readable inside it, and the worker's mutation set stays exactly its write_scope. Side effect: process_spawn. Caller input is exactly { target }. The unit and the worktree are bound from the dispatched run's launcher-minted identity binding, never from caller input; a caller-supplied unit, record, repo, workspace, worktree, cwd, base, or target set is refused rather than overridden, so a worker cannot select targets from another record's allowed[] or run against the landing checkout. The target is authorized solely from the BOUND unit's acceptance.validation[] entries shaped exactly as {operation: node_test, target, verification_ids}; text notes never authorize execution; an undeclared target is refused, never widened to something broader. Confinement: repository mounted READ-ONLY with no writable write_scope (so a test byproduct cannot reach the write scope or be staged into the delivery commit), secrets masked, network denied, launcher-minted clean env, and an ephemeral tmpfs as the only writable location. A launcher-owned read-only identity-pinned dependency mount makes bare-specifier workspace imports resolve (DEC-0178 clause 4: launcher-provided non-repository runtime infrastructure is not repository content and needs no scope declaration); an unavailable, stale, or mismatched dependency tree degrades that run and is recorded as advisory evidence, and never refuses a dispatch. Node binary, argv, cwd, env, timeout, and output bounds are launcher facts and cannot be supplied or overridden. Output retains the head AND the tail of each stream so a failing assertion's diagnostics survive a chatty passing run; the elided middle is byte-accounted. The result is advisory: it carries no admission, review, or closure authority, adds no admission metric, and never substitutes for the mandatory findings-only review or authorizes integration."
+        }
+      }
     }
   ]
 }

@@ -16,6 +16,8 @@ import {
   spawnIsolated
 } from "./launch-isolation.mjs";
 import { createStdioMcpConduit } from "./stdio-mcp-conduit.mjs";
+
+export const CODEX_WORKSPACE_AGENT_MCP_CONDUIT_CONSTRUCTOR = createStdioMcpConduit;
 import {
   buildCodexRolePlan,
   buildCodexRoleBubblewrapPlan
@@ -23,8 +25,7 @@ import {
 import { ensureNewWorkerWriteRoots } from "./codex-worker-plan.mjs";
 
 import { defaultCaptureCodexFinalResult } from "./workspace-agent-codex-final-result.mjs";
-import { resolveFindingsOnlyAcceptanceContract } from "./workspace-agent-findings-role-context.mjs";
-import { renderTrustedCorrectiveFindingsInstructions } from "./workspace-agent-launch-adapter-contract.mjs";
+import { consumeAdvisoryReviewInput } from "./workspace-agent-advisory-review-contract.mjs";
 import {
   CODEX_EXECUTOR_ROLE_MAP,
   makeRefusal,
@@ -35,21 +36,14 @@ import {
   launchCodexWorkspaceAgentInProcess,
   spawnPlainChildProcess
 } from "./workspace-agent-dispatch-codex-in-process-runtime.mjs";
-
 import {
-  resolveLauncherSchemaConstrainedTierIsPaid,
-  resolveLauncherSchemaConstrainedTierResolution,
-  LAUNCHER_SCHEMA_CONSTRAINED_TIER_STATES
-} from "@agent-chassis/agent-launch-core/src/lib/config.mjs";
-import { statSync } from "node:fs";
+  attachLauncherObservedTerminalResultModeFacts
+} from "./workspace-agent-dispatch-result-mode.mjs";
 
-function isReadableCanonicalConfigRoot(configRootDir) {
-  try {
-    return statSync(configRootDir).isDirectory();
-  } catch {
-    return false;
-  }
-}
+import { resolveLauncherSchemaConstrainedTierIsPaid } from
+  "@agent-chassis/agent-launch-core/src/lib/config.mjs";
+import { selectWorkerLifecycleFromEffectiveWriteScope } from
+  "./workspace-agent-worker-lifecycle.mjs";
 
 const CODEX_LAUNCH_TRANSPORT_SEAMS = Object.freeze([
   "buildPlan", "buildBwrapPlan", "spawn", "plainSpawn"
@@ -87,8 +81,6 @@ export function createCodexWorkspaceAgentLaunchExecutor(options = {}) {
     probeCanonicalBwrapAvailability = undefined,
 
     resolveSchemaConstrainedTier = resolveLauncherSchemaConstrainedTierIsPaid,
-
-    resolveSchemaConstrainedTierResolution = resolveLauncherSchemaConstrainedTierResolution,
     loadWorkRecord = loadWorkRecordById,
     createMcpConduit = createStdioMcpConduit
   } = options;
@@ -122,6 +114,37 @@ export function createCodexWorkspaceAgentLaunchExecutor(options = {}) {
         "subject_required_for_codex_executor",
         null
       );
+    }
+    let advisoryReviewInput = null;
+    if (input?.advisory_review_input !== undefined) {
+      try {
+        advisoryReviewInput = consumeAdvisoryReviewInput(input.advisory_review_input, {
+          role, subject
+        });
+      } catch {
+        return makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
+          "advisory_review_input_invalid", { role, subject });
+      }
+    }
+    let lifecycleKind = "advisory";
+    if (advisoryReviewInput === null) {
+      if (role !== "worker") {
+        return makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
+          "advisory_review_input_required", { role, subject });
+      }
+      try {
+        lifecycleKind = selectWorkerLifecycleFromEffectiveWriteScope(
+          input?.canonical_unit_write_scope
+        );
+      } catch (error) {
+        return makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
+          error?.code ?? "launcher_effective_write_scope_invalid",
+          { subject, authority_limb: "mechanical_failure" });
+      }
+      if (lifecycleKind !== "implementation") {
+        return makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
+          "worker_implementation_lifecycle_required", { role, subject });
+      }
     }
     if (Object.prototype.hasOwnProperty.call(input ?? {}, "workerScopeAuthority")) {
       return makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_REFUSED, "worker_scope_authority_invalid", {
@@ -185,112 +208,31 @@ export function createCodexWorkspaceAgentLaunchExecutor(options = {}) {
     }
     const effectiveResolvedProfile = inProcessModelGate.resolvedProfile;
 
-    let findingsOnlyAcceptance;
-    try {
-      findingsOnlyAcceptance = await resolveFindingsOnlyAcceptanceContract({
-        role: codexRole,
-        subject,
-        workspaceDir: workspaceDir ?? defaultCwd,
-        loadWorkRecord,
-        frozenReviewContract: input?.trusted_frozen_review_contract ?? null
-      });
-    } catch (err) {
-      return makeRefusal(
-        BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
-        "codex_role_plan_build_threw",
-        {
-          message: err?.message ?? String(err),
-          code: err?.code ?? null,
-          detail: err?.detail ?? null
-        }
-      );
-    }
-
     const forwardedSourceToolSurface = null;
 
     const planCwd = workspaceDir ?? defaultCwd;
 
-    const canonicalReviewerConfigRoot =
-      codexRole === "review" &&
-      typeof input?.config_root_dir === "string" &&
-      input.config_root_dir.length > 0
-        ? input.config_root_dir
-        : null;
-    let schemaConstrainedTierIsPaid;
-    if (canonicalReviewerConfigRoot !== null) {
-      if (!isReadableCanonicalConfigRoot(canonicalReviewerConfigRoot)) {
-        return makeRefusal(
-          BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
-          "reviewer_tier_config_root_unreadable",
-          { config_root_dir: canonicalReviewerConfigRoot }
-        );
-      }
-
-      const reviewerTierResolution = resolveSchemaConstrainedTierResolution({
-        workspaceDir: canonicalReviewerConfigRoot
-      });
-      if (
-        reviewerTierResolution.state ===
-        LAUNCHER_SCHEMA_CONSTRAINED_TIER_STATES.READ_FAILURE
-      ) {
-        return makeRefusal(
-          BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
-          "reviewer_tier_config_env_unreadable",
-          { cause_code: reviewerTierResolution.cause_code }
-        );
-      }
-      schemaConstrainedTierIsPaid = reviewerTierResolution.is_paid === true;
-    } else {
-
-      schemaConstrainedTierIsPaid = workspaceDir
+    const schemaConstrainedTierIsPaid = advisoryReviewInput !== null
+      ? advisoryReviewInput.formal_result_contract?.mode === "schema_constrained"
+      : workspaceDir
         ? resolveSchemaConstrainedTier({ workspaceDir }) === true
         : false;
-    }
     const terminalStructuredRoleResultMode = resolveCodexTerminalStructuredRoleResultMode({
       schemaConstrainedTierIsPaid,
       codexRole
     });
 
-    let correctiveInstructions = null;
-    try {
-      correctiveInstructions = role === "worker"
-        ? renderTrustedCorrectiveFindingsInstructions(
-            input?.readiness?.trusted_corrective_findings_context ?? null,
-            { subject }
-          )
-        : null;
-    } catch (error) {
-      return makeRefusal(
-        BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
-        "trusted_corrective_findings_context_invalid",
-        { issue: error?.message ?? String(error) }
-      );
-    }
-    const runtimeReadiness = input?.readiness && typeof input.readiness === "object" &&
-      !Array.isArray(input.readiness)
-      ? { ...input.readiness }
-      : input?.readiness;
-    if (runtimeReadiness && typeof runtimeReadiness === "object") {
-      delete runtimeReadiness.trusted_corrective_findings_context;
-    }
-    const runtimeInput = runtimeReadiness === input?.readiness
-      ? input
-      : { ...input, readiness: runtimeReadiness };
-
-    return launchCodexWorkspaceAgentInProcess({
-      input: runtimeInput,
+    const launchResult = await launchCodexWorkspaceAgentInProcess({
+      input,
       role,
       subject,
       codexRole,
-      promptArgs: correctiveInstructions === null
-        ? promptArgs
-        : [...promptArgs, correctiveInstructions],
+      promptArgs,
       env,
       planCwd,
       effectiveResolvedProfile,
       workspaceAlias,
       workspaceDir,
-      findingsOnlyAcceptance,
       forwardedSourceToolSurface,
       terminalStructuredRoleResultMode,
       buildPlan,
@@ -305,11 +247,13 @@ export function createCodexWorkspaceAgentLaunchExecutor(options = {}) {
       classifyIsolationBackendAvailability,
       probeCanonicalBwrapAvailability,
 
-      createMcpConduit,
-
-      terminalReviewSpawnBarrier: typeof input?.terminal_review_spawn_barrier === "function"
-        ? input.terminal_review_spawn_barrier
-        : null
+      createMcpConduit
     });
+    return launchResult?.accepted === true
+      ? attachLauncherObservedTerminalResultModeFacts(
+          launchResult,
+          { selectedContract: terminalStructuredRoleResultMode }
+        )
+      : launchResult;
   };
 }

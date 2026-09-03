@@ -1,15 +1,15 @@
 import { PROOF_PACK_ADEQUACY_RUN_VERSION } from "../support/proof-pack-adequacy-constants.mjs";
-import { evaluateVerificationProfileV034 } from "../../lib/verification-profile-v034.mjs";
+import { evaluateStableProofPackFixtureV1 } from "../support/stable-v1-proof-pack-runtime.mjs";
 import { buildRetryConvergenceFixture, findClaim, findProposition, ref }
   from "./retry-convergence-v1-fixture.mjs";
 import { DOMAINS, MUTATIONS, executeRetryConvergence, retryConvergenceGuaranteeSatisfied }
   from "./retry-convergence-v1-harness.mjs";
 const RETRY_CONVERGENCE_V1_PROFILE_DIGEST =
-  "f468e56286091969fc516d849c85befc014103183711a85f8b70fc99f3b6fedd";
+  "0d4fdedef46d3113bade277bcd630bbe653f942195224805ca415395f9bb4437";
 const RETRY_CONVERGENCE_V1_GUARANTEE_DIGEST =
   "88b5ff9ccadc6a3ede7fc63f49c5ad281d8c6ffc38b68c79b5934a56212f8dce";
 const evaluateFixture = ({ contract, input, evaluation_input, profile }) =>
-  evaluateVerificationProfileV034({ contract, profile, evaluation_input: evaluation_input ?? input }).satisfaction;
+  evaluateStableProofPackFixtureV1({ contract, profile, evaluation_input: evaluation_input ?? input }).satisfaction;
 const baselineFixture = (profile, options = {}) => buildRetryConvergenceFixture({ profile, ...options });
 
 function positiveControls(profile) {

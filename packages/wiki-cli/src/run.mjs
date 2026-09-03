@@ -1,4 +1,3 @@
-import { runAdoption } from "./commands/adoption.mjs";
 import { runAllocateId } from "./commands/allocate-id.mjs";
 import { runBootstrap } from "./commands/bootstrap.mjs";
 import { runCreate } from "./commands/create.mjs";
@@ -24,8 +23,7 @@ import { runAgentFaq } from "./commands/agent-faq.mjs";
 const HELP_TEXT = `wiki <command> [options]
 
 Commands:
-  bootstrap          Seed wiki surfaces and static IN-0001 adoption work into a target repo (operator shell only; no MCP/dispatch/preflight against the target)
-  adoption           Structured first-run adoption readiness checks (read-only; adoption verify)
+  bootstrap          Seed wiki surfaces and an in-progress IN-0001 first-work placeholder (operator shell only; no adoption gate)
   sync-contract      Sync shared templates and contract metadata into a repo
   allocate-id        Reserve the next identifier for a core wiki type
   create             Create a new wiki record
@@ -52,7 +50,6 @@ Commands:
 
 Examples:
   wiki bootstrap --repo org/repo --profile research --extensions organizations,people,themes --dir /path/to/repo
-  wiki adoption verify --dir /path/to/repo --json
   wiki sync-contract --dir /path/to/repo --check
   wiki allocate-id issue --repo org/repo --dir /path/to/repo
   wiki create decision "Standardize cross-repo links" --dir /path/to/repo
@@ -101,9 +98,6 @@ export async function run(argv) {
       return;
     case "bootstrap":
       await runBootstrap(rest);
-      return;
-    case "adoption":
-      await runAdoption(rest);
       return;
     case "sync-contract":
       await runSyncContract(rest);

@@ -1,0 +1,171 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.v1",
+  "evaluation_stage": "pre_dispatch",
+  "reference_bindings": [
+    {
+      "role": "operation",
+      "reference_ids": [
+        "ref-operation"
+      ]
+    },
+    {
+      "role": "scoped_key",
+      "reference_ids": [
+        "ref-scoped-key"
+      ]
+    },
+    {
+      "role": "attempt_population",
+      "reference_ids": [
+        "ref-attempt-population"
+      ]
+    },
+    {
+      "role": "attempts",
+      "reference_ids": [
+        "ref-winner-attempt",
+        "ref-loser-attempt"
+      ]
+    },
+    {
+      "role": "winner_attempt",
+      "reference_ids": [
+        "ref-winner-attempt"
+      ]
+    },
+    {
+      "role": "loser_attempt",
+      "reference_ids": [
+        "ref-loser-attempt"
+      ]
+    },
+    {
+      "role": "winner_start",
+      "reference_ids": [
+        "ref-winner-start"
+      ]
+    },
+    {
+      "role": "loser_start",
+      "reference_ids": [
+        "ref-loser-start"
+      ]
+    },
+    {
+      "role": "winner_terminal",
+      "reference_ids": [
+        "ref-winner-terminal"
+      ]
+    },
+    {
+      "role": "loser_terminal",
+      "reference_ids": [
+        "ref-loser-terminal"
+      ]
+    },
+    {
+      "role": "effect_resource",
+      "reference_ids": [
+        "ref-effect-resource"
+      ]
+    },
+    {
+      "role": "effect_population",
+      "reference_ids": [
+        "ref-effect-population"
+      ]
+    },
+    {
+      "role": "effect_occurrences",
+      "reference_ids": [
+        "ref-effect-occurrence"
+      ]
+    },
+    {
+      "role": "effect_occurrence",
+      "reference_ids": [
+        "ref-effect-occurrence"
+      ]
+    },
+    {
+      "role": "effect_count_signal",
+      "reference_ids": [
+        "ref-effect-count-signal"
+      ]
+    },
+    {
+      "role": "winner_post_state",
+      "reference_ids": [
+        "ref-winner-post-state"
+      ]
+    },
+    {
+      "role": "loser_post_state",
+      "reference_ids": [
+        "ref-loser-post-state"
+      ]
+    },
+    {
+      "role": "winner_post_observation",
+      "reference_ids": [
+        "ref-winner-post-observation"
+      ]
+    },
+    {
+      "role": "loser_post_observation",
+      "reference_ids": [
+        "ref-loser-post-observation"
+      ]
+    },
+    {
+      "role": "verification",
+      "reference_ids": [
+        "ref-verification"
+      ]
+    },
+    {
+      "role": "winner_rejected_condition",
+      "reference_ids": [
+        "ref-winner-rejected-condition"
+      ]
+    },
+    {
+      "role": "loser_accepted_condition",
+      "reference_ids": [
+        "ref-loser-accepted-condition"
+      ]
+    },
+    {
+      "role": "non_single_effect_condition",
+      "reference_ids": [
+        "ref-non-single-effect-condition"
+      ]
+    },
+    {
+      "role": "loser_effect_condition",
+      "reference_ids": [
+        "ref-loser-effect-condition"
+      ]
+    },
+    {
+      "role": "loser_state_diverged_condition",
+      "reference_ids": [
+        "ref-loser-state-diverged-condition"
+      ]
+    }
+  ],
+  "number_bindings": [
+    {
+      "role": "attempt_count",
+      "value": 2
+    },
+    {
+      "role": "effect_count",
+      "value": 1
+    }
+  ],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": [],
+  "stable_evaluation": {}
+}

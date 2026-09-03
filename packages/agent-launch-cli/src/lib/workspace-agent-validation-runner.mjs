@@ -18,6 +18,17 @@ import {
 import {
   assertTrustedManagedWorkerTestRunAuthority
 } from "./managed-worker-test-run-authority.mjs";
+import { executeTestProofAttempt } from "./workspace-agent-test-proof-evidence.mjs";
+import { buildBehavioralPreservationEvidencePair } from
+  "./workspace-agent-behavioral-preservation-evidence.mjs";
+import { extractPairedBehavioralPreservationEvidenceReceipt } from
+  "./workspace-agent-dispatch-run-receipt.mjs";
+import { assertLauncherTestProofProviderExecution } from
+  "./workspace-agent-test-proof-provider-registry.mjs";
+import { observeLauncherNodeTestRun } from
+  "./workspace-agent-test-proof-node-observation.mjs";
+import { assertLauncherTestProofRuntimeAuthority } from
+  "./workspace-agent-test-proof-runtime-identity.mjs";
 
 const AGENT_CHILD_STRUCTURED_VALIDATION_OPERATIONS = Object.freeze({
   node_check: Object.freeze({
@@ -39,9 +50,23 @@ export const WORKSPACE_AGENT_VALIDATION_RUN_RESULT_SCHEMA_VERSION =
 export const WORKSPACE_AGENT_VALIDATION_RUN_REFUSAL_SCHEMA_VERSION =
   "workspace-agent-validation-run-refusal.v1";
 
+export async function runWorkspaceAgentTestProofAttempt(input) {
+  return executeTestProofAttempt(input);
+}
+
+export function runWorkspaceAgentBehavioralPreservationPair(...sides) {
+  return extractPairedBehavioralPreservationEvidenceReceipt(
+    buildBehavioralPreservationEvidencePair(...sides)
+  );
+}
+
 export const DEFAULT_VALIDATION_TIMEOUT_MS = 30000;
 
+export const DEFAULT_TEST_PROOF_VALIDATION_TIMEOUT_MS = 300000;
+
 export const DEFAULT_VALIDATION_OUTPUT_CAP_BYTES = 262144;
+
+export const DEFAULT_TEST_PROOF_REPORTER_PROTOCOL_CAP_BYTES = 2 * 1024 * 1024;
 
 export const LEGACY_VALIDATION_OUTPUT_CAP_BYTES = 65536;
 
@@ -298,11 +323,58 @@ function createBoundedSink({ headCapBytes, tailCapBytes }) {
   };
 }
 
-function spawnAndCapture(plan, { spawnIsolated, parentEnv, timeoutMs, outputBounds, clock }) {
-  const child = spawnIsolated(plan, { stdio: ["ignore", "pipe", "pipe"], env: parentEnv });
+function createReporterProtocolSink(capBytes) {
+  const chunks = [];
+  let retainedBytes = 0;
+  let observedBytes = 0;
+  let overflowed = false;
+
+  return {
+    push(chunk) {
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk), "utf8");
+      if (buf.length === 0) return;
+      observedBytes += buf.length;
+      if (overflowed) return;
+      if (retainedBytes + buf.length > capBytes) {
+        overflowed = true;
+        retainedBytes = 0;
+        chunks.length = 0;
+        return;
+      }
+      chunks.push(buf);
+      retainedBytes += buf.length;
+    },
+    result() {
+      return {
+        text: overflowed ? "" : Buffer.concat(chunks, retainedBytes).toString("utf8"),
+        truncated: overflowed,
+        elided_bytes: overflowed ? observedBytes - capBytes : 0,
+        protocol_overflow: overflowed
+      };
+    }
+  };
+}
+
+function spawnAndCapture(plan, {
+  spawnIsolated,
+  parentEnv,
+  timeoutMs,
+  outputBounds,
+  reporterProtocol,
+  clock
+}) {
+  const child = spawnIsolated(plan, {
+    stdio: reporterProtocol
+      ? ["ignore", "pipe", "pipe", "pipe"]
+      : ["ignore", "pipe", "pipe"],
+    env: parentEnv
+  });
   return new Promise((resolve) => {
     const stdoutSink = createBoundedSink(outputBounds);
     const stderrSink = createBoundedSink(outputBounds);
+    const reporterSink = reporterProtocol
+      ? createReporterProtocolSink(DEFAULT_TEST_PROOF_REPORTER_PROTOCOL_CAP_BYTES)
+      : null;
     let settled = false;
     let timedOut = false;
 
@@ -325,12 +397,14 @@ function spawnAndCapture(plan, { spawnIsolated, parentEnv, timeoutMs, outputBoun
         timedOut,
         endedAtMs: clock(),
         stdout: stdoutSink.result(),
-        stderr: stderrSink.result()
+        stderr: stderrSink.result(),
+        reporter: reporterSink?.result() ?? null
       });
     };
 
     if (child.stdout) child.stdout.on("data", (chunk) => stdoutSink.push(chunk));
     if (child.stderr) child.stderr.on("data", (chunk) => stderrSink.push(chunk));
+    if (child.stdio?.[3]) child.stdio[3].on("data", (chunk) => reporterSink.push(chunk));
     child.on("error", (err) => finish({ spawnError: err?.code ?? err?.message ?? String(err), code: null, signal: null }));
     child.on("close", (code, signal) => finish({ spawnError: null, code, signal }));
   });
@@ -350,6 +424,20 @@ export async function runWorkspaceAgentValidation(input = {}) {
         WORKSPACE_AGENT_VALIDATION_RUNNER_REFUSAL_CODES.RAW_EXEC_FORBIDDEN,
         `structured validation forbids caller-supplied execution authority: ${key}`,
         { forbidden_key: key }
+      );
+    }
+  }
+  let testProofProviderExecution = null;
+  if (Object.hasOwn(input, "testProofProviderExecution")) {
+    try {
+      testProofProviderExecution = assertLauncherTestProofProviderExecution(
+        input.testProofProviderExecution
+      );
+    } catch (error) {
+      return buildRefusal(
+        WORKSPACE_AGENT_VALIDATION_RUNNER_REFUSAL_CODES.RAW_EXEC_FORBIDDEN,
+        "test-proof provider execution authority must be launcher-minted",
+        { error_code: error?.code ?? null }
       );
     }
   }
@@ -402,7 +490,10 @@ export async function runWorkspaceAgentValidation(input = {}) {
   if (typeof envSource.PATH === "string") planEnv.PATH = envSource.PATH;
   if (typeof envSource.HOME === "string") planEnv.HOME = envSource.HOME;
 
-  const normalizedArgv = ["node", flag, authorized.posixRelative];
+  const providerNodeArguments = testProofProviderExecution?.node_arguments ?? [];
+  const normalizedArgv = ["node", flag,
+    ...(testProofProviderExecution ? ["[launcher-test-proof-options]"] : []),
+    authorized.posixRelative];
   const enforcementPosture = Object.freeze({
     confined: true,
     execution_context: operationSpec.execution_context,
@@ -430,7 +521,7 @@ export async function runWorkspaceAgentValidation(input = {}) {
     plan = buildPlan({
       workspaceDir: authorized.repoReal,
       command: nodeBinary,
-      args: [flag, authorized.absolute],
+      args: [flag, ...providerNodeArguments, authorized.absolute],
       env: planEnv,
 
       dependencyReadOnlyBinds: Array.isArray(input.dependencyReadOnlyBinds)
@@ -466,6 +557,7 @@ export async function runWorkspaceAgentValidation(input = {}) {
       parentEnv: envSource,
       timeoutMs,
       outputBounds,
+      reporterProtocol: testProofProviderExecution !== null,
       clock
     });
   } catch (err) {
@@ -491,9 +583,19 @@ export async function runWorkspaceAgentValidation(input = {}) {
   const exitCode = typeof capture.code === "number" ? capture.code : null;
 
   const ran = capture.spawnError === null;
-  const ok = ran && !capture.timedOut && exitCode === 0;
+  const reporterProtocolOverflow = capture.reporter?.protocol_overflow === true;
+  const testProofObservation = testProofProviderExecution && ran &&
+      (reporterProtocolOverflow || !capture.timedOut)
+    ? observeLauncherNodeTestRun({ stdout: capture.reporter.text, exitCode,
+      expectation: testProofProviderExecution.observation_expectation,
+      reporterProtocolOverflow })
+    : null;
+  const observationValid = testProofProviderExecution === null || testProofObservation?.valid === true;
+  const ok = ran && !capture.timedOut && exitCode === 0 && observationValid;
   let disposition;
   if (!ran) {
+    disposition = WORKSPACE_AGENT_VALIDATION_DISPOSITIONS.NOT_RUN;
+  } else if (!observationValid) {
     disposition = WORKSPACE_AGENT_VALIDATION_DISPOSITIONS.NOT_RUN;
   } else if (ok) {
     disposition = WORKSPACE_AGENT_VALIDATION_DISPOSITIONS.PASSED;
@@ -511,14 +613,23 @@ export async function runWorkspaceAgentValidation(input = {}) {
     signal: capture.signal ?? null,
     timed_out: capture.timedOut,
     spawn_error: capture.spawnError,
-    output_truncated: capture.stdout.truncated || capture.stderr.truncated,
-    output_elided_bytes: capture.stdout.elided_bytes + capture.stderr.elided_bytes,
+    ...(testProofProviderExecution ? {
+      test_proof_observation: testProofObservation,
+      ...(observationValid ? {} : {
+        blocker_code: testProofObservation?.code ?? "test_proof_structured_observation_invalid"
+      })
+    } : {}),
+    output_truncated: capture.stdout.truncated || capture.stderr.truncated ||
+      capture.reporter?.truncated === true,
+    output_elided_bytes: capture.stdout.elided_bytes + capture.stderr.elided_bytes +
+      (capture.reporter?.elided_bytes ?? 0),
     output_bounds: Object.freeze({
       head_cap_bytes: outputBounds.headCapBytes,
       tail_cap_bytes: outputBounds.tailCapBytes,
       retains: "head_and_tail"
     }),
-    stdout: capture.stdout.text,
+
+    stdout: testProofProviderExecution ? "" : capture.stdout.text,
     stderr: capture.stderr.text,
     started_at_ms: startedAtMs,
     ended_at_ms: capture.endedAtMs,
@@ -763,7 +874,10 @@ export async function runManagedWorkerDeclaredTest(input = {}) {
       });
     } else {
       testStep = assertMountStillValid()
-        ? await runWorkspaceAgentValidation({ ...stepInput, operation: "node_test" })
+        ? await runWorkspaceAgentValidation({ ...stepInput, operation: "node_test",
+          ...(input.testProofProviderExecution
+            ? { testProofProviderExecution: input.testProofProviderExecution }
+            : {}) })
         : mountChangedStep("node_test", "--test");
     }
   } finally {
@@ -796,10 +910,87 @@ export async function runManagedWorkerDeclaredTest(input = {}) {
     output_truncated: check.output_truncated === true || testStep.output_truncated === true,
     stdout: ranStep.stdout ?? "",
     stderr: ranStep.stderr ?? "",
+    ...(testStep.test_proof_observation
+      ? { test_proof_observation: testStep.test_proof_observation }
+      : {}),
 
     advisory: true,
     admission_effect: "none",
     review_effect: "none",
     closure_effect: "none"
   });
+}
+
+export async function runLauncherTestProofDeclaredTest(input = {}) {
+  const allowedKeys = new Set([
+    "authority", "target", "authorizedTargets", "testProofProviderExecution"
+  ]);
+  if (!isPlainObject(input) || Object.keys(input).some((key) => !allowedKeys.has(key))) {
+    return buildRefusal(
+      WORKSPACE_AGENT_VALIDATION_RUNNER_REFUSAL_CODES.RAW_EXEC_FORBIDDEN,
+      "launcher test-proof execution refuses caller-selected runtime authority"
+    );
+  }
+  let authority;
+  try {
+    authority = assertLauncherTestProofRuntimeAuthority(input.authority);
+  } catch (error) {
+    return buildRefusal(
+      WORKSPACE_AGENT_VALIDATION_RUNNER_REFUSAL_CODES.WORKSPACE_INVALID,
+      error?.message ?? String(error),
+      { error_code: error?.code ?? null }
+    );
+  }
+  if (!["managed_worker", "managed_reviewer", "terminal_candidate",
+    "integrated_slice", "orchestrator_git_commit",
+    "orchestrator_worktree_snapshot"].includes(authority.kind)) {
+    return buildRefusal(
+      WORKSPACE_AGENT_VALIDATION_RUNNER_REFUSAL_CODES.WORKSPACE_INVALID,
+      "launcher test-proof runtime authority kind is unsupported"
+    );
+  }
+  const authorized = authorizeValidationTarget({
+    workspaceDir: authority.worktree_path,
+    target: input.target,
+    authorizedTargets: input.authorizedTargets
+  });
+  if (isWorkspaceAgentValidationRunRefusal(authorized)) return authorized;
+  const dependencyProof = authority.dependency_proof;
+  const dependencyBinds = dependencyProof?.projection_selected === true
+    ? [...dependencyProof.reviewer_read_only_binds]
+    : [];
+  if (dependencyProof?.projection_selected === true) {
+    assertSelectedDependencyMountIntegrity(dependencyProof);
+  }
+  const mountpoint = path.join(authority.worktree_path, "node_modules");
+  const createdMountpoint = dependencyBinds.length > 0 && !existsSync(mountpoint);
+  if (createdMountpoint) mkdirSync(mountpoint, { mode: 0o700 });
+  try {
+    const result = await runWorkspaceAgentValidation({
+      operation: "node_test",
+      workspaceDir: authority.worktree_path,
+      target: authorized.posixRelative,
+      authorizedTargets: input.authorizedTargets,
+      timeoutMs: DEFAULT_TEST_PROOF_VALIDATION_TIMEOUT_MS,
+      dependencyReadOnlyBinds: dependencyBinds,
+      maskAgentLaunchDirWhenPresent: true,
+      testProofProviderExecution: input.testProofProviderExecution
+    });
+    return Object.freeze({
+      ...result,
+      unit: authority.selected_unit,
+      dependency: Object.freeze({
+        mount_selected: dependencyProof?.projection_selected === true,
+        projection_identity: dependencyProof?.projection_identity ?? null,
+        installation_digest: dependencyProof?.dependency_installation_digest ?? null,
+        advisory: true
+      }),
+      advisory: true,
+      admission_effect: "none",
+      review_effect: "none",
+      closure_effect: "none"
+    });
+  } finally {
+    if (createdMountpoint) rmSync(mountpoint, { recursive: true, force: true });
+  }
 }

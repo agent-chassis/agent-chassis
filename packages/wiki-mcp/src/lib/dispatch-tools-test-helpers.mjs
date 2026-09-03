@@ -27,7 +27,9 @@ export function terminalReviewAttestation(args) {
 }
 
 export function createDispatchToolRegistry({
-  backend = {}
+  backend = {},
+
+  runStatusCallBudgetMs = undefined
 } = {}) {
   const tools = new Map();
   const registerTool = (name, config, handler) => {
@@ -61,7 +63,8 @@ export function createDispatchToolRegistry({
       },
       ...backend
     },
-    dispatchSessionIdentity: "session-123"
+    dispatchSessionIdentity: "session-123",
+    runStatusCallBudgetMs
   });
 
   return tools;

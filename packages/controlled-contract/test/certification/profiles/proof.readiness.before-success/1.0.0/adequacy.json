@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-proof-pack-adequacy.experimental.v0.1",
   "profile_id": "proof.readiness.before-success",
   "profile_version": "1.0.0",
-  "profile_digest": "1598781df2c2c86074b27af3cfa5eb6a3bfafda0147c289aa251c8ff254eb5c8",
+  "profile_digest": "25862e73f637782d25a8840026e8992f7afab23be5f71e5faf7a6c6c08f0b26f",
   "guarantee": "One grounded capability initialized by one attempt is exercised by a distinct readiness operation after initialization; the readiness result accepts the probe and its observed complete state equals a criterion-conforming expected ready state; and the declared completion report does not precede that readiness result.",
   "guarantee_digest": "c9482f026f92212d71a5c1674efd1de475659c8957bfc71db33bc1217ac08d58",
   "required_positive_cases": [
@@ -72,15 +72,23 @@
     "pack-applicability"
   ],
   "executable_module": "packages/controlled-contract/test/proof-packs/readiness-before-success-v1-adequacy.mjs",
-  "executable_module_digest": "3a7979366a83117639e25a68b6b70d4f898fcdf4e39b2776542b6f7627ebba83",
+  "executable_module_digest": "6dc39a3beec9382ced8d9fc40a6328ac0e619c1231bca9ecd39ac4a2f0305a56",
   "executable_dependency_digests": [
     {
+      "path": "packages/controlled-contract/lib/deterministic-projection-primitives.mjs",
+      "sha256": "8f0cd3dfa2f4c7dc6da5ca0b667156723929184e0c3f8abf973fe54630db28b5"
+    },
+    {
+      "path": "packages/controlled-contract/lib/equality-normalization-v034.mjs",
+      "sha256": "a7cfdf3d0a5d62b3c6cb7ec7cc74d458e4775541d33b39d92236d8bcb5ec8eb4"
+    },
+    {
       "path": "packages/controlled-contract/lib/native-contract-carrier-v034.mjs",
-      "sha256": "39d1b01fc19379762f68f79679925ee9767a47780b9e95ed80dda9da53a256af"
+      "sha256": "b0cb0ed42b8feb9b87fcfb914cfe124869efbe2875f0368eeb7b5fe8bef74027"
     },
     {
       "path": "packages/controlled-contract/lib/native-contract-carrier.mjs",
-      "sha256": "d66af02e8de4214cb2623dad624b48b243e445e7a6b70ee7ba244397dcc9b67a"
+      "sha256": "87b3b56f9478a25bcefb36f3a0917a20e3d1f8dd79810a91fa9288ef73e6a248"
     },
     {
       "path": "packages/controlled-contract/lib/native-contract-dag.mjs",
@@ -88,27 +96,31 @@
     },
     {
       "path": "packages/controlled-contract/lib/native-contract-runtime.mjs",
-      "sha256": "99802fbcb40c48c9976ea3fc141e85cc531d40cba2861e273aff1c80611729df"
+      "sha256": "154ee7614793ae6da2851834532f63d0bea91fc1c6b310d5ca35258d80eeadad"
     },
     {
       "path": "packages/controlled-contract/lib/population-semantics-v034.mjs",
-      "sha256": "adf234cd61cce8b8fc25358b2aecd5f996198a976652a85b698d993cb809d5ac"
+      "sha256": "101c3a5c3385ec519db32cf299e8e2567270e87a5c22be801fb400c6f86b9fe7"
+    },
+    {
+      "path": "packages/controlled-contract/lib/projected-contract-graph.mjs",
+      "sha256": "f3d4c985f31b74aef5581c6148a0a4e516ce5bf1f6785190a9805dc1c24ab5fe"
     },
     {
       "path": "packages/controlled-contract/lib/verification-profile-v034.mjs",
-      "sha256": "d0bf11ef4a41c0d24e89f4641c2bd5fb669d265993967964f1287d4af6187d87"
+      "sha256": "9f4d5cc43bc1d02c6f5d5b558e4f697d3396bedeaac0811d643140d08d943e85"
     },
     {
       "path": "packages/controlled-contract/lib/verification-profile.mjs",
-      "sha256": "80ed26da14823a639460053a25a6dbd99de010ab0cbe669bfd40d71a294aa03d"
+      "sha256": "b542e7a2872ad29f719bd1b7472bd5239d1ed8f31289e32642e19ec8480889be"
     },
     {
       "path": "packages/controlled-contract/lib/vocabulary-v034.mjs",
-      "sha256": "0685d29caed0c39c846f67552c99f30469647d0f81e9f8cf8394d2823e0ba0a0"
+      "sha256": "af06b8100e1d856136fa045beed45829b8c1ca4de8346e8715dfffa4c5e8feeb"
     },
     {
       "path": "packages/controlled-contract/test/certification/profiles/proof.readiness.before-success/1.0.0/profile.json",
-      "sha256": "ed30c8408273737d9d46d6e9f67a8753c00e01d3e44f57b1c4705e977fa8ad22"
+      "sha256": "7a28382a981a112744a81ae871200b71c654aea1b9283616a287abdc9bdf979f"
     },
     {
       "path": "packages/controlled-contract/test/proof-packs/readiness-before-success-v1-fixture.mjs",
@@ -124,7 +136,7 @@
     },
     {
       "path": "packages/controlled-contract/vocabulary/cv.experimental.0.34.mjs",
-      "sha256": "cc7ba4aa6278640348d274c4095a494f55762de6034c98596d65df7a36a54779"
+      "sha256": "1eb6937a4c314e33a44c3f2ebe415893e937593f0e5a0089829c504f12deaee2"
     }
   ],
   "negative_contract_fixtures": [
@@ -2379,25 +2391,25 @@
     {
       "surface_id": "noncritical-vocabulary-signature-digest",
       "profile_json_pointer": "/vocabulary_signature_digest",
-      "surface_digest": "d621fc2daa14a098fe406813a764f3f70181d693d6ed33db736ca3ff55ce9e27",
+      "surface_digest": "6440a56630c8f4b72052f1680c972161b28ae1a7fcd8795435cc6986e060e6f8",
       "reason": "artifact_binding_not_guarantee_semantics"
     },
     {
       "surface_id": "noncritical-vocabulary-algebra-digest",
       "profile_json_pointer": "/vocabulary_algebra_digest",
-      "surface_digest": "2b8dc00de4f88bac72d10838a026512dd7504c6dc9578560e09bb11f835b22c4",
+      "surface_digest": "e4be35f83d73f8b8decea2d050870931bde9992f78c57d021478eae45809a877",
       "reason": "artifact_binding_not_guarantee_semantics"
     },
     {
       "surface_id": "noncritical-vocabulary-definitions-digest",
       "profile_json_pointer": "/vocabulary_definitions_digest",
-      "surface_digest": "5ae98c7d3d662df4fa66ab0eeba95eeaaec09e62149297ffd4be9137a61519e4",
+      "surface_digest": "5712c8ef917cb4a92f2c25a33725896a3db54e59e29bdc780686fd1b54bedaff",
       "reason": "artifact_binding_not_guarantee_semantics"
     },
     {
       "surface_id": "noncritical-vocabulary-complete-digest",
       "profile_json_pointer": "/vocabulary_complete_digest",
-      "surface_digest": "393f6b7b6aa09373e4fcfbbbec720fa0077c5a2f9017036327da566e76ce47f3",
+      "surface_digest": "3972150f31adaaeb83e453564b61132109f63d22c718f297643aa783db9a41c6",
       "reason": "artifact_binding_not_guarantee_semantics"
     },
     {
@@ -2871,6 +2883,6 @@
   ],
   "coverage_witness_index": {
     "path": "packages/controlled-contract/test/certification/profiles/proof.readiness.before-success/1.0.0/witness-profile-weakenings.json",
-    "sha256": "7965cf7c6cf344f21f7098d741dab25dcb8517211143669a4d6368b4f56dbe6b"
+    "sha256": "d9a475c815472170a3b8d62ca223be56a67acbc2e16ab703ac23a063a7281f2d"
   }
 }

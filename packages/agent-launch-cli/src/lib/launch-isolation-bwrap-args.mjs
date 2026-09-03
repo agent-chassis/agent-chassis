@@ -13,6 +13,7 @@ export function buildBubblewrapArgs({
   sparseWorkerNamespace,
   repoReal,
   maskTmpfsDirsResolved,
+  privateReadOnlyMaskDirsResolved = [],
   inRepoSecretFileMasks,
   readOnly,
   homeReads,
@@ -24,6 +25,7 @@ export function buildBubblewrapArgs({
   writableFileEntries,
   runtime,
   provisionedGitIsolation,
+  gitNamespaceDirectories = [],
   decisionsReadOnly = [],
   policedEnv,
   cwdNormalized,
@@ -37,6 +39,11 @@ export function buildBubblewrapArgs({
   if (stdioMcpConduit !== null) {
     bwrapArgs.push(...projectStdioMcpChannelNamespaceArgs(stdioMcpConduit));
   }
+
+  for (const dir of gitNamespaceDirectories) {
+    bwrapArgs.push("--dir", dir);
+  }
+  const provisionedGitBinds = provisionedGitIsolation?.readOnlyBinds ?? [];
   if (sparseWorkerNamespace === null) {
     bwrapArgs.push("--ro-bind", repoReal, repoReal);
   } else {
@@ -60,6 +67,12 @@ export function buildBubblewrapArgs({
     }
     for (const { src, dst } of inRepoSecretFileMasks) {
       bwrapArgs.push("--ro-bind", src, dst);
+    }
+
+    for (const { src, dst } of provisionedGitBinds) {
+      if (dst === repoReal || dst.startsWith(`${repoReal}/`)) {
+        bwrapArgs.push("--ro-bind", src, dst);
+      }
     }
     bwrapArgs.push("--remount-ro", repoReal);
   }
@@ -95,8 +108,8 @@ export function buildBubblewrapArgs({
     bwrapArgs.push("--bind", dir, dir);
   }
 
-  if (sparseWorkerNamespace === null) {
-    for (const { src, dst } of provisionedGitIsolation?.readOnlyBinds ?? []) {
+  for (const { src, dst } of provisionedGitBinds) {
+    if (sparseWorkerNamespace === null || !(dst === repoReal || dst.startsWith(`${repoReal}/`))) {
       bwrapArgs.push("--ro-bind", src, dst);
     }
   }
@@ -110,6 +123,11 @@ export function buildBubblewrapArgs({
     if (sparseWorkerNamespace !== null) {
       bwrapArgs.push("--remount-ro", dir);
     }
+  }
+
+  for (const dir of privateReadOnlyMaskDirsResolved) {
+    bwrapArgs.push("--tmpfs", dir);
+    bwrapArgs.push("--remount-ro", dir);
   }
 
   for (const { src, dst } of decisionsReadOnly) {

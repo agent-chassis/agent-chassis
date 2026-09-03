@@ -8,9 +8,9 @@ import {
   evaluateVerificationProfile
 } from "../../../lib/verification-profile.mjs";
 import {
-  PROFILE_SCHEMA_VERSION_V034,
-  evaluateVerificationProfileV034
-} from "../../../lib/verification-profile-v034.mjs";
+  PROFILE_SCHEMA_VERSION_V1,
+  evaluateVerificationProfileV1
+} from "../../support/stable-v1-proof-pack-runtime.mjs";
 import {
   ProofPackAdequacyError,
   loadProofPack,
@@ -110,7 +110,7 @@ async function checkVerificationProfile({ contractPath, profilePath, inputPath }
     readJson(profilePath, "verification profile"),
     readJson(inputPath, "verification profile input")
   ]);
-  const usesV034 = profile.value.schema_version === PROFILE_SCHEMA_VERSION_V034;
+  const usesV034 = profile.value.schema_version === PROFILE_SCHEMA_VERSION_V1;
   const pack = usesV034
     ? await loadProofPack(path.dirname(profile.absolute_path), {
       profileSource: { path: profile.absolute_path, text: profile.text }
@@ -125,7 +125,7 @@ async function checkVerificationProfile({ contractPath, profilePath, inputPath }
     { diagnostics: adequacyResult.diagnostics }
   );
   const evaluator = usesV034
-    ? evaluateVerificationProfileV034
+    ? evaluateVerificationProfileV1
     : evaluateVerificationProfile;
   const inputs = {
     contract: { path: contract.path, sha256: contract.sha256 },

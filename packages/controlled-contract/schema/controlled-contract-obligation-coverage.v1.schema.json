@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "controlled-contract-obligation-coverage.v1.schema.json",
+  "title": "controlled-contract-obligation-coverage.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "wk_id", "obligations"],
+  "properties": {
+    "schema_version": { "const": "controlled-contract-obligation-coverage.v1" },
+    "wk_id": { "$ref": "#/$defs/wk_id" },
+    "focus": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "string", "pattern": "^SLICE-[0-9]{3,}$" }
+      ]
+    },
+    "obligations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/obligation" }
+    }
+  },
+  "$defs": {
+    "wk_id": { "type": "string", "pattern": "^WK-[0-9]{4,}$" },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9]+(?:[a-zA-Z0-9._:-]*[a-zA-Z0-9])?$"
+    },
+    "obligation_id": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "source_locator": {
+      "type": "string",
+      "pattern": "^/(?:[^~/]|~[01])+(?:/(?:[^~/]|~[01])*)*$"
+    },
+    "mechanism": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["owner", "kind", "selector"],
+      "properties": {
+        "owner": { "type": "string", "minLength": 1 },
+        "kind": {
+          "enum": [
+            "code_symbol", "schema", "test", "configuration",
+            "durable_record", "tool_operation"
+          ]
+        },
+        "selector": { "type": "string", "minLength": 1 }
+      }
+    },
+    "guarantee_selector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "component_id"],
+      "properties": {
+        "kind": {
+          "enum": [
+            "reference_binding", "claim", "relation", "collection",
+            "resolver_fact", "evidence"
+          ]
+        },
+        "component_id": { "$ref": "#/$defs/id" }
+      }
+    },
+    "pack_mapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind", "pack_id", "requested_intent", "profile_id",
+        "profile_version", "selector", "evaluation_stage"
+      ],
+      "properties": {
+        "kind": { "const": "pack_mapping" },
+        "pack_id": { "$ref": "#/$defs/id" },
+        "requested_intent": { "$ref": "#/$defs/id" },
+        "profile_id": {
+          "type": "string",
+          "pattern": "^proof\\.[a-z0-9]+(?:[.-][a-z0-9]+)*$"
+        },
+        "profile_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "selector": { "$ref": "#/$defs/guarantee_selector" },
+        "evaluation_stage": { "enum": ["pre_dispatch", "post_delivery"] }
+      }
+    },
+    "explicit_gap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "gap_kind", "reason"],
+      "properties": {
+        "kind": { "const": "explicit_gap" },
+        "gap_kind": {
+          "enum": [
+            "catalog_gap", "mechanism_gap", "implementation_not_delivered",
+            "existing_mechanism_unextended", "review_only", "no_proof_required"
+          ]
+        },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    },
+    "obligation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "obligation_id", "source_locator", "source_locator_digest",
+        "statement", "controlled_contract_node_ids", "mechanism", "proof"
+      ],
+      "properties": {
+        "obligation_id": { "$ref": "#/$defs/obligation_id" },
+        "source_locator": { "$ref": "#/$defs/source_locator" },
+        "source_locator_digest": { "$ref": "#/$defs/sha256" },
+        "statement": { "type": "string", "minLength": 1 },
+        "controlled_contract_node_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/id" }
+        },
+        "mechanism": { "$ref": "#/$defs/mechanism" },
+        "proof": {
+          "oneOf": [
+            { "$ref": "#/$defs/pack_mapping" },
+            { "$ref": "#/$defs/explicit_gap" }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,97 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.v1",
+  "evaluation_stage": "pre_dispatch",
+  "reference_bindings": [
+    {
+      "role": "subject",
+      "reference_ids": [
+        "ref-subject"
+      ]
+    },
+    {
+      "role": "baseline_state",
+      "reference_ids": [
+        "ref-baseline-state"
+      ]
+    },
+    {
+      "role": "start_boundary",
+      "reference_ids": [
+        "ref-start-boundary"
+      ]
+    },
+    {
+      "role": "end_boundary",
+      "reference_ids": [
+        "ref-end-boundary"
+      ]
+    },
+    {
+      "role": "observation_population",
+      "reference_ids": [
+        "ref-observation-population"
+      ]
+    },
+    {
+      "role": "observations",
+      "reference_ids": [
+        "ref-observation-1",
+        "ref-observation-2"
+      ]
+    },
+    {
+      "role": "baseline_state_population",
+      "reference_ids": [
+        "ref-baseline-state-population"
+      ]
+    },
+    {
+      "role": "baseline_states",
+      "reference_ids": [
+        "ref-baseline-state"
+      ]
+    },
+    {
+      "role": "observed_state_population",
+      "reference_ids": [
+        "ref-observed-state-population"
+      ]
+    },
+    {
+      "role": "observed_states",
+      "reference_ids": [
+        "ref-baseline-state"
+      ]
+    },
+    {
+      "role": "verification",
+      "reference_ids": [
+        "ref-verification"
+      ]
+    },
+    {
+      "role": "state_regression_condition",
+      "reference_ids": [
+        "ref-state-regression-condition"
+      ]
+    }
+  ],
+  "number_bindings": [
+    {
+      "role": "observation_count",
+      "value": 2
+    },
+    {
+      "role": "baseline_state_count",
+      "value": 1
+    },
+    {
+      "role": "observed_state_count",
+      "value": 1
+    }
+  ],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": [],
+  "stable_evaluation": {}
+}

@@ -1,7 +1,7 @@
 import {
   PROOF_PACK_ADEQUACY_RUN_VERSION
 } from "../support/proof-pack-adequacy-constants.mjs";
-import { evaluateVerificationProfileV034 } from "../../lib/verification-profile-v034.mjs";
+import { evaluateStableProofPackFixtureV1 } from "../support/stable-v1-proof-pack-runtime.mjs";
 import {
   buildSingleUseReplayRefusalFixture,
   collapseSingleUseRole,
@@ -16,12 +16,12 @@ import {
 } from "./single-use-replay-refusal-harness.mjs";
 
 const PROFILE_DIGEST =
-  "9d42e83bffc7cb48c4fe0a47909ab9842d9a1bb999c622448efbdffdc71aa24d";
+  "7716ad9e4ae12f15c579de9695a879b18f9439da044e02b0f56f407e372c0516";
 const GUARANTEE_DIGEST =
   "b555f4eace29c9d9054bbacd990817451c6a260db3e83ef887ef5bc0584507d2";
 
 function evaluateFixture(profile, fixture) {
-  return evaluateVerificationProfileV034({
+  return evaluateStableProofPackFixtureV1({
     contract: fixture.contract,
     profile,
     evaluation_input: fixture.input

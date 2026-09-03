@@ -1,0 +1,85 @@
+{
+  "input_version": "controlled-contract-test-validity-evaluation-input.v1",
+  "verification_id": "claim-test-verification",
+  "test_proof_id": "test-proof-claim-test-verification",
+  "candidate_execution": {
+    "passed": true,
+    "observed_boundary_id": "sut-boundary-package-api",
+    "observed_observable_id": "observable-package-result",
+    "source_text_inspection_used": false,
+    "provider": {
+      "provider_id": "launcher.node-test",
+      "provider_version": "1.0.0",
+      "capability": "candidate_execution",
+      "capability_snapshot_digest": "sha256:3176a9217d313dd59f8640edd613d510f641ec742f2a26849c2ced41a9151299"
+    },
+    "observation": {
+      "mechanism": "node_test_structured_events",
+      "artifact_id": "artifact-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "artifact_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "artifact_owner": "launcher",
+      "test_controlled_output_used": false
+    }
+  },
+  "test_inventory": {
+    "declared_test_ids": ["test-package-result"],
+    "baseline_executed_test_ids": ["test-package-result"],
+    "observed_tests": [
+      {"test_id": "test-package-result", "status": "passed"}
+    ]
+  },
+  "falsifier_executions": [
+    {
+      "falsifier_id": "falsifier-wrong-result",
+      "isolated": true,
+      "skipped": false,
+      "target_verification_failed": true,
+      "failure_proposition_id": "prop-wrong-result",
+      "failure_reason_source": "launcher_structured_event",
+      "failure_reason_code": "test_proof_fault.dependency_failure.v1",
+      "mutation": {
+        "mutation_id": "mutation-wrong-result-dependency-failure",
+        "strategy": "dependency_failure",
+        "applied": true,
+        "target_verification_id": "claim-test-verification"
+      },
+      "observation": {
+        "mechanism": "node_test_structured_events",
+        "artifact_id": "artifact-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "artifact_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "artifact_owner": "launcher",
+        "test_controlled_output_used": false
+      },
+      "provider": {
+        "provider_id": "launcher.node-test-module-fault",
+        "provider_version": "1.0.0",
+        "capability": "falsifier_execution",
+        "capability_snapshot_digest": "sha256:3176a9217d313dd59f8640edd613d510f641ec742f2a26849c2ced41a9151299",
+        "strategy": "dependency_failure"
+      }
+    }
+  ],
+  "boundary_traversal": {
+    "provider_support": "supported",
+    "result": "proven",
+    "authenticated": true,
+    "instrumented": true,
+    "observation_seam": "node_test_structured_assertion",
+    "boundary_id": "sut-boundary-package-api",
+    "observable_id": "observable-package-result",
+    "observation": {
+      "mechanism": "node_test_v8_coverage",
+      "artifact_id": "artifact-cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "artifact_digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "artifact_owner": "launcher",
+      "test_controlled_output_used": false
+    },
+    "provider": {
+      "provider_id": "launcher.node-test-v8-coverage",
+      "provider_version": "1.0.0",
+      "capability": "boundary_traversal",
+      "capability_snapshot_digest": "sha256:3176a9217d313dd59f8640edd613d510f641ec742f2a26849c2ced41a9151299",
+      "boundary_kind": "module"
+    }
+  }
+}

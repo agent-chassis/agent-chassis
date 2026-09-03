@@ -1,0 +1,883 @@
+{
+  "schema_version": "controlled-contract-verification-profile.v1",
+  "profile_id": "proof.pagination.snapshot-consistency",
+  "profile_version": "2.0.0",
+  "contract_schema_version": "controlled-acceptance-contract.v1",
+  "vocabulary_version": "controlled-contract-vocabulary.v1",
+  "vocabulary_signature_digest": "596a4c44d98aed1d31dd9ab3842fc054be6f8ffa3d62a3867a3966e75ecab742",
+  "vocabulary_algebra_digest": "0fbea1e7377baeef1869cbc55dc588ef5509ed40c768ce2a3c4f58be1133cf9c",
+  "vocabulary_definitions_digest": "bb3d2a63cb6fc8c62b9bc36d29d07549dea6ad85e32badb0cbb3cacfd6ad4759",
+  "vocabulary_complete_digest": "45484504f06968c6b4ac812c24b9f1b6e47e1d34ba21fefebde8dd85d1290fa9",
+  "evaluation_stages": [
+    "pre_dispatch"
+  ],
+  "verification_falsifier_policy": "controlled_complement_per_target",
+  "reference_roles": [
+    {
+      "role": "mutation_trace",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "projection_result",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "primary_before_capture",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "primary_after_capture",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "control_before_capture",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "control_after_capture",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "traversal",
+      "allowed_type_terms": [
+        "cc:process"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "live_source",
+      "allowed_type_terms": [
+        "cc:resource"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "snapshot",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "snapshot_state",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "initial_source_version",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "later_source_version",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "page_attempt_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "page_attempts",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "one_or_more"
+    },
+    {
+      "role": "returned_page_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "returned_pages",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "one_or_more"
+    },
+    {
+      "role": "member_occurrence_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "member_occurrences",
+      "allowed_type_terms": [
+        "cc:evidence"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "stable_member_occurrence_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "stable_member_occurrences",
+      "allowed_type_terms": [
+        "cc:evidence"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "mutation_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "mutations",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "one_or_more"
+    },
+    {
+      "role": "first_page_attempt",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "later_page_attempt",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "first_returned_page",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "later_returned_page",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "relevant_mutation",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "sequence_comparison_result",
+      "allowed_type_terms": [
+        "cc:evidence"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "identical_sequence_state",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "verification",
+      "allowed_type_terms": [
+        "cc:test",
+        "cc:process"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "sequence_failure_condition",
+      "allowed_type_terms": [
+        "cc:criterion",
+        "cc:state"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    }
+  ],
+  "number_roles": [],
+  "distinct_reference_role_sets": [],
+  "reference_binding_patterns": [
+    {
+      "pattern_id": "complete-page-attempt-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "page_attempt_population",
+        "page_attempts"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    },
+    {
+      "pattern_id": "complete-returned-page-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "returned_page_population",
+        "returned_pages"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    },
+    {
+      "pattern_id": "complete-member-occurrence-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "member_occurrence_population",
+        "member_occurrences"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    },
+    {
+      "pattern_id": "complete-stable-member-occurrence-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "stable_member_occurrence_population",
+        "stable_member_occurrences"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    },
+    {
+      "pattern_id": "complete-mutation-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "mutation_population",
+        "mutations"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    }
+  ],
+  "reference_role_count_bindings": [],
+  "claim_patterns": [
+    {
+      "pattern_id": "each-attempt-resolves-selected-snapshot",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "page_attempts",
+        "member_role": "page_attempt"
+      },
+      "proposition_template": {
+        "subject_role": "page_attempt",
+        "operator": "reference:resolves_to",
+        "applicability_context": {
+          "mode": "where",
+          "operand_roles": [
+            "traversal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "snapshot"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "each-returned-page-resolves-selected-snapshot",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "returned_pages",
+        "member_role": "returned_page"
+      },
+      "proposition_template": {
+        "subject_role": "returned_page",
+        "operator": "reference:resolves_to",
+        "applicability_context": {
+          "mode": "where",
+          "operand_roles": [
+            "traversal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "snapshot"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "snapshot-state-at-first-page",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "snapshot",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "where",
+          "operand_roles": [
+            "first_page_attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "snapshot_state"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "snapshot-state-at-later-page",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "snapshot",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "where",
+          "operand_roles": [
+            "later_page_attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "snapshot_state"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "first-page-precedes-mutation",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "first_returned_page",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "relevant_mutation"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "mutation-precedes-later-page",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "relevant_mutation",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "later_page_attempt"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "relevant-mutation-mutates-live-source",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "relevant_mutation",
+        "operator": "reference:mutates",
+        "applicability_context": {
+          "mode": "where",
+          "operand_roles": [
+            "traversal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "live_source"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "live-source-initial-state",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "live_source",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "where",
+          "operand_roles": [
+            "first_page_attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "initial_source_version"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "live-source-later-state",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "live_source",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "where",
+          "operand_roles": [
+            "later_page_attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "later_source_version"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "comparison-records-ordered-sequences",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "sequence_comparison_result",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "stable_member_occurrence_population"
+          },
+          {
+            "kind": "reference",
+            "role": "member_occurrence_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "ordered-sequences-identical",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "sequence_comparison_result",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "identical_sequence_state"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "verification-reads-exact-pagination-captures",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "mutation_trace"
+          },
+          {
+            "kind": "reference",
+            "role": "primary_before_capture"
+          },
+          {
+            "kind": "reference",
+            "role": "primary_after_capture"
+          },
+          {
+            "kind": "reference",
+            "role": "control_before_capture"
+          },
+          {
+            "kind": "reference",
+            "role": "control_after_capture"
+          },
+          {
+            "kind": "reference",
+            "role": "projection_result"
+          },
+          {
+            "kind": "reference",
+            "role": "traversal"
+          },
+          {
+            "kind": "reference",
+            "role": "page_attempts"
+          },
+          {
+            "kind": "reference",
+            "role": "returned_pages"
+          },
+          {
+            "kind": "reference",
+            "role": "member_occurrence_population"
+          },
+          {
+            "kind": "reference",
+            "role": "stable_member_occurrence_population"
+          },
+          {
+            "kind": "reference",
+            "role": "relevant_mutation"
+          },
+          {
+            "kind": "reference",
+            "role": "snapshot"
+          },
+          {
+            "kind": "reference",
+            "role": "snapshot_state"
+          },
+          {
+            "kind": "reference",
+            "role": "initial_source_version"
+          },
+          {
+            "kind": "reference",
+            "role": "later_source_version"
+          },
+          {
+            "kind": "reference",
+            "role": "sequence_comparison_result"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "verify-ordered-sequences-identical",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "sequence_comparison_result"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "sequence_comparison_result",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "sequence_failure_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "identical_sequence_state"
+          }
+        ]
+      }
+    }
+  ],
+  "relation_patterns": [
+    {
+      "pattern_id": "verification-targets-sequence-equality",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "verify-ordered-sequences-identical",
+      "target_claim_pattern_id": "ordered-sequences-identical"
+    }
+  ],
+  "falsifier_condition_bindings": [
+    {
+      "relation_pattern_id": "verification-targets-sequence-equality",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "sequence_failure_condition"
+        ]
+      }
+    }
+  ],
+  "collection_patterns": [],
+  "resolver_fact_patterns": [],
+  "evidence_patterns": [],
+  "satisfaction_expression": {
+    "all_of": [
+      {
+        "pattern": "complete-page-attempt-population"
+      },
+      {
+        "pattern": "complete-returned-page-population"
+      },
+      {
+        "pattern": "complete-member-occurrence-population"
+      },
+      {
+        "pattern": "complete-stable-member-occurrence-population"
+      },
+      {
+        "pattern": "complete-mutation-population"
+      },
+      {
+        "pattern": "each-attempt-resolves-selected-snapshot"
+      },
+      {
+        "pattern": "each-returned-page-resolves-selected-snapshot"
+      },
+      {
+        "pattern": "snapshot-state-at-first-page"
+      },
+      {
+        "pattern": "snapshot-state-at-later-page"
+      },
+      {
+        "pattern": "first-page-precedes-mutation"
+      },
+      {
+        "pattern": "mutation-precedes-later-page"
+      },
+      {
+        "pattern": "relevant-mutation-mutates-live-source"
+      },
+      {
+        "pattern": "live-source-initial-state"
+      },
+      {
+        "pattern": "live-source-later-state"
+      },
+      {
+        "pattern": "comparison-records-ordered-sequences"
+      },
+      {
+        "pattern": "ordered-sequences-identical"
+      },
+      {
+        "pattern": "verification-reads-exact-pagination-captures"
+      },
+      {
+        "pattern": "verify-ordered-sequences-identical"
+      },
+      {
+        "pattern": "verification-targets-sequence-equality"
+      }
+    ]
+  }
+}

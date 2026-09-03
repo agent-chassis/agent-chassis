@@ -2,62 +2,14 @@
   "schema_version": "wiki-bootstrap-seed.v1",
   "record_id": "IN-0001",
   "record_kind": "initiative",
-  "title": "Adopt the shared wiki contract and agent workflow",
-  "summary": "Static, repo-neutral bootstrap seed content for a consuming repository's own IN-0001 adoption plan.",
+  "title": "Start the first real work",
+  "summary": "In-progress placeholder for the repository's first real work.",
   "repo_neutral": true,
   "bootstrap_mode": "preserve_existing",
-  "target_surfaces": [
-    {
-      "path": "AGENTS.md",
-      "write_mode": "create_if_missing",
-      "purpose": "the repo-local operating contract this adoption initiative exists to produce; bootstrap never creates it, so it may be absent immediately after bootstrap. Authoring/adapting root `AGENTS.md` is the primary adoption deliverable: the orchestrator must drive it to completion, but must not write root `AGENTS.md` directly (orchestrator write scope does not include the repo root) — instead it dispatches the seeded worker-owned implementation slice `WK-0001#SLICE-001` (write_scope [\"AGENTS.md\"]) through the structured MCP dispatch route. That worker derives the repo-specific `AGENTS.md` content from `wiki/templates/AGENTS.md.boilerplate.md`, replaces placeholders, removes unsupported tool and canonical-layer claims, and validates the result is repo-specific operating guidance and not a blind copy; the boilerplate is a helper template, not current-session operating authority. A transiently-missing root `AGENTS.md` does not by itself flip the adoption-verify readiness verdict to blocked, but that never makes authoring it optional — it is the deliverable, not skippable setup"
-    },
-    {
-      "path": "wiki/schema.md",
-      "write_mode": "create_if_missing",
-      "purpose": "consumer-owned core schema guidance"
-    },
-    {
-      "path": "wiki/conventions.md",
-      "write_mode": "create_if_missing",
-      "purpose": "consumer-owned operating conventions"
-    },
-    {
-      "path": "wiki/index.md",
-      "write_mode": "create_if_missing",
-      "purpose": "consumer-owned wiki index guidance"
-    },
-    {
-      "path": "wiki/.wiki-contract.json",
-      "write_mode": "create_if_missing",
-      "purpose": "local contract metadata and inference defaults"
-    },
-    {
-      "path": "wiki/initiatives/IN-0001.md",
-      "write_mode": "create_if_missing",
-      "purpose": "owned adoption plan"
-    }
-  ],
+  "target_surfaces": [],
   "owned_work": [],
-  "required_checks": [
-    "wiki search/read/get-record checks (coordinator-only, read-only, and run from the configured repository root; not terminal-review work or a dispatched-worker task)",
-    "work-record load/validate/dispatch-readiness checks (coordinator-only, read-only, and run from the configured repository root; not terminal-review work or a dispatched-worker task)",
-    "generate/lint validation (coordinator-only, read-only, and run from the configured repository root; not terminal-review work or a dispatched-worker task)",
-    "read-only graph-impact checks (coordinator-only and run from the configured repository root; not terminal-review work or a dispatched-worker task)",
-    "dispatch/preflight verification of operator-provided launcher config (`agent-launch.toml` role defaults and `.agent-launch` init-config) as the required first-run prerequisite (coordinator-only, read-only, and run from the configured repository root; not terminal-review work or a dispatched-worker task; missing or invalid launcher config keeps the repo blocked, while a missing root `AGENTS.md` is reported only as non-gating advisory context)"
-  ],
+  "required_checks": [],
   "non_goals": [
-    "Do not invoke MCP, dispatch, graph impact, preflight, or repo-code-index operations against the target repo.",
-    "Do not claim the target repo is agent-operable after seeding.",
-    "Do not launch the seeded IN-0001 orchestrator while `npx wiki adoption verify --dir \"$PWD\" --json` reports missing or invalid launcher config (`agent-launch.toml` role defaults or `.agent-launch` init-config); a missing root `AGENTS.md` alone is non-gating advisory context and does not block. Recommend the operator run `npx agent-chassis setup` and review/adapt `wiki/templates/AGENTS.md.boilerplate.md` into root `AGENTS.md`, then rerun adoption verify.",
-    "Do not generate, render, copy, or preserve a repo-local adoption guide. The adoption guide is a single package-owned, repo-neutral document shipped with @agent-chassis/core; this repository's adoption topology and state live only in IN-0001 and WK-0001. A repository may author its own adoption notes, but they are ordinary repository documentation — never a bootstrap artifact, a target surface, or a duplicate work contract.",
-    "Do not overwrite repo-specific edits or silently clobber existing canonical records.",
-    "Do not require duplicate IN-0001 or duplicate seeded work when rerun.",
-    "Do not create agent-launch.toml as repo-authored adoption work; package/bootstrap first-run guidance supplies the operator launcher setup step.",
-    "Do not have the orchestrator write root `AGENTS.md` directly or via shell; orchestrator write scope does not include the repo root. Authoring root `AGENTS.md` is the primary adoption deliverable, so when it is missing the orchestrator must dispatch the seeded worker-owned implementation slice `WK-0001#SLICE-001` (write_scope [\"AGENTS.md\"]) through the structured MCP dispatch route to create it — do not skip it or treat it as optional. Its transient absence is non-gating for the adoption-verify readiness verdict, but that never excuses leaving it unauthored.",
-    "The read-only verification checks (wiki-retrieval, work-records, generate-lint, graph-impact, dispatch-preflight) are coordinator-only checks run from the configured repository root. They are not implementation-worker tasks, terminal-review commands, or terminal-review findings criteria."
-  ],
-  "seed_work_record_templates": [
-    "WK-0001.adoption-tracker.json"
+    "Bootstrap creates this placeholder only; the repository's first real work is defined by the operator."
   ]
 }

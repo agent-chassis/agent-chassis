@@ -1,7 +1,7 @@
 import {
   PROOF_PACK_ADEQUACY_RUN_VERSION
 } from "../support/proof-pack-adequacy-constants.mjs";
-import { evaluateVerificationProfileV034 } from "../../lib/verification-profile-v034.mjs";
+import { evaluateStableProofPackFixtureV1 } from "../support/stable-v1-proof-pack-runtime.mjs";
 import {
   buildFailedAttemptNonconsumptionFixture,
   findProposition,
@@ -14,12 +14,12 @@ import {
 } from "./failed-attempt-nonconsumption-harness.mjs";
 
 const PROFILE_DIGEST =
-  "214abfb167df615acf4002aa76f4817c0e8fc51a364c94a6d2052b4fe33eec44";
+  "d4e8edc8b0423263b22f0441457e290562bb5cd7d1f2635e91bb995086a83f6c";
 const GUARANTEE_DIGEST =
   "fd5a53f0f0357bbbce255cd8b6cdbfe60be577a653b099c3c136f4f5c59fbf0f";
 
 function evaluateFixture(fixture) {
-  return evaluateVerificationProfileV034({
+  return evaluateStableProofPackFixtureV1({
     contract: fixture.contract,
     profile: fixture.profile,
     evaluation_input: fixture.input

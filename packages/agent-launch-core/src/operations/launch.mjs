@@ -9,6 +9,7 @@ import { loadAndVerifyToken, moveToken } from "../lib/token.mjs";
 import { assertAgentRunsNotTracked, findRepoRoot } from "../lib/git.mjs";
 import { createRunId, getReviewDir, getRunDir } from "../lib/paths.mjs";
 import { copyTree, ensureDirectory, fileExists, readJson, sha256, sha256File, writeJsonAtomic } from "../lib/filesystem.mjs";
+import { buildAgentRunProvenanceEnvelope } from "../lib/agent-run-provenance-envelope.mjs";
 
 const DEFAULT_STALE_PROCESS_POLL_MS = 1_000;
 
@@ -181,7 +182,7 @@ function buildEmptyBodyDiagnostic(transportKind) {
   ].join("\n");
 }
 
-async function buildReviewedLauncherProvenance({
+export async function observeReviewedLauncherProvenanceFacts({
   review,
   reviewId,
   runId,
@@ -215,17 +216,15 @@ async function buildReviewedLauncherProvenance({
   });
 
   return {
-    schema_version: "agent-run-provenance.v1",
-    run_id: runId,
-    wrapper: "agent-launch",
+    runId,
+    reviewId,
+    handoffId: review.handoff_id,
+    selectedAgent: review.agent,
     role: roleContext.role,
-    effective_role: roleContext.effective_role,
-    review_id: reviewId,
-    handoff_id: review.handoff_id,
+    effectiveRole: roleContext.effective_role,
     subject: `${review.repo_root}:${review.handoff_id}`,
-    selected_agent: review.agent,
-    argv_redacted: argv.map((value) => sanitizeAbsoluteArg(value, placeholders)),
-    source_context: {
+    argvRedacted: argv.map((value) => sanitizeAbsoluteArg(value, placeholders)),
+    sourceContext: {
       review_json: await describeArtifact(runReviewPath, {
         mediaKind: "application/json",
         sensitivityClass: "routine"
@@ -244,17 +243,13 @@ async function buildReviewedLauncherProvenance({
       runtime_base: path.dirname(path.dirname(runDir)),
       workspace_root: review.repo_root
     },
-    runtime: {
-      cwd: path.join(runDir, "agent-visible"),
-      started_at: startedAt,
-      completed_at: completedAt,
-      started_at_epoch: Date.parse(startedAt),
-      completed_at_epoch: Date.parse(completedAt),
-      status: finalStatus,
-      exit_status: finalExitCode,
-      signal: finalSignal,
-      child_pid: roleContext.child_pid ?? null
-    },
+    runtimeCwd: path.join(runDir, "agent-visible"),
+    startedAt,
+    completedAt,
+    terminalStatus: finalStatus,
+    exitStatus: finalExitCode,
+    signal: finalSignal,
+    childPid: roleContext.child_pid ?? null,
     artifacts: {
       launch_json: await describeArtifact(launchPath, {
         mediaKind: "application/json",
@@ -275,13 +270,9 @@ async function buildReviewedLauncherProvenance({
         sensitivityClass: "sensitive"
       })
     },
-    response_digest: response?.sha256 ?? null,
-    terminal_status: finalStatus,
-    graph_checkpoint_disposition: review.graph_impact_checkpoint ?? null,
-    cleanup: {
-      retained: true,
-      run_dir: runDir
-    }
+    responseDigest: response?.sha256 ?? null,
+    graphCheckpointDisposition: review.graph_impact_checkpoint ?? null,
+    runDir
   };
 }
 
@@ -572,8 +563,9 @@ export async function launchReview({ reviewId }) {
     }
 
     const provenancePath = path.join(metadataDir, "provenance.json");
+    const provenanceDiagnosticPath = path.join(metadataDir, "provenance-construction-diagnostic.json");
     try {
-      const provenance = await buildReviewedLauncherProvenance({
+      const facts = await observeReviewedLauncherProvenanceFacts({
         review,
         reviewId,
         runId,
@@ -598,24 +590,18 @@ export async function launchReview({ reviewId }) {
         stdoutPath,
         stderrPath
       });
-      await writeJsonAtomic(provenancePath, provenance);
+      const construction = buildAgentRunProvenanceEnvelope(facts);
+      if (!construction.ok) {
+        await writeJsonAtomic(provenanceDiagnosticPath, construction.diagnostic);
+      } else {
+        await writeJsonAtomic(provenancePath, construction.envelope);
+      }
     } catch (error) {
       try {
-        await writeJsonAtomic(provenancePath, {
-          schema_version: "agent-run-provenance.v1",
-          run_id: runId,
-          wrapper: "agent-launch",
-          role: roleContext.role,
-          effective_role: roleContext.effective_role,
-          review_id: reviewId,
-          handoff_id: review.handoff_id,
-          selected_agent: review.agent,
-          terminal_status: finalStatus,
-          provenance_error: {
-            name: error?.name ?? "Error",
-            code: error?.code ?? null,
-            message: error?.message ?? String(error)
-          }
+        await writeJsonAtomic(provenanceDiagnosticPath, {
+          type: "agent-run-provenance-construction-diagnostic.v1",
+          code: "agent_run_provenance_construction_failed",
+          message: error?.message ?? String(error)
         });
       } catch {}
     }

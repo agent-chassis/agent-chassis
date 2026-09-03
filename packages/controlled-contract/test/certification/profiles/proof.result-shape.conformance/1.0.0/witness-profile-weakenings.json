@@ -1,13 +1,13 @@
 {
   "schema_version": "controlled-contract-proof-pack-coverage-witness-index.experimental.v0.1",
-  "profile_digest": "6f93c19165daf4194aedbe6a376b1e55165f918baf4f29593a32ba9672655f11",
+  "profile_digest": "838e186a419131c51a5194653f1db6d2fd5e92b709b5095d60216bd4b30b2143",
   "witnesses": [
     {
       "surface_id": "claim-allowed-members-verification-modalities",
       "weakening_class": "modality_broadening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-allowed-members-verification-modalities",
-      "weakened_profile_digest": "fcf0c4c0a30551e8119b672edef22e9bb200dfed960efcfd12dcbfe4522fb8db",
+      "weakened_profile_digest": "3f58410f21ceb8b5b029ddd3ff9c9fc0aeabdc2c4d39039288736889800cf1e3",
       "profile_patches": [
         {
           "op": "replace",
@@ -32,7 +32,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-allowed-members-verification-proposition-operand-0-role",
-      "weakened_profile_digest": "ad7d3d4e772556490e18632a1601f1f9a18dd8ec4491a806856064469eac91b0",
+      "weakened_profile_digest": "d88159db8d5c987c47a03df8ca8863c32208418357e646a8b1da8cf635cad64e",
       "profile_patches": [
         {
           "op": "replace",
@@ -46,7 +46,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-allowed-members-verification-proposition-operator",
-      "weakened_profile_digest": "7d9ad5c77216200945d1a2306b9bfeee59a2738bb1c99d8e03c4d2db1bf09574",
+      "weakened_profile_digest": "41fe1074f8297070ba0b2561ca78251878db1b2714443a81fb8181df7df37d7a",
       "profile_patches": [
         {
           "op": "replace",
@@ -60,7 +60,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-allowed-members-verification-proposition-subject",
-      "weakened_profile_digest": "27f98c4964f415a774a1738bfa352dd20b5f132ee630085266838f9539494f78",
+      "weakened_profile_digest": "8d97ce8c3f70ca564ce85948ed5b615c3314123e1235df1e724d8048e4945811",
       "profile_patches": [
         {
           "op": "replace",
@@ -74,7 +74,7 @@
       "weakening_class": "verification_method_broadening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-allowed-members-verification-verification-methods",
-      "weakened_profile_digest": "f446e9f2b3bc7fe42a0d3a994392e6caadfb944eec51880049f92d93a9f672b3",
+      "weakened_profile_digest": "6df031141447aedde1e4c17f5d4e7cc2d75f64ef1c184823d5b9687b6f28000c",
       "profile_patches": [
         {
           "op": "replace",
@@ -94,7 +94,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-allowed-shape-verification-modalities",
-      "weakened_profile_digest": "a5d4db6fa245d6e8ee6894d12681e4e99fa228d339a4c85728c8643238e5dd2c",
+      "weakened_profile_digest": "ede94f9943557618a469c1ab01a76244afb3306ff7b4586260f98146c2e67b8a",
       "profile_patches": [
         {
           "op": "replace",
@@ -119,7 +119,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-allowed-shape-verification-proposition-operand-0-role",
-      "weakened_profile_digest": "17e43a4ddbb256926ce989f80933e09998b77b9fc2f215ca708b79da5393ff27",
+      "weakened_profile_digest": "15e8d119cd11ddc79fca5142f2a472d67dc35616f913ca2d31e397f449517b29",
       "profile_patches": [
         {
           "op": "replace",
@@ -133,7 +133,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-allowed-shape-verification-proposition-operator",
-      "weakened_profile_digest": "f5786aaf15ff988da02f4fd7710ef88c4cef70cb4bf375d9760a09b33ad3367d",
+      "weakened_profile_digest": "2bd6ad9275a12d2c6ad9364c4f267e15b3f05a489a3ec7b7aa35587e1efaa346",
       "profile_patches": [
         {
           "op": "replace",
@@ -147,7 +147,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-allowed-shape-verification-proposition-subject",
-      "weakened_profile_digest": "14ed7e545792aaab5c81372a565f59d841c274b5b6236c17c384f4adecbfae69",
+      "weakened_profile_digest": "0ce64551be8d6db8e98fb1289f9bd00bb4850e308d94a1ea36ded804ef258695",
       "profile_patches": [
         {
           "op": "replace",
@@ -161,7 +161,7 @@
       "weakening_class": "verification_method_broadening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-allowed-shape-verification-verification-methods",
-      "weakened_profile_digest": "e283a3757544e894eb043c18ad35301bff74f9c96720cc9060eba4b5e46645f1",
+      "weakened_profile_digest": "7cf8197d368944944ade8561e57eb7530f4f16b36c14c7c7843e5250843f0880",
       "profile_patches": [
         {
           "op": "replace",
@@ -181,7 +181,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-each-forbidden-member-absent-modalities",
-      "weakened_profile_digest": "795079ac167449775447a94f2ebd4baaafa10058dd4ea4dafa9c480923de3c99",
+      "weakened_profile_digest": "380fb55c1c39dfb459405c87386eb1339b9c6d1d1de4f2e75b460284fee6feb6",
       "profile_patches": [
         {
           "op": "replace",
@@ -198,7 +198,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-each-forbidden-member-absent-proposition-operand-0-role",
-      "weakened_profile_digest": "607f5c2e41d4764966508d9b503f95558664e83f40adee1f3a0b437971592c94",
+      "weakened_profile_digest": "86bf4820dcfa7d78e7e07e7800f13ea1d1404ab80858b008dbe2219a204bf548",
       "profile_patches": [
         {
           "op": "replace",
@@ -212,7 +212,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-each-forbidden-member-absent-proposition-operator",
-      "weakened_profile_digest": "4f388a1ce3d1c123385ec8f8d6c0a1a19749c384166a0f1a444de3b5f991ad02",
+      "weakened_profile_digest": "6362f7376d803fbf92ea9f6f3d1e151338185567956b63fffd3fc63b8581e42e",
       "profile_patches": [
         {
           "op": "replace",
@@ -226,7 +226,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-forbidden-shape-verification-modalities",
-      "weakened_profile_digest": "e50e6a2fe2d7545303a8169f22f99e5f035177bd2d282ff2157fe2797e295911",
+      "weakened_profile_digest": "318afbc16c2c521e5e9c28dae4eb4937bcbc924800be93f81153dac3d546755d",
       "profile_patches": [
         {
           "op": "replace",
@@ -251,7 +251,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-forbidden-shape-verification-proposition-operand-0-role",
-      "weakened_profile_digest": "be450b9b36f9b9399eae68d0a782f265d9904345b606672e71f10ed6487243db",
+      "weakened_profile_digest": "fc8d127b32e8365551cf358cb6c33a4eb5deb747df1b03849595d5e3ed4f39b3",
       "profile_patches": [
         {
           "op": "replace",
@@ -265,7 +265,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-forbidden-shape-verification-proposition-operator",
-      "weakened_profile_digest": "76edbdd14af85d07607eb3b0282b74283809a9d52a5406b8d2175832aa0f4b86",
+      "weakened_profile_digest": "49451f630cf35c5abdcf330f8a2a5e455cb1d44b84501fd229f3c186606e0bbf",
       "profile_patches": [
         {
           "op": "replace",
@@ -279,7 +279,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-forbidden-shape-verification-proposition-subject",
-      "weakened_profile_digest": "b732cb4ba2c236e7091248390ca709f7a6e2d791061b98bd1c69c8b0459ea0c4",
+      "weakened_profile_digest": "338f0895a85d0cd4311ff181cb7f7bb1748e4b0f0a83e43e92881d1e40a2bfd8",
       "profile_patches": [
         {
           "op": "replace",
@@ -293,7 +293,7 @@
       "weakening_class": "verification_method_broadening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-forbidden-shape-verification-verification-methods",
-      "weakened_profile_digest": "803ab8d0afab9466624900b71d6c142b2552ca5af80e9cbacfe487d6aea7bdf0",
+      "weakened_profile_digest": "9ec219c37ac95c30d0b65cb90d8a3d008dc0481bd30a4248e5a6b4f5cabf8553",
       "profile_patches": [
         {
           "op": "replace",
@@ -313,7 +313,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-operation-returns-result-modalities",
-      "weakened_profile_digest": "0ddbf67987ad343a090f507d0fd71ad335eed94ec61ba8cc4e6ea2290db9c735",
+      "weakened_profile_digest": "d02bc02a5d473258aa0ef908c4432ade1fa78a50785f5acac17831adb327cd4b",
       "profile_patches": [
         {
           "op": "replace",
@@ -330,7 +330,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-operation-returns-result-proposition-operand-0-role",
-      "weakened_profile_digest": "4b139e8dbc9efbd51239a318c8097edfa7b5c435ac04218939773e9fa112c39a",
+      "weakened_profile_digest": "2ef22d7f27f927a6e6a384d1a05406398554a60fabd058195884e269605cc384",
       "profile_patches": [
         {
           "op": "replace",
@@ -344,7 +344,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-operation-returns-result-proposition-operator",
-      "weakened_profile_digest": "76add9dae9b7beb21d0d81b2aefadd2cbd7158d846fe6c0004b98304df461f9e",
+      "weakened_profile_digest": "697aad1d9b7c22f4b4d3d496973b16769824b9be52de3341dc56d0b673425eff",
       "profile_patches": [
         {
           "op": "replace",
@@ -358,7 +358,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-operation-returns-result-proposition-subject",
-      "weakened_profile_digest": "d2780667c18f916e76c1634b91f7acec6950001a720f13ce15c8573c96fd9ae8",
+      "weakened_profile_digest": "bd25bfa1db093a72e595d732d27e4e14d7a38a436c1b6c3ab76e456b552a7d89",
       "profile_patches": [
         {
           "op": "replace",
@@ -372,7 +372,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-optional-population-allowed-modalities",
-      "weakened_profile_digest": "6d30cb39b0a92a92f6379ac35f16531a296b15c83c577537396ef5f308906da7",
+      "weakened_profile_digest": "bf2fc9c6a2eecb0d408301260d520d5af643fcb6cef8e10c97cae8cf49d39f98",
       "profile_patches": [
         {
           "op": "replace",
@@ -389,7 +389,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-optional-population-allowed-proposition-operand-0-role",
-      "weakened_profile_digest": "55db6cfa87d78ae0bef09f18dcd42b4d2b418d91e7636296cf0dd90d9393700a",
+      "weakened_profile_digest": "9637aee04b3018cf779f857f732535a53ea6b9d417d1784d5a18e234e2ce7987",
       "profile_patches": [
         {
           "op": "replace",
@@ -403,7 +403,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-optional-population-allowed-proposition-operator",
-      "weakened_profile_digest": "e6fcfdc68a1b02938dd16c2c2cc48006cd0306b2fe3c769361cacebb9e1d05a5",
+      "weakened_profile_digest": "af11e6902149f5b71eeb9da0e655aee98d170f246dc020ef57911fe1aab80fd4",
       "profile_patches": [
         {
           "op": "replace",
@@ -417,7 +417,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-optional-population-allowed-proposition-subject",
-      "weakened_profile_digest": "8560b6be8bffa729f0c2582394991ff65a64d9afdcc1e8e6938cbde7bef0a66f",
+      "weakened_profile_digest": "8af0adc2be66da7e10931b832af0f0c022c958e2c916087be4547dffa71a4930",
       "profile_patches": [
         {
           "op": "replace",
@@ -431,7 +431,7 @@
       "weakening_class": "deletion",
       "fixture_id": "aggregate-constraint-variations",
       "variant_id": "claim-patterns",
-      "weakened_profile_digest": "fa8ecb06b0c4c0bfa6f9b13eb71976e19bf9147e6bae489a1352af661393e37f",
+      "weakened_profile_digest": "7d0513eeb8e16f94a8a32828682545f1503f9594854bc0d06c8974f48caed7a3",
       "profile_patches": [
         {
           "op": "replace",
@@ -1129,7 +1129,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-required-members-present-modalities",
-      "weakened_profile_digest": "1100cd00adcf17fe66187a1447f99eec960f1aa1c0ca5eb57ce56f8c8969d63d",
+      "weakened_profile_digest": "eedb90b3599327a6b9a2f67c295830aaa804d2b17ad9cf5ff32d05a8d34f60fe",
       "profile_patches": [
         {
           "op": "replace",
@@ -1146,7 +1146,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-required-members-present-proposition-operator",
-      "weakened_profile_digest": "91eb36fe05c94e5ebd7e2cff29c1bd6eca0e2427b3e8a09fddf059d61a7ee8f7",
+      "weakened_profile_digest": "c837fb7f842f3fb34b2068674df045f011ed7ba237fa740f203605c29b0aa0ce",
       "profile_patches": [
         {
           "op": "replace",
@@ -1895,7 +1895,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-required-members-verification-modalities",
-      "weakened_profile_digest": "71ff07dd7aebf7757557d896caac9e386d7879f0ce3eda0337aa5cc646f94756",
+      "weakened_profile_digest": "b4f35508b066a03ecc419a33ff7f2d2ca728a1428285852a15c3f6249dd5ba03",
       "profile_patches": [
         {
           "op": "replace",
@@ -1920,7 +1920,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-required-members-verification-proposition-operand-0-role",
-      "weakened_profile_digest": "e8281691a60ffb197e824d695b925ca7b98897148c043fa50cbf4f7411c4f0fe",
+      "weakened_profile_digest": "9f154d6f5bd46ea08d66672a0ad3c8bebabcfa7c40b2b6686da314abf18067bb",
       "profile_patches": [
         {
           "op": "replace",
@@ -1934,7 +1934,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-required-members-verification-proposition-operator",
-      "weakened_profile_digest": "797205196f9057df60065d527e5c4bded84b90da5b092f4b8e789d9554a477bc",
+      "weakened_profile_digest": "14d4cf697a5c30e7d7a63afea34e1acd78e220593fc110cefc7f89d25ae29eed",
       "profile_patches": [
         {
           "op": "replace",
@@ -1948,7 +1948,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-required-members-verification-proposition-subject",
-      "weakened_profile_digest": "fa1d2041c12ef518febcd656882628960d55986dac3a3dc97271e8b4f951ccfb",
+      "weakened_profile_digest": "82698a551ccb7522f943c7ed3635bd7ae64a3abf479f68df766eda0195b37a69",
       "profile_patches": [
         {
           "op": "replace",
@@ -1962,7 +1962,7 @@
       "weakening_class": "verification_method_broadening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-required-members-verification-verification-methods",
-      "weakened_profile_digest": "d0fc8b2d0b49f7d1b3af58cbfd8215a4e512df123b02852ec17282ca2b51a35a",
+      "weakened_profile_digest": "68a369aba74e0868808b3ae61fee0a7895ccff7576f867d6e77f3ec305cae0af",
       "profile_patches": [
         {
           "op": "replace",
@@ -1982,7 +1982,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-required-population-allowed-modalities",
-      "weakened_profile_digest": "89aee2ec56f99e518daa96253ae01977ab9d2526a464a57c296ca1c5e71a66bb",
+      "weakened_profile_digest": "daae2f3517d00e18b428e273e23738770bb1acc3bd2b71455dfb11b6f9287e35",
       "profile_patches": [
         {
           "op": "replace",
@@ -1999,7 +1999,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-required-population-allowed-proposition-operand-0-role",
-      "weakened_profile_digest": "bf0dc980aaba2b9440fe352ceedd99e9988e28a145e8896c96b68f4a4aaef022",
+      "weakened_profile_digest": "a4c697830432131c1ddb8d390e505764daddeb527876912be213a9e0344d3106",
       "profile_patches": [
         {
           "op": "replace",
@@ -2013,7 +2013,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-required-population-allowed-proposition-operator",
-      "weakened_profile_digest": "b116bb0a89f150f7f0dbdcad3193773e00e4451e99b6f2cf34209573129d6dd5",
+      "weakened_profile_digest": "0ff056024518ed101e7071502b7cd50de7b04e8fce5217f0aa80319f8eaa8708",
       "profile_patches": [
         {
           "op": "replace",
@@ -2027,7 +2027,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-required-population-allowed-proposition-subject",
-      "weakened_profile_digest": "99a389074a33df30b22b033a39518e3cbea33520327a85893d7d84ac401928c6",
+      "weakened_profile_digest": "c790ab804403d68d16cda31ac7f872e920ceedaf5868cf121137d423f155ffd7",
       "profile_patches": [
         {
           "op": "replace",
@@ -2041,7 +2041,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-result-carries-member-population-modalities",
-      "weakened_profile_digest": "c397d75abaf10215659768c7d1dcf3c60a48877d729c82e86b2cb4e359820674",
+      "weakened_profile_digest": "6e2d8a3280cf24d3c6dc1cd2d3bfef3980a6e2258b18444006b1549cae676306",
       "profile_patches": [
         {
           "op": "replace",
@@ -2058,7 +2058,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-result-carries-member-population-proposition-operand-0-role",
-      "weakened_profile_digest": "61634115c104e06da6ab18d93f17335a38227b41146209b3ee8f1bf5180e4b2a",
+      "weakened_profile_digest": "a34d1d24be3fdc7c62d8f0ebd5e3a1707cc8d53d4f133a37be7156d3151f177a",
       "profile_patches": [
         {
           "op": "replace",
@@ -2072,7 +2072,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-result-carries-member-population-proposition-operator",
-      "weakened_profile_digest": "ee9972f2fd1bb511824da0dbf7996fb4aaf214f99913cff3d88befe256ad5fa0",
+      "weakened_profile_digest": "cc0ede05ebd544c3e15bf15676f6578eaf9e8a1113518b97fb7bae9b7933999f",
       "profile_patches": [
         {
           "op": "replace",
@@ -2086,7 +2086,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-result-carries-member-population-proposition-subject",
-      "weakened_profile_digest": "59e8ba5a1fc84378bc4ed0235caf4253dfd02260c82bc0b960ce20e00996d57f",
+      "weakened_profile_digest": "3d091cccd4c2560759277d7a11577ed51da9eda452f784d6e18822c30443e392",
       "profile_patches": [
         {
           "op": "replace",
@@ -2100,7 +2100,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-result-count-complete-modalities",
-      "weakened_profile_digest": "bb16b329cd4abf6cf0327e2d1e9db2b2d40ece3ae1b70780504516c3d9e1ab96",
+      "weakened_profile_digest": "d34533d89a8f523336a02c6d0dd384c94b91ca3f5ff6e32f3e2dcfb4da8e72d8",
       "profile_patches": [
         {
           "op": "replace",
@@ -2117,7 +2117,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-result-count-complete-proposition-operator",
-      "weakened_profile_digest": "e47be4f2ef9fb48c1dece095f7c38aaeaa290f75e33872d040ff90a13fea83bc",
+      "weakened_profile_digest": "9553bd58b0f900f3c372fdabec6f085d23bb13b9aea5f1a184a67291e2aa1b4e",
       "profile_patches": [
         {
           "op": "replace",
@@ -2866,7 +2866,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-result-count-verification-modalities",
-      "weakened_profile_digest": "0e5cb4c298c99e5e155f09e9c5bd133de7b229811fed34113972504d0d4d76f5",
+      "weakened_profile_digest": "a47f09781eca4db660a3f384b3ffbb1ef225a9982b1cec95ef54eb3b1dfdf8e5",
       "profile_patches": [
         {
           "op": "replace",
@@ -2891,7 +2891,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-result-count-verification-proposition-operand-0-role",
-      "weakened_profile_digest": "a415759ec6216685977e1f452986ffe27583d8ad8293e0a419f97fe5c812178c",
+      "weakened_profile_digest": "7207570c933855409d9119c2d4000df0500fdebc40ce579c4cbeb77390213899",
       "profile_patches": [
         {
           "op": "replace",
@@ -2905,7 +2905,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-result-count-verification-proposition-operator",
-      "weakened_profile_digest": "112349b12092933280e899d94aa10041327bb80f07d7475670c6f33f1b598732",
+      "weakened_profile_digest": "366699411f188cddd42b1e1a052d556e3cb7d168d798215fe620327ac9b49ee9",
       "profile_patches": [
         {
           "op": "replace",
@@ -2919,7 +2919,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-result-count-verification-proposition-subject",
-      "weakened_profile_digest": "b5ccf942707bbc19830d60c5628425f3090c2700835140b3bafca69b4461a02b",
+      "weakened_profile_digest": "981d2f8c769f94220667e77a9a52566bd48757303a7994f19e7ba43808a0486a",
       "profile_patches": [
         {
           "op": "replace",
@@ -2933,7 +2933,7 @@
       "weakening_class": "verification_method_broadening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-result-count-verification-verification-methods",
-      "weakened_profile_digest": "a73077881f2f1129c4309f04df26cf87824a3561ae1b1d1d6b19fb7cc6d13a61",
+      "weakened_profile_digest": "1d5db783cbdd9db9f1b7ad782b6ae3ebf57422417d7e65e433127961eb3b2f48",
       "profile_patches": [
         {
           "op": "replace",
@@ -2953,7 +2953,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-result-declares-shape-modalities",
-      "weakened_profile_digest": "114f587e9eaf9d501e66fa0a76dacc2a444a133b3a5f2aa6914d32125869ddcb",
+      "weakened_profile_digest": "166943daacd0290d8f98df163b6de957db096d43d18ed2388a04bd371829dab4",
       "profile_patches": [
         {
           "op": "replace",
@@ -2970,7 +2970,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-result-declares-shape-proposition-operand-0-role",
-      "weakened_profile_digest": "aced063cc4ebc015d95622fe1ad656c9964ddddc46b56f6f7becf816b481ef57",
+      "weakened_profile_digest": "f6f299e3aff76e509b33df4265a91963037b941aa9473dcee7b94d4f19816d2a",
       "profile_patches": [
         {
           "op": "replace",
@@ -2984,7 +2984,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-result-declares-shape-proposition-operator",
-      "weakened_profile_digest": "de3b1dbeeaf97a3768c0d7aa6013884b520b853dcfe48aedd16298ff6b5806f5",
+      "weakened_profile_digest": "eb306d9adeca9d913122493c4ba73d5a0ca5898c7461b8444b73655329ea05a9",
       "profile_patches": [
         {
           "op": "replace",
@@ -2998,7 +2998,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-result-declares-shape-proposition-subject",
-      "weakened_profile_digest": "b965e5f0cbdb8c592bbd0b1e80d88d851ba23e07f617276e9d7b5eaf173c8dea",
+      "weakened_profile_digest": "398738808089d29c3a794957a4232a5028b6db6e25ccccdef21c4a2d12464adc",
       "profile_patches": [
         {
           "op": "replace",
@@ -3012,7 +3012,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-result-emits-count-modalities",
-      "weakened_profile_digest": "0573d4df9c323e7a2acae94a6bf3a422a62664985b87c04e8c55ffc54893b90f",
+      "weakened_profile_digest": "84cda9edd549ebb9db8312bcfe7ba2288760b190d33f88480299b828e2609a44",
       "profile_patches": [
         {
           "op": "replace",
@@ -3029,7 +3029,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-result-emits-count-proposition-operand-0-role",
-      "weakened_profile_digest": "6177344112084f9f9ad62279160c9b100df528b819f2bd613516579a56ca9d88",
+      "weakened_profile_digest": "dc42147634576e898330ea164c16d4009758578357f707f8e765e6a369045ae1",
       "profile_patches": [
         {
           "op": "replace",
@@ -3043,7 +3043,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-result-emits-count-proposition-operator",
-      "weakened_profile_digest": "ddd78c7cdd015b0191b6e744b32becb40c72104867142fc7c8452cb48072f903",
+      "weakened_profile_digest": "5520f87e496599da2ee9408fe9dd6724be7ccfe6b35d98fac0f99e75e35ff6ee",
       "profile_patches": [
         {
           "op": "replace",
@@ -3057,7 +3057,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-result-emits-count-proposition-subject",
-      "weakened_profile_digest": "8cd56015023ca110c62341c726843e500b65d9d4cffdb4179bdc6d7e8852040d",
+      "weakened_profile_digest": "e1b937316dd1303e1548b28100d35ae7ff2bc6e406f2d07e88c9877080b949f0",
       "profile_patches": [
         {
           "op": "replace",
@@ -3071,7 +3071,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-result-members-allowed-modalities",
-      "weakened_profile_digest": "5dbb216e6ea5d6f7e7d5c0d6add76eb2c35f39e61a202f243f6505343476a5e0",
+      "weakened_profile_digest": "919a3440ab5de4247df6fcf9625e88edce39a4be1a6fa469c1ebdadf476ee600",
       "profile_patches": [
         {
           "op": "replace",
@@ -3088,7 +3088,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-result-members-allowed-proposition-operator",
-      "weakened_profile_digest": "c6a2b3a42d2bdbe1d15c4cc349b7490aa478fe8f8e2e5b950b5f5b12f16599a2",
+      "weakened_profile_digest": "44e097a8b6862083edabf0febb6fba134b4ebc114da7d3e82843b543abd9b858",
       "profile_patches": [
         {
           "op": "replace",
@@ -3837,7 +3837,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-result-shape-allowed-modalities",
-      "weakened_profile_digest": "c0e3528501cca003a99aafe9717862c22c8f9a406971ad3988c0de946b18e608",
+      "weakened_profile_digest": "521e663c4604bf67a7c6c9509d8e6a7a9d1311afcb9663f469a4f9151ecfd814",
       "profile_patches": [
         {
           "op": "replace",
@@ -3854,7 +3854,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-result-shape-allowed-proposition-operator",
-      "weakened_profile_digest": "78821516601afdb5258decc3081cb8813baae3d280b162fcd4ecbdfc4760aecb",
+      "weakened_profile_digest": "3882644e7095c40345d689c6344492008fc82e37bf99af734e7eaa7ae0edf369",
       "profile_patches": [
         {
           "op": "replace",
@@ -4603,7 +4603,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-result-shape-not-forbidden-modalities",
-      "weakened_profile_digest": "09d501776bdb094aa9ebda314832a8b214f9cc73e9a71926b8be6361358dd6c5",
+      "weakened_profile_digest": "a306714346ca453ebcce167bfe178801a8e7cbf396959d92d694d5960b7d4c61",
       "profile_patches": [
         {
           "op": "replace",
@@ -4620,7 +4620,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-result-shape-not-forbidden-proposition-operator",
-      "weakened_profile_digest": "147d2efddb06cedb9b04c1fa8d7fafe74d485c7bd9a391a52874cf97d03f5964",
+      "weakened_profile_digest": "3681ad3e8b4ed7c96dc404c4ba8b8a0221b1dcabbce98c64fc6ce96ec0e3bee4",
       "profile_patches": [
         {
           "op": "replace",
@@ -5369,7 +5369,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-schema-declares-member-populations-modalities",
-      "weakened_profile_digest": "3f10dcab3c0ffc56a3bfc25767c34155bce99e8c75f65bf2e5a408eefb1be0fe",
+      "weakened_profile_digest": "2430ee664be41c7a1ceeeeb3722cab1b1f2f0b393360dd1c2f7ee7e364a41db1",
       "profile_patches": [
         {
           "op": "replace",
@@ -5386,7 +5386,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-schema-declares-member-populations-proposition-operand-0-role",
-      "weakened_profile_digest": "2ac9501e87b0cd9bcaaa6701c8f7def5f2fae16103bd5c6214dd191d3fc0e9ed",
+      "weakened_profile_digest": "1a108d7adca36d387ac2f2f51c85b36e795490b1a290a9c9b752013a0971797a",
       "profile_patches": [
         {
           "op": "replace",
@@ -5400,7 +5400,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-schema-declares-member-populations-proposition-operand-1-role",
-      "weakened_profile_digest": "2383cfba8fd4c5ffd777199980b167d9e18f7c0e983209395f23f5dfa15dff9c",
+      "weakened_profile_digest": "740ad948fd87295801ab089f0a38286c643b381c7e10ba186bab7e612274dd26",
       "profile_patches": [
         {
           "op": "replace",
@@ -5414,7 +5414,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-schema-declares-member-populations-proposition-operand-2-role",
-      "weakened_profile_digest": "177b0b71a4fc774c7f069151d8b56cb427593662689e13985f810294ca947b7b",
+      "weakened_profile_digest": "b3eb5ada8d906e4bff00782860d7e873c13af8203de1ad64721e0fcb67d990fe",
       "profile_patches": [
         {
           "op": "replace",
@@ -5428,7 +5428,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-schema-declares-member-populations-proposition-operand-3-role",
-      "weakened_profile_digest": "7fbc3359143ee65174fbe0ece29fbfa89e0d1d4a34482010dfd627dbb78e4f72",
+      "weakened_profile_digest": "cfced48a71a1fe3ebbed0fcce981f8f942e5cf01050544a8efd1295d501fd51e",
       "profile_patches": [
         {
           "op": "replace",
@@ -5442,7 +5442,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-schema-declares-member-populations-proposition-operator",
-      "weakened_profile_digest": "5d8c2f020ea4f5f33d5fba7eef479248d7b136e27a24a70c0f864da7c581181b",
+      "weakened_profile_digest": "594cce8ee54dd34a412e215ded1f099653b8a5ef8dbe889f215e08a7ed8306c9",
       "profile_patches": [
         {
           "op": "replace",
@@ -5456,7 +5456,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-schema-declares-member-populations-proposition-subject",
-      "weakened_profile_digest": "63babf0b377ab16a898443d40bd98a6959211570b06895665412bd108cf54a20",
+      "weakened_profile_digest": "601e6d3500ca5aa7eebc36c8118b5b1313c77a986a94847fa41d953478cb3269",
       "profile_patches": [
         {
           "op": "replace",
@@ -5470,7 +5470,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-schema-declares-shape-populations-modalities",
-      "weakened_profile_digest": "4aedf59df1fd529fcc72de58f2e46b4f6eca19c1c3acbdde265aa336fbf0efd6",
+      "weakened_profile_digest": "77b6903d448f5bf52629a534df79beb716105a396264b5d6d59fc1ab0276495d",
       "profile_patches": [
         {
           "op": "replace",
@@ -5487,7 +5487,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-schema-declares-shape-populations-proposition-operand-0-role",
-      "weakened_profile_digest": "ff7d49390833e8f5d1f5778592e38e977fd134442e13da198c44f516fc541448",
+      "weakened_profile_digest": "35ae7de029bc1e707a5e61f887d8528baa18377ec79c536c0fe714369a5ee7fd",
       "profile_patches": [
         {
           "op": "replace",
@@ -5501,7 +5501,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-schema-declares-shape-populations-proposition-operand-1-role",
-      "weakened_profile_digest": "b4faa18b3d5682b80637bb4ca807f4bec96b17c71c955b08fd766ef228cc7ddd",
+      "weakened_profile_digest": "14f363e1ecf2958609e262383497c06f8bde5f94f0d8ea8a2b44e10b31d76b40",
       "profile_patches": [
         {
           "op": "replace",
@@ -5515,7 +5515,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-schema-declares-shape-populations-proposition-operator",
-      "weakened_profile_digest": "d8452ec3c647eec0c13d19df3368c1d5e438d43a0035412d781d0e0959ba927c",
+      "weakened_profile_digest": "9c59abc31834edfbe8a6e320939a8a47d90ab83d371ec8dad23a1d6080e70606",
       "profile_patches": [
         {
           "op": "replace",
@@ -5529,7 +5529,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-schema-declares-shape-populations-proposition-subject",
-      "weakened_profile_digest": "2fe176f6958290cf0ca69232766cfb836b0770dd373825111e42f3a32086e34b",
+      "weakened_profile_digest": "6acb53c65819c37e71dbdc5672e4b041e4e6f8913cc7720236b5c959ff2b686e",
       "profile_patches": [
         {
           "op": "replace",
@@ -5543,7 +5543,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-verification-reads-result-contract-modalities",
-      "weakened_profile_digest": "958d650d40510fd5b8244d2a7e9b70ef953809e2ae3c33042628ba93be73f22a",
+      "weakened_profile_digest": "aa84f57c3fb40dc063d0caaf540549622c96aa654348da3914a997d31d0b78ba",
       "profile_patches": [
         {
           "op": "replace",
@@ -5560,7 +5560,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-verification-reads-result-contract-proposition-operand-0-role",
-      "weakened_profile_digest": "63f0e564f5fa053e31ba6f5ec0da720a9b345708e924c6af3bf0908afeeaaafe",
+      "weakened_profile_digest": "0a78af114e5b12857cf2145de3edf24c39f299d62dcd3f1facdf8f449a5cbba4",
       "profile_patches": [
         {
           "op": "replace",
@@ -5574,7 +5574,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-verification-reads-result-contract-proposition-operand-1-role",
-      "weakened_profile_digest": "7ccc0d3a0ca0e5a51133820981b605ca9aa45099a2c77afb07e855e827479b17",
+      "weakened_profile_digest": "bfb41e195287fd9c47da2d17ef4d01c037faa8727c0f2902f8a57a6e8666a53e",
       "profile_patches": [
         {
           "op": "replace",
@@ -5588,7 +5588,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-verification-reads-result-contract-proposition-operand-2-role",
-      "weakened_profile_digest": "127bf30fcff923dbae0255b9eab200fbcb40ad1a431981e8d587dd1cca8752b1",
+      "weakened_profile_digest": "3e803b5bf3d05dc298b4d639ca6e792dc3b51636baea6a1432d1cc7874f982e6",
       "profile_patches": [
         {
           "op": "replace",
@@ -5602,7 +5602,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-verification-reads-result-contract-proposition-operand-3-role",
-      "weakened_profile_digest": "ac2224c5b886bf6c4c8cfa3d588df24ab17e2c3d5da890bc6526e08c65b4177d",
+      "weakened_profile_digest": "6776944ca823f3e8b719960298a996bf96feef264d46790950161446855b3ca0",
       "profile_patches": [
         {
           "op": "replace",
@@ -5616,7 +5616,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-verification-reads-result-contract-proposition-operand-4-role",
-      "weakened_profile_digest": "92f90d0395f9f27fcb8b6114097d83b68bb4cd5a8edfff19aab9b74edbdfc1c3",
+      "weakened_profile_digest": "c33e09f361388d379e22fd82c0853f5b902ec5d6add313bd4192cb0ad4db1af6",
       "profile_patches": [
         {
           "op": "replace",
@@ -5630,7 +5630,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-verification-reads-result-contract-proposition-operand-5-role",
-      "weakened_profile_digest": "289baaf2cc1b9f5b3f79e0609c7a7f9281bb92579bf97ac327f13440fbb6e536",
+      "weakened_profile_digest": "cff25ad594be8c3c4d2db917de4d17fa8c633137a7e64c653bedfae0cceea785",
       "profile_patches": [
         {
           "op": "replace",
@@ -5644,7 +5644,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-verification-reads-result-contract-proposition-operand-6-role",
-      "weakened_profile_digest": "47d55b52969edfa5b6a7694d0d88b0315cefeae54731315c90126a9141202b16",
+      "weakened_profile_digest": "f22d8ddbbd6437ff2cc6d6e3bde33f9459c1b5c64ced1f2f3395acb7ab7b5d79",
       "profile_patches": [
         {
           "op": "replace",
@@ -5658,7 +5658,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-verification-reads-result-contract-proposition-operand-7-role",
-      "weakened_profile_digest": "2f64014d8d9d2958e291195e322bd6479ebcb11281dda77036852e8b8aa86ed4",
+      "weakened_profile_digest": "c5f702af1220212aef4a23a8db41da31f3530d3dd8409785f6ecd5bc3ef83d1b",
       "profile_patches": [
         {
           "op": "replace",
@@ -5672,7 +5672,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-verification-reads-result-contract-proposition-operand-8-role",
-      "weakened_profile_digest": "eb4bfbfc756c0c84d5b3d5f759fee3d07c3d6f1391fdcee67a11668dbd731f3d",
+      "weakened_profile_digest": "78cd183c59b47d3a456f4cc971284394feafb53faa0abdb411557a5eb75bfec7",
       "profile_patches": [
         {
           "op": "replace",
@@ -5686,7 +5686,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-verification-reads-result-contract-proposition-operand-9-role",
-      "weakened_profile_digest": "9e5f7ab1a4d8a2de58d39d86508a71913e7479f00eba64b27e41de5412ccac33",
+      "weakened_profile_digest": "1df70d5556f2db92aea5331fc0c9b434aeceeb43c4f7d5cb1b1153e309b7a6fe",
       "profile_patches": [
         {
           "op": "replace",
@@ -5700,7 +5700,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-verification-reads-result-contract-proposition-operator",
-      "weakened_profile_digest": "b4a97f9260166018176faf4803f04b3e745e226b51073919a3607c4481c88250",
+      "weakened_profile_digest": "e2a443c5231cd2633ec18ed3676454f3bb6e82ed89fea6e5e4aec874bd151e11",
       "profile_patches": [
         {
           "op": "replace",
@@ -5714,7 +5714,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "semantic-surface-variations",
       "variant_id": "claim-verification-reads-result-contract-proposition-subject",
-      "weakened_profile_digest": "ace78f9a2f69acedbba0e19ae0b68d7b2edcfc53e7967c4604f0c96eaadbccdd",
+      "weakened_profile_digest": "9f9a484c2957caa4f513718695ce06b47255393581382caf68ad6cde08b443dc",
       "profile_patches": [
         {
           "op": "replace",
@@ -5728,7 +5728,7 @@
       "weakening_class": "binding_constraint_weakening",
       "fixture_id": "aggregate-constraint-variations",
       "variant_id": "distinct-reference-role-sets",
-      "weakened_profile_digest": "bdee1d1237ab935fbe824fa6b7429e52af294daf970cbb6fbd060dbbf4ed42bd",
+      "weakened_profile_digest": "0c1a7421fd4f92bbfff171b3e52d5d5f6f7544df6a75c3ba8c30a77189d1f1ab",
       "profile_patches": [
         {
           "op": "replace",
@@ -5763,7 +5763,7 @@
       "weakening_class": "falsifier_weakening",
       "fixture_id": "aggregate-constraint-variations",
       "variant_id": "falsifier-condition-bindings",
-      "weakened_profile_digest": "93f84947718273486d3f05b6a57cca24e124a3218ccced6a35f101d22316797f",
+      "weakened_profile_digest": "210ef01c6497ea6ad9b652f3f622273dc5df99e23834ab497acc5fac69189dff",
       "profile_patches": [
         {
           "op": "replace",
@@ -5782,7 +5782,7 @@
       "weakening_class": "binding_constraint_weakening",
       "fixture_id": "aggregate-constraint-variations",
       "variant_id": "number-roles",
-      "weakened_profile_digest": "dbac1aaa4a2c80fe8447e4167eace75234907584aa1b5e7dc260bda330eead1a",
+      "weakened_profile_digest": "fc8cbc4c30aa9c5fb5df1ed0138dfa9a40a5c0d62f8d546850a6c087a88afbaf",
       "profile_patches": [
         {
           "op": "replace",
@@ -5826,7 +5826,7 @@
       "weakening_class": "binding_constraint_weakening",
       "fixture_id": "aggregate-constraint-variations",
       "variant_id": "reference-binding-patterns",
-      "weakened_profile_digest": "2954f26d050dc764545658efeea43dd563612c680d7a2b5c73d292ea25aa52df",
+      "weakened_profile_digest": "864d70dd3465f6db8f6ce8ce60f3655544a6853add77e797618063effa59c7f9",
       "profile_patches": [
         {
           "op": "replace",
@@ -6605,7 +6605,7 @@
       "weakening_class": "binding_constraint_weakening",
       "fixture_id": "aggregate-constraint-variations",
       "variant_id": "reference-role-count-bindings",
-      "weakened_profile_digest": "a1f5f2309cff758126f39b15a3bed85bc8ff2047523adb9d8b80223725989fda",
+      "weakened_profile_digest": "9ed3d05dd408de7517bec0a890e4e392c1832da9da5e40127a45a5da327c13cc",
       "profile_patches": [
         {
           "op": "replace",
@@ -6644,7 +6644,7 @@
       "weakening_class": "relation_weakening",
       "fixture_id": "aggregate-constraint-variations",
       "variant_id": "relation-patterns",
-      "weakened_profile_digest": "8b42f2507f1d19ccbcc523ec14b0ab20d243f519c1e5fc7e7e40efc3fd9279cd",
+      "weakened_profile_digest": "8aba6e2564dc4e6a86f02ca1ef231d67371ccf578c63f2e95209382f85c216b0",
       "profile_patches": [
         {
           "op": "replace",
@@ -7368,7 +7368,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-allowed-members-identity-kinds",
-      "weakened_profile_digest": "345612c170cf1e3bfe023c1fca68da167fe2f51597ec1e5d94da1add8f98939f",
+      "weakened_profile_digest": "a08160a5dc1e4e385a1ea9e53f47accffef7f1465538ffad0f875beff9fc48ae",
       "profile_patches": [
         {
           "op": "replace",
@@ -7410,7 +7410,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-allowed-members-types",
-      "weakened_profile_digest": "4ae98c254ccd27a8a618bc65da471647f6d7574b4901d65ce1b3e61a9d65198a",
+      "weakened_profile_digest": "2c7e5323d1390207f64265a08459e34c7f6d364863812b9f1d32a35cfb4f3409",
       "profile_patches": [
         {
           "op": "replace",
@@ -7452,7 +7452,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-allowed-population-identity-kinds",
-      "weakened_profile_digest": "d97d9829b82e45fb2856d303a0cb6135b35db7e0b79fe5327b2f8840a0d1aa5b",
+      "weakened_profile_digest": "b9ac9387f83edb3f07485b85cf677666597d208e96bc4f412a150307333f6d86",
       "profile_patches": [
         {
           "op": "replace",
@@ -7472,7 +7472,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-allowed-population-types",
-      "weakened_profile_digest": "8228e43be135727608e8a3976a5b7793f3c9ac0d6e058d3d7c9d2848df0d63b7",
+      "weakened_profile_digest": "081f01f5c0f2e9af7655a868a9c0ad22dd25d290c6cd32e065e7112aaa9bc997",
       "profile_patches": [
         {
           "op": "replace",
@@ -8137,7 +8137,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-allowed-shape-population-identity-kinds",
-      "weakened_profile_digest": "24b1caba0e4df5ab5458f6494d5fc1fe009965a46f99e5c1d1074fb584e47791",
+      "weakened_profile_digest": "bd80558b7580ec05d2f47ffc3fbdf5da3d37013ca19852fee99266c4bbb410a6",
       "profile_patches": [
         {
           "op": "replace",
@@ -8157,7 +8157,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-allowed-shape-population-types",
-      "weakened_profile_digest": "cb9a5163bc3038a939bd4d9217284b6cd09dd1e5d2b27ec91532d741dc02258e",
+      "weakened_profile_digest": "cb337a75d08f789fac80a5f6183b42e036f33cdca71476be1d48da76eb82c2ca",
       "profile_patches": [
         {
           "op": "replace",
@@ -8880,7 +8880,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-allowed-shapes-identity-kinds",
-      "weakened_profile_digest": "285563cb8ab25cd417938c7483d8c76e95b4b693877e06af919555f69e6ad8fe",
+      "weakened_profile_digest": "c22fa05a1784bf0c434d9dee6d451b51f3cd7be2568b71208b71457d3788190c",
       "profile_patches": [
         {
           "op": "replace",
@@ -8911,7 +8911,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-allowed-shapes-types",
-      "weakened_profile_digest": "8112f31f37ecb8a12eaeef58f1a00214e037aadc38ed357eb12ec62b86ab1c16",
+      "weakened_profile_digest": "12d2e16bc8c0e270d1bbd847e465799161cb82da89015b5cd03ddfb325d1a8f7",
       "profile_patches": [
         {
           "op": "replace",
@@ -8938,7 +8938,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-disallowed-shape-condition-types",
-      "weakened_profile_digest": "0eeb5e7c68154d7357e889bf012361cafb4a7282b386fdc1c1a38dd364b8a063",
+      "weakened_profile_digest": "5a93ddade56f717b39a129b87a0e614f1f819d1a66f12a94046364fff673d601",
       "profile_patches": [
         {
           "op": "replace",
@@ -8956,7 +8956,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-forbidden-member-population-identity-kinds",
-      "weakened_profile_digest": "511b94e6fa307b5ad02029c9e287bcd299e39a1e0c3c6404608c39354515f8c8",
+      "weakened_profile_digest": "35ef270dc2dcf0064d36f84dbe43366c867db52f167871ffe8e405eac102e577",
       "profile_patches": [
         {
           "op": "replace",
@@ -8976,7 +8976,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-forbidden-member-population-types",
-      "weakened_profile_digest": "a1be8a5a639b94ea19def06ba9f296a5b1e6a2662f136fb548f240faed90d3ec",
+      "weakened_profile_digest": "98d78db555128b6815dc0e7e508aa231ef5c4d90a0b42c11991ac9de5b721690",
       "profile_patches": [
         {
           "op": "replace",
@@ -9661,7 +9661,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-forbidden-members-identity-kinds",
-      "weakened_profile_digest": "2fd94d6608e4eb8bb4482848c719c6ff0dffd23c126908d547d4db5da88d38f8",
+      "weakened_profile_digest": "ac4d3587d4ea0fecdab4c21f0e5c7b8b0715b754a194ba3c4493f1b9eaf53c36",
       "profile_patches": [
         {
           "op": "replace",
@@ -9681,7 +9681,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-forbidden-members-types",
-      "weakened_profile_digest": "5abb381e50578a7dc694a08479f0131903718b41b1a35cff2a26a5d4803f80e9",
+      "weakened_profile_digest": "91550aa33426534e23dec6897bc0dfa8402338438b0b794affaf0bdc93587fa3",
       "profile_patches": [
         {
           "op": "replace",
@@ -9701,7 +9701,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-forbidden-shape-condition-types",
-      "weakened_profile_digest": "93f7e588b9a9d9694e6ecc336489a69a000aaa4f7b45470dcff7fc2f086ca053",
+      "weakened_profile_digest": "1a27343dea1620625df18706e5c59527f84659966847b6e452322d76a31426b5",
       "profile_patches": [
         {
           "op": "replace",
@@ -9719,7 +9719,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-forbidden-shape-population-identity-kinds",
-      "weakened_profile_digest": "31dd079dae0f796d04cc5cc5dbec22f5207b4b94367d7a7d4411f9f00c550f12",
+      "weakened_profile_digest": "99aad4e5d97075e5599fa97b42bcaacdeb0a17ff7f114c6600396cd4e53c65e1",
       "profile_patches": [
         {
           "op": "replace",
@@ -9739,7 +9739,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-forbidden-shape-population-types",
-      "weakened_profile_digest": "1a533d1b905b34f322e9c4114e32251ddb8a4fcb89a5b7678d1d8c7340da2ac6",
+      "weakened_profile_digest": "b0b9274c1dec943593b0ec2d3daf660c0d999a69bd741ec686053bc3bc86eb68",
       "profile_patches": [
         {
           "op": "replace",
@@ -10462,7 +10462,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-forbidden-shapes-identity-kinds",
-      "weakened_profile_digest": "87c0662b604737a7eaf8e6bd675c5013080ae56c16154ef987c936c9ccfd883d",
+      "weakened_profile_digest": "5e7c522d70d490d14fb8e7b825a0b77b2962b3ba123c69858bcaa5401d234941",
       "profile_patches": [
         {
           "op": "replace",
@@ -10482,7 +10482,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-forbidden-shapes-types",
-      "weakened_profile_digest": "f49880de599e34fc06b0115152d4874320248a351049eeb1da12c892afe813ee",
+      "weakened_profile_digest": "7af9c8f98cfc8f4b268bcfcdc753691ef952a77ad9004f660381ec19329c6a79",
       "profile_patches": [
         {
           "op": "replace",
@@ -10500,7 +10500,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-incorrect-count-condition-types",
-      "weakened_profile_digest": "11363a16906265ac1739195fb0f6b0939ec9ea275ef77f946725c15a316e4b19",
+      "weakened_profile_digest": "c6aedf63d742618160cf14993b4598f57a580a0e8fc93f2507d494f23ff20583",
       "profile_patches": [
         {
           "op": "replace",
@@ -10518,7 +10518,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-missing-required-condition-types",
-      "weakened_profile_digest": "9e8c210d19205cb9aa432ee6faba026625aabbff23dda32be47b490d0833e4d5",
+      "weakened_profile_digest": "9e37e2092478c1196b752f36a313ac1c4e9886acf3dc4d874a98f9604fc29ad9",
       "profile_patches": [
         {
           "op": "replace",
@@ -10536,7 +10536,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-operation-identity-kinds",
-      "weakened_profile_digest": "6ced51c715f240b04ea2efb1fe07dbb88bd6e858a3b1fe1ec6e32a3c122e4693",
+      "weakened_profile_digest": "85eac4dfdd0778a29ca2b7d936fe5b114033ee51dd73a16bc7ea39803e6ce790",
       "profile_patches": [
         {
           "op": "replace",
@@ -10556,7 +10556,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-operation-types",
-      "weakened_profile_digest": "00db408e207449db29430e1700223cd53a5e2c992ec7412b261695153483c5b4",
+      "weakened_profile_digest": "0c4bd6dc87e0c5c8dd9066e1728d30992ded2c1c6b21e4781c64707c8feb213d",
       "profile_patches": [
         {
           "op": "replace",
@@ -10573,7 +10573,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-optional-members-identity-kinds",
-      "weakened_profile_digest": "aefd180f4ff58cf778d90c3ed2225d30af446470c2a0503b7c0a4d64fb469257",
+      "weakened_profile_digest": "2d0ba6ae10284950ab26a5fdcfa573383e4b7fbbbfb325e68c73b81c6dcbd7e6",
       "profile_patches": [
         {
           "op": "replace",
@@ -10615,7 +10615,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-optional-members-types",
-      "weakened_profile_digest": "d48337cf556ce528219b3b96e139ec825c1d72653e5a1f62aa5e84a2af5605eb",
+      "weakened_profile_digest": "9faa5de9a618a30367c03bb0dcb1012d14cf2a8d5cbe10c14b68acc6bf33e50c",
       "profile_patches": [
         {
           "op": "replace",
@@ -10657,7 +10657,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-optional-population-identity-kinds",
-      "weakened_profile_digest": "f5c2ec8dbeea5958213ad054154c8adae3453912d1687a57895089a972b17472",
+      "weakened_profile_digest": "1c0e0defe92fb3994d1cbcf818d783db22da2d9655f9d1d7ea63305e8686dd8c",
       "profile_patches": [
         {
           "op": "replace",
@@ -10677,7 +10677,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-optional-population-types",
-      "weakened_profile_digest": "35cc58defffffede72828a2eef3013c7fbd7b25a130768fb8f9dd0d87e94918a",
+      "weakened_profile_digest": "c8f43f259a0e6b9735626d19fe1d66919ff7afe7ccdde520353fcf18202521db",
       "profile_patches": [
         {
           "op": "replace",
@@ -11427,7 +11427,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-required-members-identity-kinds",
-      "weakened_profile_digest": "345612c170cf1e3bfe023c1fca68da167fe2f51597ec1e5d94da1add8f98939f",
+      "weakened_profile_digest": "a08160a5dc1e4e385a1ea9e53f47accffef7f1465538ffad0f875beff9fc48ae",
       "profile_patches": [
         {
           "op": "replace",
@@ -11469,7 +11469,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-required-members-types",
-      "weakened_profile_digest": "4ae98c254ccd27a8a618bc65da471647f6d7574b4901d65ce1b3e61a9d65198a",
+      "weakened_profile_digest": "2c7e5323d1390207f64265a08459e34c7f6d364863812b9f1d32a35cfb4f3409",
       "profile_patches": [
         {
           "op": "replace",
@@ -11511,7 +11511,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-required-population-identity-kinds",
-      "weakened_profile_digest": "ebe1788aaaea80fc1f43981c4f67bca5ebf3ebab847dda78638bd676ed6c945a",
+      "weakened_profile_digest": "2b0d62c6bf15889f5fc73bcf17fca315f5b7ced7a3c7888b78f60cc368669368",
       "profile_patches": [
         {
           "op": "replace",
@@ -11531,7 +11531,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-required-population-types",
-      "weakened_profile_digest": "ea725411d672b439de2be563cc6c947658e3d328318318ba02f5f59a952f2f0f",
+      "weakened_profile_digest": "099412d6f4a4af42550378284e47fa113de9d8189a1d419e29e3d98dc03faf13",
       "profile_patches": [
         {
           "op": "replace",
@@ -12221,7 +12221,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-result-count-signal-identity-kinds",
-      "weakened_profile_digest": "bdb1dbd9e1cb10f80e18268d2359e53fb86aed5ead97d51759319d6d63d0a9e3",
+      "weakened_profile_digest": "5fc50b3ea12481f93feea5072414689c12959475bfd48ec7dc7efc0e0e50c91d",
       "profile_patches": [
         {
           "op": "replace",
@@ -12241,7 +12241,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-result-count-signal-types",
-      "weakened_profile_digest": "ea6f659d90fc83075f0da54225b6b3d3e2570b7662704a945abed21cff428f3e",
+      "weakened_profile_digest": "2ecc2c6054e1ec1cd6f9bf863a7d211b2d513a6ba4e3fbaaa35285a016fa8f18",
       "profile_patches": [
         {
           "op": "replace",
@@ -12259,7 +12259,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-result-identity-kinds",
-      "weakened_profile_digest": "b7d60ba47e18f7a938eb2d857c461e08e427cdc3a1580cf0abf16d0167acf674",
+      "weakened_profile_digest": "eedda50aeb4eb38ba806bbf448046b6bf77ab8b0255f37db514dbb7ec3faa49d",
       "profile_patches": [
         {
           "op": "replace",
@@ -12279,7 +12279,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-result-members-identity-kinds",
-      "weakened_profile_digest": "345612c170cf1e3bfe023c1fca68da167fe2f51597ec1e5d94da1add8f98939f",
+      "weakened_profile_digest": "a08160a5dc1e4e385a1ea9e53f47accffef7f1465538ffad0f875beff9fc48ae",
       "profile_patches": [
         {
           "op": "replace",
@@ -12321,7 +12321,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-result-members-types",
-      "weakened_profile_digest": "4ae98c254ccd27a8a618bc65da471647f6d7574b4901d65ce1b3e61a9d65198a",
+      "weakened_profile_digest": "2c7e5323d1390207f64265a08459e34c7f6d364863812b9f1d32a35cfb4f3409",
       "profile_patches": [
         {
           "op": "replace",
@@ -12363,7 +12363,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-result-population-identity-kinds",
-      "weakened_profile_digest": "9188b99690956b377bc514d83836b3c9653ef136a95819f937c589a62b469152",
+      "weakened_profile_digest": "8c7ec51fb8b254d47faff2da0d7c09b0974adfba7ab9dc327896f6eb71f7bf2e",
       "profile_patches": [
         {
           "op": "replace",
@@ -12383,7 +12383,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-result-population-types",
-      "weakened_profile_digest": "d3fc5c2af32603dd5e3611372e9189b3749463a4ad6e7748b8d4961495c694bf",
+      "weakened_profile_digest": "0d518799139f6c824e473399a8ae7e6b163aa6b0ecfd33586dbe13f5c9203a3a",
       "profile_patches": [
         {
           "op": "replace",
@@ -12990,7 +12990,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-result-shape-identity-kinds",
-      "weakened_profile_digest": "285563cb8ab25cd417938c7483d8c76e95b4b693877e06af919555f69e6ad8fe",
+      "weakened_profile_digest": "c22fa05a1784bf0c434d9dee6d451b51f3cd7be2568b71208b71457d3788190c",
       "profile_patches": [
         {
           "op": "replace",
@@ -13021,7 +13021,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-result-shape-types",
-      "weakened_profile_digest": "8112f31f37ecb8a12eaeef58f1a00214e037aadc38ed357eb12ec62b86ab1c16",
+      "weakened_profile_digest": "12d2e16bc8c0e270d1bbd847e465799161cb82da89015b5cd03ddfb325d1a8f7",
       "profile_patches": [
         {
           "op": "replace",
@@ -13048,7 +13048,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-result-types",
-      "weakened_profile_digest": "3ee2f0f54021a8fef6c3ab5cf9e6cedd4a41d349b6a030a624ddfb8790d80413",
+      "weakened_profile_digest": "fb6dcdbbb51b7537a0c968ab6ea2b89c8f24c1c05972368117341435ab8949d9",
       "profile_patches": [
         {
           "op": "replace",
@@ -13066,7 +13066,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-schema-identity-kinds",
-      "weakened_profile_digest": "c44022359149c74aa2af1222c01413ec9fe2c9391daad685c785fbeaf05dfe30",
+      "weakened_profile_digest": "db3aa6617509cac176af81c0def697a51c927dea2d99dc75abdc2a8192087290",
       "profile_patches": [
         {
           "op": "replace",
@@ -13086,7 +13086,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-schema-types",
-      "weakened_profile_digest": "9bea0cd6d92e1d4e3735511f52c2511c33169a494f82d833ce17162fb1244714",
+      "weakened_profile_digest": "4e14a50bdcacd087a4328428c1f9e0610320ce8584579507e02a099a59091e6d",
       "profile_patches": [
         {
           "op": "replace",
@@ -13104,7 +13104,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-unexpected-member-condition-types",
-      "weakened_profile_digest": "97d640a98cd9a57d1e1017b8de67c4b528bb20996047f9a568fc37ab8d0b1a86",
+      "weakened_profile_digest": "6e52ca2c9005db08e013b62af0b3be9ba8f6b7eb84b0efbf3fd9d08da28a2552",
       "profile_patches": [
         {
           "op": "replace",
@@ -13122,7 +13122,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-verification-identity-kinds",
-      "weakened_profile_digest": "248b12084547f656c12390c7e475741e5c83e1979952c9f0c47a5166750143f6",
+      "weakened_profile_digest": "4f27c36e779f52a026f52abd8312b5c84bca03a1f20758c91d686529bdf2dbda",
       "profile_patches": [
         {
           "op": "replace",
@@ -13142,7 +13142,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reference-role-surface-variations",
       "variant_id": "role-verification-types",
-      "weakened_profile_digest": "b2b9aca6706d99dce79372ab3217402a671b5a69a874be4619dad1523b7d4992",
+      "weakened_profile_digest": "112f944c1901155f300bca1fcbda5034c282a4a4ba9d94f0bb4cad008cb32d30",
       "profile_patches": [
         {
           "op": "replace",
@@ -13160,7 +13160,7 @@
       "weakening_class": "satisfaction_branch_broadening",
       "fixture_id": "aggregate-constraint-variations",
       "variant_id": "satisfaction-expression",
-      "weakened_profile_digest": "cafb7405c929fad33e38c78a26dcf3fea65888f76dcccd625196f377896efc0c",
+      "weakened_profile_digest": "e22a66613187c597102c770c253134aee03964abbc93c59b8a16ecd7e172c529",
       "profile_patches": [
         {
           "op": "replace",

@@ -31,9 +31,9 @@ Canonical findings-only review dispatch. The canonical option grammar is
 
 Options:
   --profile <profile>            Canonical launcher profile (default: review)
-  --app codex|claude             Override the profile's default app binding
+  --app codex|claude             Assert the app derived from the selected model
   --app agy                      Roadmap/WIP; planning or experimental only
-  --model <model>                Override the selected binding's default model
+  --model <model>                Select a registered model explicitly
   --family codex|claude|agy      Deprecated alias for --app
   --operator-config <path>       Launcher registry path override (claude/agy)
                                  (claude/agy)
@@ -132,22 +132,14 @@ async function dispatchRoleReview(argv, io, { backend: injectedBackend } = {}) {
     return;
   }
 
-  let resolution = resolveLauncherProfile({
+  const resolution = resolveLauncherProfile({
     role: "review",
     profileName: parsed.profileName,
     app: parsed.app,
     model: parsed.model,
-    env: process.env
+    env: process.env,
+    dir: process.cwd()
   });
-  if (!resolution.ok && shouldResolveReviewLiveAppWithoutModelHint({ parsed, resolution })) {
-    resolution = resolveLauncherProfile({
-      role: "review",
-      profileName: parsed.profileName,
-      app: parsed.app,
-      model: null,
-      env: process.env
-    });
-  }
   if (!resolution.ok) {
 
     writeStderr(io.stderr, `${resolution.error.message}\n`);
@@ -167,15 +159,6 @@ async function dispatchRoleReview(argv, io, { backend: injectedBackend } = {}) {
   }
 
   await dispatchReviewSharedPipeline({ resolved, parsed }, io, { backend: injectedBackend });
-}
-
-function shouldResolveReviewLiveAppWithoutModelHint({ parsed, resolution }) {
-  return parsed.dryRunJson !== true
-    && typeof parsed.app === "string"
-    && parsed.app.length > 0
-    && typeof parsed.model === "string"
-    && parsed.model.length > 0
-    && resolution?.error?.path === "model";
 }
 
 function emitReviewDryRunPlan({ io, parsed, resolved }) {

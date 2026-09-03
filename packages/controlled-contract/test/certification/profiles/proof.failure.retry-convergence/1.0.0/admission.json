@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-admitted-proof-pack.v1",
   "profile_id": "proof.failure.retry-convergence",
   "profile_version": "1.0.0",
-  "profile_digest": "f468e56286091969fc516d849c85befc014103183711a85f8b70fc99f3b6fedd",
+  "profile_digest": "5b8dce31f971bc251607337c0a718e90fb40bfdf8a13385a6b232cf1c2da142c",
   "guarantee": "For one caller-declared history containing exactly one failed attempt and one later retry of the same operation and input, failure is followed by cleanup and settlement with zero declared residue before the retry; the retry succeeds, creates exactly one declared final effect that the failed attempt does not create, and the selected final durable state equals the expected state.",
   "guarantee_digest": "88b5ff9ccadc6a3ede7fc63f49c5ad281d8c6ffc38b68c79b5934a56212f8dce",
   "explicit_exclusions": [
@@ -15,8 +15,8 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "40ba364366883d059051ac9e36124bfe3370009c7c4c833f9a457fa1f7cca381",
-    "adequacy_result_digest": "00ef6fdc6c1a42a21c73c592acf71a622e9456e1e1baf38ba9a9aa944b0b03ce",
+    "adequacy_declaration_digest": "74a51aaf5485183d34bd5c78c16ab0a0d926cb6c030613334dd267c09124169f",
+    "adequacy_result_digest": "6e4b36312bfa6e5382c5eebdeaffd7e26b2a15cb5af9192c0f2d5270f1bf50c2",
     "executable_control_count": 31,
     "negative_fixture_count": 3,
     "coverage_witness_count": 198

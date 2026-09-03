@@ -1,0 +1,333 @@
+{
+  "schema_version": "controlled-contract-proof-pack-adequacy.experimental.v0.1",
+  "profile_id": "proof.input.caller-authority-confinement",
+  "profile_version": "2.0.0",
+  "profile_digest": "82c491ef567f422ed6ddd22e6342e7f233511771082a42cf37555bcd26e94c18",
+  "guarantee": "For one exact closed canonical caller-input policy, one exact accepted request and parser attempt, one distinct exact authority-bearing forbidden request and parser attempt, and one authenticated complete ordered observation cut ending at that forbidden attempt's exact refusal, the package-owned combined projection exactly partitions declared members, derives typed structural identities and all member-to-coordinate-to-operation-to-effect associations, proves the accepted opaque path-like control selects no coordinate and is accepted, proves the forbidden member is refused, exactly reconciles the policy-derived source census, and establishes no resolver, loader, filesystem, environment, module, catalog, subprocess, return, or success occurrence for the forbidden attempt before refusal.",
+  "guarantee_digest": "c1223d3646244ecd972d854b9e5243b2e756d63b638be031aa90b4ba449bcc5c",
+  "required_positive_cases": [
+    "alias-chain",
+    "declaration-property-and-set-reordering",
+    "harmless-authority-bearing-label-value",
+    "harmless-unrelated-graph-material",
+    "nested-array-and-path-opaque-control",
+    "request-reserved-schema-discriminator",
+    "transport-decoding-once",
+    "unicode-member-and-value"
+  ],
+  "required_mutant_kills": [
+    "acceptance-refusal-grounded-identity-collision",
+    "accepted-parser-request-reference-id-splice",
+    "accepted-request-digest-substitution",
+    "accepted-request-refusal-crossing",
+    "alias-canonical-collision",
+    "alias-cycle",
+    "ambiguous-duplicate-member-coordinate-association",
+    "caller-authored-classification-label",
+    "canonical-plus-alias-supply",
+    "coordinate-association-omission",
+    "cut-identity-substitution",
+    "cut-refusal-crossing",
+    "cut-refusal-reference-id-splice",
+    "double-transport-decoding",
+    "drifted-observation-version",
+    "duplicate-declared-member",
+    "duplicate-mandatory-source-family",
+    "duplicate-observation",
+    "duplicate-trace-position",
+    "duplicated-observed-source",
+    "effect-association-substitution",
+    "effect-grounded-identity-splice",
+    "evidence-attempt-reference-id-splice",
+    "evidence-cut-reference-id-splice",
+    "forbidden-attempt-crossing",
+    "forbidden-disposition-attempt-reference-id-splice",
+    "forbidden-disposition-substitution",
+    "forbidden-member-without-coordinate",
+    "forbidden-request-crossing",
+    "incomplete-coordinate-population",
+    "incomplete-effect-population",
+    "incomplete-operation-population",
+    "missing-forbidden-member",
+    "missing-mandatory-source-family",
+    "missing-observed-source",
+    "mixed-source-endpoint",
+    "nfc-nfd-request-key-collision",
+    "nonmonotonic-trace-position",
+    "operation-association-omission",
+    "operation-association-substitution",
+    "operation-grounded-identity-splice",
+    "overlapping-allowed-and-forbidden-partition",
+    "parser-accepted-but-ignored-forbidden-input",
+    "post-cut-record",
+    "pre-refusal-catalog-occurrence",
+    "pre-refusal-environment-occurrence",
+    "pre-refusal-filesystem-occurrence",
+    "pre-refusal-loader-occurrence",
+    "pre-refusal-module-occurrence",
+    "pre-refusal-resolver-occurrence",
+    "pre-refusal-return-occurrence",
+    "pre-refusal-subprocess-occurrence",
+    "pre-refusal-success-occurrence",
+    "refusal-identity-substitution",
+    "reversed-observation-cut",
+    "same-path-opposite-classification-overlap",
+    "server-selected-coordinate-attribution",
+    "unavailable-observation-source",
+    "unclassified-declared-member",
+    "unknown-accepted-array-member",
+    "unknown-accepted-nested-member",
+    "unknown-accepted-top-level-member",
+    "unknown-forbidden-member",
+    "unknown-source-outcome-kind",
+    "unknown-trace-kind",
+    "unstable-observation-endpoint",
+    "wrong-attempt-pre-refusal-occurrence"
+  ],
+  "required_profile_rejections": [
+    "complete-population-binding-omission",
+    "member-coordinate-association-substitution",
+    "selected-proposition-substitution",
+    "selected-reference-substitution"
+  ],
+  "explicit_exclusions": [
+    "canonical-policy-adapter-fidelity-outside-capture",
+    "cce-consequences-or-publication-authority",
+    "cross-pack-occurrence-joins",
+    "instrumentation-completeness-outside-policy-derived-source-census",
+    "post-refusal-behavior-and-later-requests",
+    "runtime-truth-beyond-exact-capture"
+  ],
+  "executable_module": "packages/controlled-contract/test/proof-packs/caller-input-authority-confinement-v1-adequacy.mjs",
+  "executable_module_digest": "5a1dd9fa580a7ee2543390507cce16c28a89294879d9d37f3f3f5add6b61a047",
+  "executable_dependency_digests": [
+    {
+      "path": "packages/controlled-contract/lib/authentication-provenance-occurrence-projection.mjs",
+      "sha256": "5840827cdab652e7d6dcd7c4d9d792f896602dc40cb0fd2eb69a68740869719d"
+    },
+    {
+      "path": "packages/controlled-contract/lib/bounded-diagnostic-projection.mjs",
+      "sha256": "1ff4164683c3ed82cc184033d29bd437f9c349aab63036a8a0e6ac5241301e35"
+    },
+    {
+      "path": "packages/controlled-contract/lib/caller-input-authority-confinement-projection.mjs",
+      "sha256": "b8f183b384b0ff23b89e62ecb6b17c25f7f256db9220003d6b6bab5d951bd7f3"
+    },
+    {
+      "path": "packages/controlled-contract/lib/compiled-validator-cache.mjs",
+      "sha256": "ee9ee3c347eaabd97f187360e46d667ff33cb3452b2011a4774b9baa00f9a8c6"
+    },
+    {
+      "path": "packages/controlled-contract/lib/declared-boundary-record-consistency.mjs",
+      "sha256": "1928a0919ce49094f3d5cc31cb300a8fc5182afd81108c2455934aed0ca55ce1"
+    },
+    {
+      "path": "packages/controlled-contract/lib/declared-limit-guidance-propagation.mjs",
+      "sha256": "4be7f45a81baf2ed5d894b4b882befd8082ef6c8beaf23c05411014bc100267d"
+    },
+    {
+      "path": "packages/controlled-contract/lib/deterministic-lexicographic-ordering.mjs",
+      "sha256": "1b851826cd19437f44830ee3f3a00464145e75eff411f0114336e2b24cdeae41"
+    },
+    {
+      "path": "packages/controlled-contract/lib/deterministic-projection-primitives.mjs",
+      "sha256": "2090a18c5d66ebb84008074ac06a5ae127d04cf061ea7fb826eda25b99d29f05"
+    },
+    {
+      "path": "packages/controlled-contract/lib/deterministic-projection.mjs",
+      "sha256": "7bc660f9fe302e2a1cbfde84ae988b15c6fa055f68e2b3104996457cf1028210"
+    },
+    {
+      "path": "packages/controlled-contract/lib/equality-normalization-v1.mjs",
+      "sha256": "eb2848ae678a33272b331bb7a741b46bdcff2a10882530172e3eabfa3d32dd1a"
+    },
+    {
+      "path": "packages/controlled-contract/lib/equality-normalization.mjs",
+      "sha256": "cc3d82139e6a1c2d2bcd35aeedc31861403864d0df0dab293530f5b23e457535"
+    },
+    {
+      "path": "packages/controlled-contract/lib/exact-binding-common.mjs",
+      "sha256": "0102c0ccc6fa139ecfa4b8919c54bccb9e5198b218526f23b76527cc568af424"
+    },
+    {
+      "path": "packages/controlled-contract/lib/exact-binding-runtime-registry.mjs",
+      "sha256": "4a5b4685384e5f15665d721a442031f7ad22d6388ca0e6eb17ea7d59bad7d584"
+    },
+    {
+      "path": "packages/controlled-contract/lib/mutation-pagination-complete-traversal.mjs",
+      "sha256": "35d3876cf407cd8585a2f0090443646437372f0e73451de5c972ac750893756f"
+    },
+    {
+      "path": "packages/controlled-contract/lib/mutation-pagination-trace-projection.mjs",
+      "sha256": "121e4eceb5b8f1cf687e21a75b92bad6ffc9d156590bb5b8f22eff786f09a47d"
+    },
+    {
+      "path": "packages/controlled-contract/lib/native-contract-carrier-v1.mjs",
+      "sha256": "2577e9eb305d6808022531c03de7a39f6afab2165bd41bc36e7ba6dc453be678"
+    },
+    {
+      "path": "packages/controlled-contract/lib/native-contract-dag.mjs",
+      "sha256": "5ae748ea3ea224ca2a0c9aa7320876d114345b3de336f1f91001f03c7427cb23"
+    },
+    {
+      "path": "packages/controlled-contract/lib/native-contract-runtime.mjs",
+      "sha256": "df296e493e3f3176859c2a60988514f1eaa7dce66544f2e5ddf66bbf2213c999"
+    },
+    {
+      "path": "packages/controlled-contract/lib/population-semantics-v1.mjs",
+      "sha256": "a4b1c4877bc97a5630a4c61bff10af7155d074cb478541e4f214a4ab15110498"
+    },
+    {
+      "path": "packages/controlled-contract/lib/profile-digest.mjs",
+      "sha256": "6abee701ee068282b6f37dff287b04d1203186794b7dae3358dc2ca11bd532eb"
+    },
+    {
+      "path": "packages/controlled-contract/lib/projected-contract-graph.mjs",
+      "sha256": "f3d4c985f31b74aef5581c6148a0a4e516ce5bf1f6785190a9805dc1c24ab5fe"
+    },
+    {
+      "path": "packages/controlled-contract/lib/projected-contract-validation.mjs",
+      "sha256": "ca70a86f877ecba36e3109858ea720456fff0effa0dd362b321709bc8e65e325"
+    },
+    {
+      "path": "packages/controlled-contract/lib/projected-evaluation-binding.mjs",
+      "sha256": "0297b7f7dac21725c0446d1aa6728bc6f2c24972ba9d25d435b98cdb42cc67c1"
+    },
+    {
+      "path": "packages/controlled-contract/lib/resource-policy.mjs",
+      "sha256": "0d7e7370a5745f4215ac69260fb6cfefeb048778cec1e4fd43c5da6c71448505"
+    },
+    {
+      "path": "packages/controlled-contract/lib/sound-negative-observation-projection.mjs",
+      "sha256": "d20c2ef8dcf13885149f6444153a6f8795206a7f51a978aecb8a45a3c354ef7e"
+    },
+    {
+      "path": "packages/controlled-contract/lib/stable-association-semantics.mjs",
+      "sha256": "45df90f5d90670fbd22908302fa0d17884faf392f17c02d2368b338906e4aee7"
+    },
+    {
+      "path": "packages/controlled-contract/lib/stable-occurrence-identity.mjs",
+      "sha256": "561df8820a08ded0262afca8d9eea9b9b2b8b8ff9aaa67c265d0f8e833456e93"
+    },
+    {
+      "path": "packages/controlled-contract/lib/stable-partition-semantics.mjs",
+      "sha256": "373f4ef01f740f4be2e212ed9a74caf7a500cbef77fd985a37e2099653a4a2ac"
+    },
+    {
+      "path": "packages/controlled-contract/lib/stable-relation-semantics.mjs",
+      "sha256": "b0c6a10cf8ed6ca1fdad35082a487f5784c3380d1818b3e6d0863580320f068d"
+    },
+    {
+      "path": "packages/controlled-contract/lib/stable-v1-family-validation.mjs",
+      "sha256": "89a1186b6b2fd176e8e8db6b12e8160e116882f54f2a1804e2ab5572f3432ab7"
+    },
+    {
+      "path": "packages/controlled-contract/lib/stable-v1-migration.mjs",
+      "sha256": "759e25ad98fb26a7827226260e96f3fbb8247461ba0d9557e0db0add2b4d35e3"
+    },
+    {
+      "path": "packages/controlled-contract/lib/supplementary-isolation-attempt-projection.mjs",
+      "sha256": "fcd4bc8d88b2d9bf7b675807397be8b20a73f4e4862e2225ccf942e0f5638574"
+    },
+    {
+      "path": "packages/controlled-contract/lib/test-proof-provider-registry.mjs",
+      "sha256": "8b0eaa6b19178e1edcddf03a79ce269e4d5b825a36574e088e2963a496a7787a"
+    },
+    {
+      "path": "packages/controlled-contract/lib/verification-profile-expanded-semantics.mjs",
+      "sha256": "5722474f5e849ad621669c7c8257acc3deb717470537a9c074ac0ebca852a270"
+    },
+    {
+      "path": "packages/controlled-contract/lib/verification-profile-runtime.mjs",
+      "sha256": "8bab084a7ac6b2912f271eab05aec523dd9ad2dd6a8b8d134f2aafc8c7b51f63"
+    },
+    {
+      "path": "packages/controlled-contract/lib/verification-profile-schema-v1.mjs",
+      "sha256": "ab405a66129332ef99241174ba088c2377f2ac251bc63515ff4845cdc27af227"
+    },
+    {
+      "path": "packages/controlled-contract/lib/verification-profile-semantics.mjs",
+      "sha256": "f5ae15527cf08037dba1b6333fa770706e0f26814cc0ed267fbb212d84f68dc4"
+    },
+    {
+      "path": "packages/controlled-contract/lib/verification-profile-v1.mjs",
+      "sha256": "83386c200d8e3ebfd9c333d2c5d3a35ef9dc382e9d03c84b630ca2234631e213"
+    },
+    {
+      "path": "packages/controlled-contract/lib/vocabulary-v1.mjs",
+      "sha256": "bb8f70ca8e70600cb951ec45d54a766e3f012cf7da2e6c1236ea2fe521b13e8a"
+    },
+    {
+      "path": "packages/controlled-contract/schema/controlled-acceptance-contract.v1.schema.json",
+      "sha256": "a2eea7c7cc0ffab8dc2f931ae147587ce5a350afeb7c8cde6e973e1ac6168d80"
+    },
+    {
+      "path": "packages/controlled-contract/schema/controlled-contract-admitted-proof-pack.v2.schema.json",
+      "sha256": "fc2e659512b5cf7c265c067e54d9429fee61e88b9e4a10fe9c47dabb2b22efd0"
+    },
+    {
+      "path": "packages/controlled-contract/schema/controlled-contract-exact-binding-assessment-request.v1.schema.json",
+      "sha256": "90fc47606e993120f614c455f3fe43a9874fea7c60f0e526812b592cdc34ebdc"
+    },
+    {
+      "path": "packages/controlled-contract/schema/controlled-contract-exact-binding-certification-result.v1.schema.json",
+      "sha256": "449ff9d502aaeab1ee39ea204a2b55d491a1789184dc19e96d209591ec5b9a6c"
+    },
+    {
+      "path": "packages/controlled-contract/schema/controlled-contract-exact-binding-declaration.v1.schema.json",
+      "sha256": "8d82e7670f71977a6975f23a5f279c4dc70a81adb22a50664b79199961abbdf8"
+    },
+    {
+      "path": "packages/controlled-contract/schema/controlled-contract-exact-binding-result.v1.schema.json",
+      "sha256": "d65fd8810194ccf0f0ef662964cf4f14fc17651d3feddfe68a181299ccc95184"
+    },
+    {
+      "path": "packages/controlled-contract/schema/controlled-contract-exact-binding-sources.v1.schema.json",
+      "sha256": "d47cacba6fa7c184d6fea3957b2a078561dcf269296b8d616c26ef2b050db6b6"
+    },
+    {
+      "path": "packages/controlled-contract/schema/controlled-contract-verification-profile-input.v1.schema.json",
+      "sha256": "38bd0b388ba2c5a4bb108749e1ffd50bdb8147ae5521f1d9d1eaf04126ef0b72"
+    },
+    {
+      "path": "packages/controlled-contract/schema/controlled-contract-verification-profile-result.v1.schema.json",
+      "sha256": "33511e8ea57b6a259b5f2f8dd019cae947af9e1cb3e129333e99279da3f80332"
+    },
+    {
+      "path": "packages/controlled-contract/schema/controlled-contract-verification-profile.v1.schema.json",
+      "sha256": "3e6048e02a946da43337b196911cfdfaa9d4bf9c3d42dac73d41f60e442f6fb8"
+    },
+    {
+      "path": "packages/controlled-contract/test/proof-packs/authentication-provenance-v1-fixture.mjs",
+      "sha256": "7c139b561c975215fdb620a29ca765cd26186470ff951588600d552ba0811c06"
+    },
+    {
+      "path": "packages/controlled-contract/test/proof-packs/caller-input-authority-confinement-v1-constants.mjs",
+      "sha256": "223f8bc25385c500e77c44b41ced261c896a3ca6ecda01b7ff0c427b3d6bf697"
+    },
+    {
+      "path": "packages/controlled-contract/test/proof-packs/caller-input-authority-confinement-v1-fixture.mjs",
+      "sha256": "e9c591a4f0f494cbb2814436ab5d1c9ad7331d44f96245c51d1176597066a00e"
+    },
+    {
+      "path": "packages/controlled-contract/test/proof-packs/caller-input-authority-confinement-v1-profile.mjs",
+      "sha256": "70748dc5065c9cb5fcb96075074527d17493881b733b553769fb0e11e5b59d1e"
+    },
+    {
+      "path": "packages/controlled-contract/test/proof-packs/sound-negative-observation-v1-fixture.mjs",
+      "sha256": "6a6ed46f6201f5296155a93d9ca03172dd373a4684127a699b0f7cc5d7d056fe"
+    },
+    {
+      "path": "packages/controlled-contract/test/support/proof-pack-adequacy-constants.mjs",
+      "sha256": "d55f40522f447e2541469ff531375a149f2c78703434bbf00914ac0c19d40a55"
+    },
+    {
+      "path": "packages/controlled-contract/test/support/stable-v1-proof-pack-runtime.mjs",
+      "sha256": "2695fc8d1e55558adf91846f142afbf0223dabe128a970ddfe38f327e258db86"
+    },
+    {
+      "path": "packages/controlled-contract/vocabulary/controlled-contract-vocabulary.v1.mjs",
+      "sha256": "4e977d3b49644a8d2a6535387860f660280e90e3055d46204e0423e5c1a4bc92"
+    }
+  ]
+}

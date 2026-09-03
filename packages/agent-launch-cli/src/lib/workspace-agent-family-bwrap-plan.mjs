@@ -40,7 +40,7 @@ export function buildFamilyExecutorBwrapPlan({
 
   runtimeRoots = [],
   readOnlyRoots = [],
-  findingsRole = null,
+  protectGitMetadata = false,
 
   additionalMaskTmpfsDirs = [],
   provisionedWorktreeGitIdentity = null,
@@ -122,7 +122,7 @@ export function buildFamilyExecutorBwrapPlan({
     writableRoots,
     writableFiles,
     runtimeRoots: asArray(runtimeRoots),
-    findingsRole,
+    protectGitMetadata,
     ...(serverProvisionedWorktreeGitIdentity !== null
       ? { provisionedWorktreeGitIdentity: serverProvisionedWorktreeGitIdentity }
       : {}),

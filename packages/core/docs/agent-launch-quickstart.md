@@ -9,95 +9,10 @@ This page is the launcher and direct-dispatch contract: role-launch configuratio
 
 ## 1. Initialize Local Launcher Config
 
-Write the default operator-owned launcher registry:
-
-```bash
-npm run agent-launch -- init-config
-```
-
-This creates the workspace-local launcher state under the active workspace
-(the repository carrying the canonical `wiki/` + `docs/` markers):
-
-- `<workspace>/.agent-launch/launchers.v1.json`
-- `<workspace>/.agent-launch/role-guard-secret.key`
-- `<workspace>/.agent-launch/role-guard-nonces/`
-
-Launcher authority state is workspace-local (not a machine-global `~/.config`
-location) so it persists across launcher/session restarts in runtimes where
-the user `HOME` is ephemeral but the workspace persists. The `.agent-launch/`
-directory is git-ignored. Resolution never consults `HOME`, `XDG_CONFIG_HOME`,
-or `XDG_STATE_HOME`; the active workspace is the trusted launcher/MCP-supplied
-workspace dir, or the repo root discovered from the process working directory.
-
-The default profiles target:
-
-- `claude` using the workstation-authenticated CLI plus prompt content over argv and stdout capture
-- `codex exec` using prompt content over argv plus `-o <response_path>`
-
-If an existing operator config still uses `["claude", "--bare"]`, rerun:
-
-```bash
-npm run agent-launch -- init-config --force
-```
-
-or update `base_argv` manually to `["claude"]`.
-
-### Policy profiles and dispatch-readiness thresholds (optional)
-
-Two optional launcher policy inputs — the Chassis Control Engine
-org policy profile and the local source-available dispatch-readiness
-policy-pack override — are documented in
-[agent-launch-policy-profiles.md](agent-launch-policy-profiles.md).
-Threshold verdicts are Chassis Control Engine-owned on the CCE path; after
-decision the local/free path measures and forwards carrier facts but renders no
-local admissibility threshold judgment. The source-available local policy-pack
-override is retained only as inert config/evidence hygiene.
-
-### Claude read-only argv
-
-Redteam and code-review runs use the registry's `read_only.argv_suffix`. For
-Claude, the default is:
-
-```json
-["--permission-mode", "default", "--disallowedTools", "Edit Write NotebookEdit Bash"]
-```
-
-Earlier defaults used `["--permission-mode", "plan"]`, but Claude Code's plan mode submits its final content through the `ExitPlanMode` tool call. In non-interactive `--print` + `--output-format text` mode that tool call is not streamed to stdout, so the launcher would capture an empty response and silently mark the run `completed`. The launcher now fails closed on empty response bodies regardless, but operators should still move off `plan` to get useful findings output. If your existing operator config still uses `plan`, rerun `init-config --force` or update `read_only.argv_suffix` manually.
-
-### Consuming repo role guard adoption
-
-The shared role guard is adopted by each consuming repository; the launcher
-package supplies the evaluator, config schema, CLI contract, and launcher-owned
-role metadata, while the consuming repo supplies policy and hook installation.
-
-A consuming repo:
-
-- add a repo-owned `.agent-role-guard.json` policy file using the schema and
-  launcher contract shipped with `agent-launch`
-- update its `AGENTS.md` to describe `AGENT_ROLE`, `AGENT_WK`,
-  `AGENT_OPERATOR_WRITE_SCOPE`, and the repo's worker `write_scope` rules
-- require implementation `WK-*` records to carry exact `write_scope`
-  frontmatter before workers modify files
-- wire only adapter surfaces that can present a concrete candidate action to
-  the guard, such as path lists, structured diffs, or raw argv with explicit
-  provenance
-- document every unimplemented adapter surface as unguarded
-
-The role-guard CLI surface exposes check commands; repo hooks and
-wrappers should invoke the relevant check command at the point where they
-observe the candidate action:
-
-- `agent-launch role-guard check-write` for explicit path lists
-- `agent-launch role-guard check-diff` for structured create, modify, delete,
-  rename, and copy payloads
-- `agent-launch role-guard check-command` for raw argv command checks
-
-Those checks must receive the repo root, config path, candidate action payload,
-and explicit provenance for role, WK, operator write scope, and trusted context.
-Ambient shell variables are transport only; they do not grant authority unless
-the caller supplies an accepted trust source. Generic Codex and Claude hook
-coverage is not provided by the shared tool until a consuming repo installs a
-supported adapter with a documented payload and provenance row.
+The operator-owned launcher registry written by `init-config`, the workspace-local
+launcher state it creates, the Claude read-only argv defaults, and the
+consuming-repo role-guard adoption contract are documented in
+[agent-launch-local-config.md](agent-launch-local-config.md).
 
 ## 2. Use Direct WK Dispatch
 
@@ -219,6 +134,104 @@ is unavailable, agents must report
 `graph_impact_persistence_unavailable` rather than fall back to shell/CLI
 persistence.
 
+#### Restart reconciliation of a prior managed worker
+
+A managed worker dispatch is reconciled against two independent kinds of prior
+state before anything is admitted, provisioned, allocated, or spawned.
+
+**Git topology.** If the unit's slice branch already exists, its tip is compared
+with the canonical WK-derived base. An absent, equal, or already-integrated tip
+allocates as before. An ahead tip is also reusable for a corrective worker when
+trusted runtime proves the exact canonical subject and slice ref, a server-minted
+linear delivery chain rooted at the frozen authenticated base, and the same
+current slice-ref/worktree-HEAD tip. Reviewer or redteam results do not enter
+that proof. Any unauthenticated, malformed, cross-subject, moved-ref,
+moved-worktree, or divergent tip refuses before a binding, ref mutation,
+worktree mutation, or spawn. Refusal never deletes, resets, or rewrites the slice
+ref. An unresolvable canonical base refuses the same way.
+
+When the deterministic exact-slice worktree already exists and is correctly
+associated, provisioning resumes it with its staged tracked changes, unstaged
+tracked changes, and untracked files intact. Cleanliness is not an admission or
+provisioning invariant: the launcher does not classify those bytes as intended
+work versus residue, and it does not reset, clean, stash, reconstruct, delete, or
+recreate the worktree to admit the retry. Branch association, exact HEAD/ref
+topology, full-checkout state, repository/binding identity, path/type safety,
+active-attempt exclusion, and scope authority remain mandatory. Closed-input
+delivery is the boundary that enforces changed-path containment and validates the
+result before commit.
+
+**Process identity.** The dispatch run lifecycle is the single authority on
+whether a prior managed attempt may be replaced. Before spawning, it publishes a
+durable per-attempt record keyed on the exact run tuple (assigned unit, launch
+ref, run id, retry id) carrying the launcher's own `(pid, starttime, boot_id)`;
+after spawning, it binds the exact outer sandbox `(pid, starttime, boot_id)` and
+its kill shape before the dispatch returns accepted. There is no bare-pid
+liveness check anywhere: a pid alone cannot distinguish a recycled pid from a
+live one.
+
+The tuple is built by one canonical constructor and is identical on both sides of
+a restart: the publication uses the launcher-minted worker run id, and recovery
+derives that same id from the retained WK/slice binding pair rather than from
+either binding's suffixed run id. A binding pair that disagrees on the worker run
+id, launch ref, retry id, or assigned unit fails closed with the typed recovery
+refusal instead of silently reading as an absent record.
+
+Only a mechanically non-conflicting unit may launch. Live,
+partially published, ambiguous, unreadable, tuple-mismatched, and unresolved
+states all refuse, and a record reused across launcher tuples is a binding
+mismatch rather than a near-enough match. A *proven-dead* no-commit attempt may
+be retired for a later implementation retry. A proven-dead delivered attempt may
+be replaced by a corrective worker only through the authenticated delivery proof
+above and an exact atomic successor reservation; canonical `review` state and
+review results confer no authority.
+A recycled pid for an undelivered exact tuple is a dead verdict by `starttime`
+mismatch; a changed `boot_id` proves the prior boot ended; an unavailable `/proc`
+is indeterminate and never reads as death.
+
+**Same-subject exclusion.** The gate takes an atomic per-subject reservation in
+the same launcher-private store, so two concurrent dispatches for one unit — in
+one launcher or in two sharing the repository — can never both reach the
+executor. The loser refuses with `managed_run_prior_attempt_reserved` before
+admission, provisioning, and spawn. A launch that is refused before anything is
+spawned releases its own reservation; a launch whose outer identity could not be
+bound after the process already started keeps it, because that unit is exactly
+the uncertain case. A reservation whose owning launcher is proven dead and that
+published no record at all is reclaimable, since the fixed publication order
+proves nothing was spawned; any other held reservation stays blocked and
+auditable. Different subjects never contend.
+
+**Retirement.** A durable attempt is retired — as a recorded state transition,
+not a deletion, and never by an operator removing files — once its safety purpose
+is provably complete:
+
+- the slice was integrated and its lifecycle finalized;
+- a mechanically authenticated exact delivery is preserved as the base of a
+  corrective worker on the same slice, while the exact prior attempt is proven
+  dead and its reservation is atomically replaced by the successor; or
+- the attempt is proven dead and trusted Git comparison shows its slice ref still
+  equals its authenticated base, so there is no delivery to lose.
+
+Every retirement additionally requires the proven-dead verdict, so a live,
+partial, ambiguous, unreadable, or indeterminate attempt is never retired and its
+evidence is never erased. Ordinary retirement releases the subject reservation;
+corrective retirement atomically replaces the exact prior reservation so the
+subject is never opened to a competing dispatch. A retired record stays on disk
+carrying the reason, verdict, and mechanical evidence that authorized it.
+
+If the launcher cannot enforce this for a managed worker — no identity root,
+resolver, pending publisher, or outer-identity binder composed — the dispatch
+refuses with `managed_run_identity_enforcement_unavailable` and the missing
+dependency names, before any executor is invoked. This is a launcher composition
+fault, not a work-record readiness blocker: report it and the exact command to
+rerun rather than editing the WK to absorb it. Reviewer, redteam, and
+operator-direct dispatch are unaffected.
+
+Worker-run recovery never authenticates committed-slice review. Run identity
+authenticates delivery; successful delivery establishes impl-to-review; canonical
+committed-target state authenticates reviewer admission and corrective delivery
+continuation. Reviewer and redteam conclusions remain advisory.
+
 #### Runtime blocker taxonomy and coordinator preflight
 
 A schema-backed runtime blocker taxonomy is published at
@@ -269,6 +282,21 @@ source, freshness, blockers, and a structured recovery route. A missing,
 unknown, or stale fact is unavailable; a plane never inherits availability
 from another plane.
 
+For managed Claude/Codex worker, reviewer, and redteam routes,
+`structured_dispatch` is effective only when the current backend exposes the
+launcher-authenticated `stdio-mcp-conduit-composition-compatibility.v1` fact.
+The fact is frozen and has exactly `schema_version`, `backend_generation_id`,
+`producer_protocol_generation`, `consumer_protocol_generation`,
+`compatibility_state`, and `source`; its source is
+`launcher_active_composition`. Route registration remains separately visible
+as `dispatch_route_registered` and under `capabilities.route_registration`.
+An incompatible, unknown, missing, malformed, stale, or wrong-generation fact
+leaves the route registered but makes effective dispatch unavailable. Every
+surface reports `operator_recovery_needed`, cause
+`stdio_mcp_lifecycle_protocol_incompatible`, and recovery to deploy one coherent
+build and restart the long-lived backend. The other eight capability planes do
+not inherit that gate and retain their own sources and blockers.
+
 In the current release, structured dispatch, native edit, coordinator-owned
 validation, and the initial local single-repository lifecycle are available
 when their production composition is installed. That installed composition
@@ -290,6 +318,15 @@ organization-policy gate before the trusted CAS integration operation. Reviewer
 completion never calls integration, and clean or findings-bearing output directly
 authorizes or prohibits nothing.
 
+If applying that exact slice object to the current WK tree changes zero bytes,
+the operation succeeds idempotently with `empty_delivery:true` and does not move
+the WK ref. This includes an equal tip, a proper-ancestor slice tip after another
+slice advanced W, a never-run slice, and a replay whose content is already
+accumulated. No worktree, delivery receipt or event, review evidence, lifecycle
+status, dependency fact, or liveness proof is needed to apply zero bytes. Real
+non-empty deltas still use Git object verification, conflict detection, and
+expected-old ref CAS.
+
 Paid CCE availability alone configures no policy and implies neither admission nor
 veto. With a configured CCE gate, a missing, unavailable, malformed, unratified,
 denied, or target-mismatched decision fails closed. With no configured gate, the
@@ -297,47 +334,69 @@ operation follows decision free-substrate behavior and reports that the result i
 non-audit; the chassis never invents a local review gate or a CCE verdict.
 
 The same rule governs terminal forge handoff. `workspace_wk_forge_handoff`
-publishes only the launcher-frozen exact `C/L/W` candidate; terminal reviewer and
+publishes only the launcher-frozen exact `C/B/W` candidate; terminal reviewer and
 redteam results remain exact-candidate-bound advisory evidence. Clean output does
 not authorize publication, findings do not veto it, and the orchestrator request
 is not a policy decision. CCE alone decides a configured forge boundary gate.
 Paid tier alone configures no gate; without a configured gate, mechanically valid
 publication follows decision free-substrate behavior and reports non-audit posture.
-Candidate, frozen parent, WK tip, canonical-record, candidate-ref, remote identity,
-branch-CAS, and exact-PR invariants remain mandatory. Per decision, later landing
-movement does not invalidate review or block publication of unchanged C; the
-configured merge actor and CCE policy own merge readiness.
+Each WK has one launcher-owned current ref,
+`refs/agent-launch/terminal-current-v2/<WK>`. Construction snapshots its old value
+and replaces it only through Git expected-old CAS. If `W` changes, the launcher
+constructs a replacement candidate, CAS-advances that same ref, and validates and
+reviews the replacement SHA. Cold recovery reads only that fixed ref and accepts
+only an already-present, directly commit-valued raw target whose immutable C
+metadata mechanically authenticates repository identity, `W`, `B`, tree, sole
+parent, and canonical contract digest. If the fixed ref is absent, cold recovery
+fails closed with `terminal_candidate_recovery_current_ref_absent`; it never
+reconstructs currentness. Construction from an absent ref happens only during the
+hot post-worker lifecycle, where launcher-bound `B`/`W`/contract facts already
+exist and absence is the expected-old CAS state. Legacy per-candidate refs are
+ignored completely; zero, one, or many have no effect and are not migrated or
+deleted.
+
+The current ref selects which exact commit the operation addresses; membership is
+not authorization. Candidate history, review findings or clean output, validation
+success or failure, WK/slice status, dependencies, landing movement, and forge
+state do not become local admission or veto rules. Remote identity and exact
+branch publication remain forge transport facts; PR creation, idempotency, state,
+and merge readiness stay with the configured forge and human merge actor. Per decision, later
+landing movement does not invalidate review or block publication of unchanged C;
+the configured merge actor and CCE policy own merge readiness.
 
 Launcher runtime persists every exact-review run as an immutable, synchronously
-durable receipt event under a cross-process lock; exact replay is idempotent and selector
-conflicts refuse rather than overwrite state. Readers take the same lock as
+durable receipt event under a cross-process lock; exact replay is idempotent and
+selector conflicts refuse rather than overwrite state. Readers take the same lock as
 publishers, a live or stalled owner is never displaced, and first creation syncs
-the receipt directory and its parent. After backend/MCP restart, another review
-remains admissible and evaluation re-resolves the frozen contract, retained identity,
-refs, marker, and objects. Final and non-final
+the receipt directory and its parent. After backend/MCP restart, dispatch of another
+review remains admissible and evidence evaluation re-resolves the frozen contract,
+retained identity, refs, marker, and objects. Final and non-final
 already-integrated results are recovered independently from the obsolete
 pre-integration `active + slice review` shape. When projecting advisory context,
 trusted runtime loads the complete exact-target receipt set rather than a latest
 receipt and keeps disagreement visible. Active reviews and findings do not affect
-binding authority. Historical receipt proof fields are inert compatibility data.
+binding authority. Historical fields from older receipt schemas are inert
+compatibility data and cannot affect review admission, policy, or integration.
 
-There is no operator `integrate-slice` command, raw-Git recovery, manual proof
+There is no operator `integrate-slice` command, raw-Git recovery, manual acceptance
 injection, or caller-carried review authority. Exact-slice reviewers are admitted
 only from backend-owned frozen context and remain read-only in both Codex and Claude
 execution. For Claude exact-slice review, the credential leaf is a read-only bind
 and the final bwrap plan has no writable host root or file. Sandbox construction is
 mandatory for both Claude composition: failure refuses before
 spawn, and an exact reviewer can never use the ordinary unenforced plain-launch
-fallback. There is no manual proof injection. `review_purpose` is
+fallback. There is no manual acceptance injection. `review_purpose` is
 structural and non-authorizing. Exact-bound
 `changes_requested` findings are rendered into the next same-slice Codex or Claude
 worker prompt as non-authorizing corrective context; they do not relaunch work,
 grant acceptance, or change read/write scope.
 
 Findings-only review is plural: multiple reviewers or policy-allowed redteams may
-run simultaneously against the same target, and review history never blocks another
-dispatch. Workers and reviewers are expected to run concurrently; attempt isolation
-and exact ref/status CAS provide collision safety rather than singleton consumption.
+run simultaneously against the same committed target, and review history never
+blocks another dispatch. Each run has its own run id, monitor handle, execution
+state, and durable receipt. Workers and reviewers are expected to run concurrently;
+attempt isolation and exact ref/status CAS provide collision safety rather than a
+singleton lifecycle or consumed subject slot.
 
 ### Agent Dispatch Boundary
 
@@ -377,6 +436,18 @@ The launcher-owned host wiki-MCP server, exact two-FIFO transparent stdio
 conduit, role-derived tool surface, and shared Claude/Codex lifecycle are
 documented in [mcp-integration.md](mcp-integration.md).
 
+Managed structured dispatch binds the resolved host-server entrypoint, selected
+Node executable, exact spawn primitive, producer and consumer lifecycle
+descriptors, and conduit constructor into one private process-generation object.
+Both Claude and Codex consume the same guarded constructor. This pre-dispatch
+composition fact is complementary to the per-dispatch work record readiness
+handshake: the fact prevents advertising or entering a known-unresolved managed
+composition, while the spawned-server handshake remains the final runtime check.
+Direct orchestrator and operator launch paths are outside this preflight gate.
+The early fact assumes one coherent deployed package composition; it is not a
+second server launch and does not attest an in-place source mutation. The real
+spawned server's readiness event remains authoritative in that case.
+
 ### Claude role paths
 
 The supported Claude role paths are:
@@ -409,14 +480,24 @@ units, and the launcher must not refuse them solely because a worker would have
 returned `not_implementation`.
 
 Read-only readiness still fails closed for canonical record problems such as
-missing JSON, missing slice, invalid record shape, unresolved or blocked
-dependency evidence under the active profile, required missing graph-impact
-evidence, or required missing/stale preparation-audit evidence. A
-`blocked_dependency` readiness — for example a slice that depends on another
-slice whose status is `blocked` or whose address cannot be resolved against
-canonical WK JSON — refuses the launch with shared dependency evidence drawn
-from `dispatch_readiness_dependencies` and the
-`dispatch_readiness_preparation_audit` envelope.
+missing JSON, missing slice, invalid record shape, mechanical dependency fact-
+resolution failure, required missing graph-impact evidence, or required
+missing/stale preparation-audit evidence. Dependency lifecycle status does not
+refuse readiness: wiki-core resolves the record-level plus selected-slice
+population from canonical WK JSON, keeps supplied dependency facts non-
+authoritative, and surfaces missing or unknown canonical `target_work_kind` as
+the existing mechanical `blocked_dependency` evidence.
+
+For managed implementation dispatch, the subject must still be the exact
+canonical implementation slice. Canonical review and redteam dependencies need
+no ref or initiative-derived Git identity. Only canonical implementation
+dependencies enter the launcher's Git-integrity checks; replay equivalence is
+conjunctive with exact canonical identity and address, initiative,
+`canonical_wk_json` provenance, one authenticated marker match, captured WK tip,
+ancestry, and stability. The slice-DAG done frontier is not admission authority,
+and repo-qualified external edges keep their existing mechanical disposition
+without cross-repository ref derivation. This pre-provisioning resolution is
+decision free substrate; a configured CCE may still decide organization policy.
 
 If a read-only WK/slice target requires graph-impact evidence, wrappers may
 transport a runtime graph envelope through the same file-backed bridge used by
@@ -440,118 +521,10 @@ unsupported Agy posture are documented in
 
 ### New-directory write scopes
 
-A WK may legitimately declare a `write_scope` entry that does not yet exist on
-disk, for example a brand-new tool subtree such as
-`tools/in0012-swebench-smoke` or a versioned subtree such as
-`tools/example.v1`. The codex worker launcher resolves the declared scope to
-its target directory (the entry itself for directory-shaped scopes, the parent
-directory for file-shaped scopes) and pre-creates only the exact authorized
-missing subtree before the Codex sandbox starts.
-
-For Codex, the active launch mechanism is `-s workspace-write` plus
-explicit `--add-dir <absolute-directory>` entries for each declared writable
-root. The older `permissions.worker_scope.filesystem` / `:project_roots`
-config is not the active enforcement path because current Codex no longer
-recognizes that per-entry read/write table. This restores worker writability,
-but it degrades enforcement granularity: `workspace-write` makes the whole
-`-C <repo>` workspace writable, while `--add-dir` records the declared writable
-directory intent and can extend the writable set with additional directories.
-The launcher therefore cannot enforce file-level write_scope through
-the Codex CLI alone.
-
-Launcher-owned `bubblewrap` isolation replaces that degraded boundary. Local
-role launches require a usable `bwrap` binary; missing or unusable `bwrap` is a
-launch refusal, not a reason to fall back to repo-wide `workspace-write`.
-
-Human/operator orchestrator entrypoints are the exception authorized by
-decision. When `bubblewrap` is unavailable or unsupported, an operator shell
-orchestrator launch may use an explicit direct mode only if the launcher emits a
-loud warning and dry-run JSON records that OS-level bwrap isolation is
-unavailable. Direct mode is not sandboxed write-scope enforcement: normal host
-OS permissions apply. Structured worker, reviewer, and redteam dispatch remains
-fail-closed unless a later decision explicitly changes that posture.
-
-Bubblewrap-isolated orchestrators receive one additional read-only repository-data
-mount: the launcher derives the owning repository's managed-worktree root as
-`<dirname(real repository)>/.agent-worktrees/<basename(real repository)>` and
-binds exactly that directory. The mount does not expose sibling repositories'
-managed worktrees and does not grant mutation authority. It exists only so
-orchestrators can inspect their own managed worktrees and obtain truthful Git
-diagnostics; host lifecycle evidence remains authoritative for lifecycle and
-exact-SHA integration decisions. An already-running orchestrator must be
-restarted to receive this mount. Operator direct mode has no bwrap namespace and
-therefore receives no additional bind.
-
-For a user-local Ubuntu amd64 install without changing system packages, the
-operator bootstrap recipe is:
-
-```bash
-cd /tmp
-curl -LO http://security.ubuntu.com/ubuntu/pool/main/b/bubblewrap/bubblewrap_0.9.0-1ubuntu0.1_amd64.deb
-dpkg-deb -x bubblewrap_0.9.0-1ubuntu0.1_amd64.deb extracted/
-mkdir -p ~/.local/bin
-cp extracted/usr/bin/bwrap ~/.local/bin/
-export PATH="$HOME/.local/bin:$PATH"
-bwrap --version
-```
-
-This recipe only installs the `bwrap` executable into the operator's
-`~/.local/bin`. The launcher implementation remains responsible for checking
-availability, refusing when the isolation backend cannot be used, and enforcing
-the role-specific writable roots.
-
-Codex launches under this isolation receive exactly one launcher-authored
-`mcp_servers.wiki` registration. It invokes the pinned copy-only relay against
-the two fixed FIFO paths bound into the final bubblewrap namespace. Existing
-user or repository `config.toml` MCP entries are removed from the per-run Codex
-home; they cannot add, replace, or retarget the wiki server. No server package,
-interpreter, dependency tree, repository endpoint, or broad writable home/config
-root is mounted to preserve user MCP configuration.
-
-Classification of nonexistent `write_scope` entries does not rely on a single
-heuristic. When the entry exists on disk, the launcher uses the actual
-filesystem state. When the entry does not exist, the launcher treats it as a
-file-shaped scope if any of the following applies, otherwise as a new
-directory:
-
-- the trailing path segment matches a curated allowlist of well-known file
-  extensions (for example `.md`, `.json`, `.mjs`, `.py`, `.sh`)
-- the trailing path segment matches a curated allowlist of well-known
-  extensionless filenames (for example `Dockerfile`, `Makefile`,
-  `CODEOWNERS`, `LICENSE`, `README`, `CHANGELOG`)
-- the trailing path segment is a single-dot dotfile (a basename that starts
-  with `.` and contains no further dot, for example `.gitignore`, `.env`,
-  `.npmrc`)
-- the entry is a launcher wrapper path under
-  `packages/agent-launch-cli/bin/`, which is treated as a file-shaped scope for
-  classification and directory pre-creation; Codex receives only directory
-  `--add-dir` entries because Codex 0.131 documents `--add-dir` as a directory
-  argument
-
-Versioned or otherwise dotted directory names such as `tools/example.v1` do
-not match any file rule and are therefore prepared as the exact authorized
-subtree, while file-shaped entries such as `tools/example.v1/config.json`,
-`Dockerfile`, and `.gitignore` continue to prepare only the file parent (or
-no new directory at all when the parent already exists). The launcher never
-materializes a file-shaped scope on disk; only the parent directory may be
-created.
-
-Globbed scope entries (anything containing `*`, `?`, `[`, `]`, `{`, or `}`),
-the repo root (`.`), and entries that would resolve outside the repo are never
-pre-created. The repo root remains read-only unless the WK explicitly declares
-it as a write scope.
-
-The dry-run plan exposes the prepared write roots in
-`prepared_new_write_roots`, so operators can confirm which subtrees would be
-created before launch:
-
-```bash
-npm run agent-launch -- worker --app codex <WK-ID#slice> --dry-run-json
-```
-
-The output includes one entry per authorized missing directory, with the
-declared `scope_entry` and the resolved `directory` that the launcher would
-create. Dry-run planning never writes to disk.
+How the launcher resolves and pre-creates a declared `write_scope` entry that does
+not yet exist on disk, the `bubblewrap` isolation that owns the real write
+boundary, and the `prepared_new_write_roots` dry-run surface are documented in
+[agent-launch-write-scope-preparation.md](agent-launch-write-scope-preparation.md).
 
 ### Family runtime state
 
@@ -570,20 +543,58 @@ documented in
 
 ### Host wiki-MCP conduit diagnostics
 
-Every confined Codex or Claude role receives exactly one launcher-owned host
-wiki-MCP server through two named FIFOs bound into the final bubblewrap namespace.
-The server and its dependencies remain on the host; the sandbox contains only the
-two fixed relay paths and the pinned base-system copy relay. The launcher verifies
-the exact role-derived tool list after the real client completes MCP `initialize`
-and `tools/list`, then unlinks the FIFO names.
+The per-role host wiki-MCP conduit, its typed `stdio_mcp_*` failure taxonomy, the
+orchestrator `session.json` diagnostic fields, and the operator recovery route for
+a consumed or failed conduit are documented in
+[agent-launch-conduit-diagnostics.md](agent-launch-conduit-diagnostics.md).
 
-Conduit construction, host-server startup, client readiness, namespace, and
-cleanup failures use the producer-complete public `stdio_mcp_*` taxonomy
-documented in [MCP integration](mcp-integration.md#transport). These
-failures refuse before model work can proceed
-and never degrade to an optional MCP server. Recovery is to
-repair the named host-server or bubblewrap prerequisite and retry the dispatch;
-never widen repository visibility or add another transport.
+### Restart recovery of a committed worker
+
+A managed worker attempt is recorded durably, keyed on its exact run tuple, from
+before the spawn until the run resolves. The launcher's own identity and the
+outer sandbox identity are both bound as non-reusable `(pid, starttime, boot_id)`
+tuples, so a launcher restart no longer erases the attempt. See
+[MCP dispatch runtime contract](mcp-dispatch-runtime-contract.md) for the
+protocol.
+
+What this changes for an operator:
+
+- A dispatch for a unit that still has a recorded prior attempt refuses. The
+  refusal names the verdict — live, partial, ambiguous, unreadable, mismatched,
+  unresolved, or proven dead. **The response is never to relaunch the worker.**
+  Poll the same `monitor_handle` with `workspace_agent_run_status` for an
+  undelivered attempt when it is available.
+- A successful closed-input exact-slice commit is submit-for-review: it advances
+  only the slice ref and durably moves that slice to `review`. After delivery,
+  worker monitor handles, process liveness, and historical binding-pair
+  uniqueness are irrelevant to reviewer admission.
+- Continue a committed slice with
+  `workspace_agent_dispatch(role="reviewer", subject="work record")`.
+  The launcher resolves and freezes the exact committed slice ref/tip from
+  canonical state. The reviewer receives full required read visibility and
+  `write_scope: []`; the implementation slice retains its declared write scope.
+- Reviewer and redteam results form immutable advisory history. Clean output,
+  findings, reviewer count, and reviewer agreement neither authorize nor veto a
+  corrective dispatch.
+- A recovered run reports `final_result: null`. That means no agent report was
+  captured across the restart — it is not a success, not a completion, and not a
+  reason to skip the review.
+- A `reserved` verdict means another dispatch for the same unit is already in
+  flight. Nothing is wrong: wait for that run and poll its `monitor_handle`.
+- A unit is not locked by the attempt that succeeded on it. Once the slice is
+  integrated and the lifecycle is finalized, the launcher retires that attempt
+  itself and the unit is dispatchable again. For corrective work, a proven-dead
+  attempt is retired only while its exact reservation is atomically replaced and
+  its mechanically authenticated delivered tip becomes the successor's base. No
+  review outcome participates. A proven-dead attempt shown by trusted Git
+  comparison to have delivered nothing also converges to a retryable unit.
+  Retirement is launcher-owned; no capability deletes an identity record.
+- A `partial` verdict means the launcher spawned a process it could not durably
+  identify. That unit stays refused: the launcher cannot prove whether a process
+  is still running, and the record is deliberately preserved rather than cleared.
+
+  Resolve the underlying process question — the record is under the gitignored
+  `.agent-launch/managed-run-identity/` store — and re-run the dispatch.
 
 ### Operator Follow-Up After Review
 

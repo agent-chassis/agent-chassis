@@ -1,0 +1,1395 @@
+{
+  "schema_version": "controlled-contract-proof-pack-negative-fixture.experimental.v0.1",
+  "fixture_id": "reject-claim-settlement-precedes-valid-attempt-proposition-operand-0-role",
+  "covers": [
+    {
+      "surface_id": "claim-settlement-precedes-valid-attempt-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening"
+    }
+  ],
+  "contract": {
+    "schema_version": "controlled-acceptance-contract.v1",
+    "vocabulary_version": "controlled-contract-vocabulary.v1",
+    "profile_id": "acceptance-contract.standard.v1",
+    "references": [
+      {
+        "reference_id": "ref-failed-attempt",
+        "type_term": "cc:operation",
+        "identity": {
+          "kind": "code_symbol",
+          "repository": "example/database-import",
+          "path": "src/database-import.mjs",
+          "symbol": "failed-attempt"
+        }
+      },
+      {
+        "reference_id": "ref-failure-event",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "cleanup-noninterference-database-import",
+          "value": "failure-event"
+        }
+      },
+      {
+        "reference_id": "ref-failure-state",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "cleanup-noninterference-database-import",
+          "value": "failure-state"
+        }
+      },
+      {
+        "reference_id": "ref-cleanup-operation",
+        "type_term": "cc:operation",
+        "identity": {
+          "kind": "code_symbol",
+          "repository": "example/database-import",
+          "path": "src/database-import.mjs",
+          "symbol": "cleanup-operation"
+        }
+      },
+      {
+        "reference_id": "ref-settlement-event",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "cleanup-noninterference-database-import",
+          "value": "settlement-event"
+        }
+      },
+      {
+        "reference_id": "ref-before-failure-observation",
+        "type_term": "cc:evidence",
+        "identity": {
+          "kind": "code_symbol",
+          "repository": "example/database-import",
+          "path": "src/database-import.mjs",
+          "symbol": "before-failure-observation"
+        }
+      },
+      {
+        "reference_id": "ref-after-settlement-observation",
+        "type_term": "cc:evidence",
+        "identity": {
+          "kind": "code_symbol",
+          "repository": "example/database-import",
+          "path": "src/database-import.mjs",
+          "symbol": "after-settlement-observation"
+        }
+      },
+      {
+        "reference_id": "ref-residue-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "repository_path",
+          "repository": "example/database-import",
+          "path": "fixtures/database-import/residue-population"
+        }
+      },
+      {
+        "reference_id": "ref-protected-resource-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "repository_path",
+          "repository": "example/database-import",
+          "path": "fixtures/database-import/protected-resource-population"
+        }
+      },
+      {
+        "reference_id": "ref-protected-resource-a",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "code_symbol",
+          "repository": "example/database-import",
+          "path": "src/database-import.mjs",
+          "symbol": "protected-resource-a"
+        }
+      },
+      {
+        "reference_id": "ref-protected-resource-b",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "code_symbol",
+          "repository": "example/database-import",
+          "path": "src/database-import.mjs",
+          "symbol": "protected-resource-b"
+        }
+      },
+      {
+        "reference_id": "ref-protected-state-before-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "repository_path",
+          "repository": "example/database-import",
+          "path": "fixtures/database-import/protected-state-before-population"
+        }
+      },
+      {
+        "reference_id": "ref-protected-state-a",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "cleanup-noninterference-database-import",
+          "value": "protected-state-a"
+        }
+      },
+      {
+        "reference_id": "ref-protected-state-b",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "cleanup-noninterference-database-import",
+          "value": "protected-state-b"
+        }
+      },
+      {
+        "reference_id": "ref-protected-state-after-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "repository_path",
+          "repository": "example/database-import",
+          "path": "fixtures/database-import/protected-state-after-population"
+        }
+      },
+      {
+        "reference_id": "ref-failure-authority",
+        "type_term": "cc:authority",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "cleanup-noninterference-database-import",
+          "value": "failure-authority"
+        }
+      },
+      {
+        "reference_id": "ref-unrelated-authority",
+        "type_term": "cc:authority",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "cleanup-noninterference-database-import",
+          "value": "unrelated-authority"
+        }
+      },
+      {
+        "reference_id": "ref-authority-state-before",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "cleanup-noninterference-database-import",
+          "value": "authority-state-before"
+        }
+      },
+      {
+        "reference_id": "ref-authority-state-after",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "cleanup-noninterference-database-import",
+          "value": "authority-state-after"
+        }
+      },
+      {
+        "reference_id": "ref-valid-attempt",
+        "type_term": "cc:operation",
+        "identity": {
+          "kind": "code_symbol",
+          "repository": "example/database-import",
+          "path": "src/database-import.mjs",
+          "symbol": "valid-attempt"
+        }
+      },
+      {
+        "reference_id": "ref-valid-input",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "cleanup-noninterference-database-import",
+          "value": "valid-input"
+        }
+      },
+      {
+        "reference_id": "ref-valid-result",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "cleanup-noninterference-database-import",
+          "value": "valid-result"
+        }
+      },
+      {
+        "reference_id": "ref-expected-success-result",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "cleanup-noninterference-database-import",
+          "value": "expected-success-result"
+        }
+      },
+      {
+        "reference_id": "ref-cleanup-verification",
+        "type_term": "cc:test",
+        "identity": {
+          "kind": "code_symbol",
+          "repository": "example/database-import",
+          "path": "src/database-import.mjs",
+          "symbol": "cleanup-verification"
+        }
+      },
+      {
+        "reference_id": "ref-protected-state-verification",
+        "type_term": "cc:test",
+        "identity": {
+          "kind": "code_symbol",
+          "repository": "example/database-import",
+          "path": "src/database-import.mjs",
+          "symbol": "protected-state-verification"
+        }
+      },
+      {
+        "reference_id": "ref-authority-verification",
+        "type_term": "cc:test",
+        "identity": {
+          "kind": "code_symbol",
+          "repository": "example/database-import",
+          "path": "src/database-import.mjs",
+          "symbol": "authority-verification"
+        }
+      },
+      {
+        "reference_id": "ref-later-authorization-verification",
+        "type_term": "cc:test",
+        "identity": {
+          "kind": "code_symbol",
+          "repository": "example/database-import",
+          "path": "src/database-import.mjs",
+          "symbol": "later-authorization-verification"
+        }
+      },
+      {
+        "reference_id": "ref-condition-residue-remaining",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-import:condition-residue-remaining"
+        }
+      },
+      {
+        "reference_id": "ref-condition-protected-state-changed",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-import:condition-protected-state-changed"
+        }
+      },
+      {
+        "reference_id": "ref-condition-authority-consumed",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-import:condition-authority-consumed"
+        }
+      },
+      {
+        "reference_id": "ref-condition-later-attempt-failed",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-import:condition-later-attempt-failed"
+        }
+      }
+    ],
+    "propositions": [
+      {
+        "proposition_id": "prop-complete-residue-population-count",
+        "subject_reference_id": "ref-residue-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-settlement-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 0
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-protected-resource-population-count",
+        "subject_reference_id": "ref-protected-resource-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-protected-resource-population-members",
+        "subject_reference_id": "ref-protected-resource-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-resource-a"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-resource-b"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-protected-state-before-count",
+        "subject_reference_id": "ref-protected-state-before-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "before",
+          "operand_reference_ids": [
+            "ref-failure-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-protected-state-before-members",
+        "subject_reference_id": "ref-protected-state-before-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "before",
+          "operand_reference_ids": [
+            "ref-failure-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-state-a"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-state-b"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-protected-state-after-count",
+        "subject_reference_id": "ref-protected-state-after-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-settlement-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-protected-state-after-members",
+        "subject_reference_id": "ref-protected-state-after-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-settlement-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-state-a"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-state-b"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-failed-attempt-uses-failure-authority",
+        "subject_reference_id": "ref-failed-attempt",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-failure-authority"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-failed-attempt-has-failure-state",
+        "subject_reference_id": "ref-failed-attempt",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-failure-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-failure-precedes-cleanup",
+        "subject_reference_id": "ref-failure-event",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-cleanup-operation"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-cleanup-precedes-settlement",
+        "subject_reference_id": "ref-cleanup-operation",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-settlement-event"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-cleanup-deletes-residue",
+        "subject_reference_id": "ref-cleanup-operation",
+        "operator": "reference:deletes",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-failure-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-residue-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-cleanup-preserves-protected-resources",
+        "subject_reference_id": "ref-cleanup-operation",
+        "operator": "reference:preserves",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-failure-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-resource-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-cleanup-preserves-unrelated-authority",
+        "subject_reference_id": "ref-cleanup-operation",
+        "operator": "reference:preserves",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-failure-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-unrelated-authority"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-before-observation-records-protected-subject",
+        "subject_reference_id": "ref-before-failure-observation",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "before",
+          "operand_reference_ids": [
+            "ref-failure-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-resource-population"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-state-before-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-after-observation-records-protected-subject",
+        "subject_reference_id": "ref-after-settlement-observation",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-settlement-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-resource-population"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-state-after-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-before-state-complete-for-protected-subject",
+        "subject_reference_id": "ref-protected-state-before-population",
+        "operator": "reference:complete_against",
+        "applicability_context": {
+          "mode": "before",
+          "operand_reference_ids": [
+            "ref-failure-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-resource-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-after-state-complete-for-protected-subject",
+        "subject_reference_id": "ref-protected-state-after-population",
+        "operator": "reference:complete_against",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-settlement-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-resource-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-residue-empty-after-settlement",
+        "subject_reference_id": "ref-residue-population",
+        "operator": "number:equals",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-settlement-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 0
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-protected-state-equal-after-settlement",
+        "subject_reference_id": "ref-protected-state-after-population",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-settlement-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-state-before-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-before-observation-records-authority-state",
+        "subject_reference_id": "ref-before-failure-observation",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "before",
+          "operand_reference_ids": [
+            "ref-failure-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-unrelated-authority"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-authority-state-before"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-after-observation-records-authority-state",
+        "subject_reference_id": "ref-after-settlement-observation",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-settlement-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-unrelated-authority"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-authority-state-after"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-authority-state-equal-after-settlement",
+        "subject_reference_id": "ref-authority-state-after",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-settlement-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-authority-state-before"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-settlement-precedes-valid-attempt",
+        "subject_reference_id": "ref-settlement-event",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-failed-attempt"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-unrelated-authority-authorizes-valid-attempt",
+        "subject_reference_id": "ref-unrelated-authority",
+        "operator": "reference:authorizes",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-settlement-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-valid-attempt"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-valid-attempt-uses-unrelated-authority",
+        "subject_reference_id": "ref-valid-attempt",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-settlement-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-unrelated-authority"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-valid-input"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-valid-attempt-returns-result",
+        "subject_reference_id": "ref-valid-attempt",
+        "operator": "reference:returns",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-settlement-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-valid-result"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-valid-result-equals-expected",
+        "subject_reference_id": "ref-valid-result",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-settlement-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-expected-success-result"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-cleanup-verification",
+        "subject_reference_id": "ref-residue-population",
+        "operator": "number:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-condition-residue-remaining"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 0
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-cleanup-verification",
+        "subject_reference_id": "ref-cleanup-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-cleanup-operation"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-residue-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-protected-state-verification",
+        "subject_reference_id": "ref-protected-state-after-population",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-condition-protected-state-changed"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-state-before-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-protected-state-verification",
+        "subject_reference_id": "ref-protected-state-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-resource-population"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-state-before-population"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-state-after-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-authority-preservation-verification",
+        "subject_reference_id": "ref-authority-state-after",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-condition-authority-consumed"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-authority-state-before"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-authority-preservation-verification",
+        "subject_reference_id": "ref-authority-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-unrelated-authority"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-authority-state-before"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-authority-state-after"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-later-authorization-verification",
+        "subject_reference_id": "ref-valid-result",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-condition-later-attempt-failed"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-expected-success-result"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-later-authorization-verification",
+        "subject_reference_id": "ref-later-authorization-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-valid-attempt"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-unrelated-authority"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-valid-result"
+          }
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "claim_id": "claim-complete-residue-population-count",
+        "proposition_id": "prop-complete-residue-population-count",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-protected-resource-population-count",
+        "proposition_id": "prop-complete-protected-resource-population-count",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-protected-resource-population-members",
+        "proposition_id": "prop-complete-protected-resource-population-members",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-protected-state-before-count",
+        "proposition_id": "prop-complete-protected-state-before-count",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-protected-state-before-members",
+        "proposition_id": "prop-complete-protected-state-before-members",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-protected-state-after-count",
+        "proposition_id": "prop-complete-protected-state-after-count",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-protected-state-after-members",
+        "proposition_id": "prop-complete-protected-state-after-members",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-failed-attempt-uses-failure-authority",
+        "proposition_id": "prop-failed-attempt-uses-failure-authority",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-failed-attempt-has-failure-state",
+        "proposition_id": "prop-failed-attempt-has-failure-state",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-failure-precedes-cleanup",
+        "proposition_id": "prop-failure-precedes-cleanup",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-cleanup-precedes-settlement",
+        "proposition_id": "prop-cleanup-precedes-settlement",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-cleanup-deletes-residue",
+        "proposition_id": "prop-cleanup-deletes-residue",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-cleanup-preserves-protected-resources",
+        "proposition_id": "prop-cleanup-preserves-protected-resources",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-cleanup-preserves-unrelated-authority",
+        "proposition_id": "prop-cleanup-preserves-unrelated-authority",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-before-observation-records-protected-subject",
+        "proposition_id": "prop-before-observation-records-protected-subject",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-after-observation-records-protected-subject",
+        "proposition_id": "prop-after-observation-records-protected-subject",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-before-state-complete-for-protected-subject",
+        "proposition_id": "prop-before-state-complete-for-protected-subject",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-after-state-complete-for-protected-subject",
+        "proposition_id": "prop-after-state-complete-for-protected-subject",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-residue-empty-after-settlement",
+        "proposition_id": "prop-residue-empty-after-settlement",
+        "kind": "behavior",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-protected-state-equal-after-settlement",
+        "proposition_id": "prop-protected-state-equal-after-settlement",
+        "kind": "behavior",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-before-observation-records-authority-state",
+        "proposition_id": "prop-before-observation-records-authority-state",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-after-observation-records-authority-state",
+        "proposition_id": "prop-after-observation-records-authority-state",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-authority-state-equal-after-settlement",
+        "proposition_id": "prop-authority-state-equal-after-settlement",
+        "kind": "behavior",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-settlement-precedes-valid-attempt",
+        "proposition_id": "prop-settlement-precedes-valid-attempt",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-unrelated-authority-authorizes-valid-attempt",
+        "proposition_id": "prop-unrelated-authority-authorizes-valid-attempt",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-valid-attempt-uses-unrelated-authority",
+        "proposition_id": "prop-valid-attempt-uses-unrelated-authority",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-valid-attempt-returns-result",
+        "proposition_id": "prop-valid-attempt-returns-result",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-valid-result-equals-expected",
+        "proposition_id": "prop-valid-result-equals-expected",
+        "kind": "behavior",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-cleanup-verification",
+        "proposition_id": "prop-cleanup-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "verification_method": "analysis",
+        "falsifying_proposition_id": "prop-falsifier-cleanup-verification"
+      },
+      {
+        "claim_id": "claim-protected-state-verification",
+        "proposition_id": "prop-protected-state-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "verification_method": "analysis",
+        "falsifying_proposition_id": "prop-falsifier-protected-state-verification"
+      },
+      {
+        "claim_id": "claim-authority-preservation-verification",
+        "proposition_id": "prop-authority-preservation-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "verification_method": "analysis",
+        "falsifying_proposition_id": "prop-falsifier-authority-preservation-verification"
+      },
+      {
+        "claim_id": "claim-later-authorization-verification",
+        "proposition_id": "prop-later-authorization-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "verification_method": "analysis",
+        "falsifying_proposition_id": "prop-falsifier-later-authorization-verification"
+      }
+    ],
+    "relations": [
+      {
+        "relation_id": "rel-verification-targets-residue-empty",
+        "role": "verifies",
+        "source_claim_id": "claim-cleanup-verification",
+        "target_claim_id": "claim-residue-empty-after-settlement"
+      },
+      {
+        "relation_id": "rel-verification-targets-protected-state",
+        "role": "verifies",
+        "source_claim_id": "claim-protected-state-verification",
+        "target_claim_id": "claim-protected-state-equal-after-settlement"
+      },
+      {
+        "relation_id": "rel-verification-targets-authority-preservation",
+        "role": "verifies",
+        "source_claim_id": "claim-authority-preservation-verification",
+        "target_claim_id": "claim-authority-state-equal-after-settlement"
+      },
+      {
+        "relation_id": "rel-verification-targets-later-authorization",
+        "role": "verifies",
+        "source_claim_id": "claim-later-authorization-verification",
+        "target_claim_id": "claim-valid-result-equals-expected"
+      }
+    ],
+    "collections": [],
+    "residue": [],
+    "annotations": [],
+    "test_proof_version": "controlled-contract-test-proof.v1",
+    "test_proofs": []
+  },
+  "evaluation_input": {
+    "input_version": "controlled-contract-verification-profile-input.v1",
+    "evaluation_stage": "pre_dispatch",
+    "reference_bindings": [
+      {
+        "role": "failed_attempt",
+        "reference_ids": [
+          "ref-failed-attempt"
+        ]
+      },
+      {
+        "role": "failure_event",
+        "reference_ids": [
+          "ref-failure-event"
+        ]
+      },
+      {
+        "role": "failure_state",
+        "reference_ids": [
+          "ref-failure-state"
+        ]
+      },
+      {
+        "role": "cleanup_operation",
+        "reference_ids": [
+          "ref-cleanup-operation"
+        ]
+      },
+      {
+        "role": "settlement_event",
+        "reference_ids": [
+          "ref-settlement-event"
+        ]
+      },
+      {
+        "role": "before_failure_observation",
+        "reference_ids": [
+          "ref-before-failure-observation"
+        ]
+      },
+      {
+        "role": "after_settlement_observation",
+        "reference_ids": [
+          "ref-after-settlement-observation"
+        ]
+      },
+      {
+        "role": "residue_population",
+        "reference_ids": [
+          "ref-residue-population"
+        ]
+      },
+      {
+        "role": "residues",
+        "reference_ids": []
+      },
+      {
+        "role": "protected_resource_population",
+        "reference_ids": [
+          "ref-protected-resource-population"
+        ]
+      },
+      {
+        "role": "protected_resources",
+        "reference_ids": [
+          "ref-protected-resource-a",
+          "ref-protected-resource-b"
+        ]
+      },
+      {
+        "role": "protected_state_before_population",
+        "reference_ids": [
+          "ref-protected-state-before-population"
+        ]
+      },
+      {
+        "role": "protected_states_before",
+        "reference_ids": [
+          "ref-protected-state-a",
+          "ref-protected-state-b"
+        ]
+      },
+      {
+        "role": "protected_state_after_population",
+        "reference_ids": [
+          "ref-protected-state-after-population"
+        ]
+      },
+      {
+        "role": "protected_states_after",
+        "reference_ids": [
+          "ref-protected-state-a",
+          "ref-protected-state-b"
+        ]
+      },
+      {
+        "role": "failure_authority",
+        "reference_ids": [
+          "ref-failure-authority"
+        ]
+      },
+      {
+        "role": "unrelated_authority",
+        "reference_ids": [
+          "ref-unrelated-authority"
+        ]
+      },
+      {
+        "role": "authority_state_before",
+        "reference_ids": [
+          "ref-authority-state-before"
+        ]
+      },
+      {
+        "role": "authority_state_after",
+        "reference_ids": [
+          "ref-authority-state-after"
+        ]
+      },
+      {
+        "role": "valid_attempt",
+        "reference_ids": [
+          "ref-valid-attempt"
+        ]
+      },
+      {
+        "role": "valid_input",
+        "reference_ids": [
+          "ref-valid-input"
+        ]
+      },
+      {
+        "role": "valid_result",
+        "reference_ids": [
+          "ref-valid-result"
+        ]
+      },
+      {
+        "role": "expected_success_result",
+        "reference_ids": [
+          "ref-expected-success-result"
+        ]
+      },
+      {
+        "role": "cleanup_verification",
+        "reference_ids": [
+          "ref-cleanup-verification"
+        ]
+      },
+      {
+        "role": "protected_state_verification",
+        "reference_ids": [
+          "ref-protected-state-verification"
+        ]
+      },
+      {
+        "role": "authority_verification",
+        "reference_ids": [
+          "ref-authority-verification"
+        ]
+      },
+      {
+        "role": "later_authorization_verification",
+        "reference_ids": [
+          "ref-later-authorization-verification"
+        ]
+      },
+      {
+        "role": "residue_remaining_condition",
+        "reference_ids": [
+          "ref-condition-residue-remaining"
+        ]
+      },
+      {
+        "role": "protected_state_changed_condition",
+        "reference_ids": [
+          "ref-condition-protected-state-changed"
+        ]
+      },
+      {
+        "role": "authority_consumed_condition",
+        "reference_ids": [
+          "ref-condition-authority-consumed"
+        ]
+      },
+      {
+        "role": "later_attempt_failed_condition",
+        "reference_ids": [
+          "ref-condition-later-attempt-failed"
+        ]
+      }
+    ],
+    "number_bindings": [
+      {
+        "role": "residue_count",
+        "value": 0
+      },
+      {
+        "role": "protected_resource_count",
+        "value": 2
+      }
+    ],
+    "claim_pattern_bindings": [],
+    "resolver_facts": [],
+    "delivered_evidence": [],
+    "stable_evaluation": {}
+  }
+}

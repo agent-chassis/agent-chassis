@@ -67,6 +67,7 @@ async function assessFrozenRequest(request, trusted) {
     return await captureAndEvaluateExactBindingsV1({
       request,
       declaration: pack.declaration,
+      contract,
       evaluationInput,
       context,
       expectedContext: context,
@@ -109,6 +110,7 @@ async function captureFrozenAggregateRequest(request, trusted) {
     const exactBindingResult = await captureAndEvaluateExactBindingsV1({
       request,
       declaration: pack.declaration,
+      contract,
       evaluationInput,
       context,
       expectedContext: context,

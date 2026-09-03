@@ -1,0 +1,23 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v1",
+  "profile_id": "proof.verification.test-validity",
+  "profile_version": "3.0.0",
+  "profile_digest": "9ac26e03318f65161e39689dad31457165f36f78a8796f46686b3de1b8dd69bb",
+  "guarantee": "For one exact post-delivery test_execution proof instance, complete launcher-authenticated runtime evidence bound to the exact candidate or source snapshot, controlled-contract generation, obligation, proof-plan entry, declared target, test-proof binding, admitted profile, certification, guarantee, evaluator, and any required exact-capture root and sources satisfies the guarantee only when the candidate passes, the complete declared inventory executes without new skips or unexpected tests, every declared falsifier is detected, required traversal is proven, and no prohibited shortcut is observed. Complete valid negative facts falsify the guarantee; missing evidence or an unavailable exact evaluator is not executable; malformed, unauthenticated, stale, cross-bound, contradictory, or digest-mismatched evidence is refused.",
+  "guarantee_digest": "78558eb01f9d317fd0281c530dd35b20f1e398071ac4d60d995c3979aa07b368",
+  "explicit_exclusions": [
+    "authority-grant",
+    "coordinator-semantic-judgment",
+    "durable-receipt-retention",
+    "lifecycle-admission",
+    "provider-support-invention"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "e22a822dd910a1cb698a56d153ee3bdb2c2cf1124a2a450e4c2d009d7c12757d",
+    "adequacy_result_digest": "a6a46330a1de9f7f62a16debc8d30f25068f84ae929616e74aa0c1f36c417888",
+    "executable_control_count": 5,
+    "negative_fixture_count": 4,
+    "coverage_witness_count": 4
+  }
+}

@@ -86,12 +86,7 @@ export async function routeOrchestratorLaunch({
   if (dryRunJson) {
     codexArgv.push("--dry-run-json");
   }
-  if (headless) {
-    codexArgv.push("--headless");
-    if (typeof logFile === "string") {
-      codexArgv.push("--log-file", logFile);
-    }
-  }
+
   for (const focusArg of focusArgs) {
     codexArgv.push(focusArg);
   }

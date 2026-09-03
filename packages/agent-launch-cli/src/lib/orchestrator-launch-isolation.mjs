@@ -2,6 +2,9 @@
 
 import path from "node:path";
 import { lstatSync, mkdirSync, realpathSync } from "node:fs";
+import {
+  deriveLauncherOwnedDispatchWorktreeRoot as deriveSharedLauncherOwnedDispatchWorktreeRoot
+} from "@agent-chassis/agent-launch-core/src/lib/launcher-owned-worktree-root.mjs";
 
 import {
   assertBubblewrapAvailable,
@@ -28,8 +31,7 @@ export function deriveLauncherOwnedDispatchWorktreeRoot(repo) {
       `orchestrator managed-worktree root requires a repo path, got: ${typeof repo}`
     );
   }
-  const repoReal = realpathSync(path.resolve(repo));
-  return path.join(path.dirname(repoReal), ".agent-worktrees", path.basename(repoReal));
+  return deriveSharedLauncherOwnedDispatchWorktreeRoot(repo);
 }
 
 export function prepareLauncherOwnedDispatchWorktreeRoot({
@@ -48,7 +50,7 @@ export function prepareLauncherOwnedDispatchWorktreeRoot({
     );
   }
 
-  mkdirSync(derivedRoot, { recursive: true });
+  mkdirSync(derivedRoot, { recursive: true, mode: 0o700 });
   const rootStat = lstatSync(derivedRoot);
   if (!rootStat.isDirectory() || rootStat.isSymbolicLink() || realpathSync(derivedRoot) !== derivedRoot) {
     fail(

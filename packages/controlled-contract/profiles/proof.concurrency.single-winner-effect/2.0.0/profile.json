@@ -1,0 +1,1417 @@
+{
+  "schema_version": "controlled-contract-verification-profile.v1",
+  "profile_id": "proof.concurrency.single-winner-effect",
+  "profile_version": "2.0.0",
+  "contract_schema_version": "controlled-acceptance-contract.v1",
+  "vocabulary_version": "controlled-contract-vocabulary.v1",
+  "vocabulary_signature_digest": "596a4c44d98aed1d31dd9ab3842fc054be6f8ffa3d62a3867a3966e75ecab742",
+  "vocabulary_algebra_digest": "0fbea1e7377baeef1869cbc55dc588ef5509ed40c768ce2a3c4f58be1133cf9c",
+  "vocabulary_definitions_digest": "bb3d2a63cb6fc8c62b9bc36d29d07549dea6ad85e32badb0cbb3cacfd6ad4759",
+  "vocabulary_complete_digest": "45484504f06968c6b4ac812c24b9f1b6e47e1d34ba21fefebde8dd85d1290fa9",
+  "evaluation_stages": [
+    "pre_dispatch"
+  ],
+  "verification_falsifier_policy": "controlled_complement_per_target",
+  "reference_roles": [
+    {
+      "role": "operation",
+      "allowed_type_terms": [
+        "cc:operation"
+      ],
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "scoped_key",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:entity",
+        "cc:scope"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "attempt_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "attempts",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "one_or_more"
+    },
+    {
+      "role": "winner_attempt",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "loser_attempt",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "winner_start",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "loser_start",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "winner_terminal",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "loser_terminal",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "effect_resource",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:resource"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "effect_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "effect_occurrences",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "one_or_more"
+    },
+    {
+      "role": "effect_occurrence",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "effect_count_signal",
+      "allowed_type_terms": [
+        "cc:evidence"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "winner_post_state",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "loser_post_state",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "winner_post_observation",
+      "allowed_type_terms": [
+        "cc:evidence"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "loser_post_observation",
+      "allowed_type_terms": [
+        "cc:evidence"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "verification",
+      "allowed_type_terms": [
+        "cc:process",
+        "cc:test"
+      ],
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "durable_id",
+        "repository_path"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "winner_rejected_condition",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "loser_accepted_condition",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "non_single_effect_condition",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "loser_effect_condition",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "loser_state_diverged_condition",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    }
+  ],
+  "number_roles": [
+    {
+      "role": "attempt_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 2,
+      "maximum": 2
+    },
+    {
+      "role": "effect_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 1,
+      "maximum": 1
+    }
+  ],
+  "distinct_reference_role_sets": [
+    {
+      "roles": [
+        "winner_attempt",
+        "loser_attempt"
+      ]
+    },
+    {
+      "roles": [
+        "winner_start",
+        "loser_start",
+        "winner_terminal",
+        "loser_terminal"
+      ]
+    },
+    {
+      "roles": [
+        "winner_post_observation",
+        "loser_post_observation"
+      ]
+    },
+    {
+      "roles": [
+        "winner_rejected_condition",
+        "loser_accepted_condition",
+        "non_single_effect_condition",
+        "loser_effect_condition",
+        "loser_state_diverged_condition"
+      ]
+    }
+  ],
+  "reference_binding_patterns": [
+    {
+      "pattern_id": "complete-attempt-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "attempt_population",
+        "attempts"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    },
+    {
+      "pattern_id": "complete-effect-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "effect_population",
+        "effect_occurrences"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    }
+  ],
+  "reference_role_count_bindings": [
+    {
+      "reference_role": "attempts",
+      "number_role": "attempt_count"
+    },
+    {
+      "reference_role": "effect_occurrences",
+      "number_role": "effect_count"
+    }
+  ],
+  "claim_patterns": [
+    {
+      "pattern_id": "operation-writes-resource",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "operation",
+        "operator": "reference:writes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "effect_resource"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "winner-in-attempt-population",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "winner_attempt",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "attempt_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "loser-in-attempt-population",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "loser_attempt",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "attempt_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "winner-performs-operation",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "winner_attempt",
+        "operator": "reference:performs",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "operation"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "loser-performs-operation",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "loser_attempt",
+        "operator": "reference:performs",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "operation"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "winner-uses-key",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "winner_attempt",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "scoped_key"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "loser-uses-key",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "loser_attempt",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "scoped_key"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "winner-attempt-starts",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "winner_attempt",
+        "operator": "reference:starts",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "winner_start"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "loser-attempt-starts",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "loser_attempt",
+        "operator": "reference:starts",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "loser_start"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "winner-start-before-terminals",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "winner_start",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "winner_terminal"
+          },
+          {
+            "kind": "reference",
+            "role": "loser_terminal"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "loser-start-before-terminals",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "loser_start",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "winner_terminal"
+          },
+          {
+            "kind": "reference",
+            "role": "loser_terminal"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "winner-terminal-accepts",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "winner_terminal",
+        "operator": "reference:accepts",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "winner_attempt"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "winner-not-rejected",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST_NOT"
+      ],
+      "proposition_template": {
+        "subject_role": "winner_terminal",
+        "operator": "reference:rejects",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "winner_attempt"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "loser-terminal-rejects",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "loser_terminal",
+        "operator": "reference:rejects",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "loser_attempt"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "loser-not-accepted",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST_NOT"
+      ],
+      "proposition_template": {
+        "subject_role": "loser_terminal",
+        "operator": "reference:accepts",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "loser_attempt"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "winner-creates-effect",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "winner_attempt",
+        "operator": "reference:creates",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "effect_occurrence"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "effect-in-complete-population",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "effect_occurrence",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "effect_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "loser-does-not-create-effect",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST_NOT"
+      ],
+      "proposition_template": {
+        "subject_role": "loser_attempt",
+        "operator": "reference:creates",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "effect_occurrence"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "effect-count-exactly-one",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "effect_count_signal",
+        "operator": "number:equals",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value_role": "effect_count"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "winner-terminal-before-observation",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "winner_terminal",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "winner_post_observation"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "loser-terminal-before-observation",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "loser_terminal",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "loser_post_observation"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "winner-observation-records-state",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "winner_post_observation",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "winner_post_state"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "loser-observation-records-state",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "loser_post_observation",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "loser_post_state"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "winner-observation-reads-resource",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "winner_post_observation",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "effect_resource"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "loser-observation-reads-resource",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "loser_post_observation",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "effect_resource"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "observations-read-resource",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "effect_resource"
+          },
+          {
+            "kind": "reference",
+            "role": "winner_post_observation"
+          },
+          {
+            "kind": "reference",
+            "role": "loser_post_observation"
+          },
+          {
+            "kind": "reference",
+            "role": "effect_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "loser-state-equals-winner",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "loser_post_state",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "winner_post_state"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "verify-winner-success",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "winner_terminal"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "winner_terminal",
+        "operator": "reference:rejects",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "winner_rejected_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "winner_attempt"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "verify-loser-refusal",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "loser_terminal"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "loser_terminal",
+        "operator": "reference:accepts",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "loser_accepted_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "loser_attempt"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "verify-effect-count",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "effect_count_signal"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "effect_count_signal",
+        "operator": "number:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "non_single_effect_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value_role": "effect_count"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "verify-loser-no-effect",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "effect_occurrence"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "loser_attempt",
+        "operator": "reference:creates",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "loser_effect_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "effect_occurrence"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "verify-loser-state",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "loser_post_state"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "loser_post_state",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "loser_state_diverged_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "winner_post_state"
+          }
+        ]
+      }
+    }
+  ],
+  "relation_patterns": [
+    {
+      "pattern_id": "verification-target-winner-success",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "verify-winner-success",
+      "target_claim_pattern_id": "winner-not-rejected"
+    },
+    {
+      "pattern_id": "verification-target-loser-refusal",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "verify-loser-refusal",
+      "target_claim_pattern_id": "loser-not-accepted"
+    },
+    {
+      "pattern_id": "verification-target-effect-count",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "verify-effect-count",
+      "target_claim_pattern_id": "effect-count-exactly-one"
+    },
+    {
+      "pattern_id": "verification-target-loser-no-effect",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "verify-loser-no-effect",
+      "target_claim_pattern_id": "loser-does-not-create-effect"
+    },
+    {
+      "pattern_id": "verification-target-loser-state",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "verify-loser-state",
+      "target_claim_pattern_id": "loser-state-equals-winner"
+    }
+  ],
+  "collection_patterns": [],
+  "resolver_fact_patterns": [],
+  "evidence_patterns": [],
+  "falsifier_condition_bindings": [
+    {
+      "relation_pattern_id": "verification-target-winner-success",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "winner_rejected_condition"
+        ]
+      }
+    },
+    {
+      "relation_pattern_id": "verification-target-loser-refusal",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "loser_accepted_condition"
+        ]
+      }
+    },
+    {
+      "relation_pattern_id": "verification-target-effect-count",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "non_single_effect_condition"
+        ]
+      }
+    },
+    {
+      "relation_pattern_id": "verification-target-loser-no-effect",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "loser_effect_condition"
+        ]
+      }
+    },
+    {
+      "relation_pattern_id": "verification-target-loser-state",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "loser_state_diverged_condition"
+        ]
+      }
+    }
+  ],
+  "satisfaction_expression": {
+    "all_of": [
+      {
+        "pattern": "complete-attempt-population"
+      },
+      {
+        "pattern": "complete-effect-population"
+      },
+      {
+        "pattern": "operation-writes-resource"
+      },
+      {
+        "pattern": "winner-in-attempt-population"
+      },
+      {
+        "pattern": "loser-in-attempt-population"
+      },
+      {
+        "pattern": "winner-performs-operation"
+      },
+      {
+        "pattern": "loser-performs-operation"
+      },
+      {
+        "pattern": "winner-uses-key"
+      },
+      {
+        "pattern": "loser-uses-key"
+      },
+      {
+        "pattern": "winner-attempt-starts"
+      },
+      {
+        "pattern": "loser-attempt-starts"
+      },
+      {
+        "pattern": "winner-start-before-terminals"
+      },
+      {
+        "pattern": "loser-start-before-terminals"
+      },
+      {
+        "pattern": "winner-terminal-accepts"
+      },
+      {
+        "pattern": "winner-not-rejected"
+      },
+      {
+        "pattern": "loser-terminal-rejects"
+      },
+      {
+        "pattern": "loser-not-accepted"
+      },
+      {
+        "pattern": "winner-creates-effect"
+      },
+      {
+        "pattern": "effect-in-complete-population"
+      },
+      {
+        "pattern": "loser-does-not-create-effect"
+      },
+      {
+        "pattern": "effect-count-exactly-one"
+      },
+      {
+        "pattern": "winner-terminal-before-observation"
+      },
+      {
+        "pattern": "loser-terminal-before-observation"
+      },
+      {
+        "pattern": "winner-observation-records-state"
+      },
+      {
+        "pattern": "loser-observation-records-state"
+      },
+      {
+        "pattern": "winner-observation-reads-resource"
+      },
+      {
+        "pattern": "loser-observation-reads-resource"
+      },
+      {
+        "pattern": "observations-read-resource"
+      },
+      {
+        "pattern": "loser-state-equals-winner"
+      },
+      {
+        "pattern": "verify-winner-success"
+      },
+      {
+        "pattern": "verify-loser-refusal"
+      },
+      {
+        "pattern": "verify-effect-count"
+      },
+      {
+        "pattern": "verify-loser-no-effect"
+      },
+      {
+        "pattern": "verify-loser-state"
+      },
+      {
+        "pattern": "verification-target-winner-success"
+      },
+      {
+        "pattern": "verification-target-loser-refusal"
+      },
+      {
+        "pattern": "verification-target-effect-count"
+      },
+      {
+        "pattern": "verification-target-loser-no-effect"
+      },
+      {
+        "pattern": "verification-target-loser-state"
+      }
+    ]
+  }
+}

@@ -40,8 +40,27 @@ import {
   validateAssessmentSchema,
   writeAssessmentBundle
 } from "../lib/contract-assessment.mjs";
+import { buildStableTestProofPopulation } from
+  "./support/stable-v1-proof-pack-runtime.mjs";
+
+function stabilizeFixture(value) {
+  const fixtureValue = structuredClone(value);
+  fixtureValue.contract.schema_version = "controlled-acceptance-contract.v1";
+  fixtureValue.contract.profile_id = "acceptance-contract.standard.v1";
+  fixtureValue.contract.vocabulary_version = "controlled-contract-vocabulary.v1";
+  fixtureValue.contract.test_proof_version = "controlled-contract-test-proof.v1";
+  fixtureValue.contract.test_proofs = buildStableTestProofPopulation(fixtureValue.contract);
+  fixtureValue.input.input_version = "controlled-contract-verification-profile-input.v1";
+  fixtureValue.input.stable_evaluation = {};
+  return fixtureValue;
+}
 
 const execFileAsync = promisify(execFile);
+const childEnvironment = () => {
+  const environment = { ...process.env };
+  delete environment.NODE_TEST_CONTEXT;
+  return environment;
+};
 const repositoryRoot = path.resolve(import.meta.dirname, "../../..");
 let temporaryRoot;
 let fixture;
@@ -116,7 +135,7 @@ function containsKey(value, sought) {
 
 before(async () => {
   temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "controlled-assessment-test-"));
-  fixture = buildRefusalBeforeEffectsFixture();
+  fixture = stabilizeFixture(buildRefusalBeforeEffectsFixture());
   const checked = await structuralFor(fixture.contract, "contract");
   ({ source: contractSource, result: structural } = checked);
   pack = await loadAdmittedProofPack(
@@ -372,7 +391,11 @@ test("does not drop structural, profile, binding diagnostics or residue", async 
     text: "Pressure-test residue must remain visible."
   });
   const checked = await structuralFor(contract, "contract-with-residue");
-  checked.result.validation.diagnostics.push({ code: "synthetic-structural-diagnostic" });
+  checked.result.validation = {
+    ...checked.result.validation,
+    diagnostics: [...checked.result.validation.diagnostics,
+      { code: "synthetic-structural-diagnostic" }]
+  };
   const stalePack = structuredClone(pack);
   stalePack.admission.profile_digest = "f".repeat(64);
   const result = admittedProjection({
@@ -462,14 +485,17 @@ test("population remediation carries authored membership and count facts", async
       propositionId !== "prop-protected-effect-population-cardinality"
   );
   const checked = await structuralFor(contract, "population-remediation");
-  checked.result.validation.diagnostics.push({
+  checked.result.validation = {
+    ...checked.result.validation,
+    diagnostics: [...checked.result.validation.diagnostics, {
     code: "population_exact_cardinality_missing",
     population_reference_id: "ref-protected-effect-population",
     applicability_context: {
       mode: "unconditional", operand_reference_ids: []
     },
     claim_ids: ["claim-protected-effect-population-membership"]
-  });
+  }]
+  };
   const assessment = admittedProjection({
     contract,
     source: checked.source,
@@ -517,6 +543,9 @@ test("shared falsifiers remain a bounded non-fatal review signal", async () => {
   );
   contract.claims = contract.claims.filter(
     ({ claim_id: id }) => id !== "claim-mutation-prohibition-verification"
+  );
+  contract.test_proofs = contract.test_proofs.filter(
+    ({ verification_claim_id: id }) => id !== "claim-mutation-prohibition-verification"
   );
   contract.relations.push({
     relation_id: "rel-shared-write-verification-target",
@@ -835,7 +864,7 @@ test("structural-only CLI output is bounded and points to the typed bundle", asy
     cliPath,
     "--input",
     inputPath
-  ], { cwd: repositoryRoot });
+  ], { cwd: repositoryRoot, env: childEnvironment() });
   assert(execution.stdout.length < 1000);
   const compact = JSON.parse(execution.stdout);
   assert.equal(compact.profile_discrimination, "not_assessed");
@@ -880,7 +909,7 @@ test("proof-plan CLI output stays bounded and does not run a proof corpus", asyn
     cliPath,
     "--input", contractPath,
     "--proof-plan", proofPlanPath
-  ], { cwd: repositoryRoot });
+  ], { cwd: repositoryRoot, env: childEnvironment() });
   assert(execution.stdout.length < 1000);
   assert.doesNotMatch(execution.stdout, /negative_fixture_results|coverage_witness/u);
   const compact = JSON.parse(execution.stdout);

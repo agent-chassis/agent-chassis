@@ -1,0 +1,2163 @@
+{
+  "schema_version": "controlled-contract-verification-profile.experimental.v0.2",
+  "profile_id": "proof.failure.supplementary-isolation",
+  "profile_version": "1.0.0",
+  "contract_schema_version": "controlled-acceptance-contract.experimental.v0.2",
+  "vocabulary_version": "cv.experimental.0.34",
+  "vocabulary_signature_digest": "5bb8257d89877737007ebf38c77d269bce3d1dc823bbf1bffa7f7122e4a7c55c",
+  "vocabulary_algebra_digest": "2653922ce964cffa0836844685c189b872bdacab61ff7efb4ed47fb20b3fdd06",
+  "vocabulary_definitions_digest": "bdf62efd8e3d0bcbae9e670ed666ad8512d2a945f240ed3b2139379667b1d799",
+  "vocabulary_complete_digest": "6d3bf713dd28cd94f605a7a9e3d997ad8745f990418c4a91def60504af25bd7c",
+  "verification_falsifier_policy": "controlled_complement_per_target",
+  "evaluation_stages": [
+    "pre_dispatch"
+  ],
+  "reference_roles": [
+    {
+      "role": "operation",
+      "allowed_type_terms": [
+        "cc:operation"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "attempt",
+      "allowed_type_terms": [
+        "cc:process"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "attempt_start_event",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "core_computation",
+      "allowed_type_terms": [
+        "cc:process"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "supplementary_computation",
+      "allowed_type_terms": [
+        "cc:process"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "core_result",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "core_settlement_event",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "core_settled_state",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "core_settled_value",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "settlement_observation",
+      "allowed_type_terms": [
+        "cc:evidence"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "supplementary_component",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:entity",
+        "cc:resource"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "supplementary_failure_event",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "supplementary_failure_reason",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "supplementary_unavailable_state",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "final_result",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "final_result_event",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "final_core_portion",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "final_core_state",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "final_core_value",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "final_observation",
+      "allowed_type_terms": [
+        "cc:evidence"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "verification",
+      "allowed_type_terms": [
+        "cc:test"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "projection_result",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "attempt_record_capture",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "core_settlement_record_capture",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "final_result_record_capture",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "supplementary_failure_record_capture",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "attempt_occurrence_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "attempt_occurrences",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:entity",
+        "cc:resource",
+        "cc:state",
+        "cc:event",
+        "cc:evidence"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "core_member_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "core_members",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:entity",
+        "cc:resource",
+        "cc:state"
+      ],
+      "cardinality": "one_or_more"
+    },
+    {
+      "role": "attempt_core_settlement_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "attempt_core_settlements",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "core_valid_state_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "core_valid_states",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "cardinality": "one_or_more"
+    },
+    {
+      "role": "declared_supplementary_component_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "declared_supplementary_components",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:entity",
+        "cc:resource"
+      ],
+      "cardinality": "one_or_more"
+    },
+    {
+      "role": "disclosed_omission_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "disclosed_omissions",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:entity",
+        "cc:resource"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "disclosed_reason_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "disclosed_reasons",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "failure_reason_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "failure_reasons",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "cardinality": "one_or_more"
+    },
+    {
+      "role": "final_core_member_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "final_core_members",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:entity",
+        "cc:resource",
+        "cc:state"
+      ],
+      "cardinality": "one_or_more"
+    },
+    {
+      "role": "attempt_final_result_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "attempt_final_results",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "final_result_member_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "final_result_members",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:entity",
+        "cc:resource",
+        "cc:state"
+      ],
+      "cardinality": "one_or_more"
+    },
+    {
+      "role": "attempt_supplementary_failure_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "attempt_supplementary_failures",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "supplementary_result_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "supplementary_results",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "unavailable_state_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "unavailable_states",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "cardinality": "one_or_more"
+    },
+    {
+      "role": "core_member_count_signal",
+      "allowed_type_terms": [
+        "cc:evidence"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "final_core_member_count_signal",
+      "allowed_type_terms": [
+        "cc:evidence"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "final_result_member_count_signal",
+      "allowed_type_terms": [
+        "cc:evidence"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "failure_reason_count_signal",
+      "allowed_type_terms": [
+        "cc:evidence"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "disclosed_reason_count_signal",
+      "allowed_type_terms": [
+        "cc:evidence"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "supplementary_result_count_signal",
+      "allowed_type_terms": [
+        "cc:evidence"
+      ],
+      "cardinality": "exactly_one"
+    }
+  ],
+  "number_roles": [
+    {
+      "role": "attempt_core_settlement_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 1,
+      "maximum": 1
+    },
+    {
+      "role": "attempt_supplementary_failure_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 1,
+      "maximum": 1
+    },
+    {
+      "role": "attempt_final_result_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 1,
+      "maximum": 1
+    },
+    {
+      "role": "core_member_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 1
+    },
+    {
+      "role": "final_core_member_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 1
+    },
+    {
+      "role": "final_result_member_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 1
+    },
+    {
+      "role": "failure_reason_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 1
+    },
+    {
+      "role": "disclosed_reason_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 1,
+      "maximum": 1
+    },
+    {
+      "role": "supplementary_result_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 0,
+      "maximum": 0
+    }
+  ],
+  "distinct_reference_role_sets": [
+    {
+      "roles": [
+        "attempt",
+        "core_computation",
+        "supplementary_computation"
+      ]
+    },
+    {
+      "roles": [
+        "attempt_start_event",
+        "core_settlement_event",
+        "supplementary_failure_event",
+        "final_result_event"
+      ]
+    },
+    {
+      "roles": [
+        "core_settled_state",
+        "final_core_state"
+      ]
+    },
+    {
+      "roles": [
+        "core_result",
+        "final_result",
+        "supplementary_component"
+      ]
+    }
+  ],
+  "reference_binding_patterns": [
+    {
+      "pattern_id": "complete-attempt-occurrences",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "attempt_occurrence_population",
+        "attempt_occurrences"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "attempt"
+        ]
+      }
+    },
+    {
+      "pattern_id": "complete-core-members",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "core_member_population",
+        "core_members"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "attempt"
+        ]
+      }
+    },
+    {
+      "pattern_id": "complete-core-settlements",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "attempt_core_settlement_population",
+        "attempt_core_settlements"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "attempt"
+        ]
+      }
+    },
+    {
+      "pattern_id": "complete-core-valid-states",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "core_valid_state_population",
+        "core_valid_states"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    },
+    {
+      "pattern_id": "complete-declared-supplementary-components",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "declared_supplementary_component_population",
+        "declared_supplementary_components"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    },
+    {
+      "pattern_id": "complete-disclosed-omissions",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "disclosed_omission_population",
+        "disclosed_omissions"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "attempt"
+        ]
+      }
+    },
+    {
+      "pattern_id": "complete-disclosed-reasons",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "disclosed_reason_population",
+        "disclosed_reasons"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "attempt"
+        ]
+      }
+    },
+    {
+      "pattern_id": "complete-failure-reasons",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "failure_reason_population",
+        "failure_reasons"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "attempt"
+        ]
+      }
+    },
+    {
+      "pattern_id": "complete-final-core-members",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "final_core_member_population",
+        "final_core_members"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "attempt"
+        ]
+      }
+    },
+    {
+      "pattern_id": "complete-final-result-events",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "attempt_final_result_population",
+        "attempt_final_results"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "attempt"
+        ]
+      }
+    },
+    {
+      "pattern_id": "complete-final-result-members",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "final_result_member_population",
+        "final_result_members"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "attempt"
+        ]
+      }
+    },
+    {
+      "pattern_id": "complete-supplementary-failures",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "attempt_supplementary_failure_population",
+        "attempt_supplementary_failures"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "attempt"
+        ]
+      }
+    },
+    {
+      "pattern_id": "complete-supplementary-results",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "supplementary_result_population",
+        "supplementary_results"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "attempt"
+        ]
+      }
+    },
+    {
+      "pattern_id": "complete-unavailable-states",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "unavailable_state_population",
+        "unavailable_states"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    }
+  ],
+  "reference_role_count_bindings": [
+    {
+      "reference_role": "attempt_core_settlements",
+      "number_role": "attempt_core_settlement_count"
+    },
+    {
+      "reference_role": "attempt_supplementary_failures",
+      "number_role": "attempt_supplementary_failure_count"
+    },
+    {
+      "reference_role": "attempt_final_results",
+      "number_role": "attempt_final_result_count"
+    },
+    {
+      "reference_role": "core_members",
+      "number_role": "core_member_count"
+    },
+    {
+      "reference_role": "final_core_members",
+      "number_role": "final_core_member_count"
+    },
+    {
+      "reference_role": "final_result_members",
+      "number_role": "final_result_member_count"
+    },
+    {
+      "reference_role": "failure_reasons",
+      "number_role": "failure_reason_count"
+    },
+    {
+      "reference_role": "disclosed_reasons",
+      "number_role": "disclosed_reason_count"
+    },
+    {
+      "reference_role": "supplementary_results",
+      "number_role": "supplementary_result_count"
+    }
+  ],
+  "binding_constraint_patterns": [
+    {
+      "pattern_id": "present-disclosed-omission-population-forbidden",
+      "required_by_stage": "pre_dispatch",
+      "role_kind": "reference",
+      "role": "disclosed_omission_population",
+      "minimum": 0,
+      "maximum": 0
+    },
+    {
+      "pattern_id": "present-disclosed-omissions-forbidden",
+      "required_by_stage": "pre_dispatch",
+      "role_kind": "reference",
+      "role": "disclosed_omissions",
+      "minimum": 0,
+      "maximum": 0
+    },
+    {
+      "pattern_id": "omitted-disclosed-omission-population-required",
+      "required_by_stage": "pre_dispatch",
+      "role_kind": "reference",
+      "role": "disclosed_omission_population",
+      "minimum": 1,
+      "maximum": 1
+    },
+    {
+      "pattern_id": "omitted-disclosed-omissions-required",
+      "required_by_stage": "pre_dispatch",
+      "role_kind": "reference",
+      "role": "disclosed_omissions",
+      "minimum": 1,
+      "maximum": 1
+    }
+  ],
+  "claim_patterns": [
+    {
+      "pattern_id": "attempt-performs-operation",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "attempt",
+        "operator": "reference:performs",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "operation"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "attempt-record-capture-exists",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "attempt_record_capture",
+        "operator": "boolean:exists",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": true
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "core-settlement-record-capture-exists",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "core_settlement_record_capture",
+        "operator": "boolean:exists",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": true
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "final-result-record-capture-exists",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "final_result_record_capture",
+        "operator": "boolean:exists",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": true
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "supplementary-failure-record-capture-exists",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "supplementary_failure_record_capture",
+        "operator": "boolean:exists",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": true
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "attempt-starts",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "attempt_start_event",
+        "operator": "reference:starts",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "attempt"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "attempt-performs-computations",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "attempt",
+        "operator": "reference:performs",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "core_computation"
+          },
+          {
+            "kind": "reference",
+            "role": "supplementary_computation"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "attempt-start-precedes-settlement",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "attempt_start_event",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "core_settlement_event"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "settlement-precedes-failure",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "core_settlement_event",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "supplementary_failure_event"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "failure-precedes-final",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "supplementary_failure_event",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "final_result_event"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "core-computation-returns-result",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "core_computation",
+        "operator": "reference:returns",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "core_result"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "core-computation-emits-settlement",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "core_computation",
+        "operator": "reference:emits",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "core_settlement_event"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "core-result-has-state",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "core_result",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "core_settled_state"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "core-state-resolves-to-value",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "core_settled_state",
+        "operator": "reference:resolves_to",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "core_settled_value"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "settlement-observation-records",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "settlement_observation",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "core_result"
+          },
+          {
+            "kind": "reference",
+            "role": "core_settled_state"
+          },
+          {
+            "kind": "reference",
+            "role": "core_member_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "core-value-is-valid",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "core_settled_value",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "core_valid_state_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "supplementary-targets-component",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "supplementary_computation",
+        "operator": "reference:targets",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "supplementary_component"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "supplementary-emits-failure",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "supplementary_computation",
+        "operator": "reference:emits",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "supplementary_failure_event"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "failure-has-reason",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "supplementary_failure_event",
+        "operator": "reference:has_status",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "supplementary_failure_reason"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "component-is-declared",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "supplementary_component",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "declared_supplementary_component_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "failure-reason-is-closed",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "supplementary_failure_reason",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "failure_reason_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "attempt-returns-final",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "attempt",
+        "operator": "reference:returns",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "final_result"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "final-event-emits-result",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "final_result_event",
+        "operator": "reference:emits",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "final_result"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "final-contains-core",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "final_result",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "final_core_portion"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "final-core-portion-has-state",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "final_core_portion",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "final_core_state"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "final-core-state-resolves-to-value",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "final_core_state",
+        "operator": "reference:resolves_to",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "final_core_value"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "final-observation-records",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "final_observation",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "final_core_portion"
+          },
+          {
+            "kind": "reference",
+            "role": "final_core_state"
+          },
+          {
+            "kind": "reference",
+            "role": "final_core_member_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "final-discloses-exact-failure-reason",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "final_result",
+        "operator": "reference:has_status",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "supplementary_failure_reason"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "failure-reason-is-disclosed",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "supplementary_failure_reason",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "disclosed_reason_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "core-members-forward",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "core_member_population",
+        "operator": "reference:subset_of",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "final_core_member_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "core-members-forward-verification",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "core_member_population"
+          },
+          {
+            "kind": "reference",
+            "role": "final_core_member_population"
+          }
+        ]
+      },
+      "verification_methods": [
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "core_member_population",
+        "operator": "reference:not_subset_of",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "final_core_member_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "core-members-reverse",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "final_core_member_population",
+        "operator": "reference:subset_of",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "core_member_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "core-members-in-final",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "core_member_population",
+        "operator": "reference:subset_of",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "final_result_member_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "each-attempt-occurrence-contained",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "attempt_occurrences",
+        "member_role": "attempt_occurrence",
+        "complete_population_pattern_id": "complete-attempt-occurrences",
+        "quantifier": "universal",
+        "empty_behavior": "vacuously_satisfied"
+      },
+      "proposition_template": {
+        "subject_role": "attempt_occurrence",
+        "operator": "reference:contained_in",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "attempt"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "core-member-count-is-captured",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "core_member_count_signal",
+        "operator": "number:equals",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value_role": "core_member_count"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "final-core-member-count-is-captured",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "final_core_member_count_signal",
+        "operator": "number:equals",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value_role": "final_core_member_count"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "final-result-member-count-is-captured",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "final_result_member_count_signal",
+        "operator": "number:equals",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value_role": "final_result_member_count"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "failure-reason-count-is-captured",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "failure_reason_count_signal",
+        "operator": "number:equals",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value_role": "failure_reason_count"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "disclosed-reason-count-is-captured",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "disclosed_reason_count_signal",
+        "operator": "number:equals",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value_role": "disclosed_reason_count"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "supplementary-result-count-is-captured",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "supplementary_result_count_signal",
+        "operator": "number:equals",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value_role": "supplementary_result_count"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "component-present",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "supplementary_component",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "final_result_member_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "component-unavailable",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "supplementary_component",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "supplementary_unavailable_state"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "component-omitted",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "supplementary_component",
+        "operator": "reference:not_member_of",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "final_result_member_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "component-omission-disclosed",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "supplementary_component",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "disclosed_omission_population"
+          }
+        ]
+      }
+    }
+  ],
+  "relation_patterns": [
+    {
+      "pattern_id": "core-members-forward-verifies",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "core-members-forward-verification",
+      "target_claim_pattern_id": "core-members-forward"
+    }
+  ],
+  "collection_patterns": [],
+  "resolver_fact_patterns": [],
+  "evidence_patterns": [],
+  "falsifier_condition_bindings": [
+    {
+      "relation_pattern_id": "core-members-forward-verifies",
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "attempt"
+        ]
+      }
+    }
+  ],
+  "satisfaction_expression": {
+    "all_of": [
+      {
+        "pattern": "complete-attempt-occurrences"
+      },
+      {
+        "pattern": "complete-core-members"
+      },
+      {
+        "pattern": "complete-core-settlements"
+      },
+      {
+        "pattern": "complete-core-valid-states"
+      },
+      {
+        "pattern": "complete-declared-supplementary-components"
+      },
+      {
+        "pattern": "complete-disclosed-reasons"
+      },
+      {
+        "pattern": "complete-failure-reasons"
+      },
+      {
+        "pattern": "complete-final-core-members"
+      },
+      {
+        "pattern": "complete-final-result-events"
+      },
+      {
+        "pattern": "complete-final-result-members"
+      },
+      {
+        "pattern": "complete-supplementary-failures"
+      },
+      {
+        "pattern": "complete-supplementary-results"
+      },
+      {
+        "pattern": "complete-unavailable-states"
+      },
+      {
+        "pattern": "attempt-performs-operation"
+      },
+      {
+        "pattern": "attempt-record-capture-exists"
+      },
+      {
+        "pattern": "core-settlement-record-capture-exists"
+      },
+      {
+        "pattern": "final-result-record-capture-exists"
+      },
+      {
+        "pattern": "supplementary-failure-record-capture-exists"
+      },
+      {
+        "pattern": "attempt-starts"
+      },
+      {
+        "pattern": "attempt-performs-computations"
+      },
+      {
+        "pattern": "attempt-start-precedes-settlement"
+      },
+      {
+        "pattern": "settlement-precedes-failure"
+      },
+      {
+        "pattern": "failure-precedes-final"
+      },
+      {
+        "pattern": "core-computation-returns-result"
+      },
+      {
+        "pattern": "core-computation-emits-settlement"
+      },
+      {
+        "pattern": "core-result-has-state"
+      },
+      {
+        "pattern": "core-state-resolves-to-value"
+      },
+      {
+        "pattern": "settlement-observation-records"
+      },
+      {
+        "pattern": "core-value-is-valid"
+      },
+      {
+        "pattern": "supplementary-targets-component"
+      },
+      {
+        "pattern": "supplementary-emits-failure"
+      },
+      {
+        "pattern": "failure-has-reason"
+      },
+      {
+        "pattern": "component-is-declared"
+      },
+      {
+        "pattern": "failure-reason-is-closed"
+      },
+      {
+        "pattern": "attempt-returns-final"
+      },
+      {
+        "pattern": "final-event-emits-result"
+      },
+      {
+        "pattern": "final-contains-core"
+      },
+      {
+        "pattern": "final-core-portion-has-state"
+      },
+      {
+        "pattern": "final-core-state-resolves-to-value"
+      },
+      {
+        "pattern": "final-observation-records"
+      },
+      {
+        "pattern": "final-discloses-exact-failure-reason"
+      },
+      {
+        "pattern": "failure-reason-is-disclosed"
+      },
+      {
+        "pattern": "core-members-forward"
+      },
+      {
+        "pattern": "core-members-forward-verification"
+      },
+      {
+        "pattern": "core-members-reverse"
+      },
+      {
+        "pattern": "core-members-in-final"
+      },
+      {
+        "pattern": "each-attempt-occurrence-contained"
+      },
+      {
+        "pattern": "core-member-count-is-captured"
+      },
+      {
+        "pattern": "final-core-member-count-is-captured"
+      },
+      {
+        "pattern": "final-result-member-count-is-captured"
+      },
+      {
+        "pattern": "failure-reason-count-is-captured"
+      },
+      {
+        "pattern": "disclosed-reason-count-is-captured"
+      },
+      {
+        "pattern": "supplementary-result-count-is-captured"
+      },
+      {
+        "pattern": "core-members-forward-verifies"
+      },
+      {
+        "any_of": [
+          {
+            "all_of": [
+              {
+                "pattern": "component-present"
+              },
+              {
+                "pattern": "component-unavailable"
+              },
+              {
+                "pattern": "present-disclosed-omission-population-forbidden"
+              },
+              {
+                "pattern": "present-disclosed-omissions-forbidden"
+              }
+            ]
+          },
+          {
+            "all_of": [
+              {
+                "pattern": "component-omitted"
+              },
+              {
+                "pattern": "component-omission-disclosed"
+              },
+              {
+                "pattern": "omitted-disclosed-omission-population-required"
+              },
+              {
+                "pattern": "omitted-disclosed-omissions-required"
+              },
+              {
+                "pattern": "complete-disclosed-omissions"
+              }
+            ]
+          }
+        ],
+        "branch_cardinality": "exactly_one"
+      }
+    ]
+  }
+}

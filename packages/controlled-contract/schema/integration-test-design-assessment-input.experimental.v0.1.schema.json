@@ -1,0 +1,461 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-chassis.invalid/schemas/integration-test-design-assessment-input.experimental.v0.1.schema.json",
+  "title": "Resolved integration-test design assessment input",
+  "description": "Internal evaluator input after server resolution. This is not an MCP request schema: public callers must not supply subject, requirement, obligation-census, or population-census facts.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "subject",
+    "declaration_completeness",
+    "axis_applicability",
+    "requirements",
+    "population_censuses",
+    "obligations",
+    "declared_integration_tests",
+    "integration_scenarios",
+    "interaction_requirements",
+    "review_questions"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "integration-test-design-assessment-input.experimental.v0.1"
+    },
+    "subject": {
+      "$ref": "#/$defs/subject"
+    },
+    "declaration_completeness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requirement_obligation_bindings",
+        "integration_scenario_bindings",
+        "axis_applicability"
+      ],
+      "properties": {
+        "requirement_obligation_bindings": {
+          "enum": ["complete", "unavailable"]
+        },
+        "integration_scenario_bindings": {
+          "enum": ["complete", "partial"]
+        },
+        "axis_applicability": {
+          "enum": ["complete", "partial"]
+        }
+      }
+    },
+    "axis_applicability": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/axisApplicability"
+      }
+    },
+    "requirements": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/requirement"
+      }
+    },
+    "population_censuses": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/census"
+      }
+    },
+    "obligations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/obligation"
+      }
+    },
+    "declared_integration_tests": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/test"
+      }
+    },
+    "integration_scenarios": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/scenario"
+      }
+    },
+    "interaction_requirements": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/interaction"
+      }
+    },
+    "review_questions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/reviewQuestion"
+      }
+    }
+  },
+  "$defs": {
+    "axis": {
+      "enum": [
+        "registered_routes",
+        "selector_partitions",
+        "authority_producer_consumer_edges",
+        "role_tool_profiles",
+        "failure_phases",
+        "result_schema_population",
+        "persistent_refs_and_state",
+        "concurrency_and_interleavings",
+        "declared_mutants",
+        "prohibited_stubs"
+      ]
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository_id",
+        "wk_id",
+        "selected_unit_address",
+        "work_record_digest",
+        "contract_generation_id",
+        "contract_manifest_digest",
+        "contract_digest",
+        "proof_plan_generation_id",
+        "proof_plan_digest",
+        "selected_pack_digest",
+        "obligation_source_digest",
+        "obligation_source_current",
+        "acceptance_coverage_digest",
+        "acceptance_coverage_current"
+      ],
+      "properties": {
+        "repository_id": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "wk_id": { "type": "string", "pattern": "^WK-[0-9]{4}$" },
+        "selected_unit_address": { "type": "string", "pattern": "^WK-[0-9]{4}(?:#SLICE-[0-9]{3,})?$" },
+        "work_record_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "contract_generation_id": { "type": "string", "minLength": 1 },
+        "contract_manifest_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "contract_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "proof_plan_generation_id": { "type": "string", "minLength": 1 },
+        "proof_plan_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "selected_pack_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "obligation_source_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "obligation_source_current": { "type": "boolean" },
+        "acceptance_coverage_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "acceptance_coverage_current": { "type": "boolean" }
+      }
+    },
+    "axisApplicability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["axis", "status", "rationale"],
+      "properties": {
+        "axis": { "$ref": "#/$defs/axis" },
+        "status": {
+          "enum": ["required", "not_applicable", "review_only", "unevaluable", "undetermined"]
+        },
+        "census_id": { "type": "string", "minLength": 1 },
+        "rationale": { "type": "string", "minLength": 1 }
+      }
+    },
+    "requirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requirement_id", "source_pointer", "text_digest"],
+      "properties": {
+        "requirement_id": { "type": "string", "minLength": 1 },
+        "source_pointer": { "type": "string", "minLength": 1 },
+        "text_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "text": { "type": "string" }
+      }
+    },
+    "populationMemberRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["census_id", "member_id"],
+      "properties": {
+        "census_id": { "type": "string", "minLength": 1 },
+        "member_id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "census": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "census_id",
+        "axis",
+        "source_kind",
+        "provider_id",
+        "owner_id",
+        "generation_id",
+        "content_digest",
+        "member_count",
+        "completeness",
+        "omissions",
+        "currentness",
+        "members"
+      ],
+      "properties": {
+        "census_id": { "type": "string", "minLength": 1 },
+        "axis": { "$ref": "#/$defs/axis" },
+        "source_kind": {
+          "enum": [
+            "server_derived",
+            "repository_registry_derived",
+            "schema_derived",
+            "canonical_closed_set",
+            "contract_declared_open",
+            "test_authored"
+          ]
+        },
+        "provider_id": { "type": "string", "minLength": 1 },
+        "owner_id": { "type": "string", "minLength": 1 },
+        "generation_id": { "type": "string", "minLength": 1 },
+        "content_digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "member_count": { "type": "integer", "minimum": 0 },
+        "completeness": { "enum": ["complete", "partial", "unsupported", "ambiguous"] },
+        "omissions": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "currentness": { "enum": ["current", "stale", "non_current", "unsupported"] },
+        "members": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["member_id"],
+            "properties": {
+              "member_id": { "type": "string", "minLength": 1 },
+              "source_test_proof_id": { "type": "string", "minLength": 1 },
+              "required_before": { "enum": ["absent", "present", "any"] }
+            }
+          }
+        }
+      }
+    },
+    "obligation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "obligation_id",
+        "source_requirement_ids",
+        "verification_claim_ids",
+        "proof_rigor",
+        "integration_required",
+        "required_population_members"
+      ],
+      "properties": {
+        "obligation_id": { "type": "string", "minLength": 1 },
+        "source_requirement_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "verification_claim_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "proof_rigor": {
+          "enum": ["standard", "critical_semantic", "unspecified"]
+        },
+        "integration_required": { "type": ["boolean", "null"] },
+        "required_population_members": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/populationMemberRef" }
+        }
+      }
+    },
+    "test": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["test_id", "repository_path"],
+      "properties": {
+        "test_id": { "type": "string", "minLength": 1 },
+        "repository_path": { "type": "string", "minLength": 1 },
+        "classification_source": { "type": "string", "minLength": 1 }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["census_id", "member_id", "evidence_design"],
+      "properties": {
+        "census_id": { "type": "string", "minLength": 1 },
+        "member_id": { "type": "string", "minLength": 1 },
+        "evidence_design": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "action_id": { "type": "string", "minLength": 1 },
+            "boundary_id": { "type": "string", "minLength": 1 },
+            "input_id": { "type": "string", "minLength": 1 },
+            "dependency_expectation_id": { "type": "string", "minLength": 1 },
+            "registered_set_id": { "type": "string", "minLength": 1 },
+            "returned_set_id": { "type": "string", "minLength": 1 },
+            "invoked_set_id": { "type": "string", "minLength": 1 },
+            "completed_set_id": { "type": "string", "minLength": 1 },
+            "failure_injection_id": { "type": "string", "minLength": 1 },
+            "expected_result_id": { "type": "string", "minLength": 1 },
+            "before_checkpoint_id": { "type": "string", "minLength": 1 },
+            "after_checkpoint_id": { "type": "string", "minLength": 1 },
+            "concurrency_constraint_id": { "type": "string", "minLength": 1 },
+            "mutant_case_id": { "type": "string", "minLength": 1 },
+            "ordinary_discovery_binding_id": { "type": "string", "minLength": 1 },
+            "kill_oracle_id": { "type": "string", "minLength": 1 },
+            "seam_policy_id": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scenario_id",
+        "test_id",
+        "obligation_ids",
+        "inputs",
+        "actions",
+        "expected_results",
+        "coverage"
+      ],
+      "properties": {
+        "scenario_id": { "type": "string", "minLength": 1 },
+        "test_id": { "type": ["string", "null"] },
+        "candidate_test_reference_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "obligation_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["input_id"],
+            "properties": { "input_id": { "type": "string", "minLength": 1 } }
+          }
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["action_id", "boundary_id"],
+            "properties": {
+              "action_id": { "type": "string", "minLength": 1 },
+              "boundary_id": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "expected_results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["result_id"],
+            "properties": {
+              "result_id": { "type": "string", "minLength": 1 },
+              "kind": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "coverage": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/coverage" }
+        },
+        "fixture_effects": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["state_member_id", "effect"],
+            "properties": {
+              "state_member_id": { "type": "string", "minLength": 1 },
+              "effect": { "enum": ["create", "delete", "mutate", "observe"] }
+            }
+          }
+        },
+        "seams": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["authority_member_id", "mode"],
+            "properties": {
+              "authority_member_id": { "type": "string", "minLength": 1 },
+              "mode": { "enum": ["observe", "external_simulation", "fault_injection", "replace_result"] }
+            }
+          }
+        },
+        "proof_specification": {
+          "$ref": "#/$defs/proofSpecification"
+        }
+      }
+    },
+    "proofSpecificationFacet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode"],
+      "properties": {
+        "mode": { "enum": ["closed_set", "required", "not_applicable"] },
+        "items": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "rationale": { "type": "string", "minLength": 1 }
+      }
+    },
+    "proofSpecification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "public_observations",
+        "forbidden_side_effects",
+        "follow_up",
+        "falsifiers",
+        "writable_roots"
+      ],
+      "properties": {
+        "public_observations": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "forbidden_side_effects": { "$ref": "#/$defs/proofSpecificationFacet" },
+        "follow_up": { "$ref": "#/$defs/proofSpecificationFacet" },
+        "falsifiers": { "$ref": "#/$defs/proofSpecificationFacet" },
+        "writable_roots": { "$ref": "#/$defs/proofSpecificationFacet" }
+      }
+    },
+    "interaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["interaction_id", "coverage_mode", "required_population_members"],
+      "properties": {
+        "interaction_id": { "type": "string", "minLength": 1 },
+        "coverage_mode": { "enum": ["single_scenario", "collective"] },
+        "required_population_members": {
+          "type": "array",
+          "minItems": 2,
+          "items": { "$ref": "#/$defs/populationMemberRef" }
+        }
+      }
+    },
+    "reviewQuestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["question_id", "question"],
+      "properties": {
+        "question_id": { "type": "string", "minLength": 1 },
+        "question": { "type": "string", "minLength": 1 },
+        "axis": { "$ref": "#/$defs/axis" },
+        "resolution_owner": { "type": "string", "minLength": 1 },
+        "related_ids": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

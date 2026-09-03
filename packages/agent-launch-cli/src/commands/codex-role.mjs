@@ -3,8 +3,6 @@ import { fileURLToPath } from "node:url";
 import { open } from "node:fs/promises";
 import { spawn } from "node:child_process";
 
-import { loadWorkRecordById } from "@agent-chassis/wiki-core";
-
 import { parseArgs } from "../lib/cli.mjs";
 import {
   BubblewrapIsolationError,
@@ -24,11 +22,10 @@ import {
   ensureNewWorkerWriteRoots
 } from "../lib/codex-worker-plan.mjs";
 import {
-  resolveFindingsOnlyAcceptanceContract
-} from "../lib/workspace-agent-findings-role-context.mjs";
-import {
   createStdioMcpConduit
 } from "../lib/stdio-mcp-conduit.mjs";
+
+export const CODEX_ROLE_MCP_CONDUIT_CONSTRUCTOR = createStdioMcpConduit;
 import {
   buildCodexStdioMcpRegistrationOverrides,
   resolveCodexConduitInput
@@ -110,12 +107,10 @@ export {
   CODEX_ROLE_ISOLATION_FAIL_CLOSED_MODE,
   CODEX_ROLE_ISOLATION_SCHEMA_VERSION,
   ROLE_CONFIG,
-  buildCodexReviewerWriteScopeRefusal,
   buildCodexRoleBubblewrapPlan,
   buildCodexRoleIsolationInputs,
   buildFastDecommissionedRefusalPlan,
   buildHeadlessPlan,
-  enforceReviewerWriteScope,
   findRepoRoot,
   stripNestedCodexSandboxArgs
 } from "../lib/workspace-agent-codex-role-adapter.mjs";
@@ -150,7 +145,7 @@ const CODEX_ROLE_MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const HELP_TEXT = `agent-launch codex-role <role> <ID> [instructions...]
 
 INTERNAL IMPLEMENTATION PATH. The canonical operator surface is
-\`agent-launch worker|review|redteam|orchestrator|resume\` with the
+\`agent-launch worker|orchestrator|resume\` with the
 canonical option grammar [--profile <profile>] [--app <app>] [--model <model>].
 codex-role remains callable in-package for the canonical commands and for
 existing in-process callers; it is not the documented operator surface.
@@ -159,8 +154,6 @@ Internal roles:
   orch IN-####           Orchestrator launch (canonical: agent-launch orchestrator)
   orch-resume IN-####    Orchestrator resume (canonical: agent-launch resume)
   worker <unit-address>  Implementation worker (canonical: agent-launch worker)
-  review <unit-address>  Findings-only review (canonical: agent-launch review)
-  redteam <subject>      Findings-only redteam (canonical: agent-launch redteam)
   list                   List orchestrator runtime history
 
 Options:
@@ -188,6 +181,12 @@ export async function runCodexRole(argv, io = {}, context = {}) {
   if (role === "list") {
     await runCodexOrchestratorList(argv.slice(1), io);
     return;
+  }
+
+  if (role === "review" || role === "reviewer" || role === "redteam") {
+    throw new Error(
+      "reviewer and redteam execution is available only through workspace_agent_dispatch"
+    );
   }
 
   if (hasFastFlagSpelling(options)) {
@@ -258,10 +257,9 @@ export async function buildCodexRolePlan({
   logFile = null,
 
   terminalStructuredRoleResultMode = undefined,
-
-  config_root_dir = null,
-  trusted_frozen_review_contract = null,
-  reviewer_dependency_binds = null
+  acceptanceCriteria = [],
+  acceptanceValidation = [],
+  advisory_review_input = null
 } = {}) {
   const normalizedRole = normalizeRole(role);
   if (normalizedRole === "orch" || normalizedRole === "orch-resume") {
@@ -314,16 +312,13 @@ export async function buildCodexRolePlan({
     }
     return ensureRefusalDependencyEvidence(workerPlan);
   }
-  if (normalizedRole === "review") {
-    const acceptance = await resolveCodexReadOnlyAcceptance({
-      role: normalizedRole,
-      subject,
-      cwd,
-      workspaceDir,
-
-      frozenReviewContract: trusted_frozen_review_contract
-    });
-    const reviewPlan = await buildReadOnlyPlan({
+  if (normalizedRole === "review" || normalizedRole === "redteam") {
+    if (advisory_review_input === null) {
+      throw Object.assign(new Error("advisory_review_input_required"), {
+        code: "advisory_review_input_required"
+      });
+    }
+    const readOnlyPlan = await buildReadOnlyPlan({
       role: normalizedRole,
       subject,
       promptArgs,
@@ -334,57 +329,17 @@ export async function buildCodexRolePlan({
       workspaceDir,
       dispatchWorktreeRoot,
       terminalStructuredRoleResultMode,
-
-      canonicalRepo: config_root_dir,
-      reviewerDependencyBinds: reviewer_dependency_binds,
-      ...acceptance
+      advisoryReviewInput: advisory_review_input,
+      reviewerDependencyBinds: [],
+      acceptanceCriteria,
+      acceptanceValidation
     });
     if (typeof dispatchWorktreeRoot === "string" && dispatchWorktreeRoot.length > 0) {
-      reviewPlan.dispatchWorktreeRoot = dispatchWorktreeRoot;
+      readOnlyPlan.dispatchWorktreeRoot = dispatchWorktreeRoot;
     }
-    return reviewPlan;
-  }
-  if (normalizedRole === "redteam") {
-    const acceptance = await resolveCodexReadOnlyAcceptance({
-      role: normalizedRole,
-      subject,
-      cwd,
-      workspaceDir
-    });
-    const redteamPlan = await buildReadOnlyPlan({
-      role: normalizedRole,
-      subject,
-      promptArgs,
-      env,
-      cwd,
-      resolvedProfile,
-      workspaceAlias,
-      workspaceDir,
-      dispatchWorktreeRoot,
-      terminalStructuredRoleResultMode,
-      ...acceptance
-    });
-    if (typeof dispatchWorktreeRoot === "string" && dispatchWorktreeRoot.length > 0) {
-      redteamPlan.dispatchWorktreeRoot = dispatchWorktreeRoot;
-    }
-    return redteamPlan;
+    return readOnlyPlan;
   }
   throw new Error(`Unknown codex role: ${role}\n\n${HELP_TEXT}`);
-}
-
-async function resolveCodexReadOnlyAcceptance({ role, subject, cwd, workspaceDir, frozenReviewContract = null }) {
-  if (typeof subject !== "string" || !subject.startsWith("WK-")) {
-    return {};
-  }
-  const repo = workspaceDir ?? await findRepoRoot(cwd);
-  return resolveFindingsOnlyAcceptanceContract({
-    role,
-    subject,
-    workspaceDir: repo,
-    loadWorkRecord: loadWorkRecordById,
-
-    frozenReviewContract
-  });
 }
 
 async function executePlan(plan, io) {
@@ -624,6 +579,7 @@ export async function runHeadlessCaptureChild({
   let child = null;
   let heartbeatTimer = null;
   let status;
+  let signal = null;
   if (plainSpawnDecision && plan.stdioMcpConduit) {
     writeStderr(io.stderr,
       `codex-${plan.role}: plain spawn cannot carry the launcher-owned FIFO conduit; bubblewrap is required\n`);
@@ -668,7 +624,7 @@ export async function runHeadlessCaptureChild({
       });
     }
     child = spawned;
-    status = await new Promise((resolve, reject) => {
+    const terminal = await new Promise((resolve, reject) => {
       heartbeatTimer = setInterval(() => {
         void recordHeartbeatTick({ io, plan, startedAtEpoch, heartbeatTimeline });
       }, intervalSeconds * 1000);
@@ -676,8 +632,10 @@ export async function runHeadlessCaptureChild({
         heartbeatTimer.unref();
       }
       child.on("error", reject);
-      child.on("close", resolve);
+      child.on("close", (code, childSignal) => resolve({ code, signal: childSignal }));
     });
+    status = terminal.code;
+    signal = terminal.signal;
   } finally {
     if (heartbeatTimer !== null) {
       clearInterval(heartbeatTimer);
@@ -706,17 +664,19 @@ export async function runHeadlessCaptureChild({
     completedAt,
     completedAtEpoch,
     status,
+    signal,
     childPid,
     heartbeatPath,
     heartbeatTimeline,
     moduleDir: CODEX_ROLE_MODULE_DIR
   });
 
-  writeStderr(io.stderr, `\n${plan.logPrefix}: exited with status ${status}. Full log: ${plan.logPath}\n`);
-  if (status !== 0) {
+  writeStderr(io.stderr, `\n${plan.logPrefix}: exited with status ${status ?? "null"}${signal ? ` (signal ${signal})` : ""}. Full log: ${plan.logPath}\n`);
+  if (status !== 0 || signal !== null) {
     writeStderr(io.stderr, `${plan.logPrefix}: last log lines:\n`);
     writeStderr(io.stderr, tailLines(await readFileIfExists(plan.logPath), 40));
-    process.exitCode = status;
+    if (typeof status === "number") process.exitCode = status;
+    if (signal !== null) process.kill(process.pid, signal);
   }
 }
 

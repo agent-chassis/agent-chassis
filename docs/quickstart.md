@@ -1,9 +1,12 @@
 
 # Quickstart
 
-This is the canonical setup path for standing up AgentChassis in a repo. It
+This is the canonical setup path for standing up AgentChassis in a new repo. It
 walks through the same install steps as the [README](../README.md), with a
 little more explanation of what each step does.
+
+This path assumes there is no existing root agent guidance or AgentChassis
+adoption state. Existing-repository adoption is deferred.
 
 By the end you will have: the `@agent-chassis/core` package installed, your wiki
 contract surfaces seeded, a built code index, an MCP client able to launch the
@@ -72,14 +75,16 @@ npx agent-chassis setup
 ```
 
 The setup command runs bootstrap, prompts or selects the launcher template for a
-detected Claude or Codex CLI, creates an empty root guidance
-placeholder/checkpoint for the selected agent when absent (`CLAUDE.md` for
-Claude, `AGENTS.md` for Codex), copies `agent-launch.toml` only when it is
-absent, runs `npx agent-launch init-config`, and prints the review, commit,
-code-index, and orchestrator commands to run next. It does not copy
-`wiki/templates/AGENTS.md.boilerplate.md` into any root guidance file. The
-touched guidance file is not repo-specific operating authority until you review
-and adapt it.
+detected Claude or Codex CLI, copies `agent-launch.toml` only when it is absent,
+runs `npx agent-launch init-config`, and prints the remaining commands. Setup
+never creates, reads, modifies, or deletes root `AGENTS.md` or `CLAUDE.md`.
+
+Run the two operator-owned commands printed by setup:
+
+```sh
+cat wiki/templates/AGENTS.md.boilerplate.md >> AGENTS.md
+printf '@AGENTS.md\n' > CLAUDE.md
+```
 
 ## 3. Bootstrap the repo
 
@@ -95,10 +100,8 @@ an agent, or reaches an external service.
 
 - `wiki/schema.md`, `wiki/conventions.md`, `wiki/index.md`, and the generated
   wiki views — your consumer-owned wiki contract surfaces.
-- `wiki/initiatives/IN-0001.md` — the owned adoption initiative.
-- `wiki/work-records/WK-0001.json` — the adoption tracker.
-- `wiki/templates/AGENTS.md.boilerplate.md` — a helper template you adapt into
-  your repo's own root `AGENTS.md`.
+- `wiki/initiatives/IN-0001.md` — an in-progress placeholder for the first real work.
+- `wiki/templates/AGENTS.md.boilerplate.md` — directly appendable root guidance.
 - `wiki/.wiki-contract.json` — local contract metadata (your `vocab.topics.local`
   and `inference.paths` entries are preserved across reruns).
 - `wiki/.wiki-mcp.json` — a gitignored local workspace declaration recording your
@@ -106,19 +109,11 @@ an agent, or reaches an external service.
 - `.cache/wiki-search/index.json` — the initial lexical search index.
 - Root `.gitignore` entries for the generated caches and local-only artifacts.
 
-Bootstrap is idempotent and non-overwriting: rerunning it preserves `IN-0001`,
-seeded records, and any repo-specific edits, and only fills in missing surfaces.
-
-Bootstrap does **not** create root guidance files, does **not** write global MCP
-client config, does **not** build the code index, and does **not** create an
-adoption guide. The adoption guide is the single package-owned, repo-neutral
-[docs/adoption.md](adoption.md) shipped with `@agent-chassis/core`; your
-repository's own adoption state lives in `IN-0001` and `WK-0001`. Use
-`npx agent-chassis setup` for the first-run flow; setup only creates the
-selected empty root guidance placeholder/checkpoint when absent (`AGENTS.md` for
-Codex or `CLAUDE.md` for Claude). Review and adapt that file before treating it
-as repo-local operating authority, review the launcher config, and commit the
-bootstrap-created files before building the code index.
+Fresh bootstrap creates no `WK-0001` and leaves that identifier allocator-
+eligible for the first real work record. It does **not** create root guidance
+files, write global MCP client config, build the code index, or run an adoption
+gate. The legacy adoption-verification command remains available for
+compatibility but is not part of fresh installation.
 
 ## 4. Build the code index
 
@@ -136,8 +131,10 @@ review/commit checkpoint — for example:
 
 ```bash
 npx agent-launch init-config
+cat wiki/templates/AGENTS.md.boilerplate.md >> AGENTS.md
+printf '@AGENTS.md\n' > CLAUDE.md
 git status --short
-git add <selected-guidance-file> wiki .gitignore agent-launch.toml
+git add AGENTS.md CLAUDE.md wiki .gitignore agent-launch.toml
 git commit -m "bootstrap AgentChassis wiki adoption"
 npx wiki code-index build --json
 ```
@@ -215,13 +212,13 @@ it is not yet applied to model thinking output.
 ## 7. Drive orchestrators (operator step)
 
 Orchestrator launch and resume are human/operator entrypoints — agents do not
-launch them. With the packages installed, the repo bootstrapped, the selected
-root guidance file reviewed/adapted, launcher config initialized, and the code
+launch them. With the packages installed, the repo bootstrapped, both root
+guidance files created by the operator, launcher config initialized, and the code
 index built, you (the operator) drive work through orchestrators from your repo
 root:
 
 ```bash
-# Start the seeded adoption orchestrator from committed first-run setup.
+# Start the first real work from committed first-run setup.
 npx agent-launch orchestrator IN-0001
 
 # Optional overrides still resolve through launcher model selection.
@@ -255,9 +252,9 @@ and remain running for the duration of the session; they are not fire-and-forget
 background jobs. Attached does not mean hands-on, though: once launched, an
 orchestrator routinely runs on its own for hours, dispatching and reviewing
 successive units of work, and the attached session is there so you can watch
-progress and step in — not because it needs constant input. The orchestrator
-drives `WK-0001` and dispatches scoped worker, reviewer, and redteam work — you
-should not run individual slices by hand.
+progress and step in — not because it needs constant input. The operator uses
+the IN-0001 placeholder to define the first real work; the first allocated work
+record may then be `WK-0001`.
 
 ### Sandbox prerequisite (bubblewrap)
 

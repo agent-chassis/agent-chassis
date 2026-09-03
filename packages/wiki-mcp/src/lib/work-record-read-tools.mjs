@@ -1,25 +1,148 @@
 
 
-import { spawnSync } from "node:child_process";
-import fs from "node:fs";
 import path from "node:path";
 
 import {
   getWorkRecordSummary,
   preflightProspectiveWorkRecordDispatch,
+  projectWorkRecordPrivateScopePolicyFacts,
   readWorkRecordById,
   validateDocsPolicyOperation,
   validateWorkRecordDispatch
 } from "@agent-chassis/wiki-core";
 import { parseWorkRecordSummaryUnit } from "@agent-chassis/wiki-core/src/lib/work-record-summary.mjs";
+
+import { RECORD_ID_PATTERN } from "@agent-chassis/wiki-core/src/lib/work-record-contract-edit-shared.mjs";
+import { SHA256_PATTERN } from "@agent-chassis/wiki-core/src/lib/work-record-schema-constants.mjs";
 import {
   projectNextActionScalar,
   validateNextCalls
 } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
 import {
+  validateWorkerAdmissionRecoveryResult
+} from "@agent-chassis/wiki-core/src/lib/node-engine-worker-admission-recovery.mjs";
+import {
   getSummarySelectorValidationIssues,
-  runWorkRecordSummaryWithCompactGate
+  runWorkRecordSummaryWithCompactGate,
+  workRecordDetailSelectorSchemaShape
 } from "./work-record-compact-read-gate.mjs";
+import {
+  MCP_CALLABLE_OWNER_PROJECTION_PARAM,
+  projectMcpCallableOwnerIssues
+} from "./register-tool.mjs";
+
+import {
+  buildRunValidationTargetNotAuthorizedError,
+  collectAuthorizedNodeTestTargets,
+  NODE_TEST_FORBIDDEN_CALLER_FIELDS,
+  parseNodeTestUnitAddress,
+  resolveNodeTestTarget,
+  resolveNodeTestUnitSections,
+  runNodeTestStep,
+  toPosixRelative
+} from "./work-record-node-test-validation.mjs";
+
+const RECORD_STALENESS_CHECK_ENTRY_LIMIT = 100;
+
+function projectVerboseRecoveryDiagnostic(readiness) {
+  const admissibility = readiness?.admissibility;
+  if (!admissibility || !Object.hasOwn(admissibility, "recovery_validation")) {
+    return readiness;
+  }
+  const validation = validateWorkerAdmissionRecoveryResult(
+    admissibility.recovery_validation,
+    { expectedProjectionMode: "bounded_current_decision_recovery" }
+  );
+  const carrier = validation.diagnostic_carrier;
+  return {
+    ...readiness,
+    admissibility: {
+      ...admissibility,
+      recovery_validation: validation,
+      ...(carrier === undefined ? {} : { recovery_diagnostic_carrier: carrier })
+    }
+  };
+}
+
+function projectOrdinaryRecoveryDiagnostic(readiness) {
+  const admissibility = readiness?.admissibility;
+  if (!admissibility || !Object.hasOwn(admissibility, "recovery_validation")) {
+    return readiness;
+  }
+  const validation = validateWorkerAdmissionRecoveryResult(
+    admissibility.recovery_validation,
+    { expectedProjectionMode: "bounded_current_decision_recovery" }
+  );
+  const projectedAdmissibility = { ...admissibility };
+  delete projectedAdmissibility.recovery;
+  return {
+    ...readiness,
+    admissibility: {
+      ...projectedAdmissibility,
+      recovery_diagnostic: validation.diagnostic
+    }
+  };
+}
+
+function classifyRecordStalenessEntry(entry, loaded) {
+  const diagnosticCodes = (Array.isArray(loaded?.diagnostics) ? loaded.diagnostics : [])
+    .map((diagnostic) => diagnostic?.code)
+    .filter((code) => typeof code === "string");
+  const base = { id: entry.id, observed_source_digest: entry.observed_source_digest };
+
+  if (diagnosticCodes.includes("missing_json_record")) {
+    return { ...base, state: "absent" };
+  }
+
+  const currentSourceDigest =
+    typeof loaded?.source_digest === "string" ? loaded.source_digest : null;
+  if (loaded?.valid !== true || currentSourceDigest === null) {
+    return { ...base, state: "unreadable", diagnostic_codes: diagnosticCodes };
+  }
+
+  if (currentSourceDigest === entry.observed_source_digest) {
+    return { ...base, state: "unchanged" };
+  }
+
+  return { ...base, state: "changed", current_source_digest: currentSourceDigest };
+}
+
+function assertRecordStalenessCheckEntries(entries) {
+  if (!Array.isArray(entries) || entries.length === 0) {
+    throw new Error(
+      "workspace_record_staleness_check requires a non-empty entries array of " +
+        "{id, observed_source_digest}"
+    );
+  }
+  entries.forEach((entry, index) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      throw new Error(`workspace_record_staleness_check entries[${index}] must be an object`);
+    }
+    const keys = Object.keys(entry).sort();
+    if (keys.length !== 2 || keys[0] !== "id" || keys[1] !== "observed_source_digest") {
+      throw new Error(
+        `workspace_record_staleness_check entries[${index}] must carry exactly ` +
+          `{id, observed_source_digest}; got: ${keys.join(", ") || "(no fields)"}`
+      );
+    }
+    if (typeof entry.id !== "string" || !RECORD_ID_PATTERN.test(entry.id)) {
+      throw new Error(
+        `workspace_record_staleness_check entries[${index}].id must be a canonical ` +
+          `WK-#### work-record id; got: ${JSON.stringify(entry.id)}`
+      );
+    }
+    if (
+      typeof entry.observed_source_digest !== "string" ||
+      !SHA256_PATTERN.test(entry.observed_source_digest)
+    ) {
+      throw new Error(
+        `workspace_record_staleness_check entries[${index}].observed_source_digest must be ` +
+          "the raw sha256:<hex> source_digest a read returned, not a compact_read_token; got: " +
+          JSON.stringify(entry.observed_source_digest)
+      );
+    }
+  });
+}
 
 async function readSelectedWorkRecordFullSummary({ dir, id = null, unit = null }) {
   const selectedUnit = parseWorkRecordSummaryUnit(unit ?? id);
@@ -45,210 +168,6 @@ async function readSelectedWorkRecordFullSummary({ dir, id = null, unit = null }
   };
 }
 
-const NODE_TEST_STEP_TIMEOUT_MS = 30000;
-const NODE_TEST_OUTPUT_CAP_BYTES = 65536;
-
-const NODE_TEST_FORBIDDEN_CALLER_FIELDS = [
-  "snapshot",
-  "authoritySnapshot",
-  "validation_authority",
-  "authority",
-  "runtime_policy",
-  "runtimePolicy",
-  "launcherRuntimePolicy",
-  "policy",
-  "env",
-  "runtime_env",
-  "runtimeDirs",
-  "runtime_dirs",
-  "node_binary",
-  "nodeBinary",
-  "workspace_identity",
-  "source_digest",
-  "timeout",
-  "outputCap",
-  "cwd",
-  "workspaceRoot",
-  "args"
-];
-
-const RUN_VALIDATION_REFUSAL_SCHEMA_VERSION = "workspace-run-validation-refusal.v1";
-const RUN_VALIDATION_TARGET_NOT_AUTHORIZED_CODE =
-  "workspace_run_validation.target_not_authorized.v1";
-const RUN_VALIDATION_TARGET_NOT_AUTHORIZED_NEXT_ACTION =
-  "Pick a target from authorized_targets, or add this target to the unit's " +
-  "sections.structured_validation.allowed[] with command node_test, then resubmit.";
-
-function buildRunValidationTargetNotAuthorizedError({ address, requestedTarget, authorizedTargets }) {
-  const message =
-    `workspace_run_validation target is not authorized by the work contract for ${address}: ` +
-    `${requestedTarget} is not a node_test entry in sections.structured_validation.allowed[].`;
-  const error = new Error(message);
-  error.envelope = {
-    schema_version: RUN_VALIDATION_REFUSAL_SCHEMA_VERSION,
-    tool: "workspace_run_validation",
-    accepted: false,
-    refusal_code: RUN_VALIDATION_TARGET_NOT_AUTHORIZED_CODE,
-    refusal_message: message,
-    unit: address,
-    requested_target: requestedTarget,
-    authorized_targets: [...authorizedTargets].sort(),
-    next_action: RUN_VALIDATION_TARGET_NOT_AUTHORIZED_NEXT_ACTION
-  };
-  return error;
-}
-
-function toPosixRelative(value) {
-
-  return String(value).split(path.sep).join("/").split("\\").join("/");
-}
-
-function parseNodeTestUnitAddress(unitInput) {
-  const raw = typeof unitInput === "string" ? unitInput.trim() : "";
-  if (!raw) {
-    throw new Error("workspace_run_validation requires a non-empty unit address");
-  }
-  const hashIndex = raw.indexOf("#");
-  if (hashIndex < 0) {
-    return { address: raw, recordId: raw, sliceId: null };
-  }
-  const recordId = raw.slice(0, hashIndex).trim();
-  const sliceId = raw.slice(hashIndex + 1).trim();
-  if (!recordId || !sliceId) {
-    throw new Error(`workspace_run_validation could not parse unit address: ${raw}`);
-  }
-  return { address: `${recordId}#${sliceId}`, recordId, sliceId };
-}
-
-export function resolveNodeTestUnitSections(record, sliceId) {
-  if (!sliceId) {
-    return record && typeof record.sections === "object" ? record.sections : null;
-  }
-  const slices = Array.isArray(record && record.slices) ? record.slices : [];
-  const slice = slices.find(
-    (entry) =>
-      entry &&
-      typeof entry.id === "string" &&
-      entry.id.toUpperCase() === sliceId.toUpperCase()
-  );
-  if (!slice) {
-    return null;
-  }
-  return typeof slice.sections === "object" ? slice.sections : null;
-}
-
-export function collectAuthorizedNodeTestTargets(sections) {
-  const structured = sections && typeof sections.structured_validation === "object"
-    ? sections.structured_validation
-    : null;
-  const allowed = structured && Array.isArray(structured.allowed) ? structured.allowed : [];
-  const targets = new Set();
-  for (const entry of allowed) {
-    if (entry && entry.command === "node_test" && typeof entry.target === "string") {
-      targets.add(toPosixRelative(entry.target));
-    }
-  }
-  return targets;
-}
-
-function resolveNodeTestTarget(workspaceDir, targetInput) {
-  if (typeof targetInput !== "string" || targetInput.length === 0) {
-    throw new Error("workspace_run_validation requires a non-empty target");
-  }
-  if (targetInput.includes("\0") || /[\r\n]/.test(targetInput)) {
-    throw new Error("workspace_run_validation target contains invalid characters");
-  }
-  if (path.isAbsolute(targetInput)) {
-    throw new Error("workspace_run_validation target must be repo-relative");
-  }
-  const absolute = path.resolve(workspaceDir, targetInput);
-  const relative = path.relative(workspaceDir, absolute);
-  if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) {
-    throw new Error("workspace_run_validation target escapes the workspace repo");
-  }
-  const extension = path.extname(absolute).toLowerCase();
-  if (extension !== ".js" && extension !== ".mjs") {
-    throw new Error("workspace_run_validation target must be a .js or .mjs file");
-  }
-  let realTarget;
-  try {
-    realTarget = fs.realpathSync(absolute);
-  } catch {
-    throw new Error(`workspace_run_validation target does not exist: ${toPosixRelative(relative)}`);
-  }
-  const realRoot = fs.realpathSync(workspaceDir);
-  const realRelative = path.relative(realRoot, realTarget);
-  if (realRelative.startsWith("..") || path.isAbsolute(realRelative)) {
-    throw new Error("workspace_run_validation target resolves outside the workspace repo");
-  }
-  if (!fs.statSync(realTarget).isFile()) {
-    throw new Error("workspace_run_validation target is not a regular file");
-  }
-  return { absolute, posixRelative: toPosixRelative(relative) };
-}
-
-function buildNodeTestChildEnv() {
-  const childEnv = { ...process.env };
-  delete childEnv.NODE_TEST_CONTEXT;
-  delete childEnv.NODE_OPTIONS;
-  for (const key of Object.keys(childEnv)) {
-    if (
-      key.startsWith("WIKI_MCP_") ||
-      key.startsWith("AGENT_LAUNCH_") ||
-      key.startsWith("NODE_ENGINE_")
-    ) {
-      delete childEnv[key];
-    }
-  }
-  return childEnv;
-}
-
-function boundNodeTestOutput(value) {
-  const text = typeof value === "string" ? value : value == null ? "" : String(value);
-  if (Buffer.byteLength(text, "utf8") <= NODE_TEST_OUTPUT_CAP_BYTES) {
-    return { text, truncated: false };
-  }
-  return {
-    text: Buffer.from(text, "utf8").subarray(0, NODE_TEST_OUTPUT_CAP_BYTES).toString("utf8"),
-    truncated: true
-  };
-}
-
-function runNodeTestStep({ workspaceDir, flag, absoluteTarget, posixRelative }) {
-  const result = spawnSync(process.execPath, [flag, absoluteTarget], {
-    cwd: workspaceDir,
-    shell: false,
-    encoding: "utf8",
-    env: buildNodeTestChildEnv(),
-    timeout: NODE_TEST_STEP_TIMEOUT_MS,
-    maxBuffer: NODE_TEST_OUTPUT_CAP_BYTES
-  });
-  const timedOut = Boolean(result.error && result.error.code === "ETIMEDOUT");
-  const outputOverflow = Boolean(result.error && result.error.code === "ENOBUFS");
-  const spawnError = result.error && !timedOut && !outputOverflow
-    ? String(result.error.code || result.error.message || result.error)
-    : null;
-  const exitCode = typeof result.status === "number" ? result.status : null;
-  const stdout = boundNodeTestOutput(result.stdout);
-  const stderr = boundNodeTestOutput(result.stderr);
-  return {
-    step: `node ${flag}`,
-    command: "node_test",
-    argv: ["node", flag, posixRelative],
-    target: posixRelative,
-    ran: true,
-    skipped: false,
-    exit_code: exitCode,
-    signal: result.signal ?? null,
-    timed_out: timedOut,
-    output_truncated: stdout.truncated || stderr.truncated || outputOverflow,
-    spawn_error: spawnError,
-    stdout: stdout.text,
-    stderr: stderr.text,
-    ok: !result.error && exitCode === 0
-  };
-}
-
 export function registerWorkRecordReadTools({
   registerTool,
   workspaceRepos,
@@ -267,6 +186,7 @@ export function registerWorkRecordReadTools({
   const nonEmptyString = z.string().refine((value) => value.trim().length > 0, {
     message: "Expected a non-empty string"
   });
+
   const workRecordSummaryInputSchema = z.object({
     repo: z.string().optional(),
     id: nonEmptyString.optional(),
@@ -275,13 +195,21 @@ export function registerWorkRecordReadTools({
     verbose: z.boolean().optional(),
     include_full_summary: z.boolean().optional(),
     accept_full_read: z.literal(true).optional(),
-    compact_read_token: z.string().optional()
+    compact_read_token: z.string().optional(),
+    ...workRecordDetailSelectorSchemaShape(z, "workspace_work_record_summary")
   }).strict().superRefine((args, context) => {
-    for (const issue of getSummarySelectorValidationIssues(args)) {
+    const issues = getSummarySelectorValidationIssues(args);
+    const ownerProjection = projectMcpCallableOwnerIssues({
+      ownerId: "work-record-compact-read-gate",
+      tool: "workspace_work_record_summary",
+      issues
+    });
+    for (const issue of issues) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: issue.path,
-        message: issue.message
+        message: issue.message,
+        params: { [MCP_CALLABLE_OWNER_PROJECTION_PARAM]: ownerProjection }
       });
     }
   });
@@ -289,7 +217,7 @@ export function registerWorkRecordReadTools({
     "workspace_docs_policy_validate",
     {
       description:
-        "Validate agent-facing docs for non-MCP role-dispatch authority drift; operator/internal sections are audience-scoped and do not automatically fail. Compact by default; pass verbose:true or include_all_findings:true for the full diagnostics payload.",
+        "Validate agent-facing docs for non-MCP role-dispatch authority drift. Read-only; operator/internal sections are audience-scoped. Compact by default; use verbose:true or include_all_findings:true for full diagnostics.",
       inputSchema: {
         repo: z.string().optional(),
         paths: z.array(z.string()).optional(),
@@ -317,7 +245,7 @@ export function registerWorkRecordReadTools({
     "workspace_work_record_summary",
     {
       description:
-        "Return a compact selected-unit work-record summary. Select the unit by id, unit, or path. For tracker WK-level summaries, compact/default output is the first step: detailed done, cancelled, and parked slice bodies are intentionally omitted, and record/slice agent note bodies are omitted. A selected slice unit such as WK-0001#slice-id returns only that unit's detail in one call; verbose, include_full_summary, and accept_full_read cannot widen a selected response. Large unscoped expensive reads remain compact-first unless the caller explicitly passes accept_full_read:true for that call.",
+        "Read a compact WK or slice summary selected by id, unit, or path. A selected slice returns only that unit. WK-level compact output omits detailed inactive slices and note bodies; pass accept_full_read:true for an unscoped full read. Read-only; detail flags do not widen a selected-slice response.",
       inputSchema: workRecordSummaryInputSchema
     },
     async (args) => {
@@ -342,7 +270,7 @@ export function registerWorkRecordReadTools({
     "workspace_work_record_validate",
     {
       description:
-        "Validate a canonical JSON work record in a configured workspace repository. Read-only: returns structured diagnostics and never writes generated views, caches, or records.",
+        "Validate one canonical JSON work record and return structured diagnostics plus top-level non-authoritative private-scope policy facts. Read-only; policy facts are possible CCE input and do not authorize, refuse, or certify. Writes no record, cache, or generated view.",
       inputSchema: {
         repo: z.string().optional(),
         id: z.string()
@@ -361,7 +289,61 @@ export function registerWorkRecordReadTools({
           source_path_relative: result.source_path_relative,
           source_digest: result.source_digest,
           valid: result.valid,
-          diagnostics: result.diagnostics
+          diagnostics: result.diagnostics,
+          policy_facts: projectWorkRecordPrivateScopePolicyFacts(result.record)
+        });
+      } catch (error) {
+        return errorContent(error);
+      }
+    }
+  );
+
+  registerTool(
+    "workspace_record_staleness_check",
+    {
+      description:
+        "Read-only comparison of up to 100 previously observed WK source digests. Each result is unchanged, changed with current_source_digest, absent, or unreadable; the last two stay distinct, and unchecked_ids reports overflow. It returns no record content or authority and does not replace a fresh read or write CAS. Malformed input refuses.",
+      inputSchema: {
+        repo: z.string().optional(),
+        entries: z
+          .array(
+            z
+              .object({
+                id: z.string().regex(RECORD_ID_PATTERN),
+                observed_source_digest: z.string().regex(SHA256_PATTERN)
+              })
+              .strict()
+          )
+          .min(1)
+      }
+    },
+    async (args) => {
+      try {
+        const suppliedArgs = args && typeof args === "object" ? args : {};
+        const submitted = suppliedArgs.entries;
+        assertRecordStalenessCheckEntries(submitted);
+
+        const workspace = resolveWorkspaceRepo(workspaceRepos, suppliedArgs.repo);
+        const resolvable = submitted.slice(0, RECORD_STALENESS_CHECK_ENTRY_LIMIT);
+        const uncheckedIds = submitted
+          .slice(RECORD_STALENESS_CHECK_ENTRY_LIMIT)
+          .map((entry) => entry.id);
+
+        const results = [];
+        for (const entry of resolvable) {
+
+          const loaded = await readWorkRecordById({ dir: workspace.dir, id: entry.id });
+          results.push(classifyRecordStalenessEntry(entry, loaded));
+        }
+
+        return jsonContent({
+          workspaceRepo: workspace.repo,
+          entry_limit: RECORD_STALENESS_CHECK_ENTRY_LIMIT,
+          total_count: submitted.length,
+          returned_count: results.length,
+          has_more: uncheckedIds.length > 0,
+          unchecked_ids: uncheckedIds,
+          results
         });
       } catch (error) {
         return errorContent(error);
@@ -373,7 +355,7 @@ export function registerWorkRecordReadTools({
     "workspace_preflight_dispatch",
     {
       description:
-        "Preflight a proposed work-record dispatch contract without mutating canonical records or admission sidecars.",
+        "Preflight a proposed work-record dispatch contract. Read-only; mutates neither canonical records nor admission sidecars.",
       inputSchema: {
         repo: z.string().optional(),
         proposed_record: z.object({}).passthrough(),
@@ -403,8 +385,8 @@ export function registerWorkRecordReadTools({
     "workspace_validate_dispatch",
     {
       description: isPaidTier
-        ? "Validate dispatch readiness for a WK or slice in a configured workspace repository. When required graph impact is stale or missing, validation refreshes the canonical current-HEAD graph and may write only ignored code-index graph artifacts, sibling atomic temporary files, the advisory build-lock file, and eight exclusively claimed candidate slots named .index.json.build-lock.json.slot-00.candidate through .index.json.build-lock.json.slot-07.candidate. Candidates are attempted only during the initial absent-lock race, retained but never reused or authoritative, and prevented by an existing persistent shared lock; exhaustion falls back to an independent atomic build. It never mutates canonical WK/evidence, admission sidecars, lifecycle or runtime state, dispatch/backend state, or result evidence, and never launches an agent. A bounded current-HEAD resolver failure preserves its safe typed code in verbose graph_impact_failure and compact graph_impact_failure_code output, with a fixed remediation and no raw cause data. Compact by default; pass verbose:true for the full readiness envelope under the 'readiness' key. Set node_engine_admissibility:true to evaluate Chassis Control Engine-exclusive implementation admissibility for a structurally dispatchable implementation unit; the allow/deny decision is sourced only from the Chassis Control Engine pack path using launcher-minted env. A confirmed no-Chassis-Control-Engine config (no service URL / API key -> deterministic local_only_fail_open) no-ops the Chassis-Control-Engine-exclusive admissibility axis, so a structurally dispatchable unit stays dispatchable (records local_only / enforced=false), including an over-threshold large existing file because large-file/LOC admission is Chassis-Control-Engine-only. A configured-but-not-granting posture (down/unreachable, unratified, needs_review, reject) and a genuinely unprocessable enforcement signal stay non-launchable; only the Chassis Control Engine pack can return an admit when configured; there is no local admit fallback. The paid admissibility detail is reported as Node-Engine-returned judgments over the raw measured carrier facts; the local layer renders no threshold verdict of its own (DEC-0125)."
-        : "Validate dispatch readiness for a WK or slice in a configured workspace repository. When required graph impact is stale or missing, validation refreshes the canonical current-HEAD graph and may write only ignored code-index graph artifacts, sibling atomic temporary files, the advisory build-lock file, and eight exclusively claimed candidate slots named .index.json.build-lock.json.slot-00.candidate through .index.json.build-lock.json.slot-07.candidate. Candidates are attempted only during the initial absent-lock race, retained but never reused or authoritative, and prevented by an existing persistent shared lock; exhaustion falls back to an independent atomic build. It never mutates canonical WK/evidence, admission sidecars, lifecycle or runtime state, dispatch/backend state, or result evidence, and never launches an agent. A bounded current-HEAD resolver failure preserves its safe typed code in verbose graph_impact_failure and compact graph_impact_failure_code output, with a fixed remediation and no raw cause data. Compact by default; pass verbose:true for the full readiness envelope under the 'readiness' key. Free/local readiness covers only the structural runnability floor (write_scope, acceptance, validation present, a supported role, a resolvable subject, a fresh source digest). Per DEC-0123/DEC-0125 a confirmed no-Node-Engine posture renders no local admissibility judgment, so admissibility threshold analysis is not part of free-tier readiness guidance.",
+        ? "Validate WK or slice dispatch readiness; this does not launch an agent or mutate canonical records, evidence, lifecycle, or runtime state. Stale required graph impact may refresh ignored current-HEAD graph cache artifacts. Compact by default; verbose:true returns the full readiness envelope and bounded graph failures. node_engine_admissibility:true requests a Chassis Control Engine judgment over measured carrier facts; no local threshold verdict or admit fallback is synthesized."
+        : "Validate WK or slice structural dispatch readiness; this does not launch an agent or mutate canonical records, evidence, lifecycle, or runtime state. Stale required graph impact may refresh ignored current-HEAD graph cache artifacts. Compact by default; verbose:true returns the full readiness envelope and bounded graph failures. Free/local output renders no admissibility or threshold judgment.",
       inputSchema: {
         repo: z.string().optional(),
         unit: z.string(),
@@ -428,11 +410,14 @@ export function registerWorkRecordReadTools({
           node_engine_admissibility: args.node_engine_admissibility === true ? true : null
         });
         if (args.verbose === true) {
-          return jsonContent({ workspaceRepo: workspace.repo, readiness: result });
+          return jsonContent({
+            workspaceRepo: workspace.repo,
+            readiness: projectVerboseRecoveryDiagnostic(result)
+          });
         }
         const compact = createCompactValidateDispatchResponse(
           workspace.repo,
-          result,
+          projectOrdinaryRecoveryDiagnostic(result),
           registeredTier
         );
 
@@ -465,7 +450,7 @@ export function registerWorkRecordReadTools({
     "workspace_run_validation",
     {
       description:
-        "Run declared Node test validation for an implementation unit without raw shell or raw exec. Side effect: process_spawn. The only command is the fixed enum `node_test`; caller input is exactly `{ unit, target }`. The handler loads the canonical work record/slice for `unit` itself and authorizes `target` solely from that unit's sections.structured_validation.allowed[] entries with command `node_test`. It then runs `node --check <target>` and, only if check passes, `node --test <target>` using argv arrays with shell:false. Node binary, cwd, env, per-step timeout, and output caps are internal server constants and cannot be supplied or overridden by the caller. Caller-supplied authority-shaped fields (snapshot, runtime/env policy, node binary, cwd/workspace root, timeout, output cap, source digest, extra args) are rejected. Returns structured per-step evidence; `node --test` is reported as skipped when `node --check` fails.",
+        "Run one declared node_test target for an implementation unit. Side effect: process_spawn. The server authorizes the target from the canonical unit, fixes binary/cwd/env/limits, runs node --check before node --test, and returns per-step evidence. Caller authority fields or extra arguments refuse.",
       inputSchema: {
         unit: z.string(),
         target: z.string()
@@ -499,12 +484,12 @@ export function registerWorkRecordReadTools({
           throw new Error(`workspace_run_validation could not load canonical work record: ${recordId}`);
         }
 
-        const sections = resolveNodeTestUnitSections(loaded.record, sliceId);
-        if (!sections) {
+        const selectedUnit = resolveNodeTestUnitSections(loaded.record, sliceId);
+        if (!selectedUnit) {
           throw new Error(`workspace_run_validation could not resolve unit: ${address}`);
         }
 
-        const authorizedTargets = collectAuthorizedNodeTestTargets(sections);
+        const authorizedTargets = collectAuthorizedNodeTestTargets(selectedUnit);
         let resolvedMainTarget = null;
         let requestedTarget;
         if (sliceId !== null || typeof runTerminalCandidateValidationForUnit !== "function") {
@@ -537,7 +522,7 @@ export function registerWorkRecordReadTools({
             return jsonContent({
               workspaceRepo: workspace.repo,
               tool: "workspace_run_validation",
-              command: "node_test",
+              operation: "node_test",
               unit: address,
               target: requestedTarget,
               ...candidateResult
@@ -565,7 +550,7 @@ export function registerWorkRecordReadTools({
         } else {
           testStep = {
             step: "node --test",
-            command: "node_test",
+            operation: "node_test",
             argv: ["node", "--test", posixRelative],
             target: posixRelative,
             ran: false,
@@ -585,7 +570,7 @@ export function registerWorkRecordReadTools({
         return jsonContent({
           workspaceRepo: workspace.repo,
           tool: "workspace_run_validation",
-          command: "node_test",
+          operation: "node_test",
           unit: address,
           target: posixRelative,
           ok: checkStep.ok && testStep.ok,

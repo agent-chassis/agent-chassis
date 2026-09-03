@@ -1,6 +1,7 @@
 
 
 import { createContextualizedStructuralTargetMetrics } from "../lib/work-record-admission-derived-evidence-target-resolution.mjs";
+import { createReadinessEnvelope } from "../lib/work-record-dispatch-readiness-shape.mjs";
 import { SLICE_ID_PATTERN } from "../lib/work-record-schema-constants.mjs";
 
 function isObject(value) {
@@ -12,37 +13,29 @@ function cloneJson(value) {
 }
 
 function createRecordLevelDispatchReadiness(recordId) {
-  return {
-    schema_version: "dispatch-readiness.v1",
-    record_id: recordId,
+  return createReadinessEnvelope({
+    recordId,
     unit: {
       kind: "work_item",
       address: recordId,
       record_id: recordId,
       slice_id: null
     },
-    decision_code: "dispatchable",
-    dispatchable: true,
-    clusters: [],
-    state: {
-      graph_available: false,
-      dirty_state: "clean",
-      staleness: "fresh",
-      graph_state: {
-        graph_available: false,
-        edge_source: "unavailable",
-        dirty_graph_mode: "unavailable",
-        unavailable_paths: []
-      }
-    },
+    policy: { clusters: [], blast_radius: { level: "low", reasons: [], accepted_escalation_id: null } },
+    state: { graph_available: false, dirty_state: "clean", staleness: "fresh" },
     reasons: [],
-    accepted_escalations: [],
-    blast_radius: {
-      level: "low",
-      reasons: [],
-      accepted_escalation_id: null
+    decisionCode: "dispatchable",
+    dispatchable: true,
+    acceptedEscalations: [],
+    canonicalRefs: [],
+    derivedEvidence: [],
+    validationHints: [],
+    recovery: {
+      graph_impact: "not_required",
+      admission_metrics: "not_required",
+      target_resolution: "not_required"
     }
-  };
+  });
 }
 
 function parseDispatchUnitAddress(unitAddress) {
@@ -109,32 +102,24 @@ function parseDispatchUnitAddress(unitAddress) {
 }
 
 function createDispatchReadinessForUnit(recordId, unit) {
-  return {
-    schema_version: "dispatch-readiness.v1",
-    record_id: recordId,
+  return createReadinessEnvelope({
+    recordId,
     unit,
-    decision_code: "dispatchable",
-    dispatchable: true,
-    clusters: [],
-    state: {
-      graph_available: false,
-      dirty_state: "clean",
-      staleness: "fresh",
-      graph_state: {
-        graph_available: false,
-        edge_source: "unavailable",
-        dirty_graph_mode: "unavailable",
-        unavailable_paths: []
-      }
-    },
+    policy: { clusters: [], blast_radius: { level: "low", reasons: [], accepted_escalation_id: null } },
+    state: { graph_available: false, dirty_state: "clean", staleness: "fresh" },
     reasons: [],
-    accepted_escalations: [],
-    blast_radius: {
-      level: "low",
-      reasons: [],
-      accepted_escalation_id: null
+    decisionCode: "dispatchable",
+    dispatchable: true,
+    acceptedEscalations: [],
+    canonicalRefs: [],
+    derivedEvidence: [],
+    validationHints: [],
+    recovery: {
+      graph_impact: "not_required",
+      admission_metrics: "not_required",
+      target_resolution: "not_required"
     }
-  };
+  });
 }
 
 function normalizeNonEmptyString(value) {

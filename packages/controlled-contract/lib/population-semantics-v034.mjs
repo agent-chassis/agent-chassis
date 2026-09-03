@@ -21,8 +21,9 @@ function normalizeApplicability(context) {
   };
 }
 
-function contextKeysFor(scope) {
-  const exact = canonical(normalizeApplicability(scope));
+function contextKeysFor(scope, equalityNormalization = null) {
+  const normalize = equalityNormalization?.normalizeApplicability ?? normalizeApplicability;
+  const exact = canonical(normalize(scope));
   const unconditional = canonical({ mode: "unconditional", operand_reference_ids: [] });
   return scope.mode === "unconditional" ? new Set([unconditional]) :
     new Set([unconditional, exact]);
@@ -41,46 +42,24 @@ function mandatoryPropositions(contract) {
 }
 
 function buildScopedEquality(contract, scope) {
-  const eligibleContexts = contextKeysFor(scope);
-  const parent = new Map();
-  const find = (value) => {
-    if (!parent.has(value)) parent.set(value, value);
-    const current = parent.get(value);
-    if (current !== value) parent.set(value, find(current));
-    return parent.get(value);
+  const normalization = buildEqualityNormalizationV034(contract);
+  return {
+    canonicalize: (referenceId) => normalization.canonicalize(referenceId, scope),
+    equivalent: (left, right) => normalization.equivalent(left, right, scope),
+    normalizeApplicability: normalization.normalizeApplicability
   };
-  const union = (left, right) => {
-    const leftRoot = find(left);
-    const rightRoot = find(right);
-    if (leftRoot === rightRoot) return;
-    const [canonicalRoot, otherRoot] = [leftRoot, rightRoot].sort(compareCodeUnits);
-    parent.set(otherRoot, canonicalRoot);
-  };
-  for (const { proposition } of mandatoryPropositions(contract)) {
-    if (proposition.operator !== "reference:equals" ||
-        !eligibleContexts.has(canonical(normalizeApplicability(
-          proposition.applicability_context
-        )))) continue;
-    for (const operand of proposition.operands) {
-      if (operand.kind === "reference") union(
-        proposition.subject_reference_id,
-        operand.reference_id
-      );
-    }
-  }
-  return { canonicalize: find, equivalent: (left, right) => find(left) === find(right) };
 }
 
 function resolveClosedPopulation(contract, populationReferenceId, scope) {
-  const eligibleContexts = contextKeysFor(scope);
   const equality = buildScopedEquality(contract, scope);
+  const eligibleContexts = contextKeysFor(scope, equality);
   const populationClass = equality.canonicalize(populationReferenceId);
   const memberClasses = new Set();
   const membershipClaimIds = new Set();
   const countDeclarations = [];
 
   for (const { claim, proposition } of mandatoryPropositions(contract)) {
-    if (!eligibleContexts.has(canonical(normalizeApplicability(
+    if (!eligibleContexts.has(canonical(equality.normalizeApplicability(
       proposition.applicability_context
     )))) continue;
     const subjectClass = equality.canonicalize(proposition.subject_reference_id);
@@ -117,7 +96,7 @@ function resolveClosedPopulation(contract, populationReferenceId, scope) {
   if (countDeclarations.length === 0 && memberClasses.size === 0) diagnostics.push({
     code: "population_definition_missing",
     population_reference_id: populationClass,
-    applicability_context: normalizeApplicability(scope),
+    applicability_context: equality.normalizeApplicability(scope),
     claim_ids: [],
     remediation_code: "declare_complete_population_definition",
     remediation: "Declare the complete membership and exact cardinality, or explicitly declare cardinality zero if the intended population is empty."
@@ -125,13 +104,13 @@ function resolveClosedPopulation(contract, populationReferenceId, scope) {
   if (countDeclarations.length === 0 && memberClasses.size > 0) diagnostics.push({
     code: "population_exact_cardinality_missing",
     population_reference_id: populationClass,
-    applicability_context: normalizeApplicability(scope),
+    applicability_context: equality.normalizeApplicability(scope),
     claim_ids: [...membershipClaimIds].sort(compareCodeUnits)
   });
   if (distinctCounts.length > 1) diagnostics.push({
     code: "population_exact_cardinality_ambiguous",
     population_reference_id: populationClass,
-    applicability_context: normalizeApplicability(scope),
+    applicability_context: equality.normalizeApplicability(scope),
     values: distinctCounts,
     claim_ids: countDeclarations.map(({ claim_id: claimId }) => claimId)
       .sort(compareCodeUnits)
@@ -141,7 +120,7 @@ function resolveClosedPopulation(contract, populationReferenceId, scope) {
       exactCardinality < 0)) diagnostics.push({
     code: "population_exact_cardinality_invalid",
     population_reference_id: populationClass,
-    applicability_context: normalizeApplicability(scope),
+    applicability_context: equality.normalizeApplicability(scope),
     exact_cardinality: exactCardinality,
     claim_ids: countDeclarations.map(({ claim_id: claimId }) => claimId)
       .sort(compareCodeUnits)
@@ -150,7 +129,7 @@ function resolveClosedPopulation(contract, populationReferenceId, scope) {
       exactCardinality >= 0 && memberClasses.size !== exactCardinality) diagnostics.push({
     code: "population_membership_incomplete",
     population_reference_id: populationClass,
-    applicability_context: normalizeApplicability(scope),
+    applicability_context: equality.normalizeApplicability(scope),
     exact_cardinality: exactCardinality,
     declared_distinct_member_count: memberClasses.size,
     declared_member_reference_ids: [...memberClasses].sort(compareCodeUnits),
@@ -163,7 +142,7 @@ function resolveClosedPopulation(contract, populationReferenceId, scope) {
   return {
     population_reference_id: populationReferenceId,
     canonical_population_reference_id: populationClass,
-    applicability_context: normalizeApplicability(scope),
+    applicability_context: equality.normalizeApplicability(scope),
     exact_cardinality: exactCardinality,
     member_reference_ids: [...memberClasses].sort(compareCodeUnits),
     membership_claim_ids: [...membershipClaimIds].sort(compareCodeUnits),
@@ -221,6 +200,10 @@ function evaluateCompletePopulationBinding({
     satisfied: diagnostics.length === 0,
     normalized_member_reference_ids: normalizedMemberSet,
     exact_cardinality: population.exact_cardinality,
+    consumed_claim_ids: [...new Set([
+      ...population.membership_claim_ids,
+      ...population.cardinality_claim_ids
+    ])].sort(compareCodeUnits),
     diagnostics
   };
 }
@@ -301,3 +284,4 @@ export {
   referencesEquivalent,
   resolveClosedPopulation
 };
+import { buildEqualityNormalizationV034 } from "./equality-normalization-v034.mjs";

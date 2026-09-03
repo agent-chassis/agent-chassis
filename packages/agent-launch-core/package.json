@@ -1,6 +1,6 @@
 {
   "name": "@agent-chassis/agent-launch-core",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "license": "Elastic-2.0",
   "type": "module",
   "repository": {
@@ -31,6 +31,10 @@
     "./src/lib/durable-runtime-state.mjs": "./src/lib/durable-runtime-state.mjs",
     "./src/lib/filesystem.mjs": "./src/lib/filesystem.mjs",
     "./src/lib/launcher-context-mint.mjs": "./src/lib/launcher-context-mint.mjs",
+    "./src/lib/launcher-owned-worktree-root.mjs": "./src/lib/launcher-owned-worktree-root.mjs",
+    "./src/lib/launcher-transition-plan.mjs": "./src/lib/launcher-transition-plan.mjs",
+    "./src/lib/managed-provisioning-result-assertion.mjs": "./src/lib/managed-provisioning-result-assertion.mjs",
+    "./src/lib/managed-provisioning-result-shape.mjs": "./src/lib/managed-provisioning-result-shape.mjs",
     "./src/lib/registry.mjs": "./src/lib/registry.mjs",
     "./src/lib/role-guard.mjs": "./src/lib/role-guard.mjs",
     "./src/lib/work-record-gate.mjs": "./src/lib/work-record-gate.mjs",
@@ -40,6 +44,6 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@agent-chassis/wiki-core": "^0.6.0"
+    "@agent-chassis/wiki-core": "^0.7.0"
   }
 }

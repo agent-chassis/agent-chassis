@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-admitted-proof-pack.v1",
   "profile_id": "proof.result-shape.cross-representation-parity",
   "profile_version": "1.0.0",
-  "profile_digest": "86bcb8053c1f0e0692cb8a3a7327fec2d30807deca68974ff80122479e0a9bbe",
+  "profile_digest": "d1cab77b4b01d01c127865ec21f6b8454e3644669f78f4b8d5d18a72a5a17879",
   "guarantee": "For one declared logical source, two distinct result surfaces expose equal complete populations of typed member descriptors by mutual subset, bind one shared exact nonnegative member count, emit count signals equal to that count, and expose one explicitly selected canonical value pair that is exactly equal. One verification reads both full representations and each verified behavior has its controlled complement as a separate falsifier.",
   "guarantee_digest": "dbdd109fc9962e1d632ad0dde104123ccbf2a37d79c402d77f7eb5f1f0b0635e",
   "explicit_exclusions": [
@@ -21,8 +21,8 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "b8044cec68899fe2309b5f675fc54c0033dda902b324a1af24109de5551f0892",
-    "adequacy_result_digest": "2f082e5b30b3f3aadf4a19dae82b75daf60a0f874e2e6ee408b576d69cabcf2b",
+    "adequacy_declaration_digest": "cf9c4632fd0d1af5e01719ae523e6f66ccf464c179a37666128743048a94cc29",
+    "adequacy_result_digest": "606c7b0c7d53c4395b0b55e3c637d290926f29bd90e780449d9968c16bd48111",
     "executable_control_count": 40,
     "negative_fixture_count": 87,
     "coverage_witness_count": 87

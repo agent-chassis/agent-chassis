@@ -1,0 +1,1812 @@
+{
+  "schema_version": "controlled-contract-verification-profile.v1",
+  "contract_schema_version": "controlled-acceptance-contract.v1",
+  "vocabulary_version": "controlled-contract-vocabulary.v1",
+  "vocabulary_signature_digest": "596a4c44d98aed1d31dd9ab3842fc054be6f8ffa3d62a3867a3966e75ecab742",
+  "vocabulary_algebra_digest": "0fbea1e7377baeef1869cbc55dc588ef5509ed40c768ce2a3c4f58be1133cf9c",
+  "vocabulary_definitions_digest": "bb3d2a63cb6fc8c62b9bc36d29d07549dea6ad85e32badb0cbb3cacfd6ad4759",
+  "vocabulary_complete_digest": "45484504f06968c6b4ac812c24b9f1b6e47e1d34ba21fefebde8dd85d1290fa9",
+  "profile_id": "proof.ownership.fenced-handoff",
+  "profile_version": "2.0.0",
+  "evaluation_stages": [
+    "pre_dispatch"
+  ],
+  "verification_falsifier_policy": "controlled_complement_per_target",
+  "reference_roles": [
+    {
+      "role": "resource",
+      "allowed_type_terms": [
+        "cc:resource"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "predecessor_authority",
+      "allowed_type_terms": [
+        "cc:authority"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "successor_authority",
+      "allowed_type_terms": [
+        "cc:authority"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "predecessor_epoch",
+      "allowed_type_terms": [
+        "cc:state",
+        "cc:configuration"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "successor_epoch",
+      "allowed_type_terms": [
+        "cc:state",
+        "cc:configuration"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "fence_event",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "successor_activation_event",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "predecessor_pre_fence_attempt_population",
+      "allowed_type_terms": [
+        "cc:scope"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "predecessor_pre_fence_attempts",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "cardinality": "one_or_more"
+    },
+    {
+      "role": "predecessor_post_fence_attempt_population",
+      "allowed_type_terms": [
+        "cc:scope"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "predecessor_post_fence_attempts",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "cardinality": "one_or_more"
+    },
+    {
+      "role": "successor_post_fence_attempt_population",
+      "allowed_type_terms": [
+        "cc:scope"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "successor_post_fence_attempts",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "cardinality": "one_or_more"
+    },
+    {
+      "role": "predecessor_effect_population",
+      "allowed_type_terms": [
+        "cc:scope"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "predecessor_effects",
+      "allowed_type_terms": [
+        "cc:event",
+        "cc:artifact"
+      ],
+      "cardinality": "one_or_more"
+    },
+    {
+      "role": "successor_effect_population",
+      "allowed_type_terms": [
+        "cc:scope"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "successor_effects",
+      "allowed_type_terms": [
+        "cc:event",
+        "cc:artifact"
+      ],
+      "cardinality": "one_or_more"
+    },
+    {
+      "role": "post_fence_predecessor_protected_effect_population",
+      "allowed_type_terms": [
+        "cc:scope"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "post_fence_predecessor_protected_effects",
+      "allowed_type_terms": [
+        "cc:event",
+        "cc:artifact"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "active_authority_observation_population",
+      "allowed_type_terms": [
+        "cc:scope"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "active_authority_observations",
+      "allowed_type_terms": [
+        "cc:evidence",
+        "cc:event"
+      ],
+      "cardinality": "one_or_more"
+    },
+    {
+      "role": "dual_active_observation_population",
+      "allowed_type_terms": [
+        "cc:scope"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "dual_active_observations",
+      "allowed_type_terms": [
+        "cc:evidence",
+        "cc:event"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "pre_fence_observation",
+      "allowed_type_terms": [
+        "cc:evidence",
+        "cc:event"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "post_fence_observation",
+      "allowed_type_terms": [
+        "cc:evidence",
+        "cc:event"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "refused_state",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "predecessor_effect_window_state",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "before_fence_state",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "successor_effect_window_state",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "after_fence_state",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "predecessor_order_verification",
+      "allowed_type_terms": [
+        "cc:test",
+        "cc:process"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "successor_order_verification",
+      "allowed_type_terms": [
+        "cc:test",
+        "cc:process"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "post_fence_refusal_verification",
+      "allowed_type_terms": [
+        "cc:test",
+        "cc:process"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "dual_active_verification",
+      "allowed_type_terms": [
+        "cc:test",
+        "cc:process"
+      ],
+      "cardinality": "exactly_one"
+    }
+  ],
+  "number_roles": [
+    {
+      "role": "predecessor_pre_fence_attempt_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 1
+    },
+    {
+      "role": "predecessor_post_fence_attempt_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 1
+    },
+    {
+      "role": "successor_post_fence_attempt_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 1
+    },
+    {
+      "role": "predecessor_effect_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 1
+    },
+    {
+      "role": "successor_effect_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 1
+    },
+    {
+      "role": "post_fence_predecessor_protected_effect_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 0,
+      "maximum": 0
+    },
+    {
+      "role": "active_authority_observation_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 2
+    },
+    {
+      "role": "dual_active_observation_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 0,
+      "maximum": 0
+    }
+  ],
+  "distinct_reference_role_sets": [
+    {
+      "roles": [
+        "predecessor_authority",
+        "successor_authority"
+      ]
+    },
+    {
+      "roles": [
+        "predecessor_epoch",
+        "successor_epoch"
+      ]
+    },
+    {
+      "roles": [
+        "pre_fence_observation",
+        "post_fence_observation"
+      ]
+    },
+    {
+      "roles": [
+        "predecessor_pre_fence_attempt_population",
+        "predecessor_post_fence_attempt_population",
+        "successor_post_fence_attempt_population"
+      ]
+    },
+    {
+      "roles": [
+        "predecessor_effect_population",
+        "successor_effect_population",
+        "post_fence_predecessor_protected_effect_population"
+      ]
+    },
+    {
+      "roles": [
+        "active_authority_observation_population",
+        "dual_active_observation_population"
+      ]
+    },
+    {
+      "roles": [
+        "predecessor_order_verification",
+        "successor_order_verification",
+        "post_fence_refusal_verification",
+        "dual_active_verification"
+      ]
+    }
+  ],
+  "reference_binding_patterns": [
+    {
+      "pattern_id": "complete-predecessor-pre-fence-attempt-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "predecessor_pre_fence_attempt_population",
+        "predecessor_pre_fence_attempts"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    },
+    {
+      "pattern_id": "complete-predecessor-post-fence-attempt-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "predecessor_post_fence_attempt_population",
+        "predecessor_post_fence_attempts"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    },
+    {
+      "pattern_id": "complete-successor-post-fence-attempt-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "successor_post_fence_attempt_population",
+        "successor_post_fence_attempts"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    },
+    {
+      "pattern_id": "complete-predecessor-effect-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "predecessor_effect_population",
+        "predecessor_effects"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    },
+    {
+      "pattern_id": "complete-successor-effect-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "successor_effect_population",
+        "successor_effects"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    },
+    {
+      "pattern_id": "complete-post-fence-predecessor-protected-effect-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "post_fence_predecessor_protected_effect_population",
+        "post_fence_predecessor_protected_effects"
+      ],
+      "applicability_context": {
+        "mode": "after",
+        "operand_roles": [
+          "fence_event"
+        ]
+      }
+    },
+    {
+      "pattern_id": "complete-active-authority-observation-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "active_authority_observation_population",
+        "active_authority_observations"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    },
+    {
+      "pattern_id": "complete-dual-active-observation-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "dual_active_observation_population",
+        "dual_active_observations"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    }
+  ],
+  "reference_role_count_bindings": [
+    {
+      "reference_role": "predecessor_pre_fence_attempts",
+      "number_role": "predecessor_pre_fence_attempt_count"
+    },
+    {
+      "reference_role": "predecessor_post_fence_attempts",
+      "number_role": "predecessor_post_fence_attempt_count"
+    },
+    {
+      "reference_role": "successor_post_fence_attempts",
+      "number_role": "successor_post_fence_attempt_count"
+    },
+    {
+      "reference_role": "predecessor_effects",
+      "number_role": "predecessor_effect_count"
+    },
+    {
+      "reference_role": "successor_effects",
+      "number_role": "successor_effect_count"
+    },
+    {
+      "reference_role": "post_fence_predecessor_protected_effects",
+      "number_role": "post_fence_predecessor_protected_effect_count"
+    },
+    {
+      "reference_role": "active_authority_observations",
+      "number_role": "active_authority_observation_count"
+    },
+    {
+      "reference_role": "dual_active_observations",
+      "number_role": "dual_active_observation_count"
+    }
+  ],
+  "claim_patterns": [
+    {
+      "pattern_id": "predecessor-authority-epoch",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "predecessor_authority",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "before",
+          "operand_roles": [
+            "fence_event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "predecessor_epoch"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "successor-authority-epoch",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "successor_authority",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "fence_event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "successor_epoch"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "predecessor-authorizes-resource",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "predecessor_authority",
+        "operator": "reference:authorizes",
+        "applicability_context": {
+          "mode": "where",
+          "operand_roles": [
+            "predecessor_epoch"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "resource"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "successor-authorizes-resource",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "successor_authority",
+        "operator": "reference:authorizes",
+        "applicability_context": {
+          "mode": "where",
+          "operand_roles": [
+            "successor_epoch"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "resource"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "each-predecessor-pre-fence-attempt-before-fence",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "predecessor_pre_fence_attempts",
+        "member_role": "predecessor_pre_fence_attempt"
+      },
+      "proposition_template": {
+        "subject_role": "predecessor_pre_fence_attempt",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "fence_event"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "each-predecessor-pre-fence-attempt-uses-authority-and-epoch",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "predecessor_pre_fence_attempts",
+        "member_role": "predecessor_pre_fence_attempt"
+      },
+      "proposition_template": {
+        "subject_role": "predecessor_pre_fence_attempt",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "predecessor_authority"
+          },
+          {
+            "kind": "reference",
+            "role": "predecessor_epoch"
+          },
+          {
+            "kind": "reference",
+            "role": "resource"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "each-predecessor-post-fence-attempt-after-fence",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "predecessor_post_fence_attempts",
+        "member_role": "predecessor_post_fence_attempt"
+      },
+      "proposition_template": {
+        "subject_role": "fence_event",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "predecessor_post_fence_attempt"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "each-predecessor-post-fence-attempt-uses-authority-and-epoch",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "predecessor_post_fence_attempts",
+        "member_role": "predecessor_post_fence_attempt"
+      },
+      "proposition_template": {
+        "subject_role": "predecessor_post_fence_attempt",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "predecessor_authority"
+          },
+          {
+            "kind": "reference",
+            "role": "predecessor_epoch"
+          },
+          {
+            "kind": "reference",
+            "role": "resource"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "each-predecessor-post-fence-attempt-refused",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "predecessor_post_fence_attempts",
+        "member_role": "predecessor_post_fence_attempt"
+      },
+      "proposition_template": {
+        "subject_role": "predecessor_post_fence_attempt",
+        "operator": "reference:has_status",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "fence_event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "refused_state"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "each-predecessor-post-fence-attempt-no-write",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST_NOT"
+      ],
+      "for_each": {
+        "population_role": "predecessor_post_fence_attempts",
+        "member_role": "predecessor_post_fence_attempt"
+      },
+      "proposition_template": {
+        "subject_role": "predecessor_post_fence_attempt",
+        "operator": "reference:writes",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "fence_event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "resource"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "each-predecessor-post-fence-attempt-no-mutation",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST_NOT"
+      ],
+      "for_each": {
+        "population_role": "predecessor_post_fence_attempts",
+        "member_role": "predecessor_post_fence_attempt"
+      },
+      "proposition_template": {
+        "subject_role": "predecessor_post_fence_attempt",
+        "operator": "reference:mutates",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "fence_event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "resource"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "each-successor-post-fence-attempt-after-fence",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "successor_post_fence_attempts",
+        "member_role": "successor_post_fence_attempt"
+      },
+      "proposition_template": {
+        "subject_role": "fence_event",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "successor_post_fence_attempt"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "each-successor-post-fence-attempt-uses-authority-and-epoch",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "successor_post_fence_attempts",
+        "member_role": "successor_post_fence_attempt"
+      },
+      "proposition_template": {
+        "subject_role": "successor_post_fence_attempt",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "successor_authority"
+          },
+          {
+            "kind": "reference",
+            "role": "successor_epoch"
+          },
+          {
+            "kind": "reference",
+            "role": "resource"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "each-predecessor-effect-before-fence",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "predecessor_effects",
+        "member_role": "predecessor_effect"
+      },
+      "proposition_template": {
+        "subject_role": "predecessor_effect",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "fence_event"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "each-predecessor-effect-uses-authority-epoch-resource",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "predecessor_effects",
+        "member_role": "predecessor_effect"
+      },
+      "proposition_template": {
+        "subject_role": "predecessor_effect",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "predecessor_authority"
+          },
+          {
+            "kind": "reference",
+            "role": "predecessor_epoch"
+          },
+          {
+            "kind": "reference",
+            "role": "resource"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "fence-precedes-successor-activation",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "fence_event",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "successor_activation_event"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "successor-activation-starts-authority",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "successor_activation_event",
+        "operator": "reference:starts",
+        "applicability_context": {
+          "mode": "where",
+          "operand_roles": [
+            "successor_epoch"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "successor_authority"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "each-successor-effect-after-fence",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "successor_effects",
+        "member_role": "successor_effect"
+      },
+      "proposition_template": {
+        "subject_role": "fence_event",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "successor_effect"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "each-successor-effect-uses-authority-epoch-resource",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "successor_effects",
+        "member_role": "successor_effect"
+      },
+      "proposition_template": {
+        "subject_role": "successor_effect",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "successor_authority"
+          },
+          {
+            "kind": "reference",
+            "role": "successor_epoch"
+          },
+          {
+            "kind": "reference",
+            "role": "resource"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "post-fence-predecessor-effects-subset",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "post_fence_predecessor_protected_effect_population",
+        "operator": "reference:subset_of",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "fence_event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "predecessor_effect_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "pre-fence-observation-in-population",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "pre_fence_observation",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "active_authority_observation_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "post-fence-observation-in-population",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "post_fence_observation",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "active_authority_observation_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "pre-fence-observation-before-fence",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "pre_fence_observation",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "fence_event"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "post-fence-observation-after-fence",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "fence_event",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "post_fence_observation"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "pre-fence-observation-records-active-side",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "pre_fence_observation",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "resource"
+          },
+          {
+            "kind": "reference",
+            "role": "predecessor_authority"
+          },
+          {
+            "kind": "reference",
+            "role": "predecessor_epoch"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "post-fence-observation-records-active-side",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "post_fence_observation",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "resource"
+          },
+          {
+            "kind": "reference",
+            "role": "successor_authority"
+          },
+          {
+            "kind": "reference",
+            "role": "successor_epoch"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "each-observation-not-dual-active",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "active_authority_observations",
+        "member_role": "active_authority_observation"
+      },
+      "proposition_template": {
+        "subject_role": "active_authority_observation",
+        "operator": "reference:not_member_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "dual_active_observation_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "predecessor-effects-before-fence",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "predecessor_effect_window_state",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "where",
+          "operand_roles": [
+            "resource",
+            "predecessor_authority",
+            "predecessor_epoch",
+            "fence_event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "before_fence_state"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "successor-activation-and-effects-after-fence",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "successor_effect_window_state",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "where",
+          "operand_roles": [
+            "resource",
+            "successor_authority",
+            "successor_epoch",
+            "fence_event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "after_fence_state"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "post-fence-predecessor-protected-effects-zero",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "post_fence_predecessor_protected_effect_population",
+        "operator": "number:equals",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "fence_event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value_role": "post_fence_predecessor_protected_effect_count"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "dual-active-observations-zero",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "dual_active_observation_population",
+        "operator": "number:equals",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value_role": "dual_active_observation_count"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "predecessor-order-verification",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "predecessor_order_verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "predecessor_effect_population"
+          },
+          {
+            "kind": "reference",
+            "role": "resource"
+          },
+          {
+            "kind": "reference",
+            "role": "predecessor_authority"
+          },
+          {
+            "kind": "reference",
+            "role": "predecessor_epoch"
+          },
+          {
+            "kind": "reference",
+            "role": "fence_event"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "predecessor_effect_window_state",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "where",
+          "operand_roles": [
+            "resource",
+            "predecessor_authority",
+            "predecessor_epoch",
+            "fence_event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "before_fence_state"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "successor-order-verification",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "successor_order_verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "successor_activation_event"
+          },
+          {
+            "kind": "reference",
+            "role": "successor_effect_population"
+          },
+          {
+            "kind": "reference",
+            "role": "resource"
+          },
+          {
+            "kind": "reference",
+            "role": "successor_authority"
+          },
+          {
+            "kind": "reference",
+            "role": "successor_epoch"
+          },
+          {
+            "kind": "reference",
+            "role": "fence_event"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "successor_effect_window_state",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "where",
+          "operand_roles": [
+            "resource",
+            "successor_authority",
+            "successor_epoch",
+            "fence_event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "after_fence_state"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "post-fence-refusal-verification",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "post_fence_refusal_verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "predecessor_post_fence_attempt_population"
+          },
+          {
+            "kind": "reference",
+            "role": "post_fence_predecessor_protected_effect_population"
+          },
+          {
+            "kind": "reference",
+            "role": "resource"
+          },
+          {
+            "kind": "reference",
+            "role": "predecessor_authority"
+          },
+          {
+            "kind": "reference",
+            "role": "predecessor_epoch"
+          },
+          {
+            "kind": "reference",
+            "role": "fence_event"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "post_fence_predecessor_protected_effect_population",
+        "operator": "number:not_equals",
+        "applicability_context": {
+          "mode": "after",
+          "operand_roles": [
+            "fence_event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value_role": "post_fence_predecessor_protected_effect_count"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "dual-active-verification",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "dual_active_verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "active_authority_observation_population"
+          },
+          {
+            "kind": "reference",
+            "role": "dual_active_observation_population"
+          },
+          {
+            "kind": "reference",
+            "role": "resource"
+          },
+          {
+            "kind": "reference",
+            "role": "predecessor_authority"
+          },
+          {
+            "kind": "reference",
+            "role": "successor_authority"
+          },
+          {
+            "kind": "reference",
+            "role": "fence_event"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "dual_active_observation_population",
+        "operator": "number:not_equals",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value_role": "dual_active_observation_count"
+          }
+        ]
+      }
+    }
+  ],
+  "relation_patterns": [
+    {
+      "pattern_id": "predecessor-order-verification-target",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "predecessor-order-verification",
+      "target_claim_pattern_id": "predecessor-effects-before-fence"
+    },
+    {
+      "pattern_id": "successor-order-verification-target",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "successor-order-verification",
+      "target_claim_pattern_id": "successor-activation-and-effects-after-fence"
+    },
+    {
+      "pattern_id": "post-fence-refusal-verification-target",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "post-fence-refusal-verification",
+      "target_claim_pattern_id": "post-fence-predecessor-protected-effects-zero"
+    },
+    {
+      "pattern_id": "dual-active-verification-target",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "dual-active-verification",
+      "target_claim_pattern_id": "dual-active-observations-zero"
+    }
+  ],
+  "falsifier_condition_bindings": [
+    {
+      "relation_pattern_id": "predecessor-order-verification-target",
+      "applicability_context": {
+        "mode": "where",
+        "operand_roles": [
+          "resource",
+          "predecessor_authority",
+          "predecessor_epoch",
+          "fence_event"
+        ]
+      }
+    },
+    {
+      "relation_pattern_id": "successor-order-verification-target",
+      "applicability_context": {
+        "mode": "where",
+        "operand_roles": [
+          "resource",
+          "successor_authority",
+          "successor_epoch",
+          "fence_event"
+        ]
+      }
+    },
+    {
+      "relation_pattern_id": "post-fence-refusal-verification-target",
+      "applicability_context": {
+        "mode": "after",
+        "operand_roles": [
+          "fence_event"
+        ]
+      }
+    },
+    {
+      "relation_pattern_id": "dual-active-verification-target",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    }
+  ],
+  "collection_patterns": [],
+  "resolver_fact_patterns": [],
+  "evidence_patterns": [],
+  "satisfaction_expression": {
+    "all_of": [
+      {
+        "pattern": "predecessor-authority-epoch"
+      },
+      {
+        "pattern": "successor-authority-epoch"
+      },
+      {
+        "pattern": "predecessor-authorizes-resource"
+      },
+      {
+        "pattern": "successor-authorizes-resource"
+      },
+      {
+        "pattern": "complete-predecessor-pre-fence-attempt-population"
+      },
+      {
+        "pattern": "complete-predecessor-post-fence-attempt-population"
+      },
+      {
+        "pattern": "complete-successor-post-fence-attempt-population"
+      },
+      {
+        "pattern": "complete-predecessor-effect-population"
+      },
+      {
+        "pattern": "complete-successor-effect-population"
+      },
+      {
+        "pattern": "complete-post-fence-predecessor-protected-effect-population"
+      },
+      {
+        "pattern": "complete-active-authority-observation-population"
+      },
+      {
+        "pattern": "complete-dual-active-observation-population"
+      },
+      {
+        "pattern": "each-predecessor-pre-fence-attempt-before-fence"
+      },
+      {
+        "pattern": "each-predecessor-pre-fence-attempt-uses-authority-and-epoch"
+      },
+      {
+        "pattern": "each-predecessor-post-fence-attempt-after-fence"
+      },
+      {
+        "pattern": "each-predecessor-post-fence-attempt-uses-authority-and-epoch"
+      },
+      {
+        "pattern": "each-predecessor-post-fence-attempt-refused"
+      },
+      {
+        "pattern": "each-predecessor-post-fence-attempt-no-write"
+      },
+      {
+        "pattern": "each-predecessor-post-fence-attempt-no-mutation"
+      },
+      {
+        "pattern": "each-successor-post-fence-attempt-after-fence"
+      },
+      {
+        "pattern": "each-successor-post-fence-attempt-uses-authority-and-epoch"
+      },
+      {
+        "pattern": "each-predecessor-effect-before-fence"
+      },
+      {
+        "pattern": "each-predecessor-effect-uses-authority-epoch-resource"
+      },
+      {
+        "pattern": "fence-precedes-successor-activation"
+      },
+      {
+        "pattern": "successor-activation-starts-authority"
+      },
+      {
+        "pattern": "each-successor-effect-after-fence"
+      },
+      {
+        "pattern": "each-successor-effect-uses-authority-epoch-resource"
+      },
+      {
+        "pattern": "post-fence-predecessor-effects-subset"
+      },
+      {
+        "pattern": "pre-fence-observation-in-population"
+      },
+      {
+        "pattern": "post-fence-observation-in-population"
+      },
+      {
+        "pattern": "pre-fence-observation-before-fence"
+      },
+      {
+        "pattern": "post-fence-observation-after-fence"
+      },
+      {
+        "pattern": "pre-fence-observation-records-active-side"
+      },
+      {
+        "pattern": "post-fence-observation-records-active-side"
+      },
+      {
+        "pattern": "each-observation-not-dual-active"
+      },
+      {
+        "pattern": "predecessor-effects-before-fence"
+      },
+      {
+        "pattern": "successor-activation-and-effects-after-fence"
+      },
+      {
+        "pattern": "post-fence-predecessor-protected-effects-zero"
+      },
+      {
+        "pattern": "dual-active-observations-zero"
+      },
+      {
+        "pattern": "predecessor-order-verification"
+      },
+      {
+        "pattern": "successor-order-verification"
+      },
+      {
+        "pattern": "post-fence-refusal-verification"
+      },
+      {
+        "pattern": "dual-active-verification"
+      },
+      {
+        "pattern": "predecessor-order-verification-target"
+      },
+      {
+        "pattern": "successor-order-verification-target"
+      },
+      {
+        "pattern": "post-fence-refusal-verification-target"
+      },
+      {
+        "pattern": "dual-active-verification-target"
+      }
+    ]
+  }
+}

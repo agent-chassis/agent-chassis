@@ -7,9 +7,25 @@ import {
   TERMINAL_WK_CANDIDATE_SCHEMA_VERSION_V3,
   verifyTerminalWkCandidateObjectBinding
 } from "./terminal-wk-candidate.mjs";
-import { authenticateTerminalCloseoutProjection } from "./wk-forge-terminal-closeout-authentication.mjs";
+import { authenticateTerminalCloseoutProjection } from
+  "./wk-forge-terminal-closeout-authentication.mjs";
+import { observeForgeLandedPublication } from "./wk-forge-landed-publication.mjs";
+import { assertAuthenticatedWkForgeHandoffResult } from "./wk-forge-handoff.mjs";
 import { localId as localSliceId } from "./wk-forge-handoff-recovery.mjs";
-import { canonicalizeWorkRecordJson, projectSliceReviewReceiptContracts } from "../../../wiki-core/src/index.mjs";
+import {
+  canonicalizeWorkRecordJson,
+  computeWorkRecordSourceDigest,
+  projectSliceReviewReceiptContracts
+} from "../../../wiki-core/src/index.mjs";
+import {
+  compareTerminalReviewContractBindingIdentity,
+  constructTerminalReviewContractBinding,
+  terminalReviewContractBindingAddresses
+} from "./terminal-review-contract-binding.mjs";
+import { authenticateCurrentControlledContractGenerationAtW } from
+  "./controlled-carrier-attachment-primitive.mjs";
+import { withControlledContractAuthorityExclusion } from
+  "@agent-chassis/wiki-core/src/lib/controlled-contract-carrier-set-publication.mjs";
 
 export function defaultRunGit({ repo, args, env = null }) {
   const result = spawnSync("git", ["-C", repo, ...args], {
@@ -23,22 +39,14 @@ export function defaultRunGh({ args, cwd = null }) {
   return { ok: result.status === 0, status: result.status, stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
 }
 
-function canonical(value) {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  if (value && typeof value === "object") return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`;
-  return JSON.stringify(value);
-}
-
-function computeWorkRecordSourceDigest(value) {
-  return `sha256:${createHash("sha256").update(canonical(value)).digest("hex")}`;
-}
-
-function resolveCanonicalForgeRepository({ repo, deps = {} }) {
+async function resolveCanonicalForgeRepository({ repo, deps = {} }) {
   const runGit = deps.runGit ?? defaultRunGit;
   try {
-    const fetchUrls = runGit({ repo, args: ["remote", "get-url", "--all", "origin"] }).stdout.trim().split("\n").filter(Boolean);
-    const pushUrls = runGit({ repo, args: ["remote", "get-url", "--push", "--all", "origin"] }).stdout.trim().split("\n").filter(Boolean);
-    const rewrites = runGit({ repo, args: ["config", "--get-regexp", "^url\\." ] });
+    const fetchResult = await runGit({ repo, args: ["remote", "get-url", "--all", "origin"] });
+    const pushResult = await runGit({ repo, args: ["remote", "get-url", "--push", "--all", "origin"] });
+    const rewrites = await runGit({ repo, args: ["config", "--get-regexp", "^url\\." ] });
+    const fetchUrls = fetchResult.stdout.trim().split("\n").filter(Boolean);
+    const pushUrls = pushResult.stdout.trim().split("\n").filter(Boolean);
     if (fetchUrls.length !== 1 || pushUrls.length !== 1 || fetchUrls[0] !== pushUrls[0] || rewrites?.stdout?.trim()) return { ok: false, reason: "remote_identity_unproven" };
     const parsed = new URL(fetchUrls[0]);
     const parts = parsed.pathname.replace(/^\/+/, "").replace(/\.git$/u, "").split("/");
@@ -50,9 +58,10 @@ function resolveCanonicalForgeRepository({ repo, deps = {} }) {
   } catch { return { ok: false, reason: "remote_unreadable" }; }
 }
 
-function readCandidateBoundRecord({ mainRepo, wk, binding, deps = {} }) {
+async function readCandidateBoundRecord({ mainRepo, wk, binding, deps = {} }) {
   try {
-    const raw = run(deps.runGit ?? defaultRunGit, mainRepo, ["show", `${binding.candidate}:wiki/work-records/${wk}.json`]);
+    const raw = await run(deps.runGit ?? defaultRunGit, mainRepo,
+      ["show", `${binding.candidate}:wiki/work-records/${wk}.json`]);
     const record = jsonRecord(raw, "candidate record unreadable");
     return record.id === wk ? { ok: true, record } : { ok: false, reason: "candidate_record_identity_mismatch" };
   } catch {
@@ -84,8 +93,19 @@ function refuse(category, reason, detail = null) {
   return { ok: false, category, detail: { reason, ...(detail ?? {}) } };
 }
 
-function run(runGit, repo, args, env = null) {
-  const result = runGit({ repo, args, env });
+function reconciliationFailure(reason, completion, carrier = null) {
+  const failure = {
+    ok: false,
+    category: WK_FORGE_MERGE_FAILURE_CATEGORIES.RECONCILIATION,
+    partial: true,
+    detail: { reason, completion }
+  };
+  if (carrier !== null) failure.result = carrier;
+  return failure;
+}
+
+async function run(runGit, repo, args, env = null) {
+  const result = await runGit({ repo, args, env });
   if (!result || result.ok !== true) throw new Error(`git ${args[0]} failed`);
   return String(result.stdout ?? "").trim();
 }
@@ -155,34 +175,46 @@ function terminalReviewMatchesBinding(record, binding) {
   const contracts = projectSliceReviewReceiptContracts(record, review[0].id);
   if (contracts.slice_review_contract === null) return false;
   const subject = `${record.id}#${review[0].id}`;
-  const contractBinding = {
-    schema_version: "agent_launch.terminal_review_contract_binding.v1",
-    record_id: record.id,
+  const contractBinding = constructTerminalReviewContractBinding({
+    recordId: record.id,
     initiative: record.initiative,
-    review_slice_id: review[0].id,
-    review_subject: subject,
-    review_unit_contract: contracts.slice_review_contract
-  };
-  const digest = `sha256:${createHash("sha256")
-    .update(canonicalizeWorkRecordJson(contractBinding))
-    .digest("hex")}`;
-  return subject === binding.terminal_review_subject && digest === binding.terminal_review_contract_digest;
+    reviewSliceId: review[0].id,
+    reviewSubject: subject,
+    reviewUnitContract: contracts.slice_review_contract
+  });
+  return compareTerminalReviewContractBindingIdentity(contractBinding, {
+    reviewSubject: binding.terminal_review_subject,
+    reviewContractDigest: binding.terminal_review_contract_digest
+  }).current;
 }
 
 function localReviewProjectionMatchesCandidate(candidateRecord, localRecord, binding) {
-  const candidateReview = candidateRecord.slices.filter((slice) => slice.review_purpose === "terminal_whole_wk");
+  const candidateReview = Array.isArray(candidateRecord?.slices)
+    ? candidateRecord.slices.filter((slice) => slice.review_purpose === "terminal_whole_wk")
+    : [];
   const localReview = localRecord.slices.filter((slice) => slice.review_purpose === "terminal_whole_wk");
   if (candidateReview.length > 1 || localReview.length !== 1) return false;
   if (binding?.schema_version === TERMINAL_WK_CANDIDATE_SCHEMA_VERSION_V3) {
-    const [subjectWk, subjectSlice] = String(binding.terminal_review_subject ?? "").split("#");
-    const digest = localReview[0].review_unit_contract_digest ?? localReview[0].terminal_review_contract_digest;
-    return subjectWk === localRecord.id && subjectSlice === localReview[0].id &&
-      (digest === undefined || digest === binding.terminal_review_contract_digest) &&
+    const projected = projectSliceReviewReceiptContracts(localRecord, localReview[0].id);
+    if (projected.slice_review_contract === null) return false;
+    const currentBinding = constructTerminalReviewContractBinding({
+      recordId: localRecord.id,
+      initiative: localRecord.initiative,
+      reviewSliceId: localReview[0].id,
+      reviewSubject: `${localRecord.id}#${localReview[0].id}`,
+      reviewUnitContract: projected.slice_review_contract
+    });
+    return terminalReviewContractBindingAddresses(
+      currentBinding, binding.terminal_review_subject) &&
       localRecord.status === "review" && localReview[0].status === "review";
   }
-  if (candidateReview.length === 1 && canonical({ ...candidateReview[0], status: "review" }) !== canonical(localReview[0])) return false;
-  const strip = (record) => ({ ...record, slices: record.slices.filter((slice) => slice.review_purpose !== "terminal_whole_wk") });
-  return canonical(strip(candidateRecord)) === canonical({ ...strip(localRecord), status: candidateRecord.status });
+  if (candidateReview.length === 1 && canonicalizeWorkRecordJson({ ...candidateReview[0], status: "review" }) !== canonicalizeWorkRecordJson(localReview[0])) return false;
+  const strip = (record) => {
+    const { review_provenance, ...projected } = record;
+    return { ...projected, slices: record.slices.filter((slice) => slice.review_purpose !== "terminal_whole_wk") };
+  };
+  return canonicalizeWorkRecordJson(strip(candidateRecord)) ===
+    canonicalizeWorkRecordJson({ ...strip(localRecord), status: candidateRecord.status });
 }
 
 function terminalUnitDeclaresSlice(localRecord, sliceId) {
@@ -197,15 +229,18 @@ function v3UnrelatedContentMatchesCandidate(candidateRecord, localRecord) {
   const GOVERNED = ["id", "schema_version", "repo", "title", "record_kind", "work_kind", "initiative",
     "priority", "owner", "created", "read_scope", "repo_paths", "write_scope", "depends_on",
     "blocks", "related", "children", "acceptance"];
-  if (GOVERNED.some((key) => canonical(candidateRecord[key]) !== canonical(localRecord[key]))) return false;
+  if (GOVERNED.some((key) => canonicalizeWorkRecordJson(candidateRecord[key]) !==
+      canonicalizeWorkRecordJson(localRecord[key]))) return false;
 
   const sections = (record) => {
     const copy = { ...(record?.sections ?? {}) };
     delete copy.closure;
     return copy;
   };
-  if (canonical(candidateRecord?.sections?.closure) !== canonical(localRecord?.sections?.closure)) return false;
-  if (canonical(sections(candidateRecord)) !== canonical(sections(localRecord))) return false;
+  if (canonicalizeWorkRecordJson(candidateRecord?.sections?.closure) !==
+      canonicalizeWorkRecordJson(localRecord?.sections?.closure)) return false;
+  if (canonicalizeWorkRecordJson(sections(candidateRecord)) !==
+      canonicalizeWorkRecordJson(sections(localRecord))) return false;
 
   const ordinary = (record) => (record?.slices ?? []).filter((item) => item?.review_purpose !== "terminal_whole_wk");
   const beforeSlices = ordinary(candidateRecord);
@@ -220,7 +255,7 @@ function v3UnrelatedContentMatchesCandidate(candidateRecord, localRecord) {
     delete left.status; delete right.status;
     delete left.updated; delete right.updated;
     delete left.sections.closure; delete right.sections.closure;
-    return canonical(left) === canonical(right);
+    return canonicalizeWorkRecordJson(left) === canonicalizeWorkRecordJson(right);
   };
   const validDate = (value) => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/u.test(value);
   const canonicalFirstClosure = (before, after) => {
@@ -237,7 +272,7 @@ function v3UnrelatedContentMatchesCandidate(candidateRecord, localRecord) {
   for (const before of beforeSlices) {
     const after = liveById.get(before?.id);
     if (!after || after.review_purpose === "terminal_whole_wk") return false;
-    if (canonical(before) === canonical(after)) continue;
+    if (canonicalizeWorkRecordJson(before) === canonicalizeWorkRecordJson(after)) continue;
     if (closeoutCount > 0 || before?.status === "done" || after?.status !== "done" ||
         !validDate(before?.updated) || !validDate(after?.updated) || before.updated === after.updated ||
         !canonicalFirstClosure(before, after) || !sameSliceExceptCloseout(before, after)) return false;
@@ -248,29 +283,30 @@ function v3UnrelatedContentMatchesCandidate(candidateRecord, localRecord) {
   return closeoutCount === 1 && terminalUnitDeclaresSlice(localRecord, closeoutSliceId);
 }
 
-function soleParent(runGit, repo, child, parent) {
-  const fields = run(runGit, repo, ["rev-list", "--parents", "-n", "1", child]).split(/\s+/u);
+async function soleParent(runGit, repo, child, parent) {
+  const fields = (await run(runGit, repo, ["rev-list", "--parents", "-n", "1", child])).split(/\s+/u);
   return fields.length === 2 && fields[0] === child && fields[1] === parent;
 }
 
-function onlyWkDelta(runGit, repo, parent, child, wk) {
-  const names = run(runGit, repo, ["diff-tree", "--no-commit-id", "--name-only", "-r", parent, child])
+async function onlyWkDelta(runGit, repo, parent, child, wk) {
+  const names = (await run(runGit, repo, ["diff-tree", "--no-commit-id", "--name-only", "-r", parent, child]))
     .split("\n").filter(Boolean);
   return names.length === 1 && names[0] === FILE(wk);
 }
 
-function commitOnlyWk({ runGit, repo, parent, recordBytes, wk, message, tempRoot }) {
+async function commitOnlyWk({ runGit, repo, parent, recordBytes, wk, message, tempRoot }) {
   const index = path.join(tempRoot, `index-${createHash("sha256").update(message).digest("hex")}`);
   const file = path.join(tempRoot, `record-${Date.now()}-${Math.random().toString(16).slice(2)}`);
   writeFileSync(file, recordBytes, "utf8");
   try {
     const env = { GIT_INDEX_FILE: index };
-    run(runGit, repo, ["read-tree", parent], env);
-    const blob = run(runGit, repo, ["hash-object", "-w", "--path", FILE(wk), file], env);
-    run(runGit, repo, ["update-index", "--add", "--cacheinfo", `100644,${blob},${FILE(wk)}`], env);
-    const tree = run(runGit, repo, ["write-tree"], env);
-    const commit = run(runGit, repo, ["commit-tree", tree, "-p", parent, "-m", message], env);
-    if (!OID_RE.test(commit) || !soleParent(runGit, repo, commit, parent) || !onlyWkDelta(runGit, repo, parent, commit, wk)) {
+    await run(runGit, repo, ["read-tree", parent], env);
+    const blob = await run(runGit, repo, ["hash-object", "-w", "--path", FILE(wk), file], env);
+    await run(runGit, repo, ["update-index", "--add", "--cacheinfo", `100644,${blob},${FILE(wk)}`], env);
+    const tree = await run(runGit, repo, ["write-tree"], env);
+    const commit = await run(runGit, repo, ["commit-tree", tree, "-p", parent, "-m", message], env);
+    if (!OID_RE.test(commit) || !await soleParent(runGit, repo, commit, parent) ||
+        !await onlyWkDelta(runGit, repo, parent, commit, wk)) {
       throw new Error("closeout commit changes more than the WK record");
     }
     return commit;
@@ -280,17 +316,19 @@ function commitOnlyWk({ runGit, repo, parent, recordBytes, wk, message, tempRoot
   }
 }
 
-function commitChain(runGit, repo, head, wk, { deps = {}, binding = null } = {}) {
+async function commitChain(runGit, repo, head, wk, { deps = {}, binding = null } = {}) {
   try {
-    const parent1 = run(runGit, repo, ["rev-parse", `${head}^`]);
-    const parent2 = run(runGit, repo, ["rev-parse", `${parent1}^`]);
-    if (!soleParent(runGit, repo, parent1, parent2) || !soleParent(runGit, repo, head, parent1) ||
-        !onlyWkDelta(runGit, repo, parent2, parent1, wk) || !onlyWkDelta(runGit, repo, parent1, head, wk)) return null;
-    const firstRecord = jsonRecord(run(runGit, repo, ["show", `${parent1}:${FILE(wk)}`]), "review commit record unreadable");
-    const doneRecord = jsonRecord(run(runGit, repo, ["show", `${head}:${FILE(wk)}`]), "completion commit record unreadable");
+    const parent1 = await run(runGit, repo, ["rev-parse", `${head}^`]);
+    const parent2 = await run(runGit, repo, ["rev-parse", `${parent1}^`]);
+    if (!await soleParent(runGit, repo, parent1, parent2) || !await soleParent(runGit, repo, head, parent1) ||
+        !await onlyWkDelta(runGit, repo, parent2, parent1, wk) ||
+        !await onlyWkDelta(runGit, repo, parent1, head, wk)) return null;
+    const firstRecord = jsonRecord(await run(runGit, repo, ["show", `${parent1}:${FILE(wk)}`]), "review commit record unreadable");
+    const doneRecord = jsonRecord(await run(runGit, repo, ["show", `${head}:${FILE(wk)}`]), "completion commit record unreadable");
     let candidateRecord = null;
     try {
-      candidateRecord = jsonRecord(run(runGit, repo, ["show", `${parent2}:wiki/work-records/${wk}.json`]), "candidate record unreadable");
+      candidateRecord = jsonRecord(await run(runGit, repo,
+        ["show", `${parent2}:wiki/work-records/${wk}.json`]), "candidate record unreadable");
     } catch {
       if (binding?.schema_version !== TERMINAL_WK_CANDIDATE_SCHEMA_VERSION_V3) return null;
     }
@@ -304,7 +342,8 @@ function commitChain(runGit, repo, head, wk, { deps = {}, binding = null } = {})
     if (candidateRecord !== null && candidateReviewSlices.length > 1) return null;
     if (candidateRecord !== null && candidateReviewSlices.length === 1) {
       const expectedCandidateSlice = { ...reviewSlices[0], status: candidateReviewSlices[0].status };
-      if (canonical(expectedCandidateSlice) !== canonical(candidateReviewSlices[0])) return null;
+      if (canonicalizeWorkRecordJson(expectedCandidateSlice) !==
+          canonicalizeWorkRecordJson(candidateReviewSlices[0])) return null;
     }
     if (candidateRecord !== null && binding?.schema_version === TERMINAL_WK_CANDIDATE_SCHEMA_VERSION_V3) {
 
@@ -313,7 +352,8 @@ function commitChain(runGit, repo, head, wk, { deps = {}, binding = null } = {})
       const projection = authenticateTerminalCloseoutProjection({ candidateRecord, liveRecord: firstRecord });
       if (!projection.ok) return null;
     } else if (!terminalReviewMatchesBinding(firstRecord, binding)) return null;
-    if (canonical({ ...doneRecord, status: "review" }) !== canonical(firstRecord)) return null;
+    if (canonicalizeWorkRecordJson({ ...doneRecord, status: "review" }) !==
+        canonicalizeWorkRecordJson(firstRecord)) return null;
     return { candidate: parent2, review: parent1, completion: head, reviewRecord: firstRecord, doneRecord };
   } catch { return null; }
 }
@@ -341,6 +381,72 @@ function exactPullRequest(pr, { repository, base, branch, head, openOnly = false
     Number.isSafeInteger(normalized.number) && normalized.number > 0 &&
     (!openOnly || normalized.state === "open")
     ? normalized : null;
+}
+
+function mergeResponseCommitSha(mergeResponse) {
+  const response = mergeResponse?.response && typeof mergeResponse.response === "object"
+    ? mergeResponse.response : mergeResponse;
+  const candidates = [
+    response?.merge_commit_sha,
+    response?.sha,
+    response?.merge_commit?.sha,
+    mergeResponse?.merge_commit_sha
+  ].filter((value) => value !== undefined && value !== null);
+  return candidates.length > 0 && candidates.every((value) => value === candidates[0]) &&
+    OID_RE.test(candidates[0]) ? candidates[0] : null;
+}
+
+function parseIncludedJson(response) {
+  const raw = String(response?.stdout ?? "");
+  const blocks = raw.split(/\r?\n\r?\n/gu);
+  if (!response?.ok || blocks.length < 2) throw new Error("forge response headers unavailable");
+  const body = blocks.pop();
+  const headerText = blocks.pop();
+  const etag = headerText.match(/^etag:\s*(.+)$/imu)?.[1]?.trim();
+  if (typeof etag !== "string" || etag.length === 0) {
+    throw new Error("forge observation binding unavailable");
+  }
+  return { body: JSON.parse(body), etag };
+}
+
+async function authoritativeLandedCarrier({
+  forge, repository, base, wk, candidate, completion, branch, pullRequestNumber,
+  mergeResponseSha = null, deps
+}) {
+  const landed = await observeForgeLandedPublication({
+    forge,
+    repository,
+    base,
+    wk,
+    candidate,
+    completion,
+    branch,
+    pullRequestNumber
+  });
+  if (!landed.ok) {
+    return {
+      ok: false,
+      refusal: refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.IDENTITY,
+        landed.detail?.reason ?? "authoritative_landed_publication_observation_failed", { completion })
+    };
+  }
+  if (mergeResponseSha !== null && landed.result.merge_commit_sha !== mergeResponseSha) {
+    return {
+      ok: false,
+      refusal: refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.IDENTITY,
+        "merge_response_identity_disagrees", {
+          completion,
+          merge_response_sha: mergeResponseSha,
+          observed_merge_commit_sha: landed.result.merge_commit_sha
+        })
+    };
+  }
+  const witness = deps.landedPublicationWitness;
+  if (witness !== undefined) {
+    if (typeof witness !== "function") throw new TypeError("landed publication witness must be a function");
+    await witness(landed.result);
+  }
+  return { ok: true, carrier: landed.result };
 }
 
 function safeLocalWkPath(mainRepo, localPath) {
@@ -430,12 +536,12 @@ function makeForge({ repository, mainRepo, deps, runGit }) {
         return OID_RE.test(sha) ? { kind: "present", sha } : { kind: "unprovable" };
       } catch { return { kind: "unprovable" }; }
     },
-    publishAndCompareAndSwapBranch({ branch, expected, next }) {
+    async publishAndCompareAndSwapBranch({ branch, expected, next }) {
 
       const url = repository.https_url;
       if (typeof url !== "string" || !url) return { ok: false };
       const ref = `refs/heads/${branch}`;
-      const result = runGit({ repo: mainRepo, args: [
+      const result = await runGit({ repo: mainRepo, args: [
         "-c", "core.hooksPath=/dev/null", "-c", "credential.helper=",
         `-c`, `credential.https://${host}.helper=!gh auth git-credential`,
         "push", "--no-verify",
@@ -464,7 +570,51 @@ function makeForge({ repository, mainRepo, deps, runGit }) {
         `repos/${owner}/${name}/pulls/${number}/merge`, "-f", "merge_method=merge",
         "-f", `sha=${expectedHead}`] });
       if (!result || result.ok !== true) return { ok: false };
-      try { return { ok: true, merged: JSON.parse(result.stdout).merged === true }; } catch { return { ok: false }; }
+      try {
+        const response = JSON.parse(result.stdout);
+        return { ok: true, merged: response.merged === true, response };
+      } catch { return { ok: false }; }
+    },
+    async observeLandedPullRequest({ number }) {
+      if (!Number.isSafeInteger(number) || number <= 0) {
+        throw new Error("pull request number unavailable");
+      }
+      const response = await runGh({
+        args: ["api", "--hostname", host, "--include", `repos/${owner}/${name}/pulls/${number}`]
+      });
+      const { body, etag } = parseIncludedJson(response);
+      if (!body || typeof body !== "object" || Array.isArray(body)) {
+        throw new Error("landed pull request observation malformed");
+      }
+      const directRepository = body.repository && typeof body.repository === "object"
+        ? { ...body.repository, host }
+        : undefined;
+      const baseRepository = body.base?.repo && typeof body.base.repo === "object"
+        ? { ...body.base.repo, host }
+        : undefined;
+      return {
+        ...body,
+        ...(directRepository === undefined ? {} : { repository: directRepository }),
+        base: { ...body.base, ...(baseRepository === undefined ? {} : { repo: baseRepository }) },
+        forge_identity: body.node_id ?? body.id,
+        observation_binding: etag
+      };
+    },
+    async observeExactHeadLanding({ head, merge_commit_sha, observation_binding }) {
+      if (!OID_RE.test(head ?? "") || !OID_RE.test(merge_commit_sha ?? "") ||
+          typeof observation_binding !== "string" || observation_binding.length === 0) {
+        return { ok: false };
+      }
+      const result = api([`repos/${owner}/${name}/compare/${head}...${merge_commit_sha}`]);
+      if (!result?.ok) return { ok: false, observation_binding };
+      const body = JSON.parse(result.stdout);
+      return {
+        ok: true,
+        ancestor: head,
+        descendant: merge_commit_sha,
+        relation: body.status === "ahead" || body.status === "identical" ? "ancestor" : "unrelated",
+        observation_binding
+      };
     },
     async readMergedWk({ branch, wk }) {
       const result = api([`repos/${owner}/${name}/contents/${FILE(wk)}?ref=${branch}`]);
@@ -476,41 +626,72 @@ function makeForge({ repository, mainRepo, deps, runGit }) {
   };
 }
 
-export async function defaultWkForgeMerge({ mainRepo, assignedUnit, deps = {} } = {}) {
-  if (typeof mainRepo !== "string" || !WK_RE.test(assignedUnit ?? "")) {
-    return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.REQUEST_INVALID, "invalid_request");
-  }
+async function runWkForgeMergeWithinGenerationAuthority({
+  mainRepo, assignedUnit, authorityContext, deps
+}) {
   const wk = assignedUnit;
   const runGit = deps.runGit ?? defaultRunGit;
   let candidateState;
   try {
-    if (typeof deps.resolveTerminalCandidatePublicationState !== "function") {
-      return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.ELIGIBILITY, "candidate_resolver_unavailable");
+    const handoff = deps.authenticatedHandoffResult ??
+      (typeof deps.resolveAuthenticatedWkForgeHandoff === "function"
+        ? await deps.resolveAuthenticatedWkForgeHandoff(wk, authorityContext)
+        : null);
+    if (handoff !== null && handoff !== undefined) {
+      try {
+        const authenticatedHandoff = handoff?.ok === true ? handoff.result : handoff;
+        const retainedHandoff = assertAuthenticatedWkForgeHandoffResult(authenticatedHandoff);
+        if (authenticatedHandoff.assigned_unit !== wk ||
+            authenticatedHandoff.terminal_candidate !== retainedHandoff.binding?.candidate ||
+            authenticatedHandoff.version_identity !== retainedHandoff.version_decision?.version_identity ||
+            authenticatedHandoff.immutable_version_ref !== retainedHandoff.version_decision?.immutable_version_ref ||
+            authenticatedHandoff.current_selection_observation !==
+              retainedHandoff.version_decision?.current_selection_observation) {
+          return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.IDENTITY,
+            "authenticated_handoff_identity_disagrees");
+        }
+        candidateState = Object.freeze({
+          binding: retainedHandoff.binding,
+          version_decision: retainedHandoff.version_decision,
+          branch: authenticatedHandoff.branch,
+          base_branch: authenticatedHandoff.base_branch,
+          authenticated_handoff_result: authenticatedHandoff
+        });
+      } catch {
+        return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.IDENTITY,
+          "authenticated_handoff_unverified");
+      }
+    } else {
+      return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.IDENTITY,
+        "authenticated_handoff_result_unavailable");
     }
-    candidateState = await deps.resolveTerminalCandidatePublicationState(wk);
     const binding = candidateState?.binding;
     if (!binding || binding.canonical_wk_id !== wk || !OID_RE.test(binding.candidate)) {
       return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.ELIGIBILITY, "exact_terminal_candidate_unavailable");
-    }
-    if (binding.schema_version === TERMINAL_WK_CANDIDATE_SCHEMA_VERSION_V3) {
-      const subject = candidateState.terminal_review_subject ?? candidateState.review_subject ?? null;
-      const contract = candidateState.terminal_review_contract_digest ?? candidateState.review_contract_digest ?? null;
-      if ((subject !== null && subject !== binding.terminal_review_subject) ||
-          (contract !== null && contract !== binding.terminal_review_contract_digest)) {
-        return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.IDENTITY, "terminal_review_target_binding_disagrees");
-      }
     }
     if (binding.main_repo !== undefined && binding.main_repo !== mainRepo) {
       return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.IDENTITY, "terminal_candidate_repository_disagrees");
     }
     try {
+      await authenticateCurrentControlledContractGenerationAtW({
+        repoRoot: mainRepo,
+        wkId: wk,
+        expectedWkTipSha: binding.wk_tip,
+        expectedGeneration: binding.controlled_generation,
+        deps: { runGit }
+      });
+    } catch {
+      return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.IDENTITY,
+        "controlled_generation_identity_unverified");
+    }
+    try {
       const verify = deps.verifyTerminalCandidateBinding ?? verifyTerminalWkCandidateObjectBinding;
-      verify({ binding, runGit });
+      await verify({ binding, runGit });
     } catch {
       return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.IDENTITY, "terminal_candidate_binding_unverified");
     }
     const candidate = binding.candidate;
-    const candidateRecord = readCandidateBoundRecord({ mainRepo, wk, binding, deps });
+    const candidateRecord = await readCandidateBoundRecord({ mainRepo, wk, binding, deps });
     if (!candidateRecord.ok) return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.ELIGIBILITY, candidateRecord.reason);
     const localPath = path.join(mainRepo, FILE(wk));
     try { safeLocalWkPath(mainRepo, localPath); } catch {
@@ -524,7 +705,7 @@ export async function defaultWkForgeMerge({ mainRepo, assignedUnit, deps = {} } 
       return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.ELIGIBILITY, "local_WK_not_review_complete");
     }
     const v3Binding = binding.schema_version === TERMINAL_WK_CANDIDATE_SCHEMA_VERSION_V3;
-    const remote = resolveCanonicalForgeRepository({ repo: mainRepo, deps });
+    const remote = await resolveCanonicalForgeRepository({ repo: mainRepo, deps });
     if (!remote.ok) return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.IDENTITY, remote.reason);
     const forge = makeForge({ repository: remote.repository, mainRepo, deps, runGit });
     if (!sameForgeRepository(forge.repository, remote.repository)) {
@@ -540,8 +721,7 @@ export async function defaultWkForgeMerge({ mainRepo, assignedUnit, deps = {} } 
     if (base !== probe.default_branch && typeof configuredBase !== "string") {
       return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.IDENTITY, "configured_base_branch_untrusted");
     }
-    const initiative = candidateRecord.record?.initiative ?? candidateState.initiative ??
-      binding.initiative ?? String(binding.wk_ref ?? "").split("/")[3];
+    const initiative = localRecord.initiative;
     if (typeof initiative !== "string" || !/^IN-\d{4}$/u.test(initiative)) {
       return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.IDENTITY, "terminal_candidate_initiative_unavailable");
     }
@@ -549,7 +729,8 @@ export async function defaultWkForgeMerge({ mainRepo, assignedUnit, deps = {} } 
     const observation = typeof forge.observeRemoteBranch === "function"
       ? forge.observeRemoteBranch({ branch }) : null;
     let completion = observation?.kind === "present" && OID_RE.test(observation.sha) ? observation.sha : null;
-    let chain = completion && completion !== candidate ? commitChain(runGit, mainRepo, completion, wk, { deps, binding }) : null;
+    let chain = completion && completion !== candidate
+      ? await commitChain(runGit, mainRepo, completion, wk, { deps, binding }) : null;
     let pr = await observePr(forge, { repository: remote.repository, base, branch });
     const tempRoot = mkdtempSync(path.join(os.tmpdir(), "wk-forge-merge-"));
     try {
@@ -557,7 +738,8 @@ export async function defaultWkForgeMerge({ mainRepo, assignedUnit, deps = {} } 
         if (pr?.merged === true && OID_RE.test(pr.head_sha)) completion = pr.head_sha;
         else if (exactPullRequest(pr, { repository: remote.repository, base, branch, head: candidate, openOnly: true })) completion = candidate;
         else return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.IDENTITY, "handoff_branch_unobservable");
-        chain = completion === candidate ? null : commitChain(runGit, mainRepo, completion, wk, { deps, binding });
+        chain = completion === candidate ? null
+          : await commitChain(runGit, mainRepo, completion, wk, { deps, binding });
       }
       if (completion === candidate) {
 
@@ -570,7 +752,7 @@ export async function defaultWkForgeMerge({ mainRepo, assignedUnit, deps = {} } 
             return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.ELIGIBILITY, "local_WK_not_authenticated_against_candidate",
               { projection: "unrelated_candidate_content_drift" });
           }
-          if (!localReviewProjectionMatchesCandidate(candidateRecord.record ?? localRecord, localRecord, binding) ||
+          if (!localReviewProjectionMatchesCandidate(candidateRecord.record, localRecord, binding) ||
               !terminalReviewMatchesBinding(localRecord, binding)) {
             return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.ELIGIBILITY, "local_WK_not_authenticated_against_terminal_review_target");
           }
@@ -587,10 +769,10 @@ export async function defaultWkForgeMerge({ mainRepo, assignedUnit, deps = {} } 
         if (!projection.ok) return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.ELIGIBILITY, "local_WK_not_authenticated_against_candidate");
         const reviewRecordObject = projection.reviewRecord;
         const reviewRecord = JSON.stringify(reviewRecordObject, null, 2) + "\n";
-        const review = commitOnlyWk({ runGit, repo: mainRepo, parent: candidate, recordBytes: reviewRecord, wk,
+        const review = await commitOnlyWk({ runGit, repo: mainRepo, parent: candidate, recordBytes: reviewRecord, wk,
           message: `${wk}: record terminal review`, tempRoot });
         const done = { ...localRecord, status: "done" };
-        const finish = commitOnlyWk({ runGit, repo: mainRepo, parent: review, recordBytes: JSON.stringify(done, null, 2) + "\n", wk,
+        const finish = await commitOnlyWk({ runGit, repo: mainRepo, parent: review, recordBytes: JSON.stringify(done, null, 2) + "\n", wk,
           message: `${wk}: complete`, tempRoot });
         chain = { candidate, review, completion: finish, reviewRecord: reviewRecordObject, doneRecord: done };
         const cas = typeof forge.publishAndCompareAndSwapBranch === "function"
@@ -603,7 +785,7 @@ export async function defaultWkForgeMerge({ mainRepo, assignedUnit, deps = {} } 
         const mergedPr = await observePr(forge, { repository: remote.repository, base, branch });
         if (mergedPr?.merged === true && OID_RE.test(mergedPr.head_sha)) {
           completion = mergedPr.head_sha;
-          chain = commitChain(runGit, mainRepo, completion, wk, { deps, binding });
+          chain = await commitChain(runGit, mainRepo, completion, wk, { deps, binding });
         }
       }
       if (!chain || chain.candidate !== candidate) {
@@ -618,35 +800,55 @@ export async function defaultWkForgeMerge({ mainRepo, assignedUnit, deps = {} } 
         return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.ELIGIBILITY, "local_WK_not_review_complete");
       }
 
-      if (!localAlreadyDone && (!chain.reviewRecord || computeWorkRecordSourceDigest(chain.reviewRecord) !== localDigest)) {
-        return { ok: false, category: WK_FORGE_MERGE_FAILURE_CATEGORIES.RECONCILIATION,
-          partial: true, detail: { reason: "local_reconciliation_failed", completion } };
+      const localReviewDisagrees = !localAlreadyDone &&
+        (!chain.reviewRecord || computeWorkRecordSourceDigest(chain.reviewRecord) !== localDigest);
+      if (localReviewDisagrees && exact.merged !== true) {
+        return reconciliationFailure("local_reconciliation_failed", completion);
       }
+      let mergeResponseSha = null;
       if (exact.merged !== true) {
         const merged = await forge.mergePullRequest({ number: exact.number, expectedHead: completion });
         if (!merged || merged.ok !== true || merged.merged !== true) {
           return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.FORGE, "exact_head_merge_refused", { completion });
         }
+        mergeResponseSha = mergeResponseCommitSha(merged);
+        if (mergeResponseSha === null) {
+          return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.IDENTITY,
+            "merge_response_identity_unavailable", { completion });
+        }
+      }
+      const landed = await authoritativeLandedCarrier({
+        forge,
+        repository: remote.repository,
+        base,
+        wk,
+        candidate,
+        completion,
+        branch,
+        pullRequestNumber: exact.number,
+        mergeResponseSha,
+        deps
+      });
+      if (!landed.ok) return landed.refusal;
+      const carrier = landed.carrier;
+      if (localReviewDisagrees) {
+        return reconciliationFailure("local_reconciliation_failed", completion, carrier);
       }
       if (localAlreadyDone) {
         if (!chain.doneRecord || computeWorkRecordSourceDigest(chain.doneRecord) !== localDigest) {
-          return { ok: false, category: WK_FORGE_MERGE_FAILURE_CATEGORIES.RECONCILIATION,
-            partial: true, detail: { reason: "local_reconciliation_failed", completion } };
+          return reconciliationFailure("local_reconciliation_failed", completion, carrier);
         }
-        return { ok: true, result: { schema_version: WK_FORGE_MERGE_RESULT_SCHEMA_VERSION, wk, candidate,
-          review: chain.review, completion, base_branch: base, pull_request: exact, already_reconciled: true } };
+        return { ok: true, result: carrier };
       }
       let currentLocalDigest;
       try {
         safeLocalWkPath(mainRepo, localPath);
         currentLocalDigest = computeWorkRecordSourceDigest(jsonRecord(readFileSync(localPath, "utf8"), "local WK record unreadable"));
       } catch {
-        return { ok: false, category: WK_FORGE_MERGE_FAILURE_CATEGORIES.RECONCILIATION,
-          partial: true, detail: { reason: "local_reconciliation_unsafe_or_unreadable", completion } };
+        return reconciliationFailure("local_reconciliation_unsafe_or_unreadable", completion, carrier);
       }
       if (currentLocalDigest !== localDigest) {
-        return { ok: false, category: WK_FORGE_MERGE_FAILURE_CATEGORIES.RECONCILIATION,
-          partial: true, detail: { reason: "local_WK_changed_after_operation", completion } };
+        return reconciliationFailure("local_WK_changed_after_operation", completion, carrier);
       }
       let mergedBytes;
       try {
@@ -656,15 +858,36 @@ export async function defaultWkForgeMerge({ mainRepo, assignedUnit, deps = {} } 
         if (!validWorkRecord(mergedRecord, wk, {}, deps) || mergedRecord.status !== "done") throw new Error("merged WK record is not done");
         reconcileLocalWk(mainRepo, localPath, localDigest, mergedBytes);
       } catch {
-        return { ok: false, category: WK_FORGE_MERGE_FAILURE_CATEGORIES.RECONCILIATION,
-          partial: true, detail: { reason: "local_reconciliation_failed", completion } };
+        return reconciliationFailure("local_reconciliation_failed", completion, carrier);
       }
-      return { ok: true, result: { schema_version: WK_FORGE_MERGE_RESULT_SCHEMA_VERSION, wk, candidate, review: chain.review, completion, base_branch: base, pull_request: exact } };
+      return { ok: true, result: carrier };
     } finally {
       try { rmSync(tempRoot, { recursive: true, force: true }); } catch {   }
     }
   } catch {
     return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.INDETERMINATE, "forge_merge_operation_failed");
+  }
+}
+
+export async function defaultWkForgeMerge({ mainRepo, assignedUnit, deps = {} } = {}) {
+  if (typeof mainRepo !== "string" || !path.isAbsolute(mainRepo) ||
+      !WK_RE.test(assignedUnit ?? "")) {
+    return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.REQUEST_INVALID, "invalid_request");
+  }
+  try {
+    return await withControlledContractAuthorityExclusion({
+      repoRoot: mainRepo,
+      wkId: assignedUnit,
+      run: async (authorityContext) => runWkForgeMergeWithinGenerationAuthority({
+        mainRepo,
+        assignedUnit,
+        authorityContext,
+        deps
+      })
+    });
+  } catch {
+    return refuse(WK_FORGE_MERGE_FAILURE_CATEGORIES.IDENTITY,
+      "controlled_generation_authority_unavailable");
   }
 }
 

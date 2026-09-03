@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
@@ -451,8 +451,9 @@ async function publishArtifactAtomically({
   }
 }
 
-const CROSS_PROCESS_LEASE_MS = 60_000, CROSS_PROCESS_POLL_MS = 50,
-  CROSS_PROCESS_MAX_ATTEMPTS = 100;
+const CROSS_PROCESS_LEASE_MS = 60_000, CROSS_PROCESS_POLL_MS = 50;
+
+const CROSS_PROCESS_FOLLOW_MAX_MS = CROSS_PROCESS_LEASE_MS * 2;
 const EMPTY_ARTIFACT_DIGEST = createHash("sha256").update("").digest("hex");
 const digestBytes = (value) => createHash("sha256").update(value).digest("hex");
 
@@ -481,26 +482,50 @@ function followerArtifactMatches(artifact, { identity, scipInput }) {
       : !Object.prototype.hasOwnProperty.call(artifact, "scip_overlay")));
 }
 
+async function probeArtifactPublication(artifactPath, cached) {
+  let stats = null;
+  try {
+    stats = await stat(artifactPath);
+  } catch {
+
+    return { identity: null, digest: EMPTY_ARTIFACT_DIGEST, artifact: null };
+  }
+  const identity = `${stats.size}:${stats.mtimeMs}:${stats.ino}`;
+  if (cached && cached.identity === identity) {
+    return cached;
+  }
+  let observed = null;
+  try { observed = await readSidecarArtifactBytes(artifactPath); } catch {}
+  return observed
+    ? { identity, digest: digestBytes(observed.rawBytes), artifact: observed.artifact }
+    : { identity, digest: EMPTY_ARTIFACT_DIGEST, artifact: null };
+}
+
 async function followCrossProcessBuild({ follow, artifactPath, crossProcess }) {
-  for (let attempt = 0; attempt < CROSS_PROCESS_MAX_ATTEMPTS; attempt += 1) {
-    let observed = null;
-    try { observed = await readSidecarArtifactBytes(artifactPath); } catch {}
-    const publicationDigest = observed ? digestBytes(observed.rawBytes) : EMPTY_ARTIFACT_DIGEST;
-    const result = await followSidecarBuildLease({ ...follow, publicationDigest,
+  const deadline = Date.now() + CROSS_PROCESS_FOLLOW_MAX_MS;
+  let observed = null;
+  while (Date.now() < deadline) {
+    const previousIdentity = observed?.identity ?? null;
+    observed = await probeArtifactPublication(artifactPath, observed);
+    const result = await followSidecarBuildLease({ ...follow, publicationDigest: observed.digest,
       publicationIdentity: crossProcess.identityDigest, timeoutMs: CROSS_PROCESS_POLL_MS,
       pollMs: CROSS_PROCESS_POLL_MS, leaseMs: CROSS_PROCESS_LEASE_MS });
     if (result.outcome === "following") {
-      return observed && followerArtifactMatches(observed.artifact, crossProcess)
+      return observed.artifact && followerArtifactMatches(observed.artifact, crossProcess)
         ? { outcome: "published", artifact: observed.artifact }
-        : { outcome: "corrupt_publication" };
+        : { outcome: "unusable_publication", reason: "published_artifact_not_reusable" };
     }
     if (result.outcome === "acquired" || result.outcome === "takeover") return result;
     if (result.reason === "publication_mismatch") {
-      if (observed) try { if (digestBytes((await readSidecarArtifactBytes(artifactPath)).rawBytes) === publicationDigest)
-        return { outcome: "corrupt_publication" }; } catch {}
-    } else if (result.outcome !== "timeout") return result;
+
+      if (previousIdentity === observed.identity) {
+        return { outcome: "unusable_publication", reason: "publication_digest_mismatch" };
+      }
+    } else if (result.outcome !== "timeout") {
+      return result;
+    }
   }
-  return { outcome: "timeout" };
+  return { outcome: "timeout", reason: "follow_deadline_exceeded" };
 }
 
 function startLeaseRenewal(lease) {
@@ -513,11 +538,6 @@ function startLeaseRenewal(lease) {
   }, CROSS_PROCESS_LEASE_MS / 2);
   timer.unref();
   return { async stop() { clearInterval(timer); await tail; return failure; } };
-}
-
-function crossProcessFailure(result) {
-  return new SidecarBuildRefusalError(`cross-process sidecar build ${result.outcome}: ${result.reason ?? "unspecified"}`,
-    { code: `sidecar_cross_process_${result.outcome}` });
 }
 
 function failAndReleaseSidecarBuildLeadership(entry) {
@@ -615,6 +635,7 @@ export async function buildSidecarIndex(rawOptions) {
   let completedEnvelope = null;
   let lock = null;
   let lease = null, leaseRenewal = null, leasePublished = false;
+  const crossProcessDiagnostics = [];
   try {
 
     if (authoritative) {
@@ -635,11 +656,13 @@ export async function buildSidecarIndex(rawOptions) {
           action: rebuild ? "rebuild" : "coalesced" });
         return completedEnvelope;
       }
-      if (leaseResult.outcome !== "acquired" && leaseResult.outcome !== "takeover") {
-        throw crossProcessFailure(leaseResult);
+      if (leaseResult.outcome === "acquired" || leaseResult.outcome === "takeover") {
+        lease = leaseResult.lease;
+        leaseRenewal = startLeaseRenewal(lease);
+      } else {
+
+        crossProcessDiagnostics.push({ code: "cross_process_build_uncoalesced" });
       }
-      lease = leaseResult.lease;
-      leaseRenewal = startLeaseRenewal(lease);
     }
 
     const sources = await collectTrackedSources(gitState.repoRoot, gitState.index_head);
@@ -677,11 +700,16 @@ export async function buildSidecarIndex(rawOptions) {
     }
 
     const serialized = `${JSON.stringify(artifact, null, 2)}\n`;
+    let leaseHeld = false;
     if (lease) {
       const renewalFailure = await leaseRenewal.stop();
       const renewal = renewalFailure ?? await renewSidecarBuildLease(lease,
         { leaseMs: CROSS_PROCESS_LEASE_MS });
-      if (renewal.outcome !== "renewed") throw crossProcessFailure(renewal);
+      leaseHeld = renewal.outcome === "renewed";
+
+      if (!leaseHeld) {
+        crossProcessDiagnostics.push({ code: "cross_process_lease_lost_before_publication" });
+      }
     }
     await publishArtifactAtomically({
       artifactDirPath: artifactPaths.artifactDirPath,
@@ -691,12 +719,15 @@ export async function buildSidecarIndex(rawOptions) {
       operations: artifactOperations
     });
 
-    if (lease) {
+    if (lease && leaseHeld) {
       const publication = await publishSidecarBuildLease({ lease,
         publicationIdentity: crossProcess.identityDigest,
         publicationDigest: digestBytes(serialized) });
-      if (publication.outcome !== "published") throw crossProcessFailure(publication);
-      leasePublished = true;
+
+      leasePublished = publication.outcome === "published";
+      if (!leasePublished) {
+        crossProcessDiagnostics.push({ code: "cross_process_publication_not_recorded" });
+      }
     }
 
     settleSidecarBuildLeadershipPublished(provisionalLeadership.entry,
@@ -721,7 +752,8 @@ export async function buildSidecarIndex(rawOptions) {
     if (completedEnvelope) {
       appendSidecarBuildLockDiagnostics(completedEnvelope, [
         ...(lock?.diagnostics ?? []),
-        ...releaseDiagnostics
+        ...releaseDiagnostics,
+        ...crossProcessDiagnostics
       ]);
     }
   }

@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "controlled-contract-proof-verification-result.v1.schema.json",
+  "title": "controlled-contract-proof-verification-result.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "authority",
+    "obligation_id",
+    "proof_instance",
+    "result_digest"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "controlled-contract-proof-verification-result.v1"
+    },
+    "status": {
+      "enum": ["satisfied", "unsatisfied", "not_executable", "refused"]
+    },
+    "authority": { "const": "non_authoritative" },
+    "obligation_id": { "type": "string", "minLength": 1 },
+    "reason_code": { "type": ["string", "null"] },
+    "diagnostics": { "type": "array", "items": { "type": "object" } },
+    "proof_instance": {
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "#/$defs/proof_instance" }
+      ]
+    },
+    "result_digest": { "$ref": "#/$defs/digest" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": { "enum": ["satisfied", "unsatisfied"] }
+        }
+      },
+      "then": {
+        "properties": {
+          "proof_instance": { "$ref": "#/$defs/proof_instance" }
+        }
+      },
+      "else": {
+        "required": ["reason_code"],
+        "properties": {
+          "reason_code": { "type": "string", "minLength": 1 },
+          "proof_instance": { "type": "null" }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "proof_instance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_generation",
+        "contract_digest",
+        "obligation_coverage_digest",
+        "proof_plan_digest",
+        "proof_plan_entry_digest",
+        "profile",
+        "admission",
+        "certification",
+        "guarantee",
+        "evaluation_stage",
+        "exact_capture",
+        "behavior_claim_ids",
+        "verification_id",
+        "relation_ids",
+        "declared_target",
+        "test_proof_id",
+        "evaluator",
+        "candidate",
+        "receipt_population"
+      ],
+      "properties": {
+        "contract_generation": { "$ref": "#/$defs/digest" },
+        "contract_digest": { "$ref": "#/$defs/digest" },
+        "obligation_coverage_digest": { "$ref": "#/$defs/digest" },
+        "proof_plan_digest": { "$ref": "#/$defs/digest" },
+        "proof_plan_entry_digest": { "$ref": "#/$defs/digest" },
+        "profile": { "$ref": "#/$defs/identity" },
+        "admission": { "$ref": "#/$defs/identity" },
+        "certification": { "$ref": "#/$defs/identity" },
+        "guarantee": { "$ref": "#/$defs/identity" },
+        "evaluation_stage": { "const": "post_delivery" },
+        "exact_capture": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["capture_root_digest", "sources_digest"],
+              "properties": {
+                "capture_root_digest": { "$ref": "#/$defs/digest" },
+                "sources_digest": { "$ref": "#/$defs/digest" }
+              }
+            }
+          ]
+        },
+        "behavior_claim_ids": { "$ref": "#/$defs/string_set" },
+        "verification_id": { "type": "string", "minLength": 1 },
+        "relation_ids": { "$ref": "#/$defs/string_set" },
+        "declared_target": { "$ref": "#/$defs/identity" },
+        "test_proof_id": { "type": "string", "minLength": 1 },
+        "evaluator": { "$ref": "#/$defs/identity" },
+        "candidate": { "$ref": "#/$defs/identity" },
+        "receipt_population": { "$ref": "#/$defs/identity" }
+      }
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "string_set": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "identity": {
+      "type": "object",
+      "minProperties": 1
+    }
+  }
+}

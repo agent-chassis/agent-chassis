@@ -224,8 +224,6 @@ function explainEnvelope() {
     command: "role-guard",
     launcher_context_supported: true,
     guarded_launcher_operations: [
-      "agent-launch review/launch redteam read-only registry enforcement",
-      "agent-launch review/launch code_review read-only registry enforcement",
       "agent-launch launch implement subject-to-worker binding",
       "external CLI hooks presenting --launcher-context after launcher-owned verification"
     ],

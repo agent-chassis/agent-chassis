@@ -2,7 +2,9 @@ import { CONTROLLED_VOCABULARY, VOCABULARY_DIGESTS } from
   "../vocabulary/cv.experimental.0.34.mjs";
 import { NATIVE_CONTRACT_SCHEMA as V033_NATIVE_CONTRACT_SCHEMA } from
   "./native-contract-carrier.mjs";
+import { compiledValidators } from "./compiled-validator-cache.mjs";
 import { createNativeContractRuntime } from "./native-contract-runtime.mjs";
+import { buildEqualityNormalizationV034 } from "./equality-normalization-v034.mjs";
 import { evaluatePopulationRelations } from "./population-semantics-v034.mjs";
 import {
   deriveVocabularyIndexes,
@@ -100,6 +102,7 @@ function typeAllowed(typeConstraint, typeTerm) {
 
 function validatePropositionSemantics({ proposition, referenceById }) {
   const signature = projection.operator_signatures[proposition.operator];
+  const applicability = projection.operator_applicability[proposition.operator];
   const diagnostics = [];
   const subject = referenceById.get(proposition.subject_reference_id);
   if (subject && !typeAllowed(signature.subject_types, subject.type_term)) diagnostics.push({
@@ -123,12 +126,45 @@ function validatePropositionSemantics({ proposition, referenceById }) {
       });
     }
   }
+  if (applicability?.context_reference_cardinality) {
+    const count = new Set(
+      proposition.applicability_context.operand_reference_ids
+    ).size;
+    const { minimum, maximum } = applicability.context_reference_cardinality;
+    if (count < minimum || maximum !== null && count > maximum) diagnostics.push({
+      code: "operator_applicability_cardinality_invalid",
+      proposition_id: proposition.proposition_id,
+      operator: proposition.operator,
+      actual_count: count,
+      minimum,
+      maximum
+    });
+  }
+  if (applicability?.context_reference_types?.kind === "restricted") {
+    for (const referenceId of proposition.applicability_context.operand_reference_ids) {
+      const reference = referenceById.get(referenceId);
+      if (reference && !applicability.context_reference_types.terms.includes(
+        reference.type_term
+      )) diagnostics.push({
+        code: "operator_applicability_context_type_invalid",
+        proposition_id: proposition.proposition_id,
+        operator: proposition.operator,
+        reference_id: referenceId,
+        actual_type_term: reference.type_term,
+        allowed_type_terms: [...applicability.context_reference_types.terms]
+      });
+    }
+  }
   return diagnostics;
 }
 
+const { validateSchema: validateNativeContractSchemaV034 } = await compiledValidators(
+  "controlled-contract.native-contract-carrier.v034",
+  { validators: { validateSchema: NATIVE_CONTRACT_SCHEMA_V034 } }
+);
 const runtime = createNativeContractRuntime({
   carrierVersion: SCHEMA_VERSION_V034,
-  schema: NATIVE_CONTRACT_SCHEMA_V034,
+  validateSchema: validateNativeContractSchemaV034,
   complementByOperator: indexes.complement_by_operator,
   inverseByOperator: indexes.inverse_by_operator,
   functionalOperators: indexes.functional_operators,
@@ -143,6 +179,17 @@ const runtime = createNativeContractRuntime({
   unconditionalEquivalenceIsGlobal: true,
   operandSemanticsByOperator: indexes.operand_semantics_by_operator,
   crossOperatorConstraints: indexes.cross_operator_constraints,
+  buildEqualityNormalization: buildEqualityNormalizationV034,
+  equalityNormalizedOperators: new Set([
+    "reference:authenticates",
+    "reference:does_not_authenticate",
+    "reference:originates_from",
+    "reference:does_not_originate_from",
+    "reference:has_source_of_record",
+    "reference:does_not_have_source_of_record",
+    "reference:observed_in",
+    "reference:not_observed_in"
+  ]),
   conjunctiveRangeOperators: CONTROLLED_VOCABULARY.operators
     .filter(({ signature, multiplicity }) =>
       signature.operand_kind === "range" && multiplicity === "conjunctive_constraint"

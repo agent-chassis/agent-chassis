@@ -1,3 +1,4 @@
+
 # Work-Record Schema
 
 Work records are the machine-readable contract for `WK-*` work. They carry the
@@ -84,6 +85,70 @@ concrete acceptance and validation. For review or redteam work, `write_scope` is
 normally empty unless the assignment explicitly authorizes writing findings to a
 coordination surface.
 
+### Findings units
+
+A findings unit is one whose `work_kind` is `review` or `redteam`. `work_kind` is
+the semantic axis, and the technical dispatch role follows from it: `review`
+requires `reviewer` and `redteam` requires `redteam`. A
+`dispatch_intent.intended_agent_role` that contradicts the unit's `work_kind` is
+a contradiction, not a default to be resolved: the record asserts two
+incompatible things about the same unit, and preferring either half would invent
+the author's intent.
+
+That contradiction is enforced at every boundary. The authoring routes refuse it
+before persistence rather than normalizing it — whatever status the caller asks
+for — and pure schema validation reports it as an **error** at the exact path
+`dispatch_intent.intended_agent_role`, so a record carrying one fails validation
+loudly. Validation never repairs it: no role and no `work_kind` is rewritten, and
+no historical record is migrated. A canonical record that already carries the
+contradiction stays unresolved and fail-loud until an author decides which half
+was meant.
+
+The validation error reaches live work only. A unit whose own `status` is `done`
+or `cancelled` is history, and so is every slice of a record with that status:
+their contradiction records what was authored rather than a decision anyone still
+has to make, and failing them would freeze canonical writes to records whose live
+work is coherent. Reading terminality at both levels is deliberate — a closed
+conflicting slice must not freeze its otherwise live parent, and a finished or
+abandoned WK is finished whatever status a stray subunit still carries. This
+scopes only the error's reach; it is not a repair, an exemption from the rule, or
+a licence to author a new conflict on a terminal unit.
+
+Findings units may use `review_purpose` to distinguish standalone findings work
+from terminal whole-WK review. The accepted vocabulary is closed:
+
+| `work_kind` | required role | authored purpose | effective purpose |
+| --- | --- | --- | --- |
+| `review` | `reviewer` | omitted | `standalone`, from the documented reviewer default |
+| `review` | `reviewer` | `standalone` | `standalone` |
+| `review` | `reviewer` | `terminal_whole_wk` | `terminal_whole_wk` |
+| `redteam` | `redteam` | `standalone` | `standalone` |
+| `redteam` | `redteam` | omitted | absent |
+| non-findings | unchanged | any | invalid |
+
+`terminal_whole_wk` is reviewer-only. An authored value is always preserved
+exactly. Omission defaults to `standalone` for `review` work only; an omitted
+redteam purpose stays ABSENT on every read surface and is never manufactured,
+migrated, or inferred.
+
+Omission and contradiction are different facts and are treated differently. An
+omitted redteam purpose is absence: a record at rest carrying one validates
+clean, and only the authoring routes below refuse it. A conflicting role or an
+incompatible purpose value is a contradiction and is an error wherever it is
+read.
+
+The `workspace_work_record_ready_slice` authoring operation additionally
+requires an explicitly authored `review_purpose: "standalone"` for redteam
+shaping, on create and on update alike. Omission refuses before persistence,
+naming the field path `review_purpose`, the accepted value `standalone`, and the
+retry. That requirement is a property of the authoring call, not a lifecycle
+status and not a property of a stored record: a historical redteam unit that
+omitted the purpose remains valid and is never rewritten.
+
+Raw slice upsert and scaffold construction derive the technical role from
+`work_kind` when the caller omitted it, so a findings unit is never silently
+assigned the default worker role, and refuse an explicitly conflicting role.
+
 ## Acceptance and Validation
 
 `acceptance.criteria` lists the behavioral or documentation outcomes that make
@@ -127,6 +192,18 @@ pointers should summarize the durable result. Remaining work should move into a
 new or existing WK or slice rather than staying as unchecked tasks on a closed
 unit.
 
+Review execution uses `workspace_agent_dispatch`; its original result is the
+review observation and the coordinator consumes its advisory text directly.
+Schema diagnostics never make captured text unusable. If the canonical selected
+result contract requests formal attestation, derivation and durable publication
+occur during that same result settlement. No later evidence, provenance, or
+attestation append operation exists.
+
+Historical top-level `review_provenance` entries remain parseable only as inert
+archival bytes so existing canonical records retain their valid shape. Runtime
+paths preserve the field exactly but do not read it to admit, refuse, complete,
+recover, classify, or otherwise settle an ordinary review.
+
 ## Generated Projections
 
 Generated Markdown, agent briefs, catalog summaries, and queue views exist for
@@ -137,6 +214,11 @@ source record id and digest.
 Generated projections must not add dispatch authority. If a projection conflicts
 with `wiki/work-records/WK-*.json`, the JSON record remains authoritative and
 the projection should be treated as stale or invalid.
+
+Canonical frozen-contract and source-digest projection removes archival
+`review_provenance` before hashing; it never partially normalizes or
+reinterprets the field. Records that predate it remain valid, and existing bytes
+must be preserved exactly.
 
 ## Public Versus Internal Authority
 

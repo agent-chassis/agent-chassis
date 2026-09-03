@@ -3,24 +3,30 @@
 import {
   CanonicalIntegratedLifecycleStateError
 } from "./backend-integrated-scope-authority.mjs";
+import {
+  MANAGED_CORRECTIVE_CONTINUATION_DIAGNOSTIC_CODES,
+  MANAGED_CORRECTIVE_OBSERVED_STATUS_FIELDS,
+  MANAGED_CORRECTIVE_RECOVERY_FIELDS,
+  MANAGED_CORRECTIVE_RECOVERY_OBSERVED_FIELDS,
+  MANAGED_CORRECTIVE_STATUSES,
+  MANAGED_CORRECTIVE_STATUS_RECOVERY_KIND,
+  MANAGED_CORRECTIVE_STATUS_VALUES
+} from "@agent-chassis/agent-launch-core";
+
+export {
+  MANAGED_CORRECTIVE_CONTINUATION_DIAGNOSTIC_CODES,
+  MANAGED_CORRECTIVE_OBSERVED_STATUS_FIELDS,
+  MANAGED_CORRECTIVE_RECOVERY_FIELDS,
+  MANAGED_CORRECTIVE_RECOVERY_OBSERVED_FIELDS,
+  MANAGED_CORRECTIVE_STATUSES,
+  MANAGED_CORRECTIVE_STATUS_RECOVERY_KIND,
+  MANAGED_CORRECTIVE_STATUS_VALUES
+};
 
 export const MANAGED_NO_DELIVERY_EVIDENCE_DIAGNOSTIC_CODES = Object.freeze({
   BINDING_UNRESOLVED: "agent_launch.managed_run.no_delivery_binding_unresolved.v1",
   GIT_UNRESOLVED: "agent_launch.managed_run.no_delivery_git_unresolved.v1"
 });
-
-export const MANAGED_CORRECTIVE_CONTINUATION_DIAGNOSTIC_CODES = Object.freeze({
-  RECEIPTS_CONTRADICTORY: "agent_launch.managed_run.corrective_receipts_contradictory.v1",
-  INTEGRATED_STATE_UNRESOLVED: "agent_launch.managed_run.corrective_integrated_state_unresolved.v1",
-  REVIEWED_TARGET_MISMATCH: "agent_launch.managed_run.corrective_reviewed_target_mismatch.v1"
-});
-
-const CORRECTIVE_STATUS_RECONCILIATION_RECOVERY_KIND =
-  "agent_launch.managed_run.corrective_status_reconciliation.v1";
-const CORRECTIVE_STATUS_RECONCILIATION_ACTIONABLE_PARENT_STATUS = "todo";
-const CORRECTIVE_STATUS_RECONCILIATION_ACTIONABLE_SLICE_STATUS = "todo";
-const CORRECTIVE_STATUS_RECONCILIATION_REQUIRED_PARENT_STATUS = "active";
-const CORRECTIVE_STATUS_RECONCILIATION_REQUIRED_SLICE_STATUS = "todo";
 
 export const CORRECTIVE_REVIEW_OUTCOME = "changes_requested";
 export const CORRECTIVE_COMMITTED_REVIEW_ADMISSION_KIND = "canonical_committed_slice";
@@ -60,28 +66,36 @@ export function observedCanonicalStatusFacts(cause) {
     : null;
 }
 
-export function correctiveStatusReconciliationRecovery(subject, observed) {
+export function correctiveStatusReconciliationRecovery(subject, observed, {
+  monitorHandle = null
+} = {}) {
   if (observed === null ||
-      observed.parent_status !== CORRECTIVE_STATUS_RECONCILIATION_ACTIONABLE_PARENT_STATUS ||
-      observed.slice_status !== CORRECTIVE_STATUS_RECONCILIATION_ACTIONABLE_SLICE_STATUS) {
+      observed.parent_status !== MANAGED_CORRECTIVE_STATUSES.TODO ||
+      observed.slice_status !== MANAGED_CORRECTIVE_STATUSES.TODO) {
     return null;
   }
+  if (typeof monitorHandle !== "string" || monitorHandle.length === 0) return null;
   return Object.freeze({
-    recovery_kind: CORRECTIVE_STATUS_RECONCILIATION_RECOVERY_KIND,
+    recovery_kind: MANAGED_CORRECTIVE_STATUS_RECOVERY_KIND,
 
     observed: Object.freeze({
       parent_status: observed.parent_status,
       slice_status: observed.slice_status
     }),
-    expected: Object.freeze({
-      parent_status: CORRECTIVE_STATUS_RECONCILIATION_REQUIRED_PARENT_STATUS,
-      slice_status: CORRECTIVE_STATUS_RECONCILIATION_REQUIRED_SLICE_STATUS
-    }),
 
     unit: observed.record_id,
     slice_unit: subject,
-    responsible_actor: "coordinator",
-    next_action: "reissue_subject_dispatch_after_canonical_status_reconciliation"
+    responsible_actor: "launcher",
+    next_action: "retry_workspace_agent_run_status_same_monitor_and_subject",
+    monitor_handle: monitorHandle,
+    exact_subject: subject,
+    launcher_retirement_required: true,
+    filesystem_cleanup_forbidden: true,
+    preserve_substantive_review: true,
+    preserve_review_status: true,
+    replacement_review_required: false,
+    notification:
+      "launcher retirement is required; filesystem cleanup is forbidden; preserve the substantive review and review status; retry workspace_agent_run_status with the same monitor handle and exact subject"
   });
 }
 

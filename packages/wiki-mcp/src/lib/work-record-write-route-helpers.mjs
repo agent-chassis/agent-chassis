@@ -29,9 +29,16 @@ import {
 } from "@agent-chassis/wiki-core/src/lib/work-record-review-attestation.mjs";
 import { SLICE_ID_PATTERN } from "@agent-chassis/wiki-core/src/lib/work-record-schema-constants.mjs";
 import {
+  projectWorkRecordTestProofValidation
+} from "@agent-chassis/wiki-core/src/lib/work-record-test-proof-bindings.mjs";
+import {
   projectNextActionScalar,
   validateNextCalls
 } from "@agent-chassis/wiki-core/src/lib/next-calls-descriptor.mjs";
+
+import {
+  classifyMechanicalRuntimeBlocker
+} from "./dispatch-tools/runtime-blocker-classifier.mjs";
 
 function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
@@ -305,6 +312,28 @@ function nestedArrayCheck(unit, parentField, field, check, pathValue, predicate)
   return { check, status, path: pathValue };
 }
 
+function acceptanceValidationCheck(unit) {
+  const check = "acceptance_validation_nonempty";
+  const pathValue = "acceptance.validation";
+  const acceptance = unit?.acceptance;
+  if (!isPlainObject(acceptance) || !hasOwn(acceptance, "validation")) {
+    return { check, status: "missing", path: pathValue };
+  }
+  const section = acceptance.validation;
+  if (Array.isArray(section) && section.length === 0) {
+    return { check, status: "empty", path: pathValue };
+  }
+  const projection = projectWorkRecordTestProofValidation({
+    selectedUnit: { acceptance: { validation: section } },
+    path: pathValue
+  });
+  return {
+    check,
+    status: projection.status === "valid" ? "ready" : "mismatch",
+    path: pathValue
+  };
+}
+
 function shapingTupleCheck(unit) {
   const check = "shaping_tuple_consistent";
   const pathValue = "dispatch_intent";
@@ -334,18 +363,45 @@ function notApplicable(check, pathValue) {
 }
 
 function readinessBlockers(checks) {
-  return checks.flatMap((entry) =>
-    ["missing", "empty", "mismatch", "error"].includes(entry.status)
-      ? [
-          {
-            code: READY_SLICE_BLOCKER_CODE,
-            check: entry.check,
-            status: entry.status,
-            path: entry.path
-          }
-        ]
-      : []
-  );
+  return checks.flatMap((entry) => {
+    if (!["missing", "empty", "mismatch", "error"].includes(entry.status)) return [];
+    const classification = classifyMechanicalRuntimeBlocker({
+      producer: "authored_readiness",
+      condition: "named_contract_defect",
+      named_defect: {
+        check: entry.check,
+        status: entry.status,
+
+        path: entry.path
+      }
+    });
+    return [
+      {
+        code: classification.code,
+        check: entry.check,
+        status: entry.status,
+        path: entry.path,
+        authority_limb: classification.authority_limb,
+        cause: classification.cause,
+        actor_recovery: classification.actor_recovery,
+
+        next_action: readySliceBlockerNextAction(entry)
+      }
+    ];
+  });
+}
+
+function readySliceBlockerNextAction({ check, status, path: pathValue }) {
+  const location = typeof pathValue === "string" && pathValue.length > 0
+    ? pathValue
+    : "the selected slice contract";
+  if (status === "missing") {
+    return `Add the required ${check} content at ${location} on the selected slice, then re-run workspace_work_record_ready_slice`;
+  }
+  if (status === "empty") {
+    return `Populate ${location} — the ${check} check found it present but empty — then re-run workspace_work_record_ready_slice`;
+  }
+  return `Correct ${location} so the ${check} check is consistent, then re-run workspace_work_record_ready_slice`;
 }
 
 export function projectReadySliceStructuralReadiness({
@@ -397,14 +453,7 @@ export function projectReadySliceStructuralReadiness({
       "acceptance.criteria",
       isCanonicalReadySliceCriterion
     ),
-    nestedArrayCheck(
-      unit,
-      "acceptance",
-      "validation",
-      "acceptance_validation_nonempty",
-      "acceptance.validation",
-      isNonemptyString
-    ),
+    acceptanceValidationCheck(unit),
     shapingTupleCheck(unit)
   ];
 
@@ -464,14 +513,24 @@ export function projectReadySliceStructuralReadiness({
     no_op: !Boolean(coreResult?.written),
     source_digest: sourceDigest,
     reviewed_unit_digest: reviewedUnitDigest,
+    generation_transition: coreResult?.generation_transition ?? null,
     structurally_complete: blockers.length === 0,
     checks,
     blockers
   };
 }
 
+function projectionFailureClassification() {
+  return classifyMechanicalRuntimeBlocker({
+    producer: "operator_recovery",
+    condition: "runtime_materialization_failed",
+    detail: { issue: "ready_slice_structural_projection_failed" }
+  });
+}
+
 function projectionFailureReadySliceResult(coreResult) {
   const check = { check: "projection_internal", status: "error", path: null };
+  const classification = projectionFailureClassification();
   return {
     schema_version: READY_SLICE_STRUCTURAL_READINESS_SCHEMA_VERSION,
     selected_unit: {
@@ -485,9 +544,20 @@ function projectionFailureReadySliceResult(coreResult) {
     no_op: Boolean(coreResult.no_op),
     source_digest: coreResult.source_digest,
     reviewed_unit_digest: coreResult.reviewed_unit_digest,
+    generation_transition: coreResult.generation_transition ?? null,
     structurally_complete: false,
     checks: [check],
-    blockers: [{ code: READY_SLICE_BLOCKER_CODE, ...check }]
+    blockers: [
+      {
+        code: classification.code,
+        ...check,
+        authority_limb: classification.authority_limb,
+        cause: classification.cause,
+        actor_recovery: classification.actor_recovery,
+        next_action:
+          "Re-run workspace_work_record_ready_slice; if the structural projection keeps failing, report the runtime failure to the operator. The contract is already persisted — do not revise it for this blocker."
+      }
+    ]
   };
 }
 
@@ -570,6 +640,7 @@ export function createCompactWorkRecordEditResponse(workspaceRepo, result) {
     valid: Boolean(result?.valid),
     written: Boolean(result?.written),
     no_op: Boolean(result?.no_op),
+    generation_transition: result?.generation_transition ?? null,
     changed_fields: Array.isArray(result?.changed_fields) ? result.changed_fields : [],
     status: result?.status ?? null,
     task: result?.task ?? null,
@@ -618,7 +689,7 @@ const NODE_ENGINE_ADMISSIBILITY_NEXT_ACTIONS = Object.freeze({
     "The Chassis Control Engine API key lacks worker-admission entitlement; check the plan/entitlement, then retry once entitled",
 
   node_engine_needs_review:
-    "This needs-review worker-admission result is non-launchable and remediation is coordinator-owned review evidence: prefer reducing, splitting, or narrowing the unit and its write_scope first, otherwise record accepted review-attestation evidence for the selected target, then refresh the admission evidence and re-validate (launch only on a ratified pack-backed admit). See the WK-1031#SLICE-087 review-required recovery and the dispatch-and-validation.md 'Review-required (needs_review) remediation contract'."
+    "This needs-review worker-admission result is non-launchable: prefer reducing, splitting, or narrowing the unit and write_scope first. Otherwise the coordinator invokes workspace_agent_dispatch once for the canonical attestation-required review contract; that call returns the advisory text and settles any formal attestation. Refresh admission evidence and re-validate; only a ratified pack-backed admit authorizes launch. See dispatch-and-validation.md 'Review-required (needs_review) remediation contract'."
 });
 
 function nextActionForNodeEngineAdmissibility(admissibility) {
@@ -667,8 +738,9 @@ export function nextActionForDecisionCode(decisionCode, dispatchRole, dispatchab
       return "Fix work-record validation errors reported in reasons and re-validate";
     case "missing_write_scope":
       return "Define write_scope on this work item before dispatch";
+
     case "work_record_readiness_failure":
-      return "Resolve blocking readiness issues reported in reasons";
+      return "Correct the exact contract defect the refusal names (its check, status, and path), then re-validate";
     default:
       return `Resolve blocking issue: ${decisionCode}`;
   }
@@ -690,7 +762,7 @@ export function nextActionForFreeLocalDecisionCode(decisionCode, dispatchRole, d
     case "missing_write_scope":
       return "Define write_scope on this work item before dispatch";
     case "work_record_readiness_failure":
-      return "Resolve blocking readiness issues reported in reasons";
+      return "Correct the exact contract defect the refusal names (its check, status, and path), then re-validate";
 
     case "missing_graph_impact":
       return "Re-run workspace_validate_dispatch — its default graph resolver rebuilds the live dependency graph on use for graph-bearing implementation units — or build the code-index graph locally with the free CLI (`npm run wiki -- code-index build`, then `npm run wiki -- code-index graph-impact-paths`), then re-validate";
@@ -778,6 +850,7 @@ export function createCompactValidateDispatchResponse(
 export function createCompactContractEditResponse(workspaceRepo, result) {
   const response = {
     workspaceRepo,
+    ok: Boolean(result?.valid),
     operation: result?.operation ?? null,
     record_id: result?.record_id ?? null,
     selected_unit: result?.selected_unit ?? null,

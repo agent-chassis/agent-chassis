@@ -318,3 +318,43 @@ export function selectScopedTarget(clone, sliceId) {
   }
   return { ok: true, target: clone.slices[index] };
 }
+
+export const SLICE_MERGE_SIBLING_PRESERVING_KEYS = Object.freeze(["sections"]);
+export const SLICE_MERGE_WHOLE_REPLACEMENT_KEYS = Object.freeze([
+  "acceptance",
+  "dispatch_intent"
+]);
+
+export function findExistingSliceDelegatedField(incoming) {
+  return isObject(incoming?.sections) && hasOwn(incoming.sections, "tasks")
+    ? "sections.tasks"
+    : null;
+}
+
+export function classifySliceMergeKey(key, existingValue, incomingValue) {
+  if (!isObject(existingValue) || !isObject(incomingValue)) {
+    return { disposition: "replace", droppedKeys: [] };
+  }
+  if (SLICE_MERGE_SIBLING_PRESERVING_KEYS.includes(key)) {
+    return { disposition: "merge", droppedKeys: [] };
+  }
+  if (SLICE_MERGE_WHOLE_REPLACEMENT_KEYS.includes(key)) {
+    return { disposition: "replace", droppedKeys: [] };
+  }
+
+  const droppedKeys = Object.keys(existingValue).filter((sibling) => !hasOwn(incomingValue, sibling));
+  return { disposition: "refuse", droppedKeys };
+}
+
+export function mergeSliceContractBody(existing, incoming) {
+  const merged = { ...existing };
+  for (const key of Object.keys(incoming)) {
+    const { disposition, droppedKeys } = classifySliceMergeKey(key, existing[key], incoming[key]);
+    if (disposition === "refuse") {
+      return { ok: false, merged: null, key, droppedKeys };
+    }
+    merged[key] =
+      disposition === "merge" ? { ...existing[key], ...incoming[key] } : incoming[key];
+  }
+  return { ok: true, merged, key: null, droppedKeys: [] };
+}

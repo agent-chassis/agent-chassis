@@ -21,18 +21,18 @@ import {
   runProofPackAdequacyControls
 } from "./behavioral-preservation-v1-adequacy.mjs";
 import {
-  validateProfileSchemaV034,
-  validateProfileSemanticsV034
-} from "../../lib/verification-profile-v034.mjs";
+  validateProfileSchemaV1,
+  validateProfileSemanticsV1
+} from "../support/stable-v1-proof-pack-runtime.mjs";
 import { buildProofPlanFixture } from "../proof-plan-fixture.mjs";
 
 const packageRoot = path.resolve(import.meta.dirname, "../..");
 const repositoryRoot = path.resolve(packageRoot, "../..");
 const profileId = "proof.compatibility.behavioral-preservation";
 const packDirectory = path.join(
-  packageRoot, "test/certification/profiles", profileId, "1.0.0"
+  packageRoot, "test/certification/profiles", profileId, "2.0.0"
 );
-const runtimeDirectory = path.join(packageRoot, "profiles", profileId, "1.0.0");
+const runtimeDirectory = path.join(packageRoot, "profiles", profileId, "2.0.0");
 const cli = path.join(packageRoot, "bin/assess-contract.mjs");
 const readJson = async (directory, name) => JSON.parse(await readFile(
   path.join(directory, name), "utf8"
@@ -123,9 +123,9 @@ test("behavioral-preservation profile, adequacy, and v2 admission form one bound
       readJson(runtimeDirectory, "exact-binding-certification.json"),
       readJson(packDirectory, "exact-binding-corpus.json")
     ]);
-  assert.equal(validateProfileSchemaV034(profile), true,
-    JSON.stringify(validateProfileSchemaV034.errors));
-  assert.deepEqual(validateProfileSemanticsV034(profile), []);
+  assert.equal(validateProfileSchemaV1(profile), true,
+    JSON.stringify(validateProfileSchemaV1.errors));
+  assert.deepEqual(validateProfileSemanticsV1(profile), []);
   assert.equal(profileDigest(profile), adequacy.profile_digest);
   assert.equal(admission.profile_digest, adequacy.profile_digest);
   assert.equal(guaranteeDigest(admission.guarantee), admission.guarantee_digest);

@@ -2,12 +2,8 @@
 
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { mkdtemp, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
+import { readFile, realpath, writeFile } from "node:fs/promises";
 import { getTemplateDir, loadManifest } from "./contract.mjs";
-import {
-  validateWorkRecord,
-  WORK_RECORD_SCHEMA_VERSION
-} from "./work-record-schema.mjs";
 import {
   DEFAULT_PROFILE,
   ensureDirectory,
@@ -242,12 +238,12 @@ function renderAdoptionInitiativePage({ seed, body, date }) {
     "---",
     `id: ${seed.record_id}`,
     `title: ${seed.title}`,
-    "status: todo",
-    "priority: high",
+    "status: in_progress",
+    "priority: medium",
     "owner: unassigned",
     `created: ${date}`,
     `updated: ${date}`,
-    "area: adoption",
+    "area: work",
     "docs: []",
     "depends_on: []",
     "blocks: []",
@@ -292,194 +288,6 @@ export async function ensureAdoptionInitiative(
     created: true,
     kept: false
   };
-}
-
-function cloneStringArray(value) {
-  return Array.isArray(value) ? value.filter((entry) => typeof entry === "string") : [];
-}
-
-function normalizeSeedAcceptance(acceptance) {
-  return {
-    criteria: Array.isArray(acceptance?.criteria) ? [...acceptance.criteria] : [],
-    validation: cloneStringArray(acceptance?.validation)
-  };
-}
-
-function materializeSeedWorkRecordSlice(slice) {
-
-  const dispatchIntent = slice.dispatch_intent;
-  return {
-    id: slice.id,
-    title: slice.title,
-    work_kind: slice.work_kind,
-    ...(typeof slice.review_purpose === "string"
-      ? { review_purpose: slice.review_purpose }
-      : {}),
-    status: slice.status,
-    priority: slice.priority,
-    owner: slice.owner,
-    depends_on: cloneStringArray(slice.depends_on),
-    read_scope: cloneStringArray(slice.read_scope ?? slice.docs),
-    repo_paths: cloneStringArray(slice.repo_paths),
-    write_scope: cloneStringArray(slice.write_scope),
-    dispatch_intent: {
-      intended_agent_role: dispatchIntent?.intended_agent_role ?? "worker",
-      target_unit: dispatchIntent?.target_unit ?? "slice",
-      requires_graph_impact:
-        typeof dispatchIntent?.requires_graph_impact === "boolean"
-          ? dispatchIntent.requires_graph_impact
-          : false,
-      requires_escalation:
-        typeof dispatchIntent?.requires_escalation === "boolean"
-          ? dispatchIntent.requires_escalation
-          : false
-    },
-    acceptance: normalizeSeedAcceptance(slice.acceptance)
-  };
-}
-
-export function materializeAdoptionWorkRecord(seedRecord, { repo, date = today() } = {}) {
-  if (!seedRecord || !seedRecord.id) {
-    throw new Error("materializeAdoptionWorkRecord requires a seed record with an id");
-  }
-  if (!repo || typeof repo !== "string") {
-    throw new Error("materializeAdoptionWorkRecord requires a repo identifier");
-  }
-
-  const slices = Array.isArray(seedRecord.slices) ? seedRecord.slices : [];
-  return {
-    schema_version: WORK_RECORD_SCHEMA_VERSION,
-    id: seedRecord.id,
-    repo,
-    title: seedRecord.title,
-    record_kind: seedRecord.record_kind || "work_item",
-    work_kind: seedRecord.work_kind,
-    status: seedRecord.status,
-    priority: seedRecord.priority,
-    owner: seedRecord.owner,
-    created: date,
-    updated: date,
-    initiative: typeof seedRecord.initiative === "string" ? seedRecord.initiative : null,
-    resolution: "unresolved",
-    read_scope: cloneStringArray(seedRecord.read_scope ?? seedRecord.docs),
-    repo_paths: cloneStringArray(seedRecord.repo_paths),
-    write_scope: cloneStringArray(seedRecord.write_scope),
-    depends_on: cloneStringArray(seedRecord.depends_on),
-    blocks: [],
-    related: cloneStringArray(seedRecord.related),
-    dispatch_intent: {
-      intended_agent_role: null,
-      target_unit: "none",
-      requires_graph_impact: false,
-      requires_escalation: false
-    },
-    acceptance: normalizeSeedAcceptance(seedRecord.acceptance),
-    sections: {
-      summary: typeof seedRecord.summary === "string" ? seedRecord.summary : "",
-      why_it_matters: "",
-      scope: {
-        items:
-          typeof seedRecord.scope === "string" && seedRecord.scope ? [seedRecord.scope] : [],
-        out_of_scope:
-          typeof seedRecord.out_of_scope === "string" && seedRecord.out_of_scope
-            ? [seedRecord.out_of_scope]
-            : []
-      },
-      tasks: [],
-      references: [],
-      agent_notes: "",
-      closure: null
-    },
-    children: [],
-    slices: slices.map(materializeSeedWorkRecordSlice),
-    escalations: [],
-    projections: [],
-    migration: null
-  };
-}
-
-async function filterDocsToExisting(targetDir, docs) {
-  const resolved = [];
-  for (const docPath of docs) {
-    if (await pathExists(path.join(targetDir, docPath))) {
-      resolved.push(docPath);
-    }
-  }
-  return resolved;
-}
-
-async function materializeRecordDocsForRepo(targetDir, record) {
-  record.read_scope = await filterDocsToExisting(targetDir, record.read_scope);
-  for (const slice of record.slices) {
-    slice.read_scope = await filterDocsToExisting(targetDir, slice.read_scope);
-  }
-  return record;
-}
-
-async function writeWorkRecordFileAtomically(absolutePath, record) {
-  const directory = path.dirname(absolutePath);
-  const tempDir = await mkdtemp(path.join(directory, ".record-tmp-"));
-  const tempPath = path.join(tempDir, path.basename(absolutePath));
-  try {
-    await writeFile(tempPath, `${JSON.stringify(record, null, 2)}\n`, {
-      encoding: "utf8",
-      flag: "wx"
-    });
-    await rename(tempPath, absolutePath);
-  } finally {
-    await rm(tempDir, { recursive: true, force: true });
-  }
-}
-
-export async function ensureAdoptionWorkRecords(
-  targetDir,
-  { records = [], repo, date = today() } = {}
-) {
-  await ensureDirectory(path.join(targetDir, "wiki", "work-records"));
-
-  const created = [];
-  const kept = [];
-
-  for (const seedRecord of records) {
-    if (!seedRecord || !seedRecord.id) {
-      throw new Error("ensureAdoptionWorkRecords requires each seed record to carry an id");
-    }
-
-    const relativePath = path
-      .join("wiki", "work-records", `${seedRecord.id}.json`)
-      .replaceAll(path.sep, "/");
-    const absolutePath = path.join(
-      targetDir,
-      "wiki",
-      "work-records",
-      `${seedRecord.id}.json`
-    );
-
-    if (await pathExists(absolutePath)) {
-      kept.push({ recordId: seedRecord.id, path: relativePath, created: false, kept: true });
-      continue;
-    }
-
-    const record = await materializeRecordDocsForRepo(
-      targetDir,
-      materializeAdoptionWorkRecord(seedRecord, { repo, date })
-    );
-    const diagnostics = validateWorkRecord(record, { sourcePath: relativePath });
-    const errors = diagnostics.filter((diagnostic) => diagnostic.severity !== "warning");
-    if (errors.length > 0) {
-      const message = errors
-        .map((diagnostic) => `${diagnostic.path || "(record)"}: ${diagnostic.message}`)
-        .join("; ");
-      throw new Error(
-        `ensureAdoptionWorkRecords: refusing to write invalid seed work record ${seedRecord.id}: ${message}`
-      );
-    }
-
-    await writeWorkRecordFileAtomically(absolutePath, record);
-    created.push({ recordId: seedRecord.id, path: relativePath, created: true, kept: false });
-  }
-
-  return { created, kept };
 }
 
 export async function syncCoreFiles(

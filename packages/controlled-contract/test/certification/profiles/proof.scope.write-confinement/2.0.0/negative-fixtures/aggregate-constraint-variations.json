@@ -1,0 +1,1886 @@
+{
+  "schema_version": "controlled-contract-proof-pack-negative-fixture.experimental.v0.1",
+  "fixture_id": "aggregate-constraint-variations",
+  "covers": [
+    {
+      "surface_id": "claim-patterns",
+      "weakening_class": "deletion"
+    },
+    {
+      "surface_id": "distinct-reference-role-sets",
+      "weakening_class": "binding_constraint_weakening"
+    },
+    {
+      "surface_id": "falsifier-condition-bindings",
+      "weakening_class": "falsifier_weakening"
+    },
+    {
+      "surface_id": "reference-binding-patterns",
+      "weakening_class": "binding_constraint_weakening"
+    },
+    {
+      "surface_id": "relation-patterns",
+      "weakening_class": "relation_weakening"
+    },
+    {
+      "surface_id": "satisfaction-expression",
+      "weakening_class": "satisfaction_branch_broadening"
+    }
+  ],
+  "contract": {
+    "schema_version": "controlled-acceptance-contract.v1",
+    "vocabulary_version": "controlled-contract-vocabulary.v1",
+    "profile_id": "acceptance-contract.standard.v1",
+    "references": [
+      {
+        "reference_id": "ref-execution",
+        "type_term": "cc:process",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "write-confinement:filesystem",
+          "value": "execution"
+        }
+      },
+      {
+        "reference_id": "ref-observed-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "write-confinement:filesystem",
+          "value": "observed-population"
+        }
+      },
+      {
+        "reference_id": "ref-target-a",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "write-confinement:filesystem",
+          "value": "target-a"
+        }
+      },
+      {
+        "reference_id": "ref-authorized-scope",
+        "type_term": "cc:scope",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "write-confinement:filesystem",
+          "value": "authorized-scope"
+        }
+      },
+      {
+        "reference_id": "ref-target-b",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "write-confinement:filesystem",
+          "value": "target-b"
+        }
+      },
+      {
+        "reference_id": "ref-verification",
+        "type_term": "cc:process",
+        "identity": {
+          "kind": "code_symbol",
+          "repository": "fixture-filesystem",
+          "path": "tests/write-confinement.test.mjs",
+          "symbol": "writeConfinement"
+        }
+      },
+      {
+        "reference_id": "ref-unauthorized-mutation-condition",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "profile_term",
+          "term": "unauthorized-mutation-observed"
+        }
+      }
+    ],
+    "propositions": [
+      {
+        "proposition_id": "prop-observed-population-count",
+        "subject_reference_id": "ref-observed-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 1
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-observed-population-members",
+        "subject_reference_id": "ref-observed-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-target-a"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-authorized-scope-count",
+        "subject_reference_id": "ref-authorized-scope",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-authorized-scope-members",
+        "subject_reference_id": "ref-authorized-scope",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-target-a"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-target-b"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-execution-emits-observed-population",
+        "subject_reference_id": "ref-execution",
+        "operator": "reference:emits",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-observed-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-observed-mutations-within-authorized-scope",
+        "subject_reference_id": "ref-observed-population",
+        "operator": "reference:subset_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-authorized-scope"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-verification-reads-execution-and-populations",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-execution"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-observed-population"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-authorized-scope"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-write-confinement-verification",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-observed-population"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-authorized-scope"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-write-confinement-verification",
+        "subject_reference_id": "ref-observed-population",
+        "operator": "reference:not_subset_of",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-unauthorized-mutation-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-authorized-scope"
+          }
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "claim_id": "claim-observed-population-count",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-observed-population-count"
+      },
+      {
+        "claim_id": "claim-observed-population-members",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-observed-population-members"
+      },
+      {
+        "claim_id": "claim-authorized-scope-count",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-authorized-scope-count"
+      },
+      {
+        "claim_id": "claim-authorized-scope-members",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-authorized-scope-members"
+      },
+      {
+        "claim_id": "claim-execution-emits-observed-population",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-execution-emits-observed-population"
+      },
+      {
+        "claim_id": "claim-observed-mutations-within-authorized-scope",
+        "kind": "behavior",
+        "modality": "MUST",
+        "proposition_id": "prop-observed-mutations-within-authorized-scope"
+      },
+      {
+        "claim_id": "claim-verification-reads-execution-and-populations",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-verification-reads-execution-and-populations"
+      },
+      {
+        "claim_id": "claim-write-confinement-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-write-confinement-verification",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-write-confinement-verification"
+      }
+    ],
+    "relations": [
+      {
+        "relation_id": "rel-verification-targets-write-confinement",
+        "role": "verifies",
+        "source_claim_id": "claim-write-confinement-verification",
+        "target_claim_id": "claim-observed-mutations-within-authorized-scope"
+      }
+    ],
+    "collections": [],
+    "residue": [],
+    "annotations": [],
+    "test_proof_version": "controlled-contract-test-proof.v1",
+    "test_proofs": []
+  },
+  "evaluation_input": {
+    "input_version": "controlled-contract-verification-profile-input.v1",
+    "evaluation_stage": "pre_dispatch",
+    "reference_bindings": [
+      {
+        "role": "execution",
+        "reference_ids": [
+          "ref-execution"
+        ]
+      },
+      {
+        "role": "observed_population",
+        "reference_ids": [
+          "ref-observed-population"
+        ]
+      },
+      {
+        "role": "observed_mutations",
+        "reference_ids": [
+          "ref-target-a"
+        ]
+      },
+      {
+        "role": "authorized_scope",
+        "reference_ids": [
+          "ref-authorized-scope"
+        ]
+      },
+      {
+        "role": "authorized_targets",
+        "reference_ids": [
+          "ref-target-a",
+          "ref-target-b"
+        ]
+      },
+      {
+        "role": "verification",
+        "reference_ids": [
+          "ref-verification"
+        ]
+      },
+      {
+        "role": "unauthorized_mutation_condition",
+        "reference_ids": [
+          "ref-unauthorized-mutation-condition"
+        ]
+      }
+    ],
+    "number_bindings": [],
+    "claim_pattern_bindings": [
+      {
+        "pattern_id": "execution-emits-observed-population",
+        "claim_id": "claim-execution-emits-observed-population"
+      },
+      {
+        "pattern_id": "observed-mutations-within-authorized-scope",
+        "claim_id": "claim-observed-mutations-within-authorized-scope"
+      },
+      {
+        "pattern_id": "verification-reads-execution-and-populations",
+        "claim_id": "claim-verification-reads-execution-and-populations"
+      },
+      {
+        "pattern_id": "write-confinement-verification",
+        "claim_id": "claim-write-confinement-verification"
+      }
+    ],
+    "resolver_facts": [],
+    "delivered_evidence": [],
+    "stable_evaluation": {}
+  },
+  "variations": [
+    {
+      "variant_id": "claim-patterns",
+      "covers": [
+        {
+          "surface_id": "claim-patterns",
+          "weakening_class": "deletion"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions",
+          "value": [
+            {
+              "proposition_id": "prop-observed-population-count",
+              "subject_reference_id": "ref-observed-population",
+              "operator": "number:has_cardinality",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "number",
+                  "value": 1
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-observed-population-members",
+              "subject_reference_id": "ref-observed-population",
+              "operator": "reference:contains",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-target-a"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-authorized-scope-count",
+              "subject_reference_id": "ref-authorized-scope",
+              "operator": "number:has_cardinality",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-authorized-scope-members",
+              "subject_reference_id": "ref-authorized-scope",
+              "operator": "reference:contains",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-target-a"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-target-b"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-observed-mutations-within-authorized-scope",
+              "subject_reference_id": "ref-observed-population",
+              "operator": "reference:subset_of",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-authorized-scope"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verification-reads-execution-and-populations",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:reads",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-observed-population"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-authorized-scope"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-write-confinement-verification",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:covers",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-observed-population"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-authorized-scope"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-falsifier-write-confinement-verification",
+              "subject_reference_id": "ref-observed-population",
+              "operator": "reference:not_subset_of",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-unauthorized-mutation-condition"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-authorized-scope"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claims",
+          "value": [
+            {
+              "claim_id": "claim-observed-population-count",
+              "kind": "evidence",
+              "modality": "MUST",
+              "proposition_id": "prop-observed-population-count"
+            },
+            {
+              "claim_id": "claim-observed-population-members",
+              "kind": "evidence",
+              "modality": "MUST",
+              "proposition_id": "prop-observed-population-members"
+            },
+            {
+              "claim_id": "claim-authorized-scope-count",
+              "kind": "evidence",
+              "modality": "MUST",
+              "proposition_id": "prop-authorized-scope-count"
+            },
+            {
+              "claim_id": "claim-authorized-scope-members",
+              "kind": "evidence",
+              "modality": "MUST",
+              "proposition_id": "prop-authorized-scope-members"
+            },
+            {
+              "claim_id": "claim-observed-mutations-within-authorized-scope",
+              "kind": "behavior",
+              "modality": "MUST",
+              "proposition_id": "prop-observed-mutations-within-authorized-scope"
+            },
+            {
+              "claim_id": "claim-verification-reads-execution-and-populations",
+              "kind": "evidence",
+              "modality": "MUST",
+              "proposition_id": "prop-verification-reads-execution-and-populations"
+            },
+            {
+              "claim_id": "claim-write-confinement-verification",
+              "kind": "verification",
+              "modality": "MUST",
+              "proposition_id": "prop-write-confinement-verification",
+              "verification_method": "test_execution",
+              "falsifying_proposition_id": "prop-falsifier-write-confinement-verification"
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "observed-mutations-within-authorized-scope",
+              "claim_id": "claim-observed-mutations-within-authorized-scope"
+            },
+            {
+              "pattern_id": "verification-reads-execution-and-populations",
+              "claim_id": "claim-verification-reads-execution-and-populations"
+            },
+            {
+              "pattern_id": "write-confinement-verification",
+              "claim_id": "claim-write-confinement-verification"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "distinct-reference-role-sets",
+      "covers": [
+        {
+          "surface_id": "distinct-reference-role-sets",
+          "weakening_class": "binding_constraint_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-execution",
+              "type_term": "cc:process",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "write-confinement:filesystem",
+                "value": "execution"
+              }
+            },
+            {
+              "reference_id": "ref-observed-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "write-confinement:filesystem",
+                "value": "observed-population"
+              }
+            },
+            {
+              "reference_id": "ref-target-a",
+              "type_term": "cc:artifact",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "write-confinement:filesystem",
+                "value": "target-a"
+              }
+            },
+            {
+              "reference_id": "ref-authorized-scope",
+              "type_term": "cc:scope",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "write-confinement:filesystem",
+                "value": "authorized-scope"
+              }
+            },
+            {
+              "reference_id": "ref-target-b",
+              "type_term": "cc:artifact",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "write-confinement:filesystem",
+                "value": "target-b"
+              }
+            },
+            {
+              "reference_id": "ref-unauthorized-mutation-condition",
+              "type_term": "cc:configuration",
+              "identity": {
+                "kind": "profile_term",
+                "term": "unauthorized-mutation-observed"
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/propositions",
+          "value": [
+            {
+              "proposition_id": "prop-observed-population-count",
+              "subject_reference_id": "ref-observed-population",
+              "operator": "number:has_cardinality",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "number",
+                  "value": 1
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-observed-population-members",
+              "subject_reference_id": "ref-observed-population",
+              "operator": "reference:contains",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-target-a"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-authorized-scope-count",
+              "subject_reference_id": "ref-authorized-scope",
+              "operator": "number:has_cardinality",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-authorized-scope-members",
+              "subject_reference_id": "ref-authorized-scope",
+              "operator": "reference:contains",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-target-a"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-target-b"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-execution-emits-observed-population",
+              "subject_reference_id": "ref-execution",
+              "operator": "reference:emits",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-observed-population"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-observed-mutations-within-authorized-scope",
+              "subject_reference_id": "ref-observed-population",
+              "operator": "reference:subset_of",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-authorized-scope"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verification-reads-execution-and-populations",
+              "subject_reference_id": "ref-execution",
+              "operator": "reference:reads",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-observed-population"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-authorized-scope"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-write-confinement-verification",
+              "subject_reference_id": "ref-execution",
+              "operator": "reference:covers",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-observed-population"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-authorized-scope"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-falsifier-write-confinement-verification",
+              "subject_reference_id": "ref-observed-population",
+              "operator": "reference:not_subset_of",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-unauthorized-mutation-condition"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-authorized-scope"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_bindings",
+          "value": [
+            {
+              "role": "execution",
+              "reference_ids": [
+                "ref-execution"
+              ]
+            },
+            {
+              "role": "observed_population",
+              "reference_ids": [
+                "ref-observed-population"
+              ]
+            },
+            {
+              "role": "observed_mutations",
+              "reference_ids": [
+                "ref-target-a"
+              ]
+            },
+            {
+              "role": "authorized_scope",
+              "reference_ids": [
+                "ref-authorized-scope"
+              ]
+            },
+            {
+              "role": "authorized_targets",
+              "reference_ids": [
+                "ref-target-a",
+                "ref-target-b"
+              ]
+            },
+            {
+              "role": "verification",
+              "reference_ids": [
+                "ref-execution"
+              ]
+            },
+            {
+              "role": "unauthorized_mutation_condition",
+              "reference_ids": [
+                "ref-unauthorized-mutation-condition"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "falsifier-condition-bindings",
+      "covers": [
+        {
+          "surface_id": "falsifier-condition-bindings",
+          "weakening_class": "falsifier_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions",
+          "value": [
+            {
+              "proposition_id": "prop-observed-population-count",
+              "subject_reference_id": "ref-observed-population",
+              "operator": "number:has_cardinality",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "number",
+                  "value": 1
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-observed-population-members",
+              "subject_reference_id": "ref-observed-population",
+              "operator": "reference:contains",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-target-a"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-authorized-scope-count",
+              "subject_reference_id": "ref-authorized-scope",
+              "operator": "number:has_cardinality",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-authorized-scope-members",
+              "subject_reference_id": "ref-authorized-scope",
+              "operator": "reference:contains",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-target-a"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-target-b"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-execution-emits-observed-population",
+              "subject_reference_id": "ref-execution",
+              "operator": "reference:emits",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-observed-population"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-observed-mutations-within-authorized-scope",
+              "subject_reference_id": "ref-observed-population",
+              "operator": "reference:subset_of",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-authorized-scope"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verification-reads-execution-and-populations",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:reads",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-observed-population"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-authorized-scope"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-write-confinement-verification",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:covers",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-observed-population"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-authorized-scope"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-falsifier-write-confinement-verification",
+              "subject_reference_id": "ref-observed-population",
+              "operator": "reference:not_subset_of",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-authorized-scope"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "reference-binding-patterns",
+      "covers": [
+        {
+          "surface_id": "reference-binding-patterns",
+          "weakening_class": "binding_constraint_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-execution",
+              "type_term": "cc:process",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "write-confinement:filesystem",
+                "value": "execution"
+              }
+            },
+            {
+              "reference_id": "ref-observed-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "write-confinement:filesystem",
+                "value": "observed-population"
+              }
+            },
+            {
+              "reference_id": "ref-target-a",
+              "type_term": "cc:artifact",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "write-confinement:filesystem",
+                "value": "target-a"
+              }
+            },
+            {
+              "reference_id": "ref-authorized-scope",
+              "type_term": "cc:scope",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "write-confinement:filesystem",
+                "value": "authorized-scope"
+              }
+            },
+            {
+              "reference_id": "ref-target-b",
+              "type_term": "cc:artifact",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "write-confinement:filesystem",
+                "value": "target-b"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:process",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-filesystem",
+                "path": "tests/write-confinement.test.mjs",
+                "symbol": "writeConfinement"
+              }
+            },
+            {
+              "reference_id": "ref-unauthorized-mutation-condition",
+              "type_term": "cc:configuration",
+              "identity": {
+                "kind": "profile_term",
+                "term": "unauthorized-mutation-observed"
+              }
+            },
+            {
+              "reference_id": "ref-target-unauthorized",
+              "type_term": "cc:resource",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "write-confinement:negative",
+                "value": "target-unauthorized"
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/propositions",
+          "value": [
+            {
+              "proposition_id": "prop-observed-population-count",
+              "subject_reference_id": "ref-observed-population",
+              "operator": "number:has_cardinality",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-observed-population-members",
+              "subject_reference_id": "ref-observed-population",
+              "operator": "reference:contains",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-target-a"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-target-b"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-authorized-scope-count",
+              "subject_reference_id": "ref-authorized-scope",
+              "operator": "number:has_cardinality",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-authorized-scope-members",
+              "subject_reference_id": "ref-authorized-scope",
+              "operator": "reference:contains",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-target-a"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-target-b"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-execution-emits-observed-population",
+              "subject_reference_id": "ref-execution",
+              "operator": "reference:emits",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-observed-population"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-observed-mutations-within-authorized-scope",
+              "subject_reference_id": "ref-observed-population",
+              "operator": "reference:subset_of",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-authorized-scope"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verification-reads-execution-and-populations",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:reads",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-observed-population"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-authorized-scope"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-write-confinement-verification",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:covers",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-observed-population"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-authorized-scope"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-falsifier-write-confinement-verification",
+              "subject_reference_id": "ref-observed-population",
+              "operator": "reference:not_subset_of",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-unauthorized-mutation-condition"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-authorized-scope"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_bindings",
+          "value": [
+            {
+              "role": "execution",
+              "reference_ids": [
+                "ref-execution"
+              ]
+            },
+            {
+              "role": "observed_population",
+              "reference_ids": [
+                "ref-observed-population"
+              ]
+            },
+            {
+              "role": "observed_mutations",
+              "reference_ids": [
+                "ref-target-unauthorized"
+              ]
+            },
+            {
+              "role": "authorized_scope",
+              "reference_ids": [
+                "ref-authorized-scope"
+              ]
+            },
+            {
+              "role": "authorized_targets",
+              "reference_ids": [
+                "ref-target-a",
+                "ref-target-b"
+              ]
+            },
+            {
+              "role": "verification",
+              "reference_ids": [
+                "ref-verification"
+              ]
+            },
+            {
+              "role": "unauthorized_mutation_condition",
+              "reference_ids": [
+                "ref-unauthorized-mutation-condition"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "relation-patterns",
+      "covers": [
+        {
+          "surface_id": "relation-patterns",
+          "weakening_class": "relation_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions",
+          "value": [
+            {
+              "proposition_id": "prop-observed-population-count",
+              "subject_reference_id": "ref-observed-population",
+              "operator": "number:has_cardinality",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-observed-population-members",
+              "subject_reference_id": "ref-observed-population",
+              "operator": "reference:contains",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-target-a"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-authorized-scope-count",
+              "subject_reference_id": "ref-authorized-scope",
+              "operator": "number:has_cardinality",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-authorized-scope-members",
+              "subject_reference_id": "ref-authorized-scope",
+              "operator": "reference:contains",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-target-a"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-target-b"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-execution-emits-observed-population",
+              "subject_reference_id": "ref-execution",
+              "operator": "reference:member_of",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-observed-population"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verification-reads-execution-and-populations",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:reads",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-observed-population"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-authorized-scope"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-write-confinement-verification",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:covers",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-observed-population"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-authorized-scope"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-falsifier-write-confinement-verification",
+              "subject_reference_id": "ref-execution",
+              "operator": "reference:not_member_of",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-unauthorized-mutation-condition"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-observed-population"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claims",
+          "value": [
+            {
+              "claim_id": "claim-observed-population-count",
+              "kind": "evidence",
+              "modality": "MUST",
+              "proposition_id": "prop-observed-population-count"
+            },
+            {
+              "claim_id": "claim-observed-population-members",
+              "kind": "evidence",
+              "modality": "MUST",
+              "proposition_id": "prop-observed-population-members"
+            },
+            {
+              "claim_id": "claim-authorized-scope-count",
+              "kind": "evidence",
+              "modality": "MUST",
+              "proposition_id": "prop-authorized-scope-count"
+            },
+            {
+              "claim_id": "claim-authorized-scope-members",
+              "kind": "evidence",
+              "modality": "MUST",
+              "proposition_id": "prop-authorized-scope-members"
+            },
+            {
+              "claim_id": "claim-execution-emits-observed-population",
+              "kind": "behavior",
+              "modality": "MUST",
+              "proposition_id": "prop-execution-emits-observed-population"
+            },
+            {
+              "claim_id": "claim-verification-reads-execution-and-populations",
+              "kind": "evidence",
+              "modality": "MUST",
+              "proposition_id": "prop-verification-reads-execution-and-populations"
+            },
+            {
+              "claim_id": "claim-write-confinement-verification",
+              "kind": "verification",
+              "modality": "MUST",
+              "proposition_id": "prop-write-confinement-verification",
+              "verification_method": "test_execution",
+              "falsifying_proposition_id": "prop-falsifier-write-confinement-verification"
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/relations",
+          "value": [
+            {
+              "relation_id": "rel-verification-targets-write-confinement",
+              "role": "verifies",
+              "source_claim_id": "claim-write-confinement-verification",
+              "target_claim_id": "claim-execution-emits-observed-population"
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_bindings",
+          "value": [
+            {
+              "role": "execution",
+              "reference_ids": [
+                "ref-execution"
+              ]
+            },
+            {
+              "role": "observed_population",
+              "reference_ids": [
+                "ref-observed-population"
+              ]
+            },
+            {
+              "role": "observed_mutations",
+              "reference_ids": [
+                "ref-target-a",
+                "ref-execution"
+              ]
+            },
+            {
+              "role": "authorized_scope",
+              "reference_ids": [
+                "ref-authorized-scope"
+              ]
+            },
+            {
+              "role": "authorized_targets",
+              "reference_ids": [
+                "ref-target-a",
+                "ref-target-b"
+              ]
+            },
+            {
+              "role": "verification",
+              "reference_ids": [
+                "ref-verification"
+              ]
+            },
+            {
+              "role": "unauthorized_mutation_condition",
+              "reference_ids": [
+                "ref-unauthorized-mutation-condition"
+              ]
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "execution-emits-observed-population",
+              "claim_id": "claim-execution-emits-observed-population"
+            },
+            {
+              "pattern_id": "verification-reads-execution-and-populations",
+              "claim_id": "claim-verification-reads-execution-and-populations"
+            },
+            {
+              "pattern_id": "write-confinement-verification",
+              "claim_id": "claim-write-confinement-verification"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "satisfaction-expression",
+      "covers": [
+        {
+          "surface_id": "satisfaction-expression",
+          "weakening_class": "satisfaction_branch_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions",
+          "value": [
+            {
+              "proposition_id": "prop-observed-population-count",
+              "subject_reference_id": "ref-observed-population",
+              "operator": "number:has_cardinality",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "number",
+                  "value": 1
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-observed-population-members",
+              "subject_reference_id": "ref-observed-population",
+              "operator": "reference:contains",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-target-a"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-authorized-scope-count",
+              "subject_reference_id": "ref-authorized-scope",
+              "operator": "number:has_cardinality",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "number",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-authorized-scope-members",
+              "subject_reference_id": "ref-authorized-scope",
+              "operator": "reference:contains",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-target-a"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-target-b"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-observed-mutations-within-authorized-scope",
+              "subject_reference_id": "ref-observed-population",
+              "operator": "reference:subset_of",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-authorized-scope"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-verification-reads-execution-and-populations",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:reads",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-execution"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-observed-population"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-authorized-scope"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-write-confinement-verification",
+              "subject_reference_id": "ref-verification",
+              "operator": "reference:covers",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_reference_ids": []
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-observed-population"
+                },
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-authorized-scope"
+                }
+              ]
+            },
+            {
+              "proposition_id": "prop-falsifier-write-confinement-verification",
+              "subject_reference_id": "ref-observed-population",
+              "operator": "reference:not_subset_of",
+              "applicability_context": {
+                "mode": "when",
+                "operand_reference_ids": [
+                  "ref-unauthorized-mutation-condition"
+                ]
+              },
+              "operands": [
+                {
+                  "kind": "reference",
+                  "reference_id": "ref-authorized-scope"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claims",
+          "value": [
+            {
+              "claim_id": "claim-observed-population-count",
+              "kind": "evidence",
+              "modality": "MUST",
+              "proposition_id": "prop-observed-population-count"
+            },
+            {
+              "claim_id": "claim-observed-population-members",
+              "kind": "evidence",
+              "modality": "MUST",
+              "proposition_id": "prop-observed-population-members"
+            },
+            {
+              "claim_id": "claim-authorized-scope-count",
+              "kind": "evidence",
+              "modality": "MUST",
+              "proposition_id": "prop-authorized-scope-count"
+            },
+            {
+              "claim_id": "claim-authorized-scope-members",
+              "kind": "evidence",
+              "modality": "MUST",
+              "proposition_id": "prop-authorized-scope-members"
+            },
+            {
+              "claim_id": "claim-observed-mutations-within-authorized-scope",
+              "kind": "behavior",
+              "modality": "MUST",
+              "proposition_id": "prop-observed-mutations-within-authorized-scope"
+            },
+            {
+              "claim_id": "claim-verification-reads-execution-and-populations",
+              "kind": "evidence",
+              "modality": "MUST",
+              "proposition_id": "prop-verification-reads-execution-and-populations"
+            },
+            {
+              "claim_id": "claim-write-confinement-verification",
+              "kind": "verification",
+              "modality": "MUST",
+              "proposition_id": "prop-write-confinement-verification",
+              "verification_method": "test_execution",
+              "falsifying_proposition_id": "prop-falsifier-write-confinement-verification"
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "observed-mutations-within-authorized-scope",
+              "claim_id": "claim-observed-mutations-within-authorized-scope"
+            },
+            {
+              "pattern_id": "verification-reads-execution-and-populations",
+              "claim_id": "claim-verification-reads-execution-and-populations"
+            },
+            {
+              "pattern_id": "write-confinement-verification",
+              "claim_id": "claim-write-confinement-verification"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

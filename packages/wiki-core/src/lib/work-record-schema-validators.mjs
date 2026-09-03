@@ -4,6 +4,8 @@ import {
   WORK_UNIT_FACET_PROVENANCE_VALUES,
   WORK_UNIT_FEATURE_VECTOR_VERIFICATION_METHOD_VALUES
 } from "./work-record-schema-constants.mjs";
+import { projectWorkRecordTestProofValidation } from
+  "./work-record-test-proof-bindings.mjs";
 
 function hasOwn(object, key) {
   return Object.prototype.hasOwnProperty.call(object, key);
@@ -199,6 +201,20 @@ function validateNullableStringField(diagnostics, record, field, { path = field 
   return true;
 }
 
+function validateAcceptanceValidationSection(
+  diagnostics,
+  validation,
+  path = "acceptance.validation"
+) {
+  const projected = projectWorkRecordTestProofValidation({
+    selectedUnit: { acceptance: { validation } },
+    path
+  });
+  for (const issue of projected.diagnostics) addDiagnostic(
+    diagnostics, "invalid_record", issue.message, { path: issue.path }
+  );
+}
+
 function validateNullableNonNegativeIntegerField(
   diagnostics,
   record,
@@ -234,6 +250,7 @@ export {
   validateControlledStringField,
   validateFacetProvenance,
   validateAcceptanceCriterionEntry,
+  validateAcceptanceValidationSection,
   validateStringField,
   validateStringArrayField,
   validateNullableStringField,

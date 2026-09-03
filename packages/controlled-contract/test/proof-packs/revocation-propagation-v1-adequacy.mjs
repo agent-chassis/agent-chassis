@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
-import { evaluateVerificationProfileV034
-} from "../../lib/verification-profile-v034.mjs";
+import { evaluateStableProofPackFixtureV1
+} from "../support/stable-v1-proof-pack-runtime.mjs";
 import { PROOF_PACK_ADEQUACY_RUN_VERSION
 } from "../support/proof-pack-adequacy-constants.mjs";
 
@@ -156,11 +156,11 @@ function buildRevocationPropagationFixture({
       type_term: roleTypeOverrides[role] ?? definition.allowed_type_terms[0],
       identity: structuredClone(selected ?? identity(kind, domain, referenceId.slice(4))) };
   });
-  const contract = { schema_version: "controlled-acceptance-contract.experimental.v0.2",
-    vocabulary_version: "cv.experimental.0.34",
-    profile_id: "acceptance-contract.standard.experimental.v0.2",
+  const contract = { schema_version: "controlled-acceptance-contract.v1",
+    vocabulary_version: "controlled-contract-vocabulary.v1",
+    profile_id: "acceptance-contract.standard.v1",
     references, propositions: [], claims: [], relations: [], collections: [],
-    residue: [], annotations: [] };
+    residue: [], annotations: [], test_proof_version: "controlled-contract-test-proof.v1", test_proofs: [] };
   const addClaim = (id, proposition, kind = "evidence", modality = "MUST",
     verificationMethod = null, falsifierId = null) => {
     contract.propositions.push({ proposition_id: `prop-${id}`, ...proposition });
@@ -224,13 +224,13 @@ function buildRevocationPropagationFixture({
       target_claim_id: `claim-${relation.target_claim_pattern_id}`
     });
   const input = {
-    input_version: "controlled-contract-verification-profile-input.experimental.v0.2",
+    input_version: "controlled-contract-verification-profile-input.v1",
     evaluation_stage: "pre_dispatch",
     reference_bindings: profile.reference_roles.map(({ role }) => ({
       role, reference_ids: [...(roles[role] ?? [])]
     })),
     number_bindings: profile.number_roles.map(({ role }) => ({ role, value: numbers[role] })),
-    claim_pattern_bindings: [], resolver_facts: [], delivered_evidence: []
+    claim_pattern_bindings: [], resolver_facts: [], delivered_evidence: [], stable_evaluation: {}
   };
   mutateContract?.(contract, input, roles);
   mutateInput?.(input, contract, roles);
@@ -238,7 +238,7 @@ function buildRevocationPropagationFixture({
 }
 
 function satisfaction(fixture) {
-  return evaluateVerificationProfileV034({ contract: fixture.contract,
+  return evaluateStableProofPackFixtureV1({ contract: fixture.contract,
     profile: fixture.profile, evaluation_input: fixture.input }).satisfaction;
 }
 

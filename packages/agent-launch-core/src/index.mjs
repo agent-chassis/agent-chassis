@@ -4,6 +4,12 @@ export {
 } from "./operations/review.mjs";
 export { launchReview } from "./operations/launch.mjs";
 export {
+  AGENT_RUN_PROVENANCE_CONSTRUCTION_DIAGNOSTIC_CODE,
+  AGENT_RUN_PROVENANCE_ENVELOPE_SCHEMA_VERSION,
+  buildAgentRunProvenanceEnvelope,
+  shapeAgentRunArtifact
+} from "./lib/agent-run-provenance-envelope.mjs";
+export {
   AGENT_RUN_PROVENANCE_DIAGNOSTIC_CODES,
   AGENT_RUN_PROVENANCE_SCHEMA_VERSION,
   inspectAgentRunProvenance
@@ -74,3 +80,59 @@ export {
   normalizeFinalResult,
   validateLauncherFamilyRole
 } from "./lib/dispatch-runtime.mjs";
+
+export {
+  ATTEMPT_EVENT_KINDS,
+  ATTEMPT_EXECUTION_LIVENESS,
+  ATTEMPT_JOURNAL_REFUSALS,
+  ATTEMPT_NEXT_COMMANDS,
+  ATTEMPT_RELEASE_PROOFS,
+  INTEGRATION_EVENT_KINDS,
+  MANAGED_WORKER_ATTEMPT_JOURNAL_SCHEMA_VERSION,
+  MANAGED_WORKER_ATTEMPT_PARTITION_VERSION,
+  admitAttemptCommand,
+  attemptJournalFilePath,
+  attemptJournalRefusal,
+  attemptJournalRootDir,
+  attemptKey,
+  attemptPartitionDir,
+  attemptPartitionId,
+  attemptPartitionLockPath,
+  canonicalJson,
+  classifyReleaseProof,
+  digestOf,
+  isLegalSuccessor,
+  isValidAttemptTuple,
+  mintAttemptEvent,
+  parseAttemptJournal,
+  reduceAttemptJournal,
+  sameAttempt,
+  serializeAttemptJournal,
+  validateAttemptJournal,
+  ATTEMPT_IMPORT_CLASSES,
+  admitLegacyImport,
+  classifyLegacyImport,
+  isValidLegacyEvidence,
+  legacyEvidenceAlreadyImported
+} from "./lib/managed-worker-attempt-journal.mjs";
+
+export {
+  INTEGRATION_INCOMPLETE,
+  INTEGRATION_NEXT_ACTIONS,
+  INTEGRATION_PREFIXES,
+  MANAGED_WORKER_INTEGRATION_SETTLEMENT_SCHEMA_VERSION,
+  admitIntegrationIntent,
+  integrationBindingDigest,
+  isValidIntentBinding,
+  partitionIntegrationHops,
+  reduceIntegrationSettlement
+} from "./lib/managed-worker-integration-settlement.mjs";
+export {
+  MANAGED_CORRECTIVE_CONTINUATION_DIAGNOSTIC_CODES,
+  MANAGED_CORRECTIVE_OBSERVED_STATUS_FIELDS,
+  MANAGED_CORRECTIVE_RECOVERY_FIELDS,
+  MANAGED_CORRECTIVE_RECOVERY_OBSERVED_FIELDS,
+  MANAGED_CORRECTIVE_STATUSES,
+  MANAGED_CORRECTIVE_STATUS_RECOVERY_KIND,
+  MANAGED_CORRECTIVE_STATUS_VALUES
+} from "./lib/managed-corrective-diagnostic-contract.mjs";

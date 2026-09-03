@@ -20,7 +20,6 @@ import {
 } from "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
 
 import {
-  SLICE_REVIEW_MATERIALIZATION_DIAGNOSTIC_CODES,
   SLICE_REVIEW_POSTCHECK_STATE_BUDGET
 } from "@agent-chassis/agent-launch-cli/src/lib/slice-review-materialization.mjs";
 import {
@@ -210,9 +209,7 @@ test("WK-1691#SLICE-002 the run_wait timeout path rejects every unsafe detail sh
     ["null detail", null, undefined],
     ["absent detail", undefined, undefined],
 
-    ["unrelated error code", { field: "sliceRef" }, "agent_launch.slice_lifecycle.failed.v1"],
-    ["sparse-index code", { field: "sliceRef" },
-      SLICE_REVIEW_MATERIALIZATION_DIAGNOSTIC_CODES.SPARSE_OR_HIDDEN_INDEX]
+    ["unrelated error code", { field: "sliceRef" }, "agent_launch.slice_lifecycle.failed.v1"]
   ];
 
   for (const [label, detail, code] of rejected) {

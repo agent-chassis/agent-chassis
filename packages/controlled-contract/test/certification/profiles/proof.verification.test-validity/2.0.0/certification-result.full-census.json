@@ -1,0 +1,19 @@
+{
+  "schema_version": "controlled-contract-proof-pack-adequacy-result.v1",
+  "profile_id": "proof.verification.test-validity",
+  "profile_version": "2.0.0",
+  "variation_mode": "full_census",
+  "passed": true,
+  "diagnostics": [],
+  "control_count": 38,
+  "positive_control_count": 1,
+  "mutant_control_count": 37,
+  "rejection_control_count": 0,
+  "negative_fixture_count": 37,
+  "coverage_witness_count": 37,
+  "native_test_validity": {
+    "positive_case_count": 1,
+    "passed_single_axis_weakening_count": 37,
+    "total_count": 38
+  }
+}

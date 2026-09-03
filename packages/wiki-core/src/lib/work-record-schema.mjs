@@ -26,6 +26,10 @@ import {
 import { validateWorkUnitFeatureVectorInto } from "./work-record-schema-feature-vector.mjs";
 import { validateRecordByKind } from "./work-record-kind-registry.mjs";
 import {
+  classifyControlledContractPrivatePathEntry,
+  collectWorkRecordControlledContractPrivateScopeFacts
+} from "./controlled-contract-private-path-policy.mjs";
+import {
   WORK_RECORD_SCHEMA_VERSION,
   WORK_RECORD_RECORD_KIND_VALUES,
   WORK_RECORD_WORK_KIND_VALUES,
@@ -145,7 +149,7 @@ export function canonicalizeWorkRecordJson(value) {
 }
 
 export function projectWorkRecordSourceContract(record) {
-  const { derived_evidence, projections, ...source } = record || {};
+  const { derived_evidence, projections, review_provenance, ...source } = record || {};
   return source;
 }
 
@@ -331,6 +335,25 @@ function validateReadScopeField(diagnostics, unit, basePath = "") {
     validateStringArrayField(diagnostics, unit, "docs", {
       path: `${prefix}docs`,
       required: false
+    });
+  }
+}
+
+function validatePrivateScopeClassifications(diagnostics, unit, basePath = "") {
+  if (!isObject(unit)) return;
+  const prefix = basePath ? `${basePath}.` : "";
+  for (const field of ["read_scope", "docs", "repo_paths", "write_scope"]) {
+    if (!Array.isArray(unit[field])) continue;
+    unit[field].forEach((entry, index) => {
+      if (typeof entry !== "string" || !/[?*[\]]/u.test(entry)) return;
+      if (classifyControlledContractPrivatePathEntry(entry).valid) return;
+      const entryPath = `${prefix}${field}[${index}]`;
+      addDiagnostic(
+        diagnostics,
+        "invalid_record",
+        `${entryPath} contains a malformed or unsupported private-scope wildcard`,
+        { path: entryPath }
+      );
     });
   }
 }
@@ -551,6 +574,12 @@ export function validateWorkRecord(record, { sourcePath = null, sourceDigest = n
 
   validateTopLevelArrays(diagnostics, record);
   validateReadScopeField(diagnostics, record);
+  validatePrivateScopeClassifications(diagnostics, record);
+  if (Array.isArray(record.slices)) {
+    record.slices.forEach((slice, index) =>
+      validatePrivateScopeClassifications(diagnostics, slice, `slices[${index}]`)
+    );
+  }
   validateDispatchIntent(diagnostics, record.dispatch_intent);
   validateAcceptance(diagnostics, record.acceptance);
   validateSections(diagnostics, record.sections);
@@ -594,6 +623,10 @@ export function validateWorkRecord(record, { sourcePath = null, sourceDigest = n
   }
 
   return diagnostics;
+}
+
+export function projectWorkRecordPrivateScopePolicyFacts(record) {
+  return collectWorkRecordControlledContractPrivateScopeFacts(record);
 }
 
 export function isMigrationReviewAcknowledged(migration) {

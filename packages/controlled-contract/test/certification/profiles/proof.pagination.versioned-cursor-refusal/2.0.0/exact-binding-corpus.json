@@ -1,0 +1,43 @@
+{
+  "controls": [
+    {
+      "control_id": "advance-before-refusal-refused"
+    },
+    {
+      "control_id": "caller-selected-refusal-refused"
+    },
+    {
+      "control_id": "empty-control-page-positive"
+    },
+    {
+      "control_id": "identical-version-content-refused"
+    },
+    {
+      "control_id": "missing-trace-refused"
+    },
+    {
+      "control_id": "multiple-protected-effects-positive"
+    },
+    {
+      "control_id": "projection-result-splice-refused"
+    },
+    {
+      "control_id": "return-before-error-refused"
+    },
+    {
+      "control_id": "stale-continuation-refused"
+    },
+    {
+      "control_id": "stale-refusal-zero-effect-positive"
+    },
+    {
+      "control_id": "unrelated-mutation-control-positive"
+    },
+    {
+      "control_id": "wrong-cursor-refusal-refused"
+    }
+  ],
+  "corpus_id": "versioned-cursor-refusal-exact-binding",
+  "corpus_version": "1.0.0",
+  "schema_version": "controlled-contract.mutation-pagination-exact-corpus.v1"
+}

@@ -23,6 +23,7 @@ export const SIDECAR_GRAPH_GENERATOR_COMMITTED_PATHS = Object.freeze([
   "packages/wiki-core/src/lib/sidecar-scip-normalize.mjs",
   "packages/wiki-core/src/lib/sidecar-scip-provision.mjs",
   "packages/wiki-core/src/lib/sidecar-artifact-bytes.mjs",
+  "packages/wiki-core/src/lib/sidecar-artifact-query-cache.mjs",
   "packages/wiki-core/src/lib/sidecar-graph-impact.mjs",
   "packages/wiki-core/src/lib/sidecar-build-lock.mjs",
   "packages/wiki-core/src/lib/sidecar-joins.mjs",

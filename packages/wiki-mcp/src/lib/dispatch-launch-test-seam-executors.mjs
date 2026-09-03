@@ -64,7 +64,11 @@ export function buildAcceptSucceedCodexExecutorTestSeams() {
 
     spawn: (plan) => {
       const childArgs = Array.isArray(plan?.childArgs) ? plan.childArgs : [];
-      const child = createCodexExecutorTestSeamChild();
+      const finalPathIndex = childArgs.indexOf("--output-last-message");
+      const finalPath = finalPathIndex >= 0 && typeof childArgs[finalPathIndex + 1] === "string"
+        ? childArgs[finalPathIndex + 1]
+        : null;
+      const child = createCodexExecutorTestSeamChild(finalPath);
       let stdinClosed = false;
       dispatchCodexTestSeamEvidence.push(Object.freeze({
         repo: typeof plan?.repo === "string" ? plan.repo : null,
@@ -101,9 +105,15 @@ export function buildAcceptSucceedCodexExecutorTestSeams() {
   };
 }
 
-function createCodexExecutorTestSeamChild() {
+function createCodexExecutorTestSeamChild(finalPath) {
 
-  const child = spawn(process.execPath, ["-e", "process.stdin.resume();"], {
+  const source = [
+    "const fs = require('node:fs');",
+    "const target = process.argv[1];",
+    "if (target) fs.writeFileSync(target, 'WK-2405 advisory text from the deterministic process boundary.\\n');",
+    "process.stdin.resume();"
+  ].join("");
+  const child = spawn(process.execPath, ["-e", source, finalPath ?? ""], {
     stdio: ["pipe", "ignore", "ignore"]
   });
   const terminal = new Promise((resolve, reject) => {

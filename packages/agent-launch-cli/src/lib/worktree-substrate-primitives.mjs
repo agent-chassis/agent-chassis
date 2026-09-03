@@ -4,6 +4,8 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 
+import { runGitAsync } from "../../../agent-launch-core/src/lib/git.mjs";
+
 export const WORKTREE_SUBSTRATE_SCHEMA_VERSION = "worktree-identity-binding.v1";
 
 export const WORKTREE_SUBSTRATE_DIAGNOSTIC_CODES = Object.freeze({
@@ -221,6 +223,24 @@ export function defaultRunGit({ repo, args }) {
     };
   }
   return { ok: true, stdout: typeof res.stdout === "string" ? res.stdout : "" };
+}
+
+export async function defaultRunGitAsync({ repo, args }) {
+  const result = await runGitAsync({ repo, args, quotePath: true, stderrLimit: 2048 });
+  if (result.ok === true) {
+    return { ok: true, stdout: result.stdout };
+  }
+  if (result.error) {
+    return { ok: false, error: result.error };
+  }
+  return {
+    ok: false,
+    status: result.status ?? null,
+    signal: result.signal ?? null,
+    stdout: result.stdout ?? "",
+    stderr: result.stderr ?? null,
+    ...(result.overflow === true ? { overflow: true } : {})
+  };
 }
 
 export function gitOrThrow(runGit, repo, args, whatFailed) {

@@ -1,12 +1,12 @@
 import { readFile } from "node:fs/promises";
-import { PROFILE_ID_V034, SCHEMA_VERSION_V034, VOCABULARY_VERSION_V034 }
-  from "../../lib/native-contract-carrier-v034.mjs";
+import { PROFILE_ID_V1, SCHEMA_VERSION_V1, VOCABULARY_VERSION_V1 }
+  from "../../lib/native-contract-carrier-v1.mjs";
 
 const RETRY_CONVERGENCE_V1_PROFILE = JSON.parse(await readFile(
-  new URL("../certification/profiles/proof.failure.retry-convergence/1.0.0/profile.json",
+  new URL("../certification/profiles/proof.failure.retry-convergence/2.0.0/profile.json",
     import.meta.url), "utf8"));
 const INPUT_TEMPLATE = JSON.parse(await readFile(
-  new URL("../certification/profiles/proof.failure.retry-convergence/1.0.0/evaluation-input.template.json",
+  new URL("../certification/profiles/proof.failure.retry-convergence/2.0.0/evaluation-input.template.json",
     import.meta.url), "utf8"));
 const DEFAULT_ROLE_IDS = Object.freeze(Object.fromEntries(INPUT_TEMPLATE.reference_bindings.map(
   ({ role, reference_ids }) => [role, Object.freeze([...reference_ids])])));
@@ -74,9 +74,9 @@ function buildRetryConvergenceFixture({ profile: suppliedProfile = RETRY_CONVERG
         ? identityOverrides[declaredRole.role](referenceId)
         : identityOverrides[declaredRole.role] ?? identityFor(declaredRole.role, referenceId, domain)) });
   }
-  const contract = { schema_version: SCHEMA_VERSION_V034, vocabulary_version: VOCABULARY_VERSION_V034,
-    profile_id: PROFILE_ID_V034, references: [...referenceById.values()], propositions: [], claims: [],
-    relations: [], collections: [], residue: [], annotations: [] };
+  const contract = { schema_version: SCHEMA_VERSION_V1, vocabulary_version: VOCABULARY_VERSION_V1,
+    profile_id: PROFILE_ID_V1, references: [...referenceById.values()], propositions: [], claims: [],
+    relations: [], collections: [], residue: [], annotations: [], test_proof_version: "controlled-contract-test-proof.v1", test_proofs: [] };
   for (const pattern of profile.reference_binding_patterns) if (pattern.comparison === "complete_population") {
     const [populationRole, memberRole] = pattern.roles;
     addPopulationClaims(contract, roleIds[populationRole][0], roleIds[memberRole],
@@ -119,7 +119,7 @@ function buildRetryConvergenceFixture({ profile: suppliedProfile = RETRY_CONVERG
   const input = { input_version: INPUT_TEMPLATE.input_version, evaluation_stage: evaluationStage,
     reference_bindings: profile.reference_roles.map(({ role }) => ({ role, reference_ids: [...roleIds[role]] })),
     number_bindings: profile.number_roles.map(({ role }) => ({ role, value: numberValues[role] })),
-    claim_pattern_bindings: [], resolver_facts: [], delivered_evidence: [] };
+    claim_pattern_bindings: [], resolver_facts: [], delivered_evidence: [], stable_evaluation: {} };
   mutateContract?.(contract, { claimIdsByPattern, roleIds, numberValues });
   mutateInput?.(input, { roleIds, numberValues });
   return { contract, input, evaluation_input: input, profile, roleIds, numberValues };

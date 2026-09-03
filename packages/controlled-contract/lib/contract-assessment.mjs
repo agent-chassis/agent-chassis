@@ -13,23 +13,41 @@ import {
 import path from "node:path";
 import os from "node:os";
 
-import Ajv2020 from "ajv/dist/2020.js";
-
+import { compiledValidators } from "./compiled-validator-cache.mjs";
 import { checkContract } from "../bin/check-contract.mjs";
 import { loadAdmittedProofPack } from "./admitted-proof-packs.mjs";
 import { captureExactBoundAssessmentInputsV1 } from "./exact-binding-assessment.mjs";
-import { assertCapturedExactBindingResult } from "./exact-binding.mjs";
-import { resolveClosedPopulation } from "./population-semantics-v034.mjs";
+import { projectedEvaluationEnvelopeFor } from "./exact-binding-capture.mjs";
+import {
+  createGraphSelectionTrace,
+  evaluateProjectedEvaluationBinding,
+  hasTrustedProjectedSelection
+} from "./projected-evaluation-binding.mjs";
+import {
+  assertCapturedExactBindingResult,
+  exactBindingSupplementContext,
+  semanticDeclarationDiagnostics
+} from "./exact-binding.mjs";
+import { resolveClosedPopulationV1 } from "./population-semantics-v1.mjs";
 import { canonicalDigest as exactCanonicalDigest }
   from "./exact-binding-common.mjs";
 import {
   VOCABULARY_DIGESTS,
   VOCABULARY_VERSION
-} from "./vocabulary-v034.mjs";
+} from "./vocabulary-v1.mjs";
 import {
-  evaluateVerificationProfileV034,
-  profileDigestV034
-} from "./verification-profile-v034.mjs";
+  StableVerificationError,
+  evaluateVerificationProfileV1
+} from "./verification-profile-v1.mjs";
+import { profileDigest } from "./profile-digest.mjs";
+import {
+  registerAssessmentSupplementContext
+} from "./lossless-supplement-context.mjs";
+import {
+  compactAssessmentOutput,
+  evaluateAdmittedTestValidity,
+  markdownAssessment
+} from "./test-proof-assessment.mjs";
 
 const ASSESSMENT_SCHEMA_VERSION =
   "controlled-contract-assessment.v1";
@@ -92,8 +110,10 @@ const assessmentSchemaText = await readFile(new URL(
   import.meta.url
 ), "utf8");
 const ASSESSMENT_SCHEMA = deepFreeze(JSON.parse(assessmentSchemaText));
-const ajv = new Ajv2020({ strict: true, allErrors: true });
-const validateAssessmentSchema = ajv.compile(ASSESSMENT_SCHEMA);
+const { validateAssessmentSchema } = await compiledValidators(
+  "controlled-contract.contract-assessment.v1",
+  { validators: { validateAssessmentSchema: ASSESSMENT_SCHEMA } }
+);
 
 class AssessmentArtifactError extends Error {
   constructor(code, message, details = {}) {
@@ -279,7 +299,9 @@ function bindingDiagnostics(pack, evaluation) {
       actual: actual ?? null
     });
   };
-  expect("pack.profile_digest", profileDigestV034(pack.profile), pack.profile_digest);
+  expect("pack.profile_digest", pack.profile.schema_version ===
+    "controlled-contract-test-validity-profile.v1"
+    ? canonicalDigest(pack.profile) : profileDigest(pack.profile), pack.profile_digest);
   expect("admission.profile_digest", pack.profile_digest, pack.admission.profile_digest);
   expect("admission.profile_id", pack.profile.profile_id, pack.admission.profile_id);
   expect("admission.profile_version", pack.profile.profile_version,
@@ -517,7 +539,7 @@ function structuralDiagnosticAction(diagnostic, contract) {
     ? [detail.applicability_context] : [];
   const resolvedPopulation = detail.population_reference_id &&
       detail.applicability_context
-    ? resolveClosedPopulation(
+    ? resolveClosedPopulationV1(
         contract, detail.population_reference_id, detail.applicability_context
       )
     : null;
@@ -673,12 +695,10 @@ function overallCode(structure, profileDiscrimination, exactBinding, residueStat
   ].join("__");
 }
 
-function exactBindingDiagnostics(pack, contract, evaluationInput, result) {
-  if (result === null) return [];
-  assertCapturedExactBindingResult(result);
-  const expected = {
+function expectedExactBindingContext(pack, contract, evaluationInput) {
+  return {
     contract_digest: exactCanonicalDigest(contract),
-    profile_digest: pack.profile_digest,
+    profile_digest: profileDigest(pack.profile),
     evaluation_input_digest: exactCanonicalDigest(evaluationInput),
     vocabulary_version: VOCABULARY_VERSION,
     vocabulary_complete_digest: VOCABULARY_DIGESTS.complete,
@@ -686,6 +706,108 @@ function exactBindingDiagnostics(pack, contract, evaluationInput, result) {
     exact_binding_declaration_digest: pack.exact_binding_declaration_digest,
     exact_binding_certification_digest: pack.exact_binding_certification_digest
   };
+}
+
+function coverageShape(coverage) {
+  return canonicalJson({
+    role: coverage.role,
+    projection: coverage.projection,
+    population_id: coverage.population_id ?? null,
+    projection_id: coverage.projection_id ?? null
+  });
+}
+
+function declarationBindingDiagnostics(pack, result) {
+  if (result === null || result.satisfaction !== "satisfied") return [];
+  const diagnostics = [];
+
+  for (const detail of semanticDeclarationDiagnostics(pack.declaration ?? {})) {
+    diagnostics.push({
+      code: "exact_binding_declaration_result_mismatch",
+      field: "declaration.schema",
+      declaration_diagnostic_code: detail.code
+    });
+  }
+  const mismatch = (field, requirementId) => diagnostics.push({
+    code: "exact_binding_declaration_result_mismatch",
+    field,
+    ...(requirementId === undefined ? {} : { requirement_id: requirementId })
+  });
+
+  for (const [field, expected] of [
+    ["declaration.profile_id", pack.profile?.profile_id],
+    ["declaration.profile_version", pack.profile?.profile_version],
+    ["declaration.profile_digest", profileDigest(pack.profile)]
+  ]) {
+    const actual = pack.declaration?.[field.slice("declaration.".length)];
+    if (actual !== expected) mismatch(field);
+  }
+  const declared = new Map((pack.declaration?.requirements ?? []).map(
+    (requirement) => [requirement.requirement_id, requirement]
+  ));
+  const captured = new Map((result.bindings ?? []).map(
+    (binding) => [binding.requirement_id, binding]
+  ));
+  for (const requirementId of captured.keys()) {
+    if (!declared.has(requirementId)) mismatch("requirements", requirementId);
+  }
+  for (const [requirementId, requirement] of declared) {
+    const binding = captured.get(requirementId);
+    if (!binding) {
+      mismatch("requirements", requirementId);
+      continue;
+    }
+    if (binding.binding_kind !== requirement.binding_kind) {
+      mismatch("binding_kind", requirementId);
+    }
+
+    if (requirement.expected_content_sha256 !== undefined &&
+        requirement.expected_content_sha256 !== binding.content_sha256) {
+      mismatch("expected_content_sha256", requirementId);
+    }
+    const declaredCoverage = requirement.role_coverage.map(coverageShape).sort();
+    const capturedCoverage = binding.role_coverage.map(coverageShape).sort();
+    if (canonicalJson(declaredCoverage) !== canonicalJson(capturedCoverage)) {
+      mismatch("role_coverage", requirementId);
+    }
+  }
+  const capturedRelations = new Map((result.relation_results ?? []).map(
+    (relation) => [relation.relation_id, relation]
+  ));
+  for (const relation of pack.declaration?.relations ?? []) {
+    const observed = capturedRelations.get(relation.relation_id);
+    if (!observed || observed.operator !== relation.operator) {
+      mismatch("relations");
+      continue;
+    }
+    const declaredOperands = relation.operator === "deterministic_projection"
+      ? canonicalJson({
+          transformer_id: relation.transformer_id,
+          source_requirement_ids: relation.source_requirement_ids,
+          result_requirement_id: relation.result_requirement_id
+        })
+      : canonicalJson({ requirement_ids: relation.requirement_ids });
+    const observedOperands = relation.operator === "deterministic_projection"
+      ? canonicalJson({
+          transformer_id: observed.transformer_id,
+          source_requirement_ids: observed.source_requirement_ids,
+          result_requirement_id: observed.result_requirement_id
+        })
+      : canonicalJson({ requirement_ids: observed.requirement_ids });
+    if (declaredOperands !== observedOperands) mismatch("relations");
+  }
+  for (const relationId of capturedRelations.keys()) {
+    if (!(pack.declaration?.relations ?? []).some(
+      ({ relation_id: id }) => id === relationId
+    )) mismatch("relations");
+  }
+  return diagnostics;
+}
+
+function exactBindingDiagnostics(pack, contract, evaluationInput, result) {
+  if (result === null) return [];
+  assertCapturedExactBindingResult(result);
+  const expected = expectedExactBindingContext(pack, contract, evaluationInput);
   return Object.entries(expected).flatMap(([field, value]) =>
     result.context?.[field] === value ? [] : [{
       field: `exact_binding.context.${field}`,
@@ -760,25 +882,65 @@ function projectContractAssessment({
   const evaluationInputSnapshot = evaluationInput === null ? null : clone(evaluationInput);
   const contractDigest = canonicalDigest(normalizeContractForIdentity(contractSnapshot));
   const assessmentSchemaDigest = canonicalDigest(ASSESSMENT_SCHEMA);
-  const evaluation = mode !== "structural_only"
-    ? evaluateVerificationProfileV034({
-        contract: clone(contractSnapshot),
-        profile: clone(pack.profile),
-        evaluation_input: clone(evaluationInputSnapshot)
-      })
-    : null;
+  const selectionTrace = mode === "exact_bound_profile"
+    ? createGraphSelectionTrace() : null;
+  let evaluation = null;
+  if (mode !== "structural_only") try {
+    evaluation = pack.profile.schema_version === "controlled-contract-test-validity-profile.v1"
+      ? evaluateAdmittedTestValidity({
+          contract: clone(contractSnapshot),
+          evaluationInput: clone(evaluationInputSnapshot),
+          proofPack: pack
+        })
+      : evaluateVerificationProfileV1({
+          contract: clone(contractSnapshot),
+          profile: clone(pack.profile),
+          evaluation_input: clone(evaluationInputSnapshot)
+        }, selectionTrace === null ? {} : { graphSelectionSink: selectionTrace.sink });
+  } catch (error) {
+    if (!(error instanceof StableVerificationError)) throw error;
+    evaluation = {
+      satisfaction: "invalid",
+      profile: null,
+      admission: null,
+      diagnostics: clone(error.details?.diagnostics?.diagnostics ?? [{
+        code: error.code, message: error.message
+      }])
+    };
+  }
   const bindings = mode !== "structural_only"
     ? bindingDiagnostics(pack, evaluation)
     : [];
   const admissionValid = mode !== "structural_only" && bindings.length === 0;
   const structure = structureAxis(structuralSnapshot);
   const exactBindings = mode === "exact_bound_profile"
-    ? exactBindingDiagnostics(
+    ? [
+      ...exactBindingDiagnostics(
         pack, contractSnapshot, evaluationInputSnapshot, exactBindingResult
-      )
+      ),
+      ...declarationBindingDiagnostics(pack, exactBindingResult)
+    ]
     : [];
+  const projectedEnvelope = mode === "exact_bound_profile"
+    ? projectedEvaluationEnvelopeFor(exactBindingResult) : null;
+  const projectedEvaluation = mode === "exact_bound_profile"
+    ? evaluateProjectedEvaluationBinding({
+        declaredOptIn: pack.declaration?.projected_evaluation_binding ?? null,
+        envelope: projectedEnvelope,
+        exactBindingResult,
+        expectedContext: expectedExactBindingContext(
+          pack, contractSnapshot, evaluationInputSnapshot
+        ),
+        contract: contractSnapshot,
+        profile: pack.profile,
+        evaluation,
+        trace: selectionTrace.snapshot()
+      })
+    : { applicable: false, diagnostics: [] };
   const exactBinding = mode === "exact_bound_profile"
     ? exactBindings.length === 0 &&
+        bindings.length === 0 &&
+        projectedEvaluation.diagnostics.length === 0 &&
         exactBindingResult.provenance?.capture_verified === true &&
         exactBindingResult.satisfaction === "satisfied"
       ? "proven"
@@ -800,7 +962,11 @@ function projectContractAssessment({
   const residueStatus = residueAxis(residue);
   const diagnostics = [
     ...collectDiagnostics(structuralSnapshot, evaluation, bindings),
-    ...exactBindings.map((detail) => ({ source: "assessment_binding", detail }))
+    ...exactBindings.map((detail) => ({ source: "assessment_binding", detail })),
+    ...projectedEvaluation.diagnostics.map((detail) => ({
+      source: "assessment_binding",
+      detail: { ...detail, field: "exact_binding.projected_evaluation" }
+    }))
   ];
   const grounding = repositoryGrounding(contractSnapshot);
   const reviewSignals = collectionReviewSignals(structuralSnapshot);
@@ -876,7 +1042,11 @@ function projectContractAssessment({
         ? "assessed_by_admitted_profile"
         : "not_assessed",
       ...(mode === "exact_bound_profile" ? {
-        exact_binding_capture: "assessed_by_deterministic_capture"
+        exact_binding_capture: "assessed_by_deterministic_capture",
+        projected_evaluation_binding: projectedEvaluation.applicable
+          ? (projectedEvaluation.diagnostics.length === 0
+            ? "bound_to_deterministic_projection" : "not_bound")
+          : "not_declared"
       } : {})
     },
     categorical_limits: {
@@ -953,7 +1123,29 @@ function projectContractAssessment({
       { exact_binding: exactBinding }
     )
   };
-  return deepFreeze({ assessment: clone(assessment), reports: clone(reports) });
+  const projected = deepFreeze({ assessment: clone(assessment), reports: clone(reports) });
+  if (mode === "exact_bound_profile" &&
+      hasTrustedProjectedSelection(projectedEvaluation) &&
+      exactBindings.length === 0 && bindings.length === 0 &&
+      exactBindingResult.provenance?.capture_verified === true) {
+    const exactSupplementContext = exactBindingSupplementContext({
+      result: exactBindingResult,
+      declaration: pack.declaration,
+      declarationDigest: pack.exact_binding_declaration_digest,
+      sourceSet: exactBindingSources
+    });
+    registerAssessmentSupplementContext(projected, deepFreeze({
+      contract: clone(contractSnapshot),
+      evaluation_input: clone(evaluationInputSnapshot),
+      proof_pack: clone(pack),
+      exact_binding_declaration: exactSupplementContext.declaration,
+      exact_binding_result: exactSupplementContext.result,
+      exact_binding_sources: exactSupplementContext.source_set,
+      projected_envelope: projectedEnvelope,
+      projected_evaluation: projectedEvaluation
+    }));
+  }
+  return projected;
 }
 
 async function readJsonSource(filePath, label) {
@@ -1060,104 +1252,7 @@ async function assessStructuralContractFile({ inputPath }) {
   return projected;
 }
 
-function markdownAssessment(assessment) {
-  const lines = [
-    "# Controlled Contract Assessment",
-    "",
-    `## STRUCTURE: ${assessment.structure.toUpperCase()}`,
-    "",
-    `## PROFILE DISCRIMINATION: ${assessment.profile_discrimination.toUpperCase().replaceAll("_", " ")}`,
-    "",
-    ...(assessment.exact_binding === undefined ? [] : [
-      `## EXACT BINDING: ${assessment.exact_binding.toUpperCase().replaceAll("_", " ")}`,
-      ""
-    ]),
-    PROFILE_SCOPE_STATEMENT,
-    "",
-    "## ASSESSMENT SCOPE: PLANNING",
-    "",
-    PLANNING_SCOPE_STATEMENT,
-    "",
-    "## AUTHORITY: NON-AUTHORITATIVE",
-    "",
-    "## CATEGORICAL LIMITS",
-    "",
-    `- ${assessment.categorical_limits.omitted_obligations}`,
-    `- ${assessment.categorical_limits.repository_grounding}`,
-    `- ${assessment.categorical_limits.runtime_behavior}`,
-    `- ${assessment.categorical_limits.implementation_readiness}`,
-    "",
-    `## RESIDUE: ${assessment.residue_status.toUpperCase().replaceAll("_", " ")}`,
-    "",
-    `Overall code: \`${assessment.overall_code}\``,
-    "",
-    `Assessment identity: \`${assessment.assessment_identity}\``,
-    "",
-    `Lossless report: \`${assessment.lossless_report.content_reference}\``,
-    "",
-    "## Profile guarantee",
-    "",
-    assessment.profile_guarantee?.guarantee ?? "No admitted profile was assessed.",
-    "",
-    "## Claim coverage",
-    "",
-    `Matched/profile-covered claims: ${assessment.matched_profile_covered_claims.length}`,
-    `Structurally verified claim edges: ${assessment.structurally_verified_claim_edges.length}`,
-    `Mandatory claims outside the selected profile: ${assessment.mandatory_claim_categories.outside_selected_profile.length}`,
-    "",
-    "## Repository grounding",
-    "",
-    `Status: ${assessment.repository_grounding.status}`,
-    `Grounded mandatory behaviors: ${assessment.repository_grounding.grounded_count}/${assessment.repository_grounding.total_mandatory_behavior_count}`,
-    `Ungrounded mandatory behavior claim IDs: ${assessment.repository_grounding.ungrounded_mandatory_behavior_claim_ids.length === 0
-      ? "none"
-      : assessment.repository_grounding.ungrounded_mandatory_behavior_claim_ids
-        .map((id) => `\`${id}\``).join(", ")}`,
-    "",
-    "## Proof exclusions",
-    ""
-  ];
-  if (assessment.proof_exclusions.length === 0) lines.push("None.");
-  else for (const exclusion of assessment.proof_exclusions) lines.push(
-    `- \`${exclusion.exclusion_id}\` — adequacy control: ${exclusion.adequacy_control_outcome ?? "not observed"}`
-  );
-  lines.push("", "## Diagnostics", "");
-  if (assessment.diagnostics.length === 0) lines.push("None.");
-  else for (const diagnostic of assessment.diagnostics) lines.push(
-    `- \`${diagnostic.source}\`: \`${JSON.stringify(canonicalValue(diagnostic.detail))}\``
-  );
-  lines.push("", "## Residue", "");
-  if (assessment.residue.length === 0) lines.push("None.");
-  else for (const residue of assessment.residue) lines.push(
-    `- \`${residue.residue_id}\` (${residue.reason}): ${residue.text}`
-  );
-  lines.push("", "## Review signals", "");
-  if (assessment.review_signals.length === 0) lines.push("None.");
-  else for (const signal of assessment.review_signals) lines.push(
-    `- \`${signal.code}\` collection \`${signal.collection_id}\`; members: ${signal.member_claim_ids.map((id) => `\`${id}\``).join(", ")}`
-  );
-  lines.push("", "## Review actions", "");
-  if (assessment.review_actions.length === 0) lines.push("None.");
-  else for (const review of assessment.review_actions) {
-    const claims = review.claim_ids.length === 0
-      ? "" : ` [${review.claim_ids.map((id) => `\`${id}\``).join(", ")}]`;
-    lines.push(`- \`${review.code}\`${claims}: ${review.description}`);
-  }
-  lines.push("", "## Required next evidence", "");
-  for (const required of assessment.required_next_evidence) {
-    const subjects = required.subject_ids.length === 0
-      ? ""
-      : ` [${required.subject_ids.map((id) => `\`${id}\``).join(", ")}]`;
-    lines.push(`- \`${required.code}\`${subjects}: ${required.description}`);
-  }
-  lines.push("", "## Source digests", "");
-  for (const [name, digest] of Object.entries(assessment.digests.source)) lines.push(
-    `- ${name}: ${digest === null ? "not applicable" : `\`${digest}\``}`
-  );
-  return `${lines.join("\n")}\n`;
-}
-
-function bundleBytes(projected) {
+function assessmentManifestFor(projected) {
   const { assessment, reports } = projected;
   const entries = [
     ["assessment.json", canonicalJson(assessment)],
@@ -1170,7 +1265,7 @@ function bundleBytes(projected) {
     entries.push(["exact-binding.full.json", canonicalJson(reports.exactBinding)]);
   }
   const files = new Map(entries);
-  const manifest = {
+  return deepFreeze({
     manifest_version: ASSESSMENT_MANIFEST_VERSION,
     assessment_identity: assessment.assessment_identity,
     content_reference: assessment.lossless_report.content_reference,
@@ -1180,7 +1275,22 @@ function bundleBytes(projected) {
       sha256: sha256Bytes(contents),
       bytes: Buffer.byteLength(contents)
     }))
-  };
+  });
+}
+
+function bundleBytes(projected) {
+  const { assessment, reports } = projected;
+  const files = new Map([
+    ["assessment.json", canonicalJson(assessment)],
+    ["assessment.md", markdownAssessment(assessment)],
+    ["structural.full.json", canonicalJson(reports.structural)],
+    ["admitted-proof.full.json", canonicalJson(reports.admittedProof)],
+    ["proof-pack-admission.full.json", canonicalJson(reports.proofPackAdmission)]
+  ]);
+  if (assessment.lossless_report.files.includes("exact-binding.full.json")) {
+    files.set("exact-binding.full.json", canonicalJson(reports.exactBinding));
+  }
+  const manifest = assessmentManifestFor(projected);
   files.set("manifest.json", canonicalJson(manifest));
   return files;
 }
@@ -1335,30 +1445,6 @@ async function writeAssessmentBundle(projected, { repositoryRoot }) {
     directory: target,
     content_reference: projected.assessment.lossless_report.content_reference
   });
-}
-
-function compactAssessmentOutput(assessment) {
-  return {
-    overall_code: assessment.overall_code,
-    structure: assessment.structure,
-    profile_discrimination: assessment.profile_discrimination,
-    ...(assessment.exact_binding === undefined
-      ? {} : { exact_binding: assessment.exact_binding }),
-    assessment_scope: assessment.assessment_scope,
-    residue_status: assessment.residue_status,
-    authority: assessment.authority,
-    repository_grounding_status: assessment.repository_grounding.status,
-    grounded_mandatory_behavior_count: assessment.repository_grounding.grounded_count,
-    total_mandatory_behavior_count:
-      assessment.repository_grounding.total_mandatory_behavior_count,
-    ungrounded_mandatory_behavior_claim_ids:
-      assessment.repository_grounding.ungrounded_mandatory_behavior_claim_ids,
-    diagnostic_count: assessment.diagnostics.length,
-    review_signal_count: assessment.review_signals.length,
-    residue_count: assessment.residue.length,
-    exclusion_count: assessment.proof_exclusions.length,
-    artifact: assessment.lossless_report.content_reference
-  };
 }
 
 export {

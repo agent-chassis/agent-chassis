@@ -24,6 +24,7 @@ import {
   attachPersistedReviewAttestations,
   readPersistedWorkerAdmissionEvidenceSidecar
 } from "./work-record-admission-evidence-sidecar.mjs";
+import { createSelectedUnitReadiness } from "./work-record-dispatch-readiness-shape.mjs";
 
 export const WORKER_ADMISSION_DOMAIN_PACK_INPUT_SCHEMA_VERSION =
   "worker-admission-domain-pack-input.v1";
@@ -276,47 +277,7 @@ export async function createSelectedUnitWorkerAdmissionDomainPackInput({
     reviewedUnitSourceDigest
   );
 
-  const dispatchReadiness = {
-    schema_version: "dispatch-readiness.v1",
-    record_id: recordId,
-    unit: selectedUnit,
-    decision_code: "dispatchable",
-    dispatchable: true,
-    state: {
-      graph_available: false,
-      dirty_state: "clean",
-      staleness: "fresh",
-      graph_state: {
-        graph_available: false,
-        edge_source: "unavailable",
-        dirty_graph_mode: "unavailable",
-        unavailable_paths: []
-      }
-    },
-    reasons: [],
-    accepted_escalations: [],
-    clusters: [
-      {
-        cluster_id: "selected_unit",
-        input_paths: [],
-        affected_surfaces: [],
-        likely_tests: [],
-        docs_contracts: [],
-        canonical_refs: [],
-        derived_evidence: [],
-        confidence: "high",
-        split_recommendation: {
-          required: false,
-          reason: "selected unit materializes as a single cluster"
-        }
-      }
-    ],
-    blast_radius: {
-      level: "low",
-      reasons: [],
-      accepted_escalation_id: null
-    }
-  };
+  const dispatchReadiness = createSelectedUnitReadiness({ recordId, unit: selectedUnit });
 
   const derivedEvidence = createWorkRecordAdmissionDerivedEvidence({
     record,

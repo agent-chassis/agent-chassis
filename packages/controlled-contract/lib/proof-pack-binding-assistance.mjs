@@ -1,7 +1,6 @@
 import { readFile } from "node:fs/promises";
 
-import Ajv2020 from "ajv/dist/2020.js";
-
+import { compiledValidators } from "./compiled-validator-cache.mjs";
 import { loadAdmittedProofPack } from "./admitted-proof-packs.mjs";
 import {
   normalizeContractForIdentity,
@@ -12,19 +11,23 @@ import {
   canonicalJsonBytes,
   canonicalValue,
   compareCodeUnits,
-  deepFreeze
+  deepFreeze,
+  unsupportedObjectKeys
 } from "./deterministic-projection-primitives.mjs";
 import {
   PROOF_INTENT_DIGESTS,
   describeProofPackAuthoring
 } from "./proof-intent-selection.mjs";
-import { validateAndResolveNativeContractV034 } from
-  "./native-contract-carrier-v034.mjs";
+import { evaluateTestValidity } from
+  "../profiles/proof.verification.test-validity/2.0.0/evaluator.mjs";
+import { validateStableTestProofContract } from "./test-proof-contract-v1.mjs";
+
+const TEST_VALIDITY_INPUT_VERSION = "controlled-contract-test-validity-evaluation-input.v1";
 
 const packageRoot = new URL("../", import.meta.url);
 const [evaluationInputSchema, resultSchema] = await Promise.all([
   readJson(new URL(
-    "schema/controlled-contract-verification-profile-input.experimental.v0.2.schema.json",
+    "schema/controlled-contract-verification-profile-input.v1.schema.json",
     packageRoot
   )),
   readJson(new URL(
@@ -32,10 +35,18 @@ const [evaluationInputSchema, resultSchema] = await Promise.all([
     packageRoot
   ))
 ]);
-const ajv = new Ajv2020({ strict: true, allErrors: true });
-const validateEvaluationInput = ajv.compile(evaluationInputSchema);
-const validateProofPackBindingAssistance = ajv.compile(resultSchema);
+const {
+  validateEvaluationInput,
+  validateProofPackBindingAssistance
+} = await compiledValidators("controlled-contract.proof-pack-binding-assistance.v1", {
+  validators: {
+    validateEvaluationInput: evaluationInputSchema,
+    validateProofPackBindingAssistance: resultSchema
+  }
+});
 const MAX_BINDING_ASSISTANCE_BYTES = 65_536;
+
+const OPTIONAL_CARDINALITIES = Object.freeze(["zero_or_one", "zero_or_more"]);
 
 class ProofPackBindingAssistanceError extends Error {
   constructor(code, message, details = {}) {
@@ -58,21 +69,25 @@ function packKey(profileId, profileVersion) {
   return `${profileId}@${profileVersion}`;
 }
 
-function validateRequest(request, unexpectedArguments) {
+function validateRequest(request, unexpectedArguments, {
+  supported = ["contract", "profileId", "profileVersion", "requestedIntents",
+    "evaluationInput"],
+  message = "binding assistance accepts exactly one plain request object",
+  identityMessage = "binding assistance requires one exact profile id and version"
+} = {}) {
   if (unexpectedArguments.length > 0 || request === null ||
       typeof request !== "object" || Array.isArray(request) ||
       ![Object.prototype, null].includes(Object.getPrototypeOf(request))) {
     throw new ProofPackBindingAssistanceError(
       "proof_pack_binding_request_invalid",
-      "binding assistance accepts exactly one plain request object"
+      message
     );
   }
-  const supported = new Set([
-    "contract", "profileId", "profileVersion", "requestedIntents",
-    "evaluationInput"
-  ]);
-  const unsupported = Reflect.ownKeys(request).filter((key) =>
-    typeof key !== "string" || !supported.has(key));
+  const unsupported = [...new Set([
+    ...unsupportedObjectKeys(request, supported),
+    ...Reflect.ownKeys(request).filter((key) =>
+      typeof key !== "string" || !supported.includes(key)).map(String)
+  ])].sort(compareCodeUnits);
   if (unsupported.length > 0) throw new ProofPackBindingAssistanceError(
     "proof_pack_binding_request_option_unsupported",
     "binding assistance accepts no caller catalog, path, module, executable, environment, root, or other substrate override",
@@ -83,7 +98,7 @@ function validateRequest(request, unexpectedArguments) {
       request.profileVersion.length === 0) {
     throw new ProofPackBindingAssistanceError(
       "proof_pack_binding_identity_invalid",
-      "binding assistance requires one exact profile id and version"
+      identityMessage
     );
   }
   return {
@@ -96,29 +111,14 @@ function validateRequest(request, unexpectedArguments) {
 }
 
 function validatePageRequest(request, unexpectedArguments) {
-  if (unexpectedArguments.length > 0 || request === null ||
-      typeof request !== "object" || Array.isArray(request) ||
-      ![Object.prototype, null].includes(Object.getPrototypeOf(request))) {
-    throw new ProofPackBindingAssistanceError(
-      "proof_pack_binding_request_invalid",
-      "paged binding assistance accepts exactly one plain request object"
-    );
-  }
-  const supported = new Set([
+  const supported = [
     "contract", "profileId", "profileVersion", "requestedIntents",
     "evaluationInput", "roles", "statuses", "offset", "maximumItems"
-  ]);
-  const unsupported = Reflect.ownKeys(request).filter((key) =>
-    typeof key !== "string" || !supported.has(key));
-  if (unsupported.length > 0) throw new ProofPackBindingAssistanceError(
-    "proof_pack_binding_request_option_unsupported",
-    "paged binding assistance accepts no caller substrate override",
-    { unsupported_options: unsupported.map(String).sort(compareCodeUnits) }
-  );
-  const input = validateRequest(Object.fromEntries(Object.entries(request).filter(
-    ([key]) => ["contract", "profileId", "profileVersion", "requestedIntents",
-      "evaluationInput"].includes(key)
-  )), []);
+  ];
+  const input = validateRequest(request, unexpectedArguments, {
+    supported,
+    message: "paged binding assistance accepts exactly one plain request object"
+  });
   const strings = (value, maximum, field) => {
     if (value === undefined) return [];
     if (!Array.isArray(value) || value.length > maximum || value.some((entry) =>
@@ -144,38 +144,11 @@ function validatePageRequest(request, unexpectedArguments) {
 }
 
 function validateBindingInputRequest(request, unexpectedArguments) {
-  if (unexpectedArguments.length > 0 || request === null ||
-      typeof request !== "object" || Array.isArray(request) ||
-      ![Object.prototype, null].includes(Object.getPrototypeOf(request))) {
-    throw new ProofPackBindingAssistanceError(
-      "proof_pack_binding_request_invalid",
-      "binding validation accepts exactly one plain request object"
-    );
-  }
-  const supported = new Set([
-    "contract", "profileId", "profileVersion", "evaluationInput"
-  ]);
-  const unsupported = Reflect.ownKeys(request).filter((key) =>
-    typeof key !== "string" || !supported.has(key));
-  if (unsupported.length > 0) throw new ProofPackBindingAssistanceError(
-    "proof_pack_binding_request_option_unsupported",
-    "binding validation accepts no caller catalog, path, module, executable, environment, root, or authoring-projection option",
-    { unsupported_options: unsupported.map(String).sort(compareCodeUnits) }
-  );
-  if (typeof request.profileId !== "string" || request.profileId.length === 0 ||
-      typeof request.profileVersion !== "string" ||
-      request.profileVersion.length === 0) {
-    throw new ProofPackBindingAssistanceError(
-      "proof_pack_binding_identity_invalid",
-      "binding validation requires one exact profile id and version"
-    );
-  }
-  return {
-    contract: request.contract,
-    profileId: request.profileId,
-    profileVersion: request.profileVersion,
-    evaluationInput: request.evaluationInput ?? null
-  };
+  return validateRequest(request, unexpectedArguments, {
+    supported: ["contract", "profileId", "profileVersion", "evaluationInput"],
+    message: "binding validation accepts exactly one plain request object",
+    identityMessage: "binding validation requires one exact profile id and version"
+  });
 }
 
 async function loadExactBindingPack(input) {
@@ -198,11 +171,15 @@ function assertContract(contract, profile) {
       "binding assistance requires one controlled contract object"
     );
   }
-  const resolved = validateAndResolveNativeContractV034(contract);
-  if (!resolved.schema_valid) throw new ProofPackBindingAssistanceError(
+  const resolved = validateStableTestProofContract(contract);
+  if (!resolved.valid) throw new ProofPackBindingAssistanceError(
     "proof_pack_binding_contract_invalid",
     "the controlled contract is schema-invalid",
-    { diagnostics: structuredClone(resolved.diagnostics) }
+    {
+      contract_family: resolved.family,
+      facts: structuredClone(resolved.facts),
+      diagnostics: structuredClone(resolved.diagnostics)
+    }
   );
   const mismatches = [];
   if (contract.schema_version !== profile.contract_schema_version) mismatches.push({
@@ -241,8 +218,9 @@ function profileUsesRole(profile, role) {
     return found;
   };
   const patternCategories = [
-    "claim_patterns", "reference_binding_patterns", "relation_patterns",
-    "collection_patterns", "resolver_fact_patterns", "evidence_patterns"
+    "binding_constraint_patterns", "claim_patterns", "reference_binding_patterns",
+    "relation_patterns", "collection_patterns", "resolver_fact_patterns",
+    "evidence_patterns"
   ];
   const patterns = patternCategories.flatMap((category) =>
     (profile[category] ?? []).flatMap((pattern) => {
@@ -282,6 +260,17 @@ function profileUsesRole(profile, role) {
         ).map((binding) => canonicalValue(structuredClone(binding)))
           .sort((left, right) => compareCodeUnits(
             JSON.stringify(left), JSON.stringify(right)
+          )),
+      falsifier_occurrence_bindings:
+        (profile.falsifier_occurrence_bindings ?? []).filter((binding) =>
+          binding.reference_role_joins.some(({ role: joinedRole }) =>
+            joinedRole === role
+          ) || binding.number_role_joins.some(({ role: joinedRole }) =>
+            joinedRole === role
+          )
+        ).map((binding) => canonicalValue(structuredClone(binding)))
+          .sort((left, right) => compareCodeUnits(
+            JSON.stringify(left), JSON.stringify(right)
           ))
     }
   };
@@ -294,11 +283,24 @@ function cardinalityValid(cardinality, count) {
   return cardinality === "zero_or_more";
 }
 
-function bindingMaps(evaluationInput, profile) {
+function bindingMaps(evaluationInput, profile, contract) {
   const diagnostics = [];
   const referenceByRole = new Map();
   const numberByRole = new Map();
   if (evaluationInput === null) return { diagnostics, referenceByRole, numberByRole };
+
+  if (profile.profile_id === "proof.verification.test-validity" &&
+      evaluationInput.input_version === TEST_VALIDITY_INPUT_VERSION) {
+    const { evaluation_stage: _evaluationStage, ...testValidityInput } = evaluationInput;
+    return {
+      diagnostics: evaluateTestValidity({
+        contract,
+        evaluation_input: testValidityInput
+      }).diagnostics,
+      referenceByRole,
+      numberByRole
+    };
+  }
   if (!validateEvaluationInput(evaluationInput)) {
     throw new ProofPackBindingAssistanceError(
       "proof_pack_binding_evaluation_input_invalid",
@@ -326,19 +328,11 @@ function bindingMaps(evaluationInput, profile) {
       code: "unknown_number_role_binding", role: binding.role
     });
   }
-  diagnostics.sort((left, right) => compareCodeUnits(
-    JSON.stringify(canonicalValue(left)), JSON.stringify(canonicalValue(right))
-  ));
-  return { diagnostics, referenceByRole, numberByRole };
+  return { diagnostics: sortDiagnostics(diagnostics), referenceByRole, numberByRole };
 }
 
 function referenceRoleResult(role, contract, suppliedIds) {
-  const compatible = contract.references.filter((reference) =>
-    role.allowed_type_terms.includes(reference.type_term) &&
-    (!role.allowed_identity_kinds ||
-      role.allowed_identity_kinds.includes(reference.identity.kind))
-  ).sort((left, right) => compareCodeUnits(left.reference_id, right.reference_id))
-    .map((reference) => ({
+  const compatible = referenceCandidates(contract, role).map((reference) => ({
       reference_id: reference.reference_id,
       type_term: reference.type_term,
       identity_kind: reference.identity.kind,
@@ -368,11 +362,17 @@ function referenceRoleResult(role, contract, suppliedIds) {
   };
 }
 
-function referenceCandidateCount(contract, role) {
+function referenceCandidates(contract, role, { start = 0, end = Infinity } = {}) {
   return contract.references.filter((reference) =>
     role.allowed_type_terms.includes(reference.type_term) &&
     (!role.allowed_identity_kinds ||
-      role.allowed_identity_kinds.includes(reference.identity.kind))).length;
+      role.allowed_identity_kinds.includes(reference.identity.kind))
+  ).sort((left, right) => compareCodeUnits(left.reference_id, right.reference_id))
+    .slice(start, end);
+}
+
+function referenceCandidateCount(contract, role) {
+  return referenceCandidates(contract, role).length;
 }
 
 function suppliedReferenceRoleResult(role, referencesById, suppliedIds) {
@@ -487,6 +487,120 @@ function suppliedNumberRoleResult(role, suppliedValue) {
   };
 }
 
+function requiredRoleAbsenceDiagnostics(roleDescriptors) {
+  return roleDescriptors.filter(({ role, supplied }) => supplied === null &&
+    !OPTIONAL_CARDINALITIES.includes(role.cardinality)).map(({ kind, role }) => ({
+    code: "required_role_binding_absent",
+    role_kind: kind,
+    role: role.role,
+    cardinality: role.cardinality
+  }));
+}
+
+function sortDiagnostics(diagnostics) {
+  return [...diagnostics].sort((left, right) => compareCodeUnits(
+    JSON.stringify(canonicalValue(left)), JSON.stringify(canonicalValue(right))
+  ));
+}
+
+function bindingSummary(roleDescriptors, diagnostics, evaluationInput) {
+  const incompatible = roleDescriptors.filter(({ checked }) =>
+    checked.status === "incompatible").length;
+  const explained = incompatible + diagnostics.length;
+  return {
+    reference_role_count: roleDescriptors.filter(({ kind }) =>
+      kind === "reference").length,
+    number_role_count: roleDescriptors.filter(({ kind }) =>
+      kind === "number").length,
+    incompatible_binding_count: explained,
+    status: evaluationInput === null ? "not_supplied"
+      : explained === 0 ? "valid" : "invalid"
+  };
+}
+
+function proofPackAuthoringFacts(context, input) {
+  if (input.evaluationInput !== null) return null;
+  const stages = context.authoring.evaluation_input_skeleton.allowed_evaluation_stages;
+  if (!Array.isArray(stages) || stages.length !== 1) return null;
+  const referenceBindings = [];
+  const numberBindings = [];
+  const authorSemantics = [];
+  for (const descriptor of context.roles) {
+    const role = descriptor.role.role;
+    if (descriptor.kind === "reference") {
+      const candidates = referenceCandidates(input.contract, descriptor.role);
+      const referenceIds = candidates.length === 1
+        ? [candidates[0].reference_id] : [];
+      const index = referenceBindings.length;
+      referenceBindings.push({ role, reference_ids: referenceIds });
+      if (candidates.length !== 1 && !["zero_or_one", "zero_or_more"].includes(
+        descriptor.role.cardinality
+      )) authorSemantics.push({
+        pointer: `/bindings/reference_bindings/${index}/reference_ids`,
+        target_type: "contract_reference_id",
+        requirement: `choose the contract references for proof-pack role ${role}`
+      });
+      continue;
+    }
+    const candidates = numberCandidates(input.contract, descriptor.role);
+    if (candidates.length === 1) {
+      numberBindings.push({ role, value: candidates[0].value });
+    } else if (!["zero_or_one", "zero_or_more"].includes(descriptor.role.cardinality)) {
+      authorSemantics.push({
+        pointer: `/bindings/number_bindings/${numberBindings.length}`,
+        target_type: "number_binding",
+        requirement: `supply the number binding for proof-pack role ${role}`
+      });
+    }
+  }
+  return canonicalValue({
+    status: "recoverable",
+    selected_pack: {
+      profile_id: input.profileId,
+      profile_version: input.profileVersion
+    },
+    requested_intents: context.authoring.requested_intents,
+    bindings: {
+      evaluation_stage: stages[0],
+      reference_bindings: referenceBindings,
+      number_bindings: numberBindings
+    },
+    author_semantics: authorSemantics
+  });
+}
+
+function bindingRoleDescriptors(profile, contract, bindings) {
+  const referencesById = new Map((contract.references ?? []).map((reference) => [
+    reference.reference_id, reference
+  ]));
+  return [
+    ...(profile.reference_roles ?? []).map((role) => {
+      const supplied = bindings.referenceByRole.has(role.role)
+        ? bindings.referenceByRole.get(role.role) : null;
+      return {
+        kind: "reference", role, supplied,
+        checked: suppliedReferenceRoleResult(role, referencesById, supplied)
+      };
+    }),
+    ...(profile.number_roles ?? []).map((role) => {
+      const supplied = bindings.numberByRole.has(role.role)
+        ? bindings.numberByRole.get(role.role) : null;
+      return {
+        kind: "number", role, supplied,
+        checked: suppliedNumberRoleResult(role, supplied)
+      };
+    })
+  ].sort((left, right) => compareCodeUnits(
+    `${left.kind}\0${left.role.role}`, `${right.kind}\0${right.role.role}`
+  ));
+}
+
+function evaluationInputDiagnostics(bindings, descriptors, evaluationInput) {
+  return sortDiagnostics(evaluationInput === null ? bindings.diagnostics : [
+    ...bindings.diagnostics, ...requiredRoleAbsenceDiagnostics(descriptors)
+  ]);
+}
+
 async function bindingInspectionContext(input) {
   const authoring = describeProofPackAuthoring({
     profileId: input.profileId,
@@ -494,41 +608,21 @@ async function bindingInspectionContext(input) {
     requestedIntents: input.requestedIntents
   });
   const pack = await loadExactBindingPack(input);
-  const bindings = bindingMaps(input.evaluationInput, pack.profile);
-  const roles = [
-    ...(pack.profile.reference_roles ?? []).map((role) => {
-      const supplied = bindings.referenceByRole.has(role.role)
-        ? bindings.referenceByRole.get(role.role) : null;
-      const checked = suppliedReferenceRoleResult(role,
-        new Map(input.contract.references.map((reference) =>
-          [reference.reference_id, reference])), supplied);
-      const candidateCount = referenceCandidateCount(input.contract, role);
-      return { kind: "reference", role, supplied, checked, candidateCount,
-        status: supplied === null ? candidateCount === 1 ? "one_compatible_candidate" :
-          candidateCount > 1 ? "ambiguous" : "unbound" : checked.status };
-    }),
-    ...(pack.profile.number_roles ?? []).map((role) => {
-      const supplied = bindings.numberByRole.has(role.role)
-        ? bindings.numberByRole.get(role.role) : null;
-      const checked = suppliedNumberRoleResult(role, supplied);
-      const candidateCount = numberCandidates(input.contract, role).length;
-      return { kind: "number", role, supplied, checked, candidateCount,
-        status: supplied === null ? candidateCount === 1 ? "one_compatible_candidate" :
-          candidateCount > 1 ? "ambiguous" : "unbound" : checked.status };
-    })
-  ].sort((left, right) => compareCodeUnits(
-    `${left.kind}\0${left.role.role}`, `${right.kind}\0${right.role.role}`
-  ));
-  const invalidCount = roles.filter(({ status }) => status === "incompatible").length +
-    bindings.diagnostics.length;
-  const summary = {
-    reference_role_count: roles.filter(({ kind }) => kind === "reference").length,
-    number_role_count: roles.filter(({ kind }) => kind === "number").length,
-    incompatible_binding_count: invalidCount,
-    status: input.evaluationInput === null ? "not_supplied" :
-      invalidCount === 0 && roles.every(({ status }) => status === "validly_bound")
-        ? "valid" : "invalid"
-  };
+  const bindings = bindingMaps(input.evaluationInput, pack.profile, input.contract);
+  const roles = bindingRoleDescriptors(pack.profile, input.contract, bindings)
+    .map((descriptor) => {
+      const candidateCount = descriptor.kind === "reference"
+        ? referenceCandidateCount(input.contract, descriptor.role)
+        : numberCandidates(input.contract, descriptor.role).length;
+      return { ...descriptor, candidateCount,
+        status: descriptor.supplied === null
+          ? candidateCount === 1 ? "one_compatible_candidate"
+          : candidateCount > 1 ? "ambiguous" : "unbound"
+          : descriptor.checked.status };
+    });
+  const diagnostics = evaluationInputDiagnostics(bindings, roles,
+    input.evaluationInput);
+  const summary = bindingSummary(roles, diagnostics, input.evaluationInput);
   const digests = {
     contract: canonicalDigest(normalizeContractForIdentity(input.contract)),
     evaluation_input: input.evaluationInput === null ? null : canonicalDigest(
@@ -541,7 +635,7 @@ async function bindingInspectionContext(input) {
     profile_population: PROOF_INTENT_DIGESTS.profiles,
     intent_artifact: PROOF_INTENT_DIGESTS.intent_artifact
   };
-  return { authoring, pack, bindings, roles, summary, digests };
+  return { authoring, pack, bindings, diagnostics, roles, summary, digests };
 }
 
 function descriptorDetail(descriptor, profile) {
@@ -566,12 +660,7 @@ function descriptorDetail(descriptor, profile) {
 
 function descriptorCandidates(descriptor, contract, start, end) {
   if (descriptor.kind === "number") return numberCandidates(contract, descriptor.role, { start, end });
-  return contract.references.filter((reference) =>
-    descriptor.role.allowed_type_terms.includes(reference.type_term) &&
-    (!descriptor.role.allowed_identity_kinds ||
-      descriptor.role.allowed_identity_kinds.includes(reference.identity.kind)))
-    .sort((left, right) => compareCodeUnits(left.reference_id, right.reference_id))
-    .slice(start, end)
+  return referenceCandidates(contract, descriptor.role, { start, end })
     .map((reference) => ({ reference_id: reference.reference_id,
       type_term: reference.type_term, identity_kind: reference.identity.kind,
       compatibility: { type_compatible: true, identity_kind_compatible: true } }));
@@ -587,14 +676,14 @@ async function inspectProofPackBindingsPage(request, ...unexpectedArguments) {
   const selected = context.roles.filter(({ role, status }) =>
     (input.roles.length === 0 || input.roles.includes(role.role)) &&
     (input.statuses.length === 0 || input.statuses.includes(status)));
-  const matchedCount = context.bindings.diagnostics.length + selected.reduce(
+  const matchedCount = context.diagnostics.length + selected.reduce(
     (count, descriptor) => count + 1 + descriptor.candidateCount, 0);
   const totalCount = matchedCount + unmatchedRoles.length + unmatchedStatuses.length;
   if (input.offset > totalCount) throw new ProofPackBindingAssistanceError(
     "proof_pack_binding_page_invalid", "binding page offset exceeds its population"
   );
   const leadingItems = [
-    ...context.bindings.diagnostics.map((diagnostic) =>
+    ...context.diagnostics.map((diagnostic) =>
       ({ kind: "evaluation_input_diagnostic", diagnostic })),
     ...unmatchedRoles.map((selector) => ({ kind: "unmatched_role_selector", selector })),
     ...unmatchedStatuses.map((selector) => ({ kind: "unmatched_status_selector", selector }))
@@ -625,11 +714,13 @@ async function inspectProofPackBindingsPage(request, ...unexpectedArguments) {
   }
   const roleIndex = context.roles.map(({ kind, role, status, candidateCount }) =>
     ({ kind, role: role.role, status, compatible_candidate_count: candidateCount }));
+  const proofPackAuthoring = proofPackAuthoringFacts(context, input);
   const identityBody = canonicalValue({
     profile_id: input.profileId, profile_version: input.profileVersion,
     requested_intents: context.authoring.requested_intents,
     summary: context.summary, role_index: roleIndex,
-    evaluation_input_diagnostics: context.bindings.diagnostics,
+    evaluation_input_diagnostics: context.diagnostics,
+    proof_pack_authoring: proofPackAuthoring,
     source_digests: context.digests
   });
   return deepFreeze(canonicalValue({
@@ -645,7 +736,10 @@ async function inspectProofPackBindingsPage(request, ...unexpectedArguments) {
       incompatible: context.roles.filter(({ status }) => status === "incompatible").length
     },
     role_index: roleIndex,
-    evaluation_input_diagnostics: context.bindings.diagnostics,
+    evaluation_input_diagnostics: context.diagnostics,
+    ...(proofPackAuthoring === null ? {} : {
+      proof_pack_authoring: proofPackAuthoring
+    }),
     selection: { roles: input.roles, statuses: input.statuses,
       unmatched_role_count: unmatchedRoles.length,
       unmatched_status_count: unmatchedStatuses.length },
@@ -662,41 +756,17 @@ async function inspectProofPackBindingsPage(request, ...unexpectedArguments) {
 async function validateSuppliedProofPackBindings(request, ...unexpectedArguments) {
   const input = validateBindingInputRequest(request, unexpectedArguments);
   const pack = await loadExactBindingPack(input);
-  const bindings = bindingMaps(input.evaluationInput, pack.profile);
-  const referencesById = new Map(input.contract.references.map((reference) => [
-    reference.reference_id, reference
-  ]));
-  const referenceRoles = (pack.profile.reference_roles ?? []).map((role) =>
-    suppliedReferenceRoleResult(
-      role,
-      referencesById,
-      bindings.referenceByRole.has(role.role)
-        ? bindings.referenceByRole.get(role.role) : null
-    )
-  ).sort((left, right) => compareCodeUnits(left.role, right.role));
-  const numberRoles = (pack.profile.number_roles ?? []).map((role) =>
-    suppliedNumberRoleResult(
-      role,
-      bindings.numberByRole.has(role.role)
-        ? bindings.numberByRole.get(role.role) : null
-    )
-  ).sort((left, right) => compareCodeUnits(left.role, right.role));
-  const invalidCount = [...referenceRoles, ...numberRoles].filter(
-    ({ status }) => status === "incompatible"
-  ).length + bindings.diagnostics.length;
+  const bindings = bindingMaps(input.evaluationInput, pack.profile, input.contract);
+  const descriptors = bindingRoleDescriptors(pack.profile, input.contract, bindings);
+  const diagnostics = evaluationInputDiagnostics(bindings, descriptors,
+    input.evaluationInput);
+  const roleResults = (kind) => descriptors.filter((descriptor) =>
+    descriptor.kind === kind).map(({ checked }) => checked);
   return deepFreeze(canonicalValue({
-    reference_roles: referenceRoles,
-    number_roles: numberRoles,
-    evaluation_input_diagnostics: bindings.diagnostics,
-    summary: {
-      reference_role_count: referenceRoles.length,
-      number_role_count: numberRoles.length,
-      incompatible_binding_count: invalidCount,
-      status: input.evaluationInput === null ? "not_supplied" :
-        invalidCount === 0 && [...referenceRoles, ...numberRoles].every(
-          ({ status }) => status === "validly_bound"
-        ) ? "valid" : "invalid"
-    }
+    reference_roles: roleResults("reference"),
+    number_roles: roleResults("number"),
+    evaluation_input_diagnostics: diagnostics,
+    summary: bindingSummary(descriptors, diagnostics, input.evaluationInput)
   }));
 }
 
@@ -734,24 +804,19 @@ async function inspectProofPackBindings(request, ...unexpectedArguments) {
     requestedIntents: input.requestedIntents
   });
   const pack = await loadExactBindingPack(input);
-  const bindings = bindingMaps(input.evaluationInput, pack.profile);
-  const referenceRoles = (pack.profile.reference_roles ?? []).map((role) => {
-    const supplied = bindings.referenceByRole.has(role.role)
-      ? bindings.referenceByRole.get(role.role) : null;
-    const result = referenceRoleResult(role, input.contract, supplied);
-    result.profile_usage = profileUsesRole(pack.profile, role.role);
-    return result;
-  }).sort((left, right) => compareCodeUnits(left.role, right.role));
-  const numberRoles = (pack.profile.number_roles ?? []).map((role) => {
-    const supplied = bindings.numberByRole.has(role.role)
-      ? bindings.numberByRole.get(role.role) : null;
-    const result = numberRoleResult(role, input.contract, supplied);
-    result.profile_usage = profileUsesRole(pack.profile, role.role);
-    return result;
-  }).sort((left, right) => compareCodeUnits(left.role, right.role));
-  const invalidCount = [...referenceRoles, ...numberRoles].filter(
-    ({ status }) => status === "incompatible"
-  ).length + bindings.diagnostics.length;
+  const bindings = bindingMaps(input.evaluationInput, pack.profile, input.contract);
+  const descriptors = bindingRoleDescriptors(pack.profile, input.contract, bindings);
+  const diagnostics = evaluationInputDiagnostics(bindings, descriptors,
+    input.evaluationInput);
+  const detailed = (kind, build) => descriptors
+    .filter((descriptor) => descriptor.kind === kind)
+    .map(({ role, supplied }) => {
+      const result = build(role, input.contract, supplied);
+      result.profile_usage = profileUsesRole(pack.profile, role.role);
+      return result;
+    });
+  const referenceRoles = detailed("reference", referenceRoleResult);
+  const numberRoles = detailed("number", numberRoleResult);
   const body = canonicalValue({
     schema_version: "controlled-contract-proof-pack-binding-assistance.v1",
     digest_algorithm: "sha256-canonical-json-v1",
@@ -765,16 +830,8 @@ async function inspectProofPackBindings(request, ...unexpectedArguments) {
       )),
     reference_roles: referenceRoles,
     number_roles: numberRoles,
-    evaluation_input_diagnostics: bindings.diagnostics,
-    summary: {
-      reference_role_count: referenceRoles.length,
-      number_role_count: numberRoles.length,
-      incompatible_binding_count: invalidCount,
-      status: input.evaluationInput === null ? "not_supplied" :
-        invalidCount === 0 && [...referenceRoles, ...numberRoles].every(
-          ({ status }) => status === "validly_bound"
-        ) ? "valid" : "invalid"
-    },
+    evaluation_input_diagnostics: diagnostics,
+    summary: bindingSummary(descriptors, diagnostics, input.evaluationInput),
     source_digests: {
       catalog: PROOF_INTENT_DIGESTS.catalog,
       vocabulary: PROOF_INTENT_DIGESTS.vocabulary,

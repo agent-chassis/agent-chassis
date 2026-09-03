@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import { getLauncherProfile } from "./agent-launch-profiles.mjs";
+import { resolveModelRuntime } from "./agent-launch-model-registry.mjs";
 import { loadRepoProfileLocalConfig } from "./agent-launch-repo-profile-config.mjs";
 import { buildOrchestratorSettings } from "./orchestrator-launch-settings.mjs";
 import { buildClaudeMcpPermissionEntries } from "./workspace-agent-claude-launch-support.mjs";
@@ -74,19 +74,54 @@ export function resolveClaudeOrchestratorLocalSettings({
     };
   }
 
-  const launcherProfile = isNonEmptyString(resolvedProfile?.profile_name)
-    ? getLauncherProfile(resolvedProfile.profile_name)
-    : null;
   const profileModel = isNonEmptyString(resolvedProfile?.model)
     ? resolvedProfile.model
-    : isNonEmptyString(resolvedProfile?.default_model)
-      ? resolvedProfile.default_model
-      : null;
-  const profileEffort = isNonEmptyString(launcherProfile?.planner_default_effort)
-    ? launcherProfile.planner_default_effort
+    : null;
+  if (profileModel === null) {
+    return {
+      refusal: {
+        code: "orchestrator_model_unset",
+        message: "orchestrator_model_unset: Claude orchestrator launch settings require an explicitly selected model",
+        detail: {
+          role: "orchestrator",
+          model: null
+        }
+      }
+    };
+  }
+
+  const modelRuntime = resolveModelRuntime(profileModel);
+  if (!modelRuntime) {
+    return {
+      refusal: {
+        code: "orchestrator_model_unknown",
+        message: `orchestrator_model_unknown: model ${JSON.stringify(profileModel)} is not registered`,
+        detail: {
+          role: "orchestrator",
+          model: profileModel
+        }
+      }
+    };
+  }
+  if (modelRuntime.app !== "claude") {
+    return {
+      refusal: {
+        code: "profile_app_model_mismatch",
+        message: `Claude orchestrator settings cannot use model ${JSON.stringify(profileModel)} from app ${modelRuntime.app}`,
+        detail: {
+          role: "orchestrator",
+          app: modelRuntime.app,
+          model: profileModel
+        }
+      }
+    };
+  }
+
+  const profileEffort = isNonEmptyString(resolvedProfile?.effort)
+    ? resolvedProfile.effort
     : isNonEmptyString(resolvedProfile?.default_effort)
       ? resolvedProfile.default_effort
-      : "default";
+      : modelRuntime.default_effort;
 
   const sharedSettings = buildOrchestratorSettings({
     appLabel: "Claude",
@@ -112,13 +147,15 @@ export function resolveClaudeOrchestratorLocalSettings({
       model: sharedSettings.model ?? null,
       model_source: isNonEmptyString(resolvedProfile?.model_source)
         ? resolvedProfile.model_source
-        : "profile_default",
+        : "resolved_profile",
       effort: sharedSettings.effort ?? profileEffort,
       effort_source: sharedSettings.effortSource === "local"
         ? "repo_local_config"
-        : isNonEmptyString(launcherProfile?.planner_default_effort_source)
-          ? launcherProfile.planner_default_effort_source
-          : "profile_default",
+        : isNonEmptyString(resolvedProfile?.effort_source)
+          ? resolvedProfile.effort_source
+          : isNonEmptyString(resolvedProfile?.default_effort_source)
+            ? resolvedProfile.default_effort_source
+            : "model_registry_default",
       threadName: sharedSettings.threadName,
       thread_suffix: localConfig.normalized_thread_suffix
     }

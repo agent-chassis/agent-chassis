@@ -1,32 +1,45 @@
-import path from "node:path";
 import { types as utilTypes } from "node:util";
 import { RUNTIME_BLOCKER_CODES } from "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
 import { SLICE_ID_PATTERN } from "@agent-chassis/wiki-core/src/lib/work-record-schema-constants.mjs";
-import { projectSelectedWorkRecordUnit } from "@agent-chassis/wiki-core/src/lib/work-record-selected-unit-projection.mjs";
+import {
+  parseWorkRecordSummaryUnit,
+  WORK_RECORD_SLICE_PAGE_MAX_LIMIT,
+  workRecordDetailSelectorSupported
+} from "@agent-chassis/wiki-core/src/lib/work-record-summary.mjs";
 
+import {
+  classifyReadPagePath,
+  extractWorkRecordReadPath,
+  isGraphEvidenceReadPath,
+  isSafeWorkspaceRelativePath,
+  isWorkRecordReadPath,
+  projectSelectedReadResult,
+  projectSelectedSummaryResult,
+  requestedSummaryIdentity,
+  throwSelectedIdentityError,
+  WORK_RECORD_ID_PATTERN,
+  WORK_RECORD_ID_PREFIX_PATTERN
+} from "./work-record-selected-detail-projection.mjs";
+
+import {
+  buildContinuationMetadata,
+  buildRefusal,
+  GET_RECORD_TOOL_FAMILY,
+  READ_PAGE_TOOL_FAMILY,
+  responseSizeMetadata,
+  runSelectedRecordContractFields,
+  runSliceEnumeration,
+  SUMMARY_TOOL_FAMILY
+} from "./work-record-compact-read-continuation.mjs";
 import { buildNextCall } from "./mcp-response.mjs";
+
+export { workRecordDetailSelectorSchemaShape } from "./work-record-compact-read-continuation.mjs";
 
 const COMPACT_READ_TOKEN_ACCEPTED = "compact_read_token_accepted";
 const COMPACT_READ_NOT_REQUIRED = "compact_read_not_required";
 
-const COMPACT_READ_SCHEMA_VERSION = "work-record-compact-read-gate.v1";
-
 const COMPACT_READ_ACK_SCHEMA_VERSION = "work-record-compact-read-ack.v1";
-const SUMMARY_TOOL_FAMILY = "workspace_work_record_summary";
-const GET_RECORD_TOOL_FAMILY = "workspace_get_record";
-const READ_PAGE_TOOL_FAMILY = "workspace_read_page";
-const WORK_RECORD_ID_PATTERN = /^WK-[0-9]{4}$/;
-const WORK_RECORD_ID_PREFIX_PATTERN = /^WK-/;
-const WORK_RECORD_READ_PATH_PATTERN = /^(?:\.\/)?wiki\/work-records\/(WK-[0-9]{4})\.json$/;
-const GRAPH_EVIDENCE_READ_PATH_PATTERN =
-  /^(?:\.\/)?wiki\/work-records\/evidence\/(WK-[0-9]{4})\.graph\.json$/;
-const WORK_RECORD_NAMESPACE_CLAIM_PATTERN =
-  /^(?:\.\/)?wiki\/+work-records(?:\/|$)/;
-const GRAPH_EVIDENCE_NAMESPACE_CLAIM_PATTERN =
-  /^(?:\.\/)?wiki\/+work-records\/+evidence(?:\/|$)/;
 const SELECTOR_REFUSAL_SCHEMA_VERSION = "work-record-selector-refusal.v1";
-const IDENTITY_REFUSAL_SCHEMA_VERSION = "work-record-selected-identity-refusal.v1";
-const IDENTITY_REFUSAL_CODE = "selected_result_identity_mismatch";
 const MAX_SELECTOR_DIAGNOSTICS = 8;
 const SELECTOR_REFUSAL_CODES = Object.freeze({
   UNKNOWN_ARGUMENT: "selector_unknown_argument",
@@ -39,8 +52,16 @@ const SELECTOR_REFUSAL_CODES = Object.freeze({
   SELECTED_RECORD_INVALID: "selector_selected_record_invalid",
   CONFLICT: "selector_conflict",
   PATH_UNSUPPORTED: "selector_path_unsupported",
-  ACCEPT_FULL_READ_INVALID: "selector_accept_full_read_invalid"
+  ACCEPT_FULL_READ_INVALID: "selector_accept_full_read_invalid",
+  SLICE_PAGE_INVALID: "selector_slice_page_invalid"
 });
+
+const SLICE_PAGE_ARGUMENT_FIELDS = Object.freeze([
+  "slice_offset",
+  "slice_limit",
+  "slice_status",
+  "expected_source_digest"
+]);
 const LARGE_RECORD_SLICE_THRESHOLD = 8;
 const LARGE_RECORD_BYTE_THRESHOLD = 32768;
 
@@ -66,7 +87,8 @@ const SUMMARY_ARGUMENT_FIELDS = new Set([
   "verbose",
   "include_full_summary",
   "accept_full_read",
-  "compact_read_token"
+  "compact_read_token",
+  ...SLICE_PAGE_ARGUMENT_FIELDS
 ]);
 const READ_PAGE_ARGUMENT_FIELDS = new Set([
   "path",
@@ -93,7 +115,8 @@ const GET_RECORD_ARGUMENT_FIELDS = new Set([
   "include_raw",
   "selected_slice",
   "accept_full_read",
-  "compact_read_token"
+  "compact_read_token",
+  ...SLICE_PAGE_ARGUMENT_FIELDS
 ]);
 
 function isObject(value) {
@@ -150,79 +173,6 @@ function throwSelectorValidationError(toolFamily, issues) {
   throw error;
 }
 
-function throwSelectedIdentityError(toolFamily) {
-  const message = `${toolFamily} selected result identity did not match the requested selector`;
-  const diagnostics = [{
-    code: IDENTITY_REFUSAL_CODE,
-    severity: "error",
-    path: [],
-    message
-  }];
-  const error = new Error(message);
-  error.name = "WorkRecordSelectedIdentityError";
-  error.code = IDENTITY_REFUSAL_CODE;
-  error.diagnostics = diagnostics;
-  error.envelope = {
-    schema_version: IDENTITY_REFUSAL_SCHEMA_VERSION,
-    tool: toolFamily,
-    accepted: false,
-    refusal_code: IDENTITY_REFUSAL_CODE,
-    diagnostics
-  };
-  throw error;
-}
-
-function extractWorkRecordReadPath(value) {
-  const normalized = normalizeString(value);
-  if (!normalized) return null;
-  const match = normalized.match(WORK_RECORD_READ_PATH_PATTERN);
-  return match
-    ? { kind: "work_record", path: normalized, record_id: match[1] }
-    : null;
-}
-
-function extractGraphEvidenceReadPath(value) {
-  const normalized = normalizeString(value);
-  if (!normalized) return null;
-  const match = normalized.match(GRAPH_EVIDENCE_READ_PATH_PATTERN);
-  return match
-    ? { kind: "graph_evidence", path: normalized, record_id: match[1] }
-    : null;
-}
-
-function classifyReadPagePath(value) {
-  const normalized = normalizeString(value);
-  if (!normalized) return { kind: "invalid", path: null, record_id: null };
-  const graphEvidence = extractGraphEvidenceReadPath(normalized);
-  if (graphEvidence) return graphEvidence;
-  const workRecord = extractWorkRecordReadPath(normalized);
-  if (workRecord) return workRecord;
-  const normalizedClaimPath = path.posix.normalize(normalized);
-  if (
-    GRAPH_EVIDENCE_NAMESPACE_CLAIM_PATTERN.test(normalized) ||
-    normalizedClaimPath === "wiki/work-records/evidence" ||
-    normalizedClaimPath.startsWith("wiki/work-records/evidence/")
-  ) {
-    return { kind: "malformed_graph_evidence", path: normalized, record_id: null };
-  }
-  if (
-    WORK_RECORD_NAMESPACE_CLAIM_PATTERN.test(normalized) ||
-    normalizedClaimPath === "wiki/work-records" ||
-    normalizedClaimPath.startsWith("wiki/work-records/")
-  ) {
-    return { kind: "malformed_work_record", path: normalized, record_id: null };
-  }
-  return { kind: "generic", path: normalized, record_id: null };
-}
-
-function isSafeWorkspaceRelativePath(value) {
-  const normalized = normalizeString(value);
-  if (!normalized || normalized.includes("\0") || normalized.startsWith("/")) return false;
-  const posix = normalized.replaceAll("\\", "/");
-  if (/^[A-Za-z]:\//.test(posix)) return false;
-  return !posix.split("/").includes("..");
-}
-
 function base64UrlEncode(value) {
   return Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
 }
@@ -247,6 +197,77 @@ function decodeCompactReadAck(token) {
   return isObject(decoded) ? decoded : null;
 }
 
+function sliceStatusFilterIsWellFormed(value) {
+  const entries = Array.isArray(value) ? value : [value];
+  if (entries.length === 0) return true;
+  return entries.every((entry) => typeof entry === "string" && entry.trim().length > 0);
+}
+
+function getSlicePageSelectorValidationIssues(args, toolFamily) {
+  const issues = [];
+  if (hasOwn(args, "slice_offset") &&
+      !(Number.isInteger(args.slice_offset) && args.slice_offset >= 0)) {
+    issues.push(selectorIssue(
+      SELECTOR_REFUSAL_CODES.SLICE_PAGE_INVALID,
+      ["slice_offset"],
+      `${toolFamily} slice_offset must be an integer of 0 or more`
+    ));
+  }
+  if (hasOwn(args, "slice_limit") &&
+      !(Number.isInteger(args.slice_limit) && args.slice_limit >= 1)) {
+    issues.push(selectorIssue(
+      SELECTOR_REFUSAL_CODES.SLICE_PAGE_INVALID,
+      ["slice_limit"],
+      `${toolFamily} slice_limit must be an integer of 1 or more; a limit above the ` +
+        `server maximum of ${WORK_RECORD_SLICE_PAGE_MAX_LIMIT} clamps and the applied limit is reported`
+    ));
+  }
+  if (hasOwn(args, "slice_status") && !sliceStatusFilterIsWellFormed(args.slice_status)) {
+    issues.push(selectorIssue(
+      SELECTOR_REFUSAL_CODES.SLICE_PAGE_INVALID,
+      ["slice_status"],
+      `${toolFamily} slice_status must be a non-empty status string or an array of them`
+    ));
+  }
+  if (hasOwn(args, "expected_source_digest") && !normalizeString(args.expected_source_digest)) {
+    issues.push(selectorIssue(
+      SELECTOR_REFUSAL_CODES.SLICE_PAGE_INVALID,
+      ["expected_source_digest"],
+      `${toolFamily} expected_source_digest must be the non-empty source_digest a prior page returned`
+    ));
+  }
+  if (hasOwn(args, "expected_source_digest") &&
+      !SLICE_PAGE_ARGUMENT_FIELDS.some((field) => field !== "expected_source_digest" && hasOwn(args, field))) {
+    issues.push(selectorIssue(
+      SELECTOR_REFUSAL_CODES.SLICE_PAGE_INVALID,
+      ["expected_source_digest"],
+      `${toolFamily} expected_source_digest continues a slice enumeration and requires slice_offset, ` +
+        "slice_limit, or slice_status"
+    ));
+  }
+  return issues;
+}
+
+function slicePageRequested(args) {
+  return SLICE_PAGE_ARGUMENT_FIELDS.some((field) => hasOwn(args, field));
+}
+
+function normalizeSlicePageRequest(args) {
+  if (!slicePageRequested(args)) return null;
+  const status = hasOwn(args, "slice_status")
+    ? (Array.isArray(args.slice_status) ? args.slice_status : [args.slice_status])
+        .map((entry) => entry.trim())
+    : null;
+  return {
+    offset: hasOwn(args, "slice_offset") ? args.slice_offset : 0,
+    limit: hasOwn(args, "slice_limit") ? args.slice_limit : null,
+    status,
+    expected_source_digest: hasOwn(args, "expected_source_digest")
+      ? normalizeString(args.expected_source_digest)
+      : null
+  };
+}
+
 export function getSummarySelectorValidationIssues(args) {
   const issues = [];
   for (const field of Object.keys(isObject(args) ? args : {})) {
@@ -266,14 +287,30 @@ export function getSummarySelectorValidationIssues(args) {
       `${SUMMARY_TOOL_FAMILY} requires exactly one non-empty selector among id, unit, and path`
     ));
   }
+
   for (const unsupported of ["selected_slice", "selected_record"]) {
-    if (hasOwn(args, unsupported)) {
+    if (hasOwn(args, unsupported) &&
+        !workRecordDetailSelectorSupported(SUMMARY_TOOL_FAMILY, unsupported)) {
       issues.push(selectorIssue(
         SELECTOR_REFUSAL_CODES.UNSUPPORTED,
         [unsupported],
         `${SUMMARY_TOOL_FAMILY} does not support the ${unsupported} selector`
       ));
     }
+  }
+  if (hasOwn(args, "selected_record") && args.selected_record !== true) {
+    issues.push(selectorIssue(
+      SELECTOR_REFUSAL_CODES.SELECTED_RECORD_INVALID,
+      ["selected_record"],
+      `${SUMMARY_TOOL_FAMILY} selected_record must be literal true when supplied`
+    ));
+  }
+  if (hasOwn(args, "selected_record") && slicePageRequested(args)) {
+    issues.push(selectorIssue(
+      SELECTOR_REFUSAL_CODES.CONFLICT,
+      ["selected_record"],
+      `${SUMMARY_TOOL_FAMILY} selected_record and slice enumeration are mutually exclusive`
+    ));
   }
   if (hasOwn(args, "accept_full_read") && args.accept_full_read !== true) {
     issues.push(selectorIssue(
@@ -282,6 +319,7 @@ export function getSummarySelectorValidationIssues(args) {
       `${SUMMARY_TOOL_FAMILY} accept_full_read must be literal true when supplied`
     ));
   }
+  issues.push(...getSlicePageSelectorValidationIssues(args, SUMMARY_TOOL_FAMILY));
 
   if (suppliedSelectors.length === 1) {
     const selectorField = suppliedSelectors[0];
@@ -298,7 +336,7 @@ export function getSummarySelectorValidationIssues(args) {
         [selectorField],
         `${SUMMARY_TOOL_FAMILY} id must match the canonical WK-0000 grammar`
       ));
-    } else if (selectorField === "unit" && !parseSelectedUnitAddress(selected)) {
+    } else if (selectorField === "unit" && !parseWorkRecordSummaryUnit(selected)) {
       issues.push(selectorIssue(
         SELECTOR_REFUSAL_CODES.UNIT_ADDRESS_MALFORMED,
         [selectorField],
@@ -309,6 +347,23 @@ export function getSummarySelectorValidationIssues(args) {
         SELECTOR_REFUSAL_CODES.PATH_MALFORMED,
         [selectorField],
         `${SUMMARY_TOOL_FAMILY} path must be a canonical wiki/work-records/WK-0000.json path`
+      ));
+    }
+
+    const selectedSliceUnit =
+      selectorField === "unit" && parseWorkRecordSummaryUnit(selected)?.kind === "slice";
+    if (slicePageRequested(args) && selectedSliceUnit) {
+      issues.push(selectorIssue(
+        SELECTOR_REFUSAL_CODES.CONFLICT,
+        ["slice_offset"],
+        `${SUMMARY_TOOL_FAMILY} slice enumeration and a selected slice unit are mutually exclusive`
+      ));
+    }
+    if (hasOwn(args, "selected_record") && selectedSliceUnit) {
+      issues.push(selectorIssue(
+        SELECTOR_REFUSAL_CODES.CONFLICT,
+        ["selected_record"],
+        `${SUMMARY_TOOL_FAMILY} selected_record and a selected slice unit are mutually exclusive`
       ));
     }
   }
@@ -334,7 +389,7 @@ function validateAndNormalizeSummarySelector(args) {
   const unit = selectorField === "unit" ? selected : null;
   const path = selectorField === "path" ? selected : null;
   const selectedAddress = selectorField === "unit"
-    ? parseSelectedUnitAddress(selected)
+    ? parseWorkRecordSummaryUnit(selected)
     : null;
   return {
     args: normalizedArgs,
@@ -343,17 +398,11 @@ function validateAndNormalizeSummarySelector(args) {
       unit,
       path,
       selected,
-      selected_slice: selectedAddress?.kind === "slice"
+      selected_slice: selectedAddress?.kind === "slice",
+      selected_record: args.selected_record === true,
+      slice_page: normalizeSlicePageRequest(args)
     }
   };
-}
-
-function isWorkRecordReadPath(value) {
-  return extractWorkRecordReadPath(value) !== null;
-}
-
-function isGraphEvidenceReadPath(value) {
-  return extractGraphEvidenceReadPath(value) !== null;
 }
 
 export function getReadSelectorValidationIssues(args, toolFamily) {
@@ -390,6 +439,16 @@ export function getReadSelectorValidationIssues(args, toolFamily) {
       `${toolFamily} accept_full_read must be literal true when supplied`
     ));
   }
+  if (toolFamily === GET_RECORD_TOOL_FAMILY) {
+    issues.push(...getSlicePageSelectorValidationIssues(args, toolFamily));
+    if (slicePageRequested(args) && hasOwn(args, "selected_slice")) {
+      issues.push(selectorIssue(
+        SELECTOR_REFUSAL_CODES.CONFLICT,
+        ["slice_offset"],
+        `${GET_RECORD_TOOL_FAMILY} slice enumeration and selected_slice are mutually exclusive`
+      ));
+    }
+  }
   const unsupportedPrimaryFields = ["id", "unit", "path"].filter(
     (field) => field !== primaryField && hasOwn(args, field)
   );
@@ -424,8 +483,7 @@ export function getReadSelectorValidationIssues(args, toolFamily) {
     (
       WORK_RECORD_ID_PREFIX_PATTERN.test(selected) ||
       hasOwn(args, "selected_slice") ||
-      hasOwn(args, "selected_record") ||
-      hasOwn(args, "compact_read_token")
+      hasOwn(args, "selected_record")
     ) &&
     !WORK_RECORD_ID_PATTERN.test(selected)
   ) {
@@ -527,7 +585,8 @@ export function getReadSelectorValidationIssues(args, toolFamily) {
     hasOwn(args, "compact_read_token") &&
     readPagePath &&
     readPagePath.kind !== "work_record" &&
-    readPagePath.kind !== "graph_evidence"
+    readPagePath.kind !== "graph_evidence" &&
+    !selected.endsWith(".json")
   ) {
     issues.push(selectorIssue(
       SELECTOR_REFUSAL_CODES.PATH_UNSUPPORTED,
@@ -565,7 +624,8 @@ function validateAndNormalizeReadSelector(args, toolFamily) {
       selected,
       selected_slice: selectedSlice,
       selected_record: selectedRecord,
-      selected_detail: Boolean(selectedSlice || selectedRecord)
+      selected_detail: Boolean(selectedSlice || selectedRecord),
+      slice_page: toolFamily === GET_RECORD_TOOL_FAMILY ? normalizeSlicePageRequest(args) : null
     }
   };
 }
@@ -592,50 +652,11 @@ function buildReadArgs(args, overrides = {}) {
   };
 }
 
-function responseSizeMetadata(value) {
-  const bytes = Buffer.byteLength(JSON.stringify(value), "utf8");
-  return {
-    bytes,
-    class: bytes < 8192 ? "small" : bytes < 32768 ? "medium" : "large"
-  };
-}
-
 function isLargePayload(value) {
   if (value === undefined) {
     return false;
   }
   return responseSizeMetadata(value).bytes >= LARGE_RECORD_BYTE_THRESHOLD;
-}
-
-function omittedDetailCounts(summary) {
-  const omissions = isObject(summary?.slice_detail_omissions)
-    ? summary.slice_detail_omissions
-    : null;
-  const slices = Array.isArray(summary?.slices) ? summary.slices : [];
-  return {
-    slice_detail_omissions: typeof omissions?.count === "number" ? omissions.count : null,
-    included_slices_with_omitted_agent_notes: slices.filter(
-      (slice) => Number(slice?.agent_notes_bytes ?? 0) > 0 && !Object.hasOwn(slice, "agent_notes")
-    ).length
-  };
-}
-
-function omittedReadDetailCounts(result) {
-  const omissions = isObject(result?.slice_detail_omissions)
-    ? result.slice_detail_omissions
-    : null;
-  const workingSlices = Array.isArray(result?.working_slices) ? result.working_slices : [];
-  return {
-    slice_detail_omissions: typeof omissions?.suppressed_total === "number"
-      ? omissions.suppressed_total
-      : null,
-    current_slices_omitted_count: typeof omissions?.current_slices_omitted_count === "number"
-      ? omissions.current_slices_omitted_count
-      : null,
-    included_slices_with_omitted_agent_notes: workingSlices.filter(
-      (slice) => Number(slice?.agent_notes_bytes ?? 0) > 0 && !Object.hasOwn(slice, "agent_notes")
-    ).length
-  };
 }
 
 function isLargeOrTracker(summary) {
@@ -644,14 +665,114 @@ function isLargeOrTracker(summary) {
 
 function isLargeOrTrackerReadResult(result, loadedRecord = null) {
   return (
-    result?.format === "json-work-record" &&
+    result?.format === "json-kind-record" ||
+    (result?.format === "json-work-record" &&
     (
       result?.work_kind === "tracker" ||
       Number(result?.slice_counts?.total ?? 0) > LARGE_RECORD_SLICE_THRESHOLD ||
       isLargePayload(result) ||
       isLargePayload(loadedRecord?.record)
-    )
+    ))
   );
+}
+
+function kindRecordCompactMembers(result, record) {
+  const members = [];
+  if (result?.record_id === record?.id) members.push("id");
+  if (result?.record_kind === record?.record_kind) members.push("record_kind");
+  if (Object.hasOwn(record, "title") && result?.title === record.title) members.push("title");
+  return members.sort();
+}
+
+function kindRecordSourceMembers(record) {
+  const topLevelMembers = Object.keys(record);
+  const sectionMembers = isObject(record.sections)
+    ? Object.keys(record.sections).map((member) => `sections.${member}`)
+    : [];
+  return [...topLevelMembers, ...sectionMembers].sort();
+}
+
+function projectKindRecordCompactDisclosure(result) {
+  if (result?.format !== "json-kind-record" || !isObject(result.record)) return null;
+  const sourceRecord = result.record;
+  const sourceMembers = kindRecordSourceMembers(sourceRecord);
+  const compactMembers = kindRecordCompactMembers(result, sourceRecord);
+  const compactMemberSet = new Set(compactMembers);
+  const omittedMembers = sourceMembers.filter((member) => !compactMemberSet.has(member));
+  const accountedMembers = [...compactMembers, ...omittedMembers].sort();
+  const disclosedMembers = [...compactMembers];
+  const recoveredMembers = [...sourceMembers];
+  const compactResult = { ...result };
+  delete compactResult.record;
+  return {
+    compactResult,
+    sourceRecord,
+    memberLedger: {
+      source_members: sourceMembers,
+      compact_members: compactMembers,
+      omitted_members: omittedMembers,
+      accounted_members: accountedMembers,
+      disclosed_members: disclosedMembers,
+      recovered_members: recoveredMembers,
+      source_member_count: sourceMembers.length,
+      compact_member_count: compactMembers.length,
+      omitted_member_count: omittedMembers.length,
+      accounted_member_count: accountedMembers.length,
+      disclosed_member_count: disclosedMembers.length,
+      recovered_member_count: recoveredMembers.length
+    }
+  };
+}
+
+function kindRecordRecoveryCall(toolFamily, compactResult) {
+  const identity = toolFamily === READ_PAGE_TOOL_FAMILY
+    ? { path: compactResult.relativePath }
+    : { id: compactResult.record_id };
+  return buildNextCall({
+    tool: toolFamily,
+    arguments: { ...identity, include_record: true, accept_full_read: true },
+    recommended: true
+  });
+}
+
+function buildKindRecordContinuation({
+  toolFamily,
+  compactResult,
+  compactToken,
+  selector,
+  args,
+  memberLedger
+}) {
+  const continuation = buildContinuationMetadata({
+    toolFamily,
+    compactResult,
+    compactToken,
+    selector,
+    args
+  });
+  const omittedMembers = memberLedger.omitted_member_count;
+  return {
+    ...continuation,
+    omitted_detail_counts: {
+      ...continuation.omitted_detail_counts,
+      record_members: omittedMembers
+    },
+    detail_available_via: ["accept_full_read"],
+    selected_resources: {
+      type: "canonical_record",
+      id: compactResult.record_id,
+      record_kind: compactResult.record_kind,
+      selection_reason: "compact_read_compact_first_scope"
+    },
+    next_calls: [kindRecordRecoveryCall(toolFamily, compactResult)],
+    next_calls_coverage: {
+      omitted_record_members: omittedMembers,
+      omitted_record_members_addressed: omittedMembers,
+      omitted_record_members_unaddressed: 0,
+      complete: true
+    },
+    member_ledger: memberLedger
+  };
 }
 
 function expensiveOptions(args) {
@@ -750,922 +871,6 @@ function validateToken({
   return { accepted: true, reason_code: COMPACT_READ_TOKEN_ACCEPTED };
 }
 
-function buildSummaryNextCalls({ recordId, compactToken, selectedSlices }) {
-  const calls = [
-    buildNextCall({
-      tool: SUMMARY_TOOL_FAMILY,
-      arguments: { id: recordId },
-      recommended: true
-    })
-  ];
-  for (const slice of selectedSlices.slice(0, 3)) {
-    calls.push(buildNextCall({
-      tool: SUMMARY_TOOL_FAMILY,
-      arguments: { unit: `${recordId}#${slice.id}` },
-      recommended: true
-    }));
-  }
-  if (calls.length === 1 && compactToken) {
-    calls.push(buildNextCall({
-      tool: SUMMARY_TOOL_FAMILY,
-      arguments: { id: recordId, compact_read_token: compactToken },
-      recommended: true
-    }));
-  }
-  return calls;
-}
-
-function buildReadNextCalls({ toolFamily, args, recordId, selectedSlices }) {
-  const calls = [];
-  if (toolFamily === GET_RECORD_TOOL_FAMILY) {
-    calls.push(buildNextCall({
-      tool: GET_RECORD_TOOL_FAMILY,
-      arguments: { id: recordId },
-      recommended: true
-    }));
-    for (const slice of selectedSlices.slice(0, 3)) {
-      calls.push(buildNextCall({
-        tool: GET_RECORD_TOOL_FAMILY,
-        arguments: { id: recordId, selected_slice: slice.id },
-        recommended: true
-      }));
-    }
-    return calls;
-  }
-
-  const path = args.path ?? `wiki/work-records/${recordId}.json`;
-  calls.push(buildNextCall({
-    tool: READ_PAGE_TOOL_FAMILY,
-    arguments: { path },
-    recommended: true
-  }));
-  for (const slice of selectedSlices.slice(0, 3)) {
-    calls.push(buildNextCall({
-      tool: READ_PAGE_TOOL_FAMILY,
-      arguments: { path, selected_slice: slice.id },
-      recommended: true
-    }));
-  }
-  return calls;
-}
-
-function summarySelectedResources({ selector, recordId }) {
-  const isSlice = Boolean(selector?.selected_slice);
-  return {
-    type: isSlice ? "slice" : "work_record",
-    id: isSlice ? (selector?.selected ?? recordId) : recordId,
-    selection_reason: isSlice
-      ? "compact_read_selected_slice_scope"
-      : "compact_read_compact_first_scope"
-  };
-}
-
-function readSelectedResources({ selector, recordId }) {
-  if (selector?.selected_slice) {
-    return {
-      type: "slice",
-      id: selector.selected_slice,
-      selection_reason: "compact_read_selected_slice_scope"
-    };
-  }
-  if (selector?.selected_record) {
-    return {
-      type: "work_record",
-      id: recordId,
-      selection_reason: "compact_read_selected_record_scope"
-    };
-  }
-  return {
-    type: "work_record",
-    id: recordId,
-    selection_reason: "compact_read_compact_first_scope"
-  };
-}
-
-function buildContinuationMetadata({ compactResult, compactToken, selector }) {
-  const summary = compactResult.summary || {};
-  const selectedSlices = Array.isArray(summary.slices) ? summary.slices.filter((slice) => slice?.id) : [];
-  const detailAvailableVia = new Set(["selected_slice"]);
-  const omissionRoutes = summary.slice_detail_omissions?.detail_available_via;
-  if (Array.isArray(omissionRoutes)) {
-    for (const route of omissionRoutes) detailAvailableVia.add(route);
-  }
-  const nextCalls = buildSummaryNextCalls({
-    recordId: compactResult.record_id,
-    compactToken,
-    selectedSlices
-  });
-  return {
-    schema_version: COMPACT_READ_SCHEMA_VERSION,
-    source_digest: compactResult.source_digest ?? null,
-    compact_read_token: compactToken,
-    response_size: responseSizeMetadata(compactResult),
-    omitted_detail_counts: omittedDetailCounts(summary),
-    detail_available_via: [...detailAvailableVia],
-    selected_resources: summarySelectedResources({ selector, recordId: compactResult.record_id }),
-    next_calls: nextCalls
-  };
-}
-
-function buildReadContinuationMetadata({ compactResult, compactToken, toolFamily, args, selector }) {
-  const selectedSlices = Array.isArray(compactResult.working_slices)
-    ? compactResult.working_slices.filter((slice) => slice?.id)
-    : [];
-  const detailAvailableVia = new Set(["selected_slice"]);
-  if (toolFamily === READ_PAGE_TOOL_FAMILY) {
-    detailAvailableVia.add("selected_record");
-  }
-  const nextCalls = buildReadNextCalls({
-    toolFamily,
-    args,
-    recordId: compactResult.record_id,
-    selectedSlices
-  });
-  return {
-    schema_version: COMPACT_READ_SCHEMA_VERSION,
-    source_digest: compactResult.source_digest ?? null,
-    compact_read_token: compactToken,
-    response_size: responseSizeMetadata(compactResult),
-    omitted_detail_counts: omittedReadDetailCounts(compactResult),
-    detail_available_via: [...detailAvailableVia],
-    selected_resources: readSelectedResources({
-      selector,
-      recordId: compactResult.record_id
-    }),
-    next_calls: nextCalls
-  };
-}
-
-function buildRefusal({ compactResult, blockedOptions, tokenDecision, selector, toolFamily = SUMMARY_TOOL_FAMILY }) {
-  const continuation = buildContinuationMetadata({ compactResult, compactToken: null, selector });
-  return {
-    schema_version: "work-record-compact-read-refusal.v1",
-    tool: toolFamily,
-    accepted: false,
-    blocked_expensive_options: blockedOptions,
-    reason_code: tokenDecision.reason_code === RUNTIME_BLOCKER_CODES.COMPACT_READ_TOKEN_MISSING
-      ? RUNTIME_BLOCKER_CODES.COMPACT_FIRST_REQUIRED
-      : tokenDecision.reason_code,
-    response_size_risk: continuation.response_size,
-    source_digest: compactResult.source_digest ?? null,
-    detail_available_via: continuation.detail_available_via,
-    selected_resources: continuation.selected_resources,
-    next_calls: continuation.next_calls
-  };
-}
-
-function buildReadRefusal({ compactResult, blockedOptions, tokenDecision, toolFamily, args }) {
-  const continuation = buildReadContinuationMetadata({
-    compactResult,
-    compactToken: null,
-    toolFamily,
-    args
-  });
-  return {
-    schema_version: "work-record-compact-read-refusal.v1",
-    tool: toolFamily,
-    accepted: false,
-    blocked_expensive_options: blockedOptions,
-    reason_code: tokenDecision.reason_code === RUNTIME_BLOCKER_CODES.COMPACT_READ_TOKEN_MISSING
-      ? RUNTIME_BLOCKER_CODES.COMPACT_FIRST_REQUIRED
-      : tokenDecision.reason_code,
-    response_size_risk: continuation.response_size,
-    source_digest: compactResult.source_digest ?? null,
-    detail_available_via: continuation.detail_available_via,
-    selected_resources: continuation.selected_resources,
-    next_calls: continuation.next_calls
-  };
-}
-
-const INVALID_DATA_PROPERTY = Symbol("invalid-data-property");
-const MAX_IDENTITY_PROJECTION_NODES = 10000;
-const MAX_IDENTITY_PROJECTION_DEPTH = 64;
-const IDENTITY_CHILD_FIELDS = ["selected_unit", "unit", "identity"];
-const PROJECTED_IDENTITY_CONTAINER_FIELDS = [
-  "acceptance",
-  "dispatch_intent",
-  "sections",
-  "activity_artifact_targets",
-  "scenarios",
-  "expected_edit_targets",
-  "expected",
-  "closure"
-];
-const PROJECTED_GRAPH_CONTAINER_FIELDS = ["graph_state", "counts", "degraded_state"];
-
-function ownDataProperty(value, field) {
-  if (value && typeof value === "object" && utilTypes.isProxy(value)) {
-    return { present: true, value: INVALID_DATA_PROPERTY };
-  }
-  if (!value || typeof value !== "object") {
-    return { present: false, value: undefined };
-  }
-  const descriptor = Object.getOwnPropertyDescriptor(value, field);
-  if (!descriptor) return { present: false, value: undefined };
-  if (!Object.hasOwn(descriptor, "value")) {
-    return { present: true, value: INVALID_DATA_PROPERTY };
-  }
-  return { present: true, value: descriptor.value };
-}
-
-function requiredDataProperty(value, field) {
-  const property = ownDataProperty(value, field);
-  return property.present && property.value !== INVALID_DATA_PROPERTY
-    ? property.value
-    : INVALID_DATA_PROPERTY;
-}
-
-function projectSelectedUnit(value) {
-  if (!isObject(value)) return null;
-  const kind = requiredDataProperty(value, "kind");
-  const address = requiredDataProperty(value, "address");
-  const recordId = requiredDataProperty(value, "record_id");
-  const sliceId = requiredDataProperty(value, "slice_id");
-  if ([kind, address, recordId, sliceId].includes(INVALID_DATA_PROPERTY)) return null;
-  return {
-    kind,
-    address,
-    record_id: recordId,
-    slice_id: sliceId
-  };
-}
-
-function parseSelectedUnitAddress(value) {
-  const normalized = normalizeString(value);
-  if (!normalized) return null;
-  const pieces = normalized.split("#");
-  if (
-    pieces.length < 1 ||
-    pieces.length > 2 ||
-    !WORK_RECORD_ID_PATTERN.test(pieces[0])
-  ) {
-    return null;
-  }
-  if (pieces.length === 1) {
-    return {
-      kind: "work_item",
-      address: pieces[0],
-      record_id: pieces[0],
-      slice_id: null
-    };
-  }
-  if (!SLICE_ID_PATTERN.test(pieces[1])) return null;
-  return {
-    kind: "slice",
-    address: `${pieces[0]}#${pieces[1]}`,
-    record_id: pieces[0],
-    slice_id: pieces[1]
-  };
-}
-
-function recordIdFromReadPath(value) {
-  return extractWorkRecordReadPath(value)?.record_id ??
-    extractGraphEvidenceReadPath(value)?.record_id ??
-    null;
-}
-
-function requestedSummaryIdentity(selector) {
-  const identity = parseSelectedUnitAddress(selector?.selected);
-  return identity?.kind === "slice" ? identity : null;
-}
-
-function requestedReadIdentity(selector) {
-  const recordId = selector?.id
-    ? normalizeString(selector.id)
-    : recordIdFromReadPath(selector?.path);
-  if (!recordId || !WORK_RECORD_ID_PATTERN.test(recordId)) return null;
-  const sliceId = selector?.selected_slice ?? null;
-  if (sliceId !== null && !SLICE_ID_PATTERN.test(sliceId)) return null;
-  return {
-    kind: sliceId === null ? "work_item" : "slice",
-    address: sliceId === null ? recordId : `${recordId}#${sliceId}`,
-    record_id: recordId,
-    slice_id: sliceId
-  };
-}
-
-function exactIdentityStringMatches(value, expected) {
-
-  return typeof value === "string" && value === expected;
-}
-
-function selectedSliceIdValueMatches(value, expectedSliceId) {
-  return expectedSliceId === null
-    ? value === null
-    : exactIdentityStringMatches(value, expectedSliceId);
-}
-
-function selectedUnitIdentityMatches(value, expected) {
-  if (!isObject(value) || !expected) return false;
-  const kind = requiredDataProperty(value, "kind");
-  const address = requiredDataProperty(value, "address");
-  const recordId = requiredDataProperty(value, "record_id");
-  const sliceId = requiredDataProperty(value, "slice_id");
-  if ([kind, address, recordId, sliceId].includes(INVALID_DATA_PROPERTY)) return false;
-  const selectedSliceId = ownDataProperty(value, "selected_slice_id");
-  if (selectedSliceId.value === INVALID_DATA_PROPERTY) return false;
-  return (
-    kind === expected.kind &&
-    exactIdentityStringMatches(address, expected.address) &&
-    exactIdentityStringMatches(recordId, expected.record_id) &&
-    (expected.slice_id === null
-      ? sliceId === null
-      : exactIdentityStringMatches(sliceId, expected.slice_id)) &&
-    (!selectedSliceId.present ||
-      selectedSliceIdValueMatches(selectedSliceId.value, expected.slice_id))
-  );
-}
-
-function optionalPathIdentityMatches(value, expected) {
-  for (const field of ["relativePath", "source_path_relative"]) {
-    const property = ownDataProperty(value, field);
-    if (!property.present) continue;
-    if (
-      property.value === INVALID_DATA_PROPERTY ||
-      typeof property.value !== "string" ||
-      property.value !== property.value.trim() ||
-      recordIdFromReadPath(property.value) !== expected.record_id
-    ) {
-      return false;
-    }
-  }
-  return true;
-}
-
-function directIdentityCarriersMatch(value, expected) {
-  if (!isObject(value) || !expected) return false;
-  const recordId = ownDataProperty(value, "record_id");
-  const selectedSliceId = ownDataProperty(value, "selected_slice_id");
-  const sliceId = ownDataProperty(value, "slice_id");
-  const address = ownDataProperty(value, "address");
-  for (const property of [recordId, selectedSliceId, sliceId, address]) {
-    if (property.value === INVALID_DATA_PROPERTY) return false;
-  }
-  if (recordId.present && !exactIdentityStringMatches(recordId.value, expected.record_id)) {
-    return false;
-  }
-  if (selectedSliceId.present && !selectedSliceIdValueMatches(selectedSliceId.value, expected.slice_id)) {
-    return false;
-  }
-  if (sliceId.present) {
-    if (
-      expected.slice_id === null
-        ? sliceId.value !== null
-        : !exactIdentityStringMatches(sliceId.value, expected.slice_id)
-    ) {
-      return false;
-    }
-  }
-  if (address.present && !exactIdentityStringMatches(address.value, expected.address)) {
-    return false;
-  }
-  return optionalPathIdentityMatches(value, expected);
-}
-
-function validateRecognizedIdentityTree(roots, expected) {
-  const stack = [];
-  for (let index = 0; index < roots.length; index += 1) {
-    stack.push({ value: roots[index], boundary: true, deep: false, root: true, depth: 0 });
-  }
-  const seen = new WeakSet();
-  let nodes = 0;
-  while (stack.length > 0) {
-    const current = stack.pop();
-    const value = current.value;
-    if (!value || typeof value !== "object" || utilTypes.isProxy(value)) return false;
-    if (current.depth > MAX_IDENTITY_PROJECTION_DEPTH || nodes >= MAX_IDENTITY_PROJECTION_NODES) {
-      return false;
-    }
-    if (seen.has(value)) return false;
-    seen.add(value);
-    nodes += 1;
-
-    if (Array.isArray(value)) {
-      for (let index = 0; index < value.length; index += 1) {
-        const entry = ownDataProperty(value, String(index));
-        if (!entry.present || entry.value === INVALID_DATA_PROPERTY) return false;
-        if (entry.value && typeof entry.value === "object") {
-          stack.push({
-            value: entry.value,
-            boundary: true,
-            deep: current.deep,
-            root: false,
-            depth: current.depth + 1
-          });
-        }
-      }
-      continue;
-    }
-
-    if (current.boundary && !directIdentityCarriersMatch(value, expected)) return false;
-    for (const field of IDENTITY_CHILD_FIELDS) {
-      const child = ownDataProperty(value, field);
-      if (!child.present) continue;
-      if (
-        child.value === INVALID_DATA_PROPERTY ||
-        !selectedUnitIdentityMatches(child.value, expected)
-      ) {
-        return false;
-      }
-      stack.push({
-        value: child.value,
-        boundary: true,
-        deep: false,
-        root: false,
-        depth: current.depth + 1
-      });
-    }
-
-    const graphRef = ownDataProperty(value, "graph_impact_summary_ref");
-    if (graphRef.present) {
-      if (graphRef.value === INVALID_DATA_PROPERTY || !isObject(graphRef.value)) return false;
-      stack.push({
-        value: graphRef.value,
-        boundary: true,
-        deep: true,
-        root: false,
-        depth: current.depth + 1
-      });
-    }
-
-    if (current.root) {
-      for (const field of PROJECTED_IDENTITY_CONTAINER_FIELDS) {
-        const child = ownDataProperty(value, field);
-        if (!child.present) continue;
-        if (child.value === INVALID_DATA_PROPERTY) return false;
-        if (child.value && typeof child.value === "object") {
-          stack.push({
-            value: child.value,
-            boundary: true,
-            deep: field !== "sections",
-            root: false,
-            sections: field === "sections",
-            depth: current.depth + 1
-          });
-        }
-      }
-      for (const field of PROJECTED_GRAPH_CONTAINER_FIELDS) {
-        const child = ownDataProperty(value, field);
-        if (!child.present) continue;
-        if (child.value === INVALID_DATA_PROPERTY) return false;
-        if (child.value && typeof child.value === "object") {
-          stack.push({
-            value: child.value,
-            boundary: true,
-            deep: false,
-            root: false,
-            depth: current.depth + 1
-          });
-        }
-      }
-    }
-
-    if (current.deep) {
-      const descriptors = Object.getOwnPropertyDescriptors(value);
-      for (const [field, descriptor] of Object.entries(descriptors)) {
-        if (!descriptor.enumerable) continue;
-        if (!Object.hasOwn(descriptor, "value")) return false;
-        if (IDENTITY_CHILD_FIELDS.includes(field) || field === "graph_impact_summary_ref") {
-          continue;
-        }
-        if (descriptor.value && typeof descriptor.value === "object") {
-          stack.push({
-            value: descriptor.value,
-            boundary: true,
-            deep: true,
-            root: false,
-            depth: current.depth + 1
-          });
-        }
-      }
-    } else if (current.sections) {
-      const agentNotes = ownDataProperty(value, "agent_notes");
-      if (agentNotes.value === INVALID_DATA_PROPERTY) return false;
-      if (agentNotes.present && agentNotes.value && typeof agentNotes.value === "object") {
-        stack.push({
-          value: agentNotes.value,
-          boundary: true,
-          deep: true,
-          root: false,
-          depth: current.depth + 1
-        });
-      }
-    }
-  }
-  return true;
-}
-
-function validateCompletedProjectionIdentity(value, expected) {
-  const stack = [{ value, depth: 0 }];
-  const seen = new WeakSet();
-  let nodes = 0;
-  while (stack.length > 0) {
-    const current = stack.pop();
-    const entry = current.value;
-    if (!entry || typeof entry !== "object" || utilTypes.isProxy(entry)) return false;
-    if (current.depth > MAX_IDENTITY_PROJECTION_DEPTH || nodes >= MAX_IDENTITY_PROJECTION_NODES) {
-      return false;
-    }
-    if (seen.has(entry)) return false;
-    seen.add(entry);
-    nodes += 1;
-
-    if (!Array.isArray(entry) && !directIdentityCarriersMatch(entry, expected)) return false;
-    for (const field of IDENTITY_CHILD_FIELDS) {
-      const identity = ownDataProperty(entry, field);
-      if (!identity.present) continue;
-      if (
-        identity.value === INVALID_DATA_PROPERTY ||
-        !selectedUnitIdentityMatches(identity.value, expected)
-      ) {
-        return false;
-      }
-    }
-
-    const descriptors = Object.getOwnPropertyDescriptors(entry);
-    for (const field of Object.keys(descriptors)) {
-      const descriptor = descriptors[field];
-      if (!descriptor.enumerable) continue;
-      if (!Object.hasOwn(descriptor, "value")) return false;
-      const child = descriptor.value;
-      if (!child || typeof child !== "object") continue;
-      if (utilTypes.isProxy(child)) return false;
-      stack.push({ value: child, depth: current.depth + 1 });
-    }
-  }
-  return true;
-}
-
-function selectedEnvelopeIdentityMatches(value, expected) {
-  if (!isObject(value) || !expected) return false;
-  const recordId = requiredDataProperty(value, "record_id");
-  if (
-    recordId === INVALID_DATA_PROPERTY ||
-    !exactIdentityStringMatches(recordId, expected.record_id) ||
-    !directIdentityCarriersMatch(value, expected)
-  ) {
-    return false;
-  }
-  const roots = [value];
-  const summary = ownDataProperty(value, "summary");
-  if (summary.present && summary.value !== null) {
-    if (summary.value === INVALID_DATA_PROPERTY || !isObject(summary.value)) return false;
-    roots.push(summary.value);
-  }
-  return validateRecognizedIdentityTree(roots, expected);
-}
-
-function projectSelectedSummaryResult(fullSummaryResult, requestedIdentity) {
-  if (!selectedEnvelopeIdentityMatches(fullSummaryResult, requestedIdentity)) return null;
-  const selectedUnitSourceProperty = ownDataProperty(fullSummaryResult, "selected_unit");
-  if (
-    !selectedUnitSourceProperty.present ||
-    selectedUnitSourceProperty.value === INVALID_DATA_PROPERTY ||
-    !selectedUnitIdentityMatches(selectedUnitSourceProperty.value, requestedIdentity)
-  ) {
-    return null;
-  }
-  const selectedUnit = projectSelectedUnit(selectedUnitSourceProperty.value);
-
-  const summaryProperty = ownDataProperty(fullSummaryResult, "summary");
-  let selectedUnitSource = null;
-  if (summaryProperty.present && summaryProperty.value !== null) {
-    if (summaryProperty.value === INVALID_DATA_PROPERTY || !isObject(summaryProperty.value)) {
-      return null;
-    }
-    const selectedSummaryProperty = ownDataProperty(
-      summaryProperty.value,
-      "selected_unit_summary"
-    );
-    if (selectedSummaryProperty.present) {
-      if (
-        selectedSummaryProperty.value === INVALID_DATA_PROPERTY ||
-        (selectedSummaryProperty.value !== null && !isObject(selectedSummaryProperty.value))
-      ) {
-        return null;
-      }
-      selectedUnitSource = selectedSummaryProperty.value;
-    }
-  }
-
-  if (selectedUnitSource !== null) {
-    const id = requiredDataProperty(selectedUnitSource, "id");
-    if (
-      id === INVALID_DATA_PROPERTY ||
-      !exactIdentityStringMatches(id, requestedIdentity.slice_id) ||
-      !validateRecognizedIdentityTree([selectedUnitSource], requestedIdentity)
-    ) {
-      return null;
-    }
-  }
-  const selectedUnitSummary = selectedUnitSource === null
-    ? null
-    : projectSelectedWorkRecordUnit(selectedUnitSource);
-  if (selectedUnitSource !== null && selectedUnitSummary === null) return null;
-  const recordId = requiredDataProperty(fullSummaryResult, "record_id");
-  const valid = ownDataProperty(fullSummaryResult, "valid");
-  const result = {
-    record_id: recordId,
-    valid: valid.value === true && selectedUnitSummary !== null,
-    selected_unit: selectedUnit,
-    summary: selectedUnitSummary
-  };
-
-  if (selectedUnitSummary === null) {
-    result.diagnostics = [
-      {
-        code: "missing_slice",
-        severity: "error",
-        message: `Selected slice ${requestedIdentity.slice_id} does not exist on the selected record`,
-        path: "unit"
-      }
-    ];
-  }
-  return validateCompletedProjectionIdentity(result, requestedIdentity) ? result : null;
-}
-
-function copyGraphScalar(result, source, field, predicate = () => true) {
-  const property = ownDataProperty(source, field);
-  if (!property.present) return true;
-  if (property.value === INVALID_DATA_PROPERTY || !predicate(property.value)) return false;
-  result[field] = property.value;
-  return true;
-}
-
-function projectGraphStringList(source, field) {
-  const property = ownDataProperty(source, field);
-  if (!property.present) return { valid: true, present: false, value: undefined };
-  if (
-    property.value === INVALID_DATA_PROPERTY ||
-    utilTypes.isProxy(property.value) ||
-    !Array.isArray(property.value)
-  ) {
-    return { valid: false, present: true, value: undefined };
-  }
-  const value = [];
-  for (let index = 0; index < property.value.length; index += 1) {
-    const entry = ownDataProperty(property.value, String(index));
-    if (!entry.present || entry.value === INVALID_DATA_PROPERTY || typeof entry.value !== "string") {
-      return { valid: false, present: true, value: undefined };
-    }
-    value.push(entry.value);
-  }
-  return { valid: true, present: true, value };
-}
-
-function projectGraphState(value) {
-  if (!isObject(value)) return null;
-  const result = {};
-  for (const field of [
-    "graph_available",
-    "dirty_state",
-    "staleness",
-    "edge_source",
-    "dirty_graph_mode",
-    "graph_schema_version",
-    "unavailable_path_count"
-  ]) {
-    if (!copyGraphScalar(result, value, field, (entry) =>
-      entry === null || ["string", "number", "boolean"].includes(typeof entry)
-    )) {
-      return null;
-    }
-  }
-  return result;
-}
-
-function projectNumericCounts(value) {
-  if (!isObject(value)) return null;
-  const result = {};
-  for (const [field, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(value))) {
-    if (!descriptor.enumerable) continue;
-    if (!Object.hasOwn(descriptor, "value")) return null;
-    if (typeof descriptor.value === "number" && Number.isFinite(descriptor.value)) {
-      result[field] = descriptor.value;
-    }
-  }
-  return result;
-}
-
-function projectDegradedState(value) {
-  if (!isObject(value)) return null;
-  const result = {};
-  for (const field of ["kind", "code", "reason_code", "message"]) {
-    if (!copyGraphScalar(result, value, field, (entry) =>
-      entry === null || (typeof entry === "string" && entry.length <= 1000)
-    )) {
-      return null;
-    }
-  }
-  return result;
-}
-
-function copyGraphIdentityFields(result, source) {
-  for (const field of ["record_id", "slice_id", "selected_slice_id", "address"]) {
-    if (!copyGraphScalar(result, source, field, (entry) => entry === null || typeof entry === "string")) {
-      return false;
-    }
-  }
-  for (const field of ["unit", "identity"]) {
-    const property = ownDataProperty(source, field);
-    if (!property.present) continue;
-    if (property.value === INVALID_DATA_PROPERTY) return false;
-    const identity = projectSelectedUnit(property.value);
-    if (!identity) return false;
-    result[field] = identity;
-  }
-  return true;
-}
-
-function projectGraphImpactSummaryRef(value) {
-  if (!isObject(value)) return null;
-  const result = {};
-  if (!copyGraphIdentityFields(result, value)) return null;
-  for (const field of [
-    "kind",
-    "replay_detail_available",
-    "query_kind",
-    "source_record_digest",
-    "generated_at",
-    "invalid_path_count",
-    "raw_evidence_digest",
-    "graph_entry_digest"
-  ]) {
-    if (!copyGraphScalar(result, value, field, (entry) =>
-      entry === null || ["string", "number", "boolean"].includes(typeof entry)
-    )) {
-      return null;
-    }
-  }
-  for (const field of ["input_paths", "validated_paths"]) {
-    const projected = projectGraphStringList(value, field);
-    if (!projected.valid) return null;
-    if (projected.present) result[field] = projected.value;
-  }
-  for (const [field, projector] of [
-    ["graph_state", projectGraphState],
-    ["counts", projectNumericCounts],
-    ["degraded_state", projectDegradedState]
-  ]) {
-    const property = ownDataProperty(value, field);
-    if (!property.present) continue;
-    if (property.value === INVALID_DATA_PROPERTY) return null;
-    const projected = projector(property.value);
-    if (projected === null) return null;
-    result[field] = projected;
-  }
-  return result;
-}
-
-function projectPublicGraphEntry(value, envelope) {
-  if (!isObject(value)) return null;
-  const result = {};
-  if (!copyGraphIdentityFields(result, value)) return null;
-  for (const field of [
-    "replay_detail_available",
-    "query_kind",
-    "source_record_digest",
-    "generated_at",
-    "invalid_path_count",
-    "raw_evidence_digest",
-    "graph_entry_digest"
-  ]) {
-    if (!copyGraphScalar(result, value, field, (entry) =>
-      entry === null || ["string", "number", "boolean"].includes(typeof entry)
-    )) {
-      return null;
-    }
-  }
-  if (!Object.hasOwn(result, "generated_at")) {
-    const generatedAt = ownDataProperty(envelope, "generated_at");
-    if (generatedAt.value === INVALID_DATA_PROPERTY) return null;
-    if (generatedAt.present && (generatedAt.value === null || typeof generatedAt.value === "string")) {
-      result.generated_at = generatedAt.value;
-    }
-  }
-  for (const field of ["input_paths", "validated_paths"]) {
-    const projected = projectGraphStringList(value, field);
-    if (!projected.valid) return null;
-    if (projected.present) result[field] = projected.value;
-  }
-  for (const [field, projector] of [
-    ["graph_state", projectGraphState],
-    ["counts", projectNumericCounts],
-    ["degraded_state", projectDegradedState]
-  ]) {
-    const property = ownDataProperty(value, field);
-    if (!property.present) continue;
-    if (property.value === INVALID_DATA_PROPERTY) return null;
-    const projected = projector(property.value);
-    if (projected === null) return null;
-    result[field] = projected;
-  }
-  const graphRef = ownDataProperty(value, "graph_impact_summary_ref");
-  if (graphRef.present) {
-    if (graphRef.value === INVALID_DATA_PROPERTY) return null;
-    const projected = projectGraphImpactSummaryRef(graphRef.value);
-    if (projected === null) return null;
-    result.graph_impact_summary_ref = projected;
-  }
-  return result;
-}
-
-function projectSelectedSliceReadResult(compactResult, requestedIdentity) {
-  const format = requiredDataProperty(compactResult, "format");
-  if (format !== "json-work-record" && format !== "graph-evidence-sidecar") return null;
-  if (
-    !selectedEnvelopeIdentityMatches(compactResult, requestedIdentity) ||
-    !selectedSliceIdValueMatches(
-      requiredDataProperty(compactResult, "selected_slice_id"),
-      requestedIdentity?.slice_id
-    )
-  ) {
-    return null;
-  }
-  const selectedSlice = requiredDataProperty(compactResult, "selected_slice");
-  const selectedSliceFoundValue = requiredDataProperty(compactResult, "selected_slice_found");
-  if (typeof selectedSliceFoundValue !== "boolean") return null;
-  const selectedSliceFound = selectedSliceFoundValue === true;
-  if (selectedSliceFound !== isObject(selectedSlice)) return null;
-
-  if (!selectedSliceFound) return null;
-  if (selectedSliceFound) {
-    const primaryIdentityMatches = format === "json-work-record"
-      ? exactIdentityStringMatches(
-          requiredDataProperty(selectedSlice, "id"),
-          requestedIdentity.slice_id
-        )
-      : selectedUnitIdentityMatches(
-          requiredDataProperty(selectedSlice, "unit"),
-          requestedIdentity
-        );
-    if (!primaryIdentityMatches || !validateRecognizedIdentityTree([selectedSlice], requestedIdentity)) {
-      return null;
-    }
-  }
-  const recordId = requiredDataProperty(compactResult, "record_id");
-  const selectedSliceId = requiredDataProperty(compactResult, "selected_slice_id");
-  const projectedSlice = !selectedSliceFound
-    ? null
-    : format === "json-work-record"
-      ? projectSelectedWorkRecordUnit(selectedSlice)
-      : projectPublicGraphEntry(selectedSlice, compactResult);
-  if (selectedSliceFound && projectedSlice === null) return null;
-  const result = {
-    format,
-    record_id: recordId,
-    selected_slice_id: selectedSliceId,
-    selected_slice: projectedSlice,
-    selected_slice_found: selectedSliceFound
-  };
-
-  if (format === "json-work-record") {
-    result.valid = ownDataProperty(compactResult, "valid").value === true;
-  }
-  return validateCompletedProjectionIdentity(result, requestedIdentity) ? result : null;
-}
-
-function projectSelectedRecordReadResult(compactResult, requestedIdentity) {
-  if (
-    requiredDataProperty(compactResult, "format") !== "graph-evidence-sidecar" ||
-    requiredDataProperty(compactResult, "selected_record") !== true ||
-    !selectedEnvelopeIdentityMatches(compactResult, requestedIdentity)
-  ) {
-    return null;
-  }
-  const recordEntry = requiredDataProperty(compactResult, "record_entry");
-  const recordEntryFoundValue = requiredDataProperty(compactResult, "record_entry_found");
-  if (typeof recordEntryFoundValue !== "boolean") return null;
-  const recordEntryFound = recordEntryFoundValue === true;
-  if (recordEntryFound !== isObject(recordEntry)) return null;
-  if (
-    recordEntryFound &&
-    (!selectedUnitIdentityMatches(requiredDataProperty(recordEntry, "unit"), requestedIdentity) ||
-      !validateRecognizedIdentityTree([recordEntry], requestedIdentity))
-  ) {
-    return null;
-  }
-  const projectedEntry = recordEntryFound
-    ? projectPublicGraphEntry(recordEntry, compactResult)
-    : null;
-  if (recordEntryFound && projectedEntry === null) return null;
-  const result = {
-    format: "graph-evidence-sidecar",
-    record_id: requiredDataProperty(compactResult, "record_id"),
-    selected_record: true,
-    record_entry: projectedEntry,
-    record_entry_found: recordEntryFound
-  };
-  return validateCompletedProjectionIdentity(result, requestedIdentity) ? result : null;
-}
-
-function projectSelectedReadResult(compactResult, selector) {
-  const requestedIdentity = requestedReadIdentity(selector);
-  return selector.selected_slice
-    ? projectSelectedSliceReadResult(compactResult, requestedIdentity)
-    : projectSelectedRecordReadResult(compactResult, requestedIdentity);
-}
-
 export async function runWorkRecordSummaryWithCompactGate({
   workspaceRepo,
   workspaceDir,
@@ -1677,6 +882,30 @@ export async function runWorkRecordSummaryWithCompactGate({
   const normalized = validateAndNormalizeSummarySelector(args);
   const normalizedArgs = normalized.args;
   const selector = normalized.selector;
+
+  const selectedRecordId =
+    parseWorkRecordSummaryUnit(selector.selected)?.record_id ??
+    extractWorkRecordReadPath(selector.selected)?.record_id ??
+    selector.selected;
+
+  if (selector.slice_page) {
+    return runSliceEnumeration({
+      toolFamily: SUMMARY_TOOL_FAMILY,
+      workspaceDir,
+      recordId: selectedRecordId,
+      request: selector.slice_page,
+      readWorkRecordById
+    });
+  }
+
+  if (selector.selected_record) {
+    return runSelectedRecordContractFields({
+      toolFamily: SUMMARY_TOOL_FAMILY,
+      workspaceDir,
+      recordId: selectedRecordId,
+      readWorkRecordById
+    });
+  }
 
   if (selector.selected_slice) {
     const pendingSummaryResult = readSelectedWorkRecordSummary({
@@ -1750,11 +979,27 @@ export async function runWorkRecordSummaryWithCompactGate({
           reason_code: RUNTIME_BLOCKER_CODES.COMPACT_READ_SELECTED_DETAIL_REQUIRED
         }
       : tokenDecision;
-    return buildRefusal({ compactResult, blockedOptions, tokenDecision: refusalDecision, selector });
+    return buildRefusal({
+      toolFamily: SUMMARY_TOOL_FAMILY,
+      compactResult,
+      blockedOptions,
+      tokenDecision: refusalDecision,
+      selector,
+      args: normalizedArgs,
+      record: loadedRecord?.record ?? null
+    });
   }
 
   if (blockedOptions.length > 0 && !tokenDecision.accepted) {
-    return buildRefusal({ compactResult, blockedOptions, tokenDecision, selector });
+    return buildRefusal({
+      toolFamily: SUMMARY_TOOL_FAMILY,
+      compactResult,
+      blockedOptions,
+      tokenDecision,
+      selector,
+      args: normalizedArgs,
+      record: loadedRecord?.record ?? null
+    });
   }
 
   if (blockedOptions.length > 0) {
@@ -1768,7 +1013,14 @@ export async function runWorkRecordSummaryWithCompactGate({
     });
   }
 
-  compactResult.compact_read = buildContinuationMetadata({ compactResult, compactToken, selector });
+  compactResult.compact_read = buildContinuationMetadata({
+    toolFamily: SUMMARY_TOOL_FAMILY,
+    compactResult,
+    compactToken,
+    selector,
+    args: normalizedArgs,
+    record: loadedRecord?.record ?? null
+  });
   return compactResult;
 }
 
@@ -1784,6 +1036,17 @@ export async function runWorkRecordReadWithCompactGate({
   const normalized = validateAndNormalizeReadSelector(args, toolFamily);
   const normalizedArgs = normalized.args;
   const selector = normalized.selector;
+
+  if (selector.slice_page) {
+    return runSliceEnumeration({
+      toolFamily,
+      workspaceDir,
+      recordId: selector.id,
+      request: selector.slice_page,
+      readWorkRecordById
+    });
+  }
+
   const pendingCompactResult = readCompact({
     ...buildReadArgs(normalizedArgs),
     dir: workspaceDir
@@ -1793,7 +1056,9 @@ export async function runWorkRecordReadWithCompactGate({
       utilTypes.isProxy(pendingCompactResult)) {
     throwSelectedIdentityError(toolFamily);
   }
-  const compactResult = await pendingCompactResult;
+  const readResult = await pendingCompactResult;
+  const kindDisclosure = projectKindRecordCompactDisclosure(readResult);
+  const compactResult = kindDisclosure?.compactResult ?? readResult;
 
   if (selector.selected_detail) {
     const selectedResult = projectSelectedReadResult(compactResult, selector);
@@ -1803,7 +1068,10 @@ export async function runWorkRecordReadWithCompactGate({
     return selectedResult;
   }
 
-  if (compactResult?.format !== "json-work-record" || !compactResult.record_id) {
+  if (
+    !["json-work-record", "json-kind-record"].includes(compactResult?.format) ||
+    !compactResult.record_id
+  ) {
     if (expensiveReadOptions(normalizedArgs).length > 0) {
       return readExpensive({
         ...normalizedArgs,
@@ -1813,9 +1081,14 @@ export async function runWorkRecordReadWithCompactGate({
     return compactResult;
   }
 
-  const loadedRecord = typeof readWorkRecordById === "function"
-    ? await readWorkRecordById({ dir: workspaceDir, id: compactResult.record_id })
-    : null;
+  const loadedRecord = compactResult.format === "json-kind-record"
+    ? {
+        record: kindDisclosure?.sourceRecord ?? null,
+        source_digest: compactResult.source_digest ?? null
+      }
+    : (typeof readWorkRecordById === "function"
+        ? await readWorkRecordById({ dir: workspaceDir, id: compactResult.record_id })
+        : null);
   const sourceDigest = loadedRecord?.source_digest ?? compactResult.source_digest ?? null;
   compactResult.source_digest = sourceDigest;
 
@@ -1852,22 +1125,26 @@ export async function runWorkRecordReadWithCompactGate({
           reason_code: RUNTIME_BLOCKER_CODES.COMPACT_READ_SELECTED_DETAIL_REQUIRED
         }
       : tokenDecision;
-    return buildReadRefusal({
+    return buildRefusal({
+      toolFamily,
       compactResult,
       blockedOptions,
       tokenDecision: refusalDecision,
-      toolFamily,
-      args: normalizedArgs
+      selector,
+      args: normalizedArgs,
+      record: loadedRecord?.record ?? null
     });
   }
 
   if (blockedOptions.length > 0 && !tokenDecision.accepted) {
-    return buildReadRefusal({
+    return buildRefusal({
+      toolFamily,
       compactResult,
       blockedOptions,
       tokenDecision,
-      toolFamily,
-      args: normalizedArgs
+      selector,
+      args: normalizedArgs,
+      record: loadedRecord?.record ?? null
     });
   }
 
@@ -1878,12 +1155,22 @@ export async function runWorkRecordReadWithCompactGate({
     });
   }
 
-  compactResult.compact_read = buildReadContinuationMetadata({
-    compactResult,
-    compactToken,
-    toolFamily,
-    args: normalizedArgs,
-    selector
-  });
+  compactResult.compact_read = kindDisclosure
+    ? buildKindRecordContinuation({
+        toolFamily,
+        compactResult,
+        compactToken,
+        selector,
+        args: normalizedArgs,
+        memberLedger: kindDisclosure.memberLedger
+      })
+    : buildContinuationMetadata({
+        toolFamily,
+        compactResult,
+        compactToken,
+        selector,
+        args: normalizedArgs,
+        record: loadedRecord?.record ?? null
+      });
   return compactResult;
 }

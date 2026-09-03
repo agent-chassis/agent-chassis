@@ -1,0 +1,159 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.v1",
+  "evaluation_stage": "pre_dispatch",
+  "reference_bindings": [
+    {
+      "role": "ordering_operation",
+      "reference_ids": [
+        "ref-ordering-operation"
+      ]
+    },
+    {
+      "role": "input_snapshot",
+      "reference_ids": [
+        "ref-input-snapshot"
+      ]
+    },
+    {
+      "role": "result_snapshot",
+      "reference_ids": [
+        "ref-result-snapshot"
+      ]
+    },
+    {
+      "role": "declared_population",
+      "reference_ids": [
+        "ref-declared-population"
+      ]
+    },
+    {
+      "role": "declared_items",
+      "reference_ids": [
+        "ref-ordering-item-2a2c17aaaf667385e2f79dad376d762134cfa7e1ae3375990e30c886747de667",
+        "ref-ordering-item-f09f429ea5f13c7bd923b721c377043cfb34fd9a0aed453eb929efe71dc2554b",
+        "ref-ordering-item-5821d4d89f00da541961189f553ad089783058ed1d0fad29284b9b60fe4898fc",
+        "ref-ordering-item-7f4a3755c3ce27810bdeba747164227e5ec9d60309cf4a9cb7836d4cd38ede0f"
+      ]
+    },
+    {
+      "role": "result_population",
+      "reference_ids": [
+        "ref-result-population"
+      ]
+    },
+    {
+      "role": "result_items",
+      "reference_ids": [
+        "ref-ordering-item-2a2c17aaaf667385e2f79dad376d762134cfa7e1ae3375990e30c886747de667",
+        "ref-ordering-item-f09f429ea5f13c7bd923b721c377043cfb34fd9a0aed453eb929efe71dc2554b",
+        "ref-ordering-item-5821d4d89f00da541961189f553ad089783058ed1d0fad29284b9b60fe4898fc",
+        "ref-ordering-item-7f4a3755c3ce27810bdeba747164227e5ec9d60309cf4a9cb7836d4cd38ede0f"
+      ]
+    },
+    {
+      "role": "result_count_signal",
+      "reference_ids": [
+        "ref-result-count-signal"
+      ]
+    },
+    {
+      "role": "ordering_policy",
+      "reference_ids": [
+        "ref-ordering-policy"
+      ]
+    },
+    {
+      "role": "key_population",
+      "reference_ids": [
+        "ref-key-population"
+      ]
+    },
+    {
+      "role": "policy_keys",
+      "reference_ids": [
+        "ref-ordering-key-1aca80e8b55c802f7b43740da2990e1b5735bbb323d93eb5ebda8395b04025e2",
+        "ref-ordering-key-a575b79868a2336db378ac89cb6c7d93272b4bb8e74d1096e8630765cf480ef5"
+      ]
+    },
+    {
+      "role": "stable_tie_breaker",
+      "reference_ids": [
+        "ref-stable-tie-breaker"
+      ]
+    },
+    {
+      "role": "comparator",
+      "reference_ids": [
+        "ref-comparator"
+      ]
+    },
+    {
+      "role": "item_key_evidence",
+      "reference_ids": [
+        "ref-item-key-evidence"
+      ]
+    },
+    {
+      "role": "conformance_report",
+      "reference_ids": [
+        "ref-conformance-report"
+      ]
+    },
+    {
+      "role": "conformant_state",
+      "reference_ids": [
+        "ref-conformant-state"
+      ]
+    },
+    {
+      "role": "verification",
+      "reference_ids": [
+        "ref-verification"
+      ]
+    },
+    {
+      "role": "population_mismatch_condition",
+      "reference_ids": [
+        "ref-population-mismatch-condition"
+      ]
+    },
+    {
+      "role": "reverse_population_mismatch_condition",
+      "reference_ids": [
+        "ref-reverse-population-mismatch-condition"
+      ]
+    },
+    {
+      "role": "count_mismatch_condition",
+      "reference_ids": [
+        "ref-count-mismatch-condition"
+      ]
+    },
+    {
+      "role": "nondeterminism_condition",
+      "reference_ids": [
+        "ref-nondeterminism-condition"
+      ]
+    },
+    {
+      "role": "conformance_failure_condition",
+      "reference_ids": [
+        "ref-conformance-failure-condition"
+      ]
+    }
+  ],
+  "number_bindings": [
+    {
+      "role": "item_count",
+      "value": 4
+    },
+    {
+      "role": "policy_key_count",
+      "value": 2
+    }
+  ],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": [],
+  "stable_evaluation": {}
+}

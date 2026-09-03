@@ -12,9 +12,9 @@ const n = (value) => ({ kind: "number", value });
 
 function baseContract({ omitSecondRecord = false, wrongSecondSubject = false } = {}) {
   const contract = {
-    schema_version: "controlled-acceptance-contract.experimental.v0.2",
-    vocabulary_version: "cv.experimental.0.34",
-    profile_id: "acceptance-contract.standard.experimental.v0.2",
+    schema_version: "controlled-acceptance-contract.v1",
+    vocabulary_version: "controlled-contract-vocabulary.v1",
+    profile_id: "acceptance-contract.standard.v1",
     references: [
       ["ref-subject", "cc:resource"], ["ref-other-subject", "cc:resource"],
       ["ref-baseline-state", "cc:state"], ["ref-regressed-state", "cc:state"],
@@ -27,7 +27,7 @@ function baseContract({ omitSecondRecord = false, wrongSecondSubject = false } =
       ["ref-status", "cc:state"], ["ref-baseline-artifact", "cc:artifact"],
       ["ref-candidate-artifact", "cc:artifact"]
     ].map(([id, type]) => reference(id, type)),
-    propositions: [], claims: [], relations: [], collections: [], residue: [], annotations: []
+    propositions: [], claims: [], relations: [], collections: [], residue: [], annotations: [], test_proof_version: "controlled-contract-test-proof.v1", test_proofs: []
   };
   const claims = new Map();
   let serial = 0;

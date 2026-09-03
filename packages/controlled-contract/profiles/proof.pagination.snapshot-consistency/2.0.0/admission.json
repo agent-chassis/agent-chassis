@@ -1,0 +1,54 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v2",
+  "profile_id": "proof.pagination.snapshot-consistency",
+  "profile_version": "2.0.0",
+  "profile_digest": "0c89fe0302435c379f6c70738edc1c88bd65e191fff6c03a904ed32e90ce3c29",
+  "guarantee": "Every page attempt and returned page in the complete declared traversal populations resolves to one immutable snapshot identity and exact captured state; a declared relevant live-source mutation occurs between selected page reads, changes the exact live-source version while the selected snapshot identity and captured state remain unchanged, and the stable and mutation-interleaved ordered member-occurrence sequences are identical.",
+  "guarantee_digest": "9a3ea58d8d91e072e4b4cdf456cadb4a4c55ee54631cc22727a94b4c767e4514",
+  "explicit_exclusions": [
+    "capture-provenance",
+    "evidence-authority-or-cce-consequence",
+    "runtime-truth",
+    "snapshot-retention-or-isolation",
+    "standalone-traversal-completeness",
+    "undeclared-mutation"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "9f91c8c29c57f5e61ccfd850c4cbf53f062aec4ddc7c90b0442f1cb1e98d36b8",
+    "adequacy_result_digest": "8a0a5471178a85187c07409c8cc9ccf8fd0e49de147c780a2f9fdf2106801b47",
+    "executable_control_count": 26,
+    "negative_fixture_count": 126,
+    "coverage_witness_count": 126
+  },
+  "exact_binding": {
+    "declaration_digest": "3e709ddf209951221e205942e5b0e563f11d816afe636d1d198fa7bfe7b47b39",
+    "certification_result_digest": "7af16b61891326fa9d02d311bb3e477b74bbfb6e993b3b97769c61d3ce97529e",
+    "executable_control_count": 12,
+    "binding_kinds": [
+      "artifact_bytes"
+    ],
+    "relation_operators": [
+      "deterministic_projection",
+      "distinct_content_sha256",
+      "same_content_sha256"
+    ],
+    "corpus_id": "snapshot-pagination-consistency-exact-binding",
+    "corpus_version": "1.0.0",
+    "corpus_digest": "7590cc25076bdccc93521a028bb56fb6838111d129d947462eb3e39b89749e0f",
+    "passed_control_ids": [
+      "caller-selected-attempt-refused",
+      "capture-order-swap-refused",
+      "duplicate-occurrence-positive",
+      "empty-page-positive",
+      "frozen-snapshot-positive",
+      "live-version-content-reuse-refused",
+      "member-occurrence-omission-refused",
+      "member-occurrence-reorder-refused",
+      "missing-trace-refused",
+      "projection-result-splice-refused",
+      "snapshot-identity-splice-refused",
+      "snapshot-state-content-change-refused"
+    ]
+  }
+}

@@ -1,14 +1,92 @@
+export { applyControlledContractCarrierPatch } from
+  "@agent-chassis/controlled-contract";
+
 export const AUTHORING_LIMITS = Object.freeze({ index: 4096, selected: 16384 });
+
+const INDEX_SPILL_RESERVE_BYTES = 1024;
+export const TASK_AUTHORING_LIMIT = 4096;
+
+export function projectPackageTestProofBindings({ packageApi, contract, verificationIds }) {
+  return packageApi.queryTestProofBindings({ contract, verificationIds });
+}
+
+export function projectPackageTestProofPatch({ packageApi, contract, operations }) {
+  return packageApi.patchTestProofBindings({ contract, operations });
+}
+
+export function projectPackageTestProofAuthoringDescription({ packageApi }) {
+  return packageApi.describeTestProofAuthoring();
+}
 export const CARRIER_TARGETS = Object.freeze({
   contract: Object.freeze({ references: "reference_id", propositions: "proposition_id", claims: "claim_id", relations: "relation_id", collections: "collection_id", residue: "residue_id", annotations: "annotation_id" }),
   evaluation_input: Object.freeze({ reference_bindings: "role", number_bindings: "role", claim_pattern_bindings: "claim_pattern", resolver_facts: "resolver_fact", delivered_evidence: "delivered_evidence", evaluation_stage: "scalar" }),
   proof_plan_request: Object.freeze({ requested_intents: "value", selected_packs: "pack" })
 });
-export const IMMUTABLE_CARRIER_FIELDS = Object.freeze({ contract: ["schema_version", "vocabulary_version", "profile_id"],
-  evaluation_input: ["input_version"], proof_plan_request: ["schema_version"] });
 const PROJECTION_SPILLS = new WeakMap();
 function fail(code, message, details = {}) { const error = new Error(message); error.code = code; error.details = details; throw error; }
 function bytes(value) { return Buffer.byteLength(JSON.stringify(value, null, 2), "utf8"); }
+export function measureControlledContractAuthoringValue(value) {
+  const text = JSON.stringify(value);
+  const counts = {};
+  const visit = (entry) => {
+    if (Array.isArray(entry)) { for (const item of entry) visit(item); return; }
+    if (!entry || typeof entry !== "object") return;
+    for (const [key, item] of Object.entries(entry)) {
+      counts[key] = (counts[key] ?? 0) + 1;
+      visit(item);
+    }
+  };
+  visit(value);
+  return Object.freeze({
+    byte_count: Buffer.byteLength(text, "utf8"),
+    repeated_fields: Object.freeze(Object.fromEntries(
+      Object.entries(counts).filter(([, count]) => count > 1).sort()
+    ))
+  });
+}
+
+export function projectControlledContractAuthoringState(state) {
+  if (!state || typeof state !== "object") fail(
+    "controlled_contract_authoring_state_invalid", "authoring state must be an object");
+  if (state.status === "refused") {
+    const refusal = {
+      schema_version: state.schema_version,
+      status: "refused",
+      reason_code: state.reason_code,
+      replacement_call: structuredClone(state.replacement_call)
+    };
+    if (bytes(refusal) > TASK_AUTHORING_LIMIT) fail(
+      "controlled_contract_authoring_projection_too_large",
+      "compact authoring refusal exceeds 4,096 bytes");
+    return Object.freeze(refusal);
+  }
+  const projection = {
+    schema_version: state.schema_version,
+    stage: state.stage,
+    selected_resources: structuredClone(state.selected_resources),
+    unresolved_decisions: structuredClone(state.unresolved_decisions)
+  };
+  if (state.continuation) projection.continuation = state.continuation;
+  if (state.authoring_evidence) projection.authoring_evidence =
+    structuredClone(state.authoring_evidence);
+  if (state.next_calls) projection.next_calls = structuredClone(state.next_calls);
+  else projection.stop_condition = state.stop_condition;
+  if (Object.hasOwn(projection, "next_calls") ===
+      Object.hasOwn(projection, "stop_condition")) fail(
+    "controlled_contract_authoring_outcome_invalid",
+    "authoring state requires exactly one stage-directed outcome");
+
+  if (projection.next_calls && projection.next_calls.length !== 1) fail(
+    "controlled_contract_authoring_outcome_invalid",
+    "a nonterminal authoring state carries exactly one next action");
+
+  const limit = projection.next_calls?.[0]?.author_semantics === undefined
+    ? TASK_AUTHORING_LIMIT : AUTHORING_LIMITS.selected;
+  if (bytes(projection) > limit) fail(
+    "controlled_contract_authoring_projection_too_large",
+    `compact authoring state exceeds ${limit} bytes`);
+  return Object.freeze(projection);
+}
 function packId(value) { return `${value?.profile_id ?? ""}@${value?.profile_version ?? ""}`; }
 function compoundId(target, value) {
   if (target === "claim_pattern_bindings") return `${value?.pattern_id ?? ""}=>${value?.claim_id ?? ""}`;
@@ -26,10 +104,35 @@ export function controlledContractCarrierItems(content, carrierKind) {
     for (const value of values) { const id = carrierValueId(target, rule, value); items.push({ target, id, selector: id, value }); }
   }
   return items; }
-function encodeCursor(binding) { return Buffer.from(JSON.stringify(binding)).toString("base64url"); }
-function decodeCursor(cursor, expected) {
-  let value; try { value = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8")); }
-  catch { fail("controlled_contract_query_cursor_invalid", "continuation cursor is malformed"); }
+
+export function encodeCursor(binding) {
+  return Buffer.from(JSON.stringify(binding)).toString("base64url");
+}
+function decodeCanonicalCursorValue(cursor) {
+  if (typeof cursor !== "string" || cursor.length === 0 ||
+      !/^[A-Za-z0-9_-]+$/u.test(cursor) || cursor.length % 4 === 1) {
+    fail("controlled_contract_query_cursor_invalid", "continuation cursor is malformed");
+  }
+  let value;
+  try {
+    const decoded = Buffer.from(cursor, "base64url");
+    const text = new TextDecoder("utf-8", { fatal: true }).decode(decoded);
+    value = JSON.parse(text);
+    if (!value || typeof value !== "object" || Array.isArray(value) ||
+        encodeCursor(value) !== cursor) {
+      fail("controlled_contract_query_cursor_invalid", "continuation cursor is noncanonical");
+    }
+  } catch (error) {
+    if (error?.code === "controlled_contract_query_cursor_invalid") throw error;
+    fail("controlled_contract_query_cursor_invalid", "continuation cursor is malformed");
+  }
+  return value;
+}
+export function decodeCursor(cursor, expected) {
+  const value = decodeCanonicalCursorValue(cursor);
+  const expectedKeys = [...Object.keys(expected), "offset"].sort();
+  if (Object.keys(value).sort().join("\0") !== expectedKeys.join("\0"))
+    fail("controlled_contract_query_cursor_invalid", "continuation cursor has an invalid shape");
   for (const [key, expectedValue] of Object.entries(expected)) if (value?.[key] !== expectedValue)
     fail("controlled_contract_query_cursor_mismatch", "continuation cursor belongs to another carrier or filter", { field: key });
   if (!Number.isInteger(value.offset) || value.offset < 0) fail("controlled_contract_query_cursor_invalid", "continuation cursor offset is invalid"); return value.offset;
@@ -38,6 +141,21 @@ function queryBase(carrier, selection) { return { schema_version: "controlled-co
   focus: carrier.focus, carrier_kind: carrier.carrier_kind, content_digest: carrier.content_digest, selection }; }
 function population(items) { const by_target = Object.fromEntries(Object.keys(CARRIER_TARGETS[items.carrierKind] ?? {}).map((target) =>
     [target, items.values.filter((item) => item.target === target).length])); return { total: items.values.length, by_target };
+}
+
+function boundIndexFilterEcho(result) {
+  if (typeof result.filter !== "string") return;
+  result.filter_character_count = result.filter.length;
+  result.filter_echo = "complete";
+  if (bytes(result) <= AUTHORING_LIMITS.index) return;
+  result.filter_echo = "bounded";
+  const complete = result.filter;
+  result.filter = "";
+  const budget = AUTHORING_LIMITS.index - bytes(result) - INDEX_SPILL_RESERVE_BYTES +
+    Buffer.byteLength(JSON.stringify(""), "utf8");
+  let length = Math.min(complete.length, Math.max(budget, 0));
+  while (length > 0 && Buffer.byteLength(JSON.stringify(complete.slice(0, length)), "utf8") > budget) length -= 1;
+  result.filter = complete.slice(0, length);
 }
 function indexProjection(carrier, { target = null, filter = null, cursor = null }) {
   const values = controlledContractCarrierItems(carrier.content, carrier.carrier_kind).sort((a, b) => {
@@ -48,7 +166,8 @@ function indexProjection(carrier, { target = null, filter = null, cursor = null 
   const normalizedFilter = filter === null ? null : String(filter).normalize("NFKC").toLowerCase();
   const matched = values.filter((item) => (!target || item.target === target) && (!normalizedFilter ||
     String(item.id).toLowerCase().includes(normalizedFilter)));
-  const binding = { v: 1, digest: carrier.content_digest, wk: carrier.wk_id, focus: carrier.focus, kind: carrier.carrier_kind,
+  const binding = { v: 1, digest: carrier.content_digest, wk: carrier.wk_id,
+    focus: carrier.focus, kind: carrier.carrier_kind, filename: carrier.filename,
     target, filter: normalizedFilter };
   const offset = cursor === null ? 0 : decodeCursor(cursor, binding);
   if (offset > matched.length) fail("controlled_contract_query_cursor_invalid", "cursor exceeds the matching population");
@@ -56,6 +175,7 @@ function indexProjection(carrier, { target = null, filter = null, cursor = null 
   const result = { ...queryBase(carrier, "index"), target, filter: normalizedFilter, population_total: counts.total,
     population_by_target: counts.by_target, matched_total: matched.length, returned_count: 0, remaining_count: matched.length - offset,
     items: [], continuation: null };
+  boundIndexFilterEcho(result);
   const spills = [];
   for (let index = offset; index < matched.length; index += 1) {
     const { target: itemTarget, id, selector } = matched[index]; result.items.push({ target: itemTarget, id, selector });
@@ -131,41 +251,6 @@ export function diffControlledContractCarrierContent({ before, after, carrierKin
   }
   for (const [target, ids] of Object.entries(changed)) changed[target] = [...new Set(ids)].sort(); return changed;
 }
-export function applyControlledContractCarrierPatch({ content, carrierKind, operations }) {
-  const targets = CARRIER_TARGETS[carrierKind]; const requestBytes = Buffer.byteLength(JSON.stringify({ carrier_kind: carrierKind, operations }), "utf8");
-  if (!targets || !Array.isArray(operations) || operations.length === 0 || operations.length > 64 || requestBytes > 65536)
-    fail("controlled_contract_patch_request_too_large", "patch must contain 1 to 64 operations within 65,536 UTF-8 bytes", { byte_length: requestBytes });
-  const next = structuredClone(content); const removed = new Map();
-  for (const operation of operations) {
-    if (!operation || typeof operation !== "object" || Array.isArray(operation) || Buffer.byteLength(JSON.stringify(operation), "utf8") > 16384)
-      fail("controlled_contract_patch_operation_too_large", "each patch operation must be a bounded plain object");
-    const allowed = new Set(["op", "target", "id", "value"]); if (Reflect.ownKeys(operation).some((key) => typeof key !== "string" ||
-        !allowed.has(key)) || !["upsert", "remove"].includes(operation.op) || !Object.hasOwn(targets, operation.target))
-      fail("controlled_contract_patch_operation_invalid", "patch operation is not a supported typed domain operation");
-    const rule = targets[operation.target]; const id = operation.id ?? (operation.value === undefined ? null
-      : carrierValueId(operation.target, rule, operation.value));
-    if (typeof id !== "string" || id.length === 0)
-      fail("controlled_contract_patch_identity_invalid", "patch operation requires a returned stable selector");
-    if (rule === "scalar") {
-      if (operation.op === "remove") delete next[operation.target];
-      else { if (id !== operation.target || operation.value === undefined) fail("controlled_contract_patch_value_invalid",
-        "scalar upsert must use its returned selector and a value"); next[operation.target] = structuredClone(operation.value); }
-      continue;
-    }
-    next[operation.target] ??= []; const idOf = (value) => carrierValueId(operation.target, rule, value);
-    const index = next[operation.target].findIndex((value) => idOf(value) === id);
-    const positionKey = `${operation.target}\0${id}`;
-    if (operation.op === "remove") {
-      if (index >= 0) { removed.set(positionKey, index); next[operation.target].splice(index, 1); }
-    } else {
-      if (operation.value === undefined || idOf(operation.value) !== id) fail("controlled_contract_patch_value_invalid",
-        "upsert value must carry the returned stable selector identity");
-      if (index < 0) next[operation.target].splice(removed.get(positionKey) ?? next[operation.target].length, 0, structuredClone(operation.value));
-      else next[operation.target][index] = structuredClone(operation.value);
-    }
-  }
-  return Object.freeze({ content: next });
-}
 function schemaShape(schema, root, depth = 0) {
   if (!schema || depth > 16) return {};
   if (schema.$ref) return schemaShape(root.$defs?.[schema.$ref.split("/").at(-1)], root, depth + 1);
@@ -209,18 +294,72 @@ function minimal(schema, root, depth = 0) {
 }
 export function describeControlledContractAuthoring({ carrierKind, target = null, schemas }) {
   const targets = CARRIER_TARGETS[carrierKind]; if (!targets) fail("controlled_contract_authoring_kind_invalid", "carrier kind has no authoring schema");
+  const root = schemas[carrierKind];
+  const immutable = Object.fromEntries((root.required ?? []).flatMap((field) => {
+    const schema = root.properties?.[field];
+    if (schema?.const !== undefined) return [[field, schema.const]];
+    if (Array.isArray(schema?.enum) && schema.enum.length === 1) return [[field, schema.enum[0]]];
+    return [];
+  }));
   const base = { schema_version: "controlled-contract-authoring-description.v1", carrier_kind: carrierKind,
-    immutable_fields: IMMUTABLE_CARRIER_FIELDS[carrierKind], targets: Object.entries(targets).map(([name, identity_rule]) =>
-      ({ target: name, identity_rule, mutable: true })), authority: "package_backed_non_authoritative" };
-  if (target === null) { if (bytes(base) > AUTHORING_LIMITS.index) fail("controlled_contract_authoring_projection_too_large", "compact authoring description exceeds 4,096 bytes"); return base; }
-  if (!Object.hasOwn(targets, target)) fail("controlled_contract_authoring_target_invalid", "target is not mutable for this carrier kind");
-  const root = schemas[carrierKind]; const source = root.properties[target];
+    immutable_fields: Object.keys(immutable), immutable_values: immutable,
+    targets: Object.entries(targets).map(([name, identity_rule]) =>
+    ({ target: name, identity_rule, mutable: true })), authority: "package_backed_non_authoritative" };
+  if (target === null) {
+    const minimal_valid_template = minimal(root, root);
+    if (carrierKind === "proof_plan_request") {
+      const requestedIntentsSource = root.properties.requested_intents;
+      const requestedIntents = requestedIntentsSource.$ref ? root.$defs[requestedIntentsSource.$ref.split("/").at(-1)] : requestedIntentsSource;
+      minimal_valid_template.requested_intents = [minimal(requestedIntents.items, root)];
+      minimal_valid_template.selected_packs = [minimal(root.properties.selected_packs.items, root)];
+    }
+    const result = {
+      ...base,
+      minimal_valid_template,
+      minimal_valid_template_acceptance: {
+        classification: "structural_only",
+        directly_operation_acceptable: false,
+        addressed_operation: "workspace_controlled_contract_carrier_create"
+      }
+    };
+    if (carrierKind === "contract") {
+      result.authoring_continuation = {
+        tool: "workspace_controlled_test_proof_authoring_describe",
+        arguments: {},
+        recommended: true,
+        reason: "the structural template omits the semantic test-proof bindings required for unchanged carrier creation"
+      };
+    }
+    if (bytes(result) > AUTHORING_LIMITS.index) fail("controlled_contract_authoring_projection_too_large", "compact authoring description exceeds 4,096 bytes");
+    return result;
+  }
+  if (!Object.hasOwn(targets, target)) {
+    const rejectedTarget = typeof target === "string" &&
+      Buffer.byteLength(target, "utf8") <= 128 && /^[a-z0-9_-]+$/u.test(target)
+      ? target
+      : "[bounded-invalid-target]";
+    fail(
+      "controlled_contract_authoring_target_invalid",
+      "target is not mutable for this carrier kind",
+      {
+        carrier_kind: carrierKind,
+        valid_targets: Object.keys(targets),
+        rejected_target: rejectedTarget
+      }
+    );
+  }
+  const source = root.properties[target];
   const resolvedSource = source?.$ref ? root.$defs?.[source.$ref.split("/").at(-1)] : source; const itemSchema = resolvedSource?.items ?? resolvedSource;
   const result = { ...base, selected_target: target,
-    schema_fragment: schemaShape(itemSchema, root), minimal_valid_template: minimal(itemSchema, root) };
+    schema_fragment: schemaShape(itemSchema, root), minimal_valid_template: minimal(itemSchema, root),
+    minimal_valid_template_acceptance: {
+      classification: "structural_only",
+      directly_operation_acceptable: false,
+      addressed_operation: "workspace_controlled_contract_carrier_patch"
+    } };
   if (carrierKind === "proof_plan_request" && target === "selected_packs") {
     result.server_derived_fields = [{ field: "evaluation_input_path",
-      derivation: "canonical evaluation-input carrier basename from wk_id and optional focus",
+      derivation: "canonical evaluation-input carrier basename from wk_id, optional focus, profile_id, and profile_version",
       caller_authored: false }];
   }
   if (bytes(result) > AUTHORING_LIMITS.selected) fail("controlled_contract_authoring_projection_too_large", "target authoring description exceeds 16,384 bytes", { target });
@@ -267,21 +406,47 @@ function detailPage(base, source, { sections = [], selectors = [], cursor = null
   PROJECTION_SPILLS.set(result, spills);
   return result;
 }
+const PROOF_PACK_BOUNDED_SECTIONS = Object.freeze(["requested_intents", "intent_definitions",
+  "intent_distinctions", "explicit_exclusions"]);
+const PROOF_PACK_DETAIL_SECTIONS = Object.freeze(["compatibility", "evaluation_input_skeleton",
+  "role_constraints", "proof_obligations"]);
+
+function boundedProofPackDescription(base, full) {
+  const sections = PROOF_PACK_BOUNDED_SECTIONS.map((section) => ({ section, open: true,
+    values: Array.isArray(full[section]) ? full[section] : [] }));
+  const result = { ...base };
+  for (const { section, values } of sections) {
+    result[`${section}_total`] = values.length; result[`${section}_returned`] = 0;
+    result[`${section}_omitted`] = values.length; result[section] = [];
+  }
+  for (let index = 0; sections.some(({ open, values }) => open && index < values.length); index += 1) {
+    for (const entry of sections) {
+      if (!entry.open || index >= entry.values.length) continue;
+      result[entry.section].push(entry.values[index]);
+      result[`${entry.section}_returned`] += 1; result[`${entry.section}_omitted`] -= 1;
+      if (bytes(result) <= AUTHORING_LIMITS.index) continue;
+      result[entry.section].pop();
+      result[`${entry.section}_returned`] -= 1; result[`${entry.section}_omitted`] += 1;
+      entry.open = false;
+    }
+  }
+  if (bytes(result) > AUTHORING_LIMITS.index) fail("proof_pack_description_too_large",
+    "compact proof-pack description exceeds 4,096 bytes");
+  return result;
+}
 export function compactProofPackDescription(full, options = {}) {
   const base = { schema_version: "controlled-contract-proof-pack-description.v2", profile_id: full.profile_id,
-    profile_version: full.profile_version, requested_intents: full.requested_intents, intent_definitions: full.intent_definitions,
-    intent_distinctions: full.intent_distinctions, guarantee: full.guarantee, explicit_exclusions: full.explicit_exclusions,
+    profile_version: full.profile_version, guarantee: full.guarantee,
     stages: full.evaluation_input_skeleton?.allowed_evaluation_stages ?? [], counts: full.counts, source_digests: full.source_digests,
     projection_digest: full.projection_digest, authority: full.authority,
-    detail_sections: ["compatibility", "evaluation_input_skeleton", "role_constraints", "proof_obligations"] };
-  const targeted = options.sections?.length || options.selectors?.length || options.cursor; if (!targeted) {
-    if (bytes(base) > AUTHORING_LIMITS.index) fail("proof_pack_description_too_large", "compact proof-pack description exceeds 4,096 bytes"); return base; }
+    detail_sections: [...PROOF_PACK_BOUNDED_SECTIONS, ...PROOF_PACK_DETAIL_SECTIONS] };
+  const targeted = options.sections?.length || options.selectors?.length || options.cursor;
+  if (!targeted) return boundedProofPackDescription(base, full);
   return detailPage(base, full, options, full.projection_digest);
 }
 export function bindingInspectionCursorPosition(cursor) {
   if (cursor === null || cursor === undefined) return 0;
-  let value; try { value = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8")); }
-  catch { fail("controlled_contract_query_cursor_invalid", "continuation cursor is malformed"); }
+  const value = decodeCanonicalCursorValue(cursor);
   if (!Number.isSafeInteger(value?.offset) || value.offset < 0)
     fail("controlled_contract_query_cursor_invalid", "continuation cursor offset is invalid");
   return value.offset;

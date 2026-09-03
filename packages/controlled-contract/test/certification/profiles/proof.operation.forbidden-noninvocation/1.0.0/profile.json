@@ -1,0 +1,169 @@
+{
+  "schema_version": "controlled-contract-verification-profile.experimental.v0.2",
+  "profile_id": "proof.operation.forbidden-noninvocation",
+  "profile_version": "1.0.0",
+  "contract_schema_version": "controlled-acceptance-contract.experimental.v0.2",
+  "vocabulary_version": "cv.experimental.0.34",
+  "vocabulary_signature_digest": "5bb8257d89877737007ebf38c77d269bce3d1dc823bbf1bffa7f7122e4a7c55c",
+  "vocabulary_algebra_digest": "2653922ce964cffa0836844685c189b872bdacab61ff7efb4ed47fb20b3fdd06",
+  "vocabulary_definitions_digest": "bdf62efd8e3d0bcbae9e670ed666ad8512d2a945f240ed3b2139379667b1d799",
+  "vocabulary_complete_digest": "6d3bf713dd28cd94f605a7a9e3d997ad8745f990418c4a91def60504af25bd7c",
+  "evaluation_stages": ["pre_dispatch"],
+  "verification_falsifier_policy": "controlled_complement_per_target",
+  "reference_roles": [
+    {
+      "role": "subject_operation",
+      "allowed_type_terms": ["cc:operation", "cc:process", "cc:runtime_component"],
+      "allowed_identity_kinds": ["code_symbol", "durable_id", "repository_path", "runtime_parameter"],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "execution_context",
+      "allowed_type_terms": ["cc:authority", "cc:configuration", "cc:scope", "cc:state"],
+      "allowed_identity_kinds": ["code_symbol", "durable_id", "profile_term", "repository_path", "runtime_parameter"],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "forbidden_operation_population",
+      "allowed_type_terms": ["cc:population"],
+      "allowed_identity_kinds": ["durable_id", "profile_term", "repository_path", "runtime_parameter"],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "forbidden_operations",
+      "allowed_type_terms": ["cc:operation", "cc:process", "cc:runtime_component"],
+      "allowed_identity_kinds": ["code_symbol", "durable_id", "repository_path", "runtime_parameter"],
+      "cardinality": "one_or_more"
+    },
+    {
+      "role": "verification",
+      "allowed_type_terms": ["cc:test", "cc:process"],
+      "allowed_identity_kinds": ["code_symbol", "durable_id", "repository_path"],
+      "cardinality": "exactly_one"
+    }
+  ],
+  "number_roles": [],
+  "distinct_reference_role_sets": [
+    {
+      "roles": [
+        "subject_operation",
+        "execution_context",
+        "forbidden_operation_population",
+        "verification"
+      ]
+    }
+  ],
+  "reference_binding_patterns": [
+    {
+      "pattern_id": "complete-forbidden-operation-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": ["forbidden_operation_population", "forbidden_operations"],
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": ["execution_context"]
+      }
+    }
+  ],
+  "reference_role_count_bindings": [],
+  "claim_patterns": [
+    {
+      "pattern_id": "subject-does-not-use-forbidden-operations",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": ["MUST_NOT"],
+      "proposition_template": {
+        "subject_role": "subject_operation",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": ["execution_context"]
+        },
+        "operands": [
+          {"kind": "reference", "role": "forbidden_operations"}
+        ]
+      }
+    },
+    {
+      "pattern_id": "verification-observes-exact-noninvocation-subjects",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": ["MUST"],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {"kind": "reference", "role": "subject_operation"},
+          {"kind": "reference", "role": "execution_context"},
+          {"kind": "reference", "role": "forbidden_operation_population"},
+          {"kind": "reference", "role": "forbidden_operations"}
+        ]
+      }
+    },
+    {
+      "pattern_id": "verify-forbidden-operation-noninvocation",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": ["MUST"],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {"kind": "reference", "role": "subject_operation"},
+          {"kind": "reference", "role": "execution_context"},
+          {"kind": "reference", "role": "forbidden_operation_population"}
+        ]
+      },
+      "verification_methods": ["analysis", "demonstration", "proof", "test_execution"],
+      "falsifying_proposition_template": {
+        "subject_role": "subject_operation",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": ["execution_context"]
+        },
+        "operands": [
+          {"kind": "reference", "role": "forbidden_operations"}
+        ]
+      }
+    }
+  ],
+  "relation_patterns": [
+    {
+      "pattern_id": "verification-targets-forbidden-operation-noninvocation",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "verify-forbidden-operation-noninvocation",
+      "target_claim_pattern_id": "subject-does-not-use-forbidden-operations"
+    }
+  ],
+  "collection_patterns": [],
+  "resolver_fact_patterns": [],
+  "evidence_patterns": [],
+  "falsifier_condition_bindings": [
+    {
+      "relation_pattern_id": "verification-targets-forbidden-operation-noninvocation",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": ["execution_context"]
+      }
+    }
+  ],
+  "satisfaction_expression": {
+    "all_of": [
+      {"pattern": "complete-forbidden-operation-population"},
+      {"pattern": "subject-does-not-use-forbidden-operations"},
+      {"pattern": "verification-observes-exact-noninvocation-subjects"},
+      {"pattern": "verify-forbidden-operation-noninvocation"},
+      {"pattern": "verification-targets-forbidden-operation-noninvocation"}
+    ]
+  }
+}

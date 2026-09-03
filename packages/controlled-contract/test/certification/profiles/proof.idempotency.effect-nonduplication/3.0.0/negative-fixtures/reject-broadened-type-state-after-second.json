@@ -1,0 +1,732 @@
+{
+  "schema_version": "controlled-contract-proof-pack-negative-fixture.experimental.v0.1",
+  "fixture_id": "reject-broadened-type-state-after-second",
+  "covers": [
+    {
+      "surface_id": "role-state-after-second-types",
+      "weakening_class": "type_broadening"
+    }
+  ],
+  "contract": {
+    "schema_version": "controlled-acceptance-contract.v1",
+    "vocabulary_version": "controlled-contract-vocabulary.v1",
+    "profile_id": "acceptance-contract.standard.v1",
+    "references": [
+      {
+        "reference_id": "ref-operation",
+        "type_term": "cc:operation",
+        "identity": {
+          "kind": "profile_term",
+          "term": "fixed-negative:operation"
+        }
+      },
+      {
+        "reference_id": "ref-first-invocation",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "profile_term",
+          "term": "fixed-negative:first-invocation"
+        }
+      },
+      {
+        "reference_id": "ref-second-invocation",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "profile_term",
+          "term": "fixed-negative:second-invocation"
+        }
+      },
+      {
+        "reference_id": "ref-first-input",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "profile_term",
+          "term": "fixed-negative:first-input"
+        }
+      },
+      {
+        "reference_id": "ref-effect-subject",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "fixed-negative:effect-subject"
+        }
+      },
+      {
+        "reference_id": "ref-state-after-first",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "profile_term",
+          "term": "fixed-negative:state-after-first"
+        }
+      },
+      {
+        "reference_id": "ref-state-before-second",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "profile_term",
+          "term": "fixed-negative:state-before-second"
+        }
+      },
+      {
+        "reference_id": "ref-state-after-second",
+        "type_term": "cc:entity",
+        "identity": {
+          "kind": "profile_term",
+          "term": "fixed-negative:state-after-second"
+        }
+      },
+      {
+        "reference_id": "ref-observation-after-first",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "profile_term",
+          "term": "fixed-negative:observation-after-first"
+        }
+      },
+      {
+        "reference_id": "ref-observation-before-second",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "profile_term",
+          "term": "fixed-negative:observation-before-second"
+        }
+      },
+      {
+        "reference_id": "ref-observation-after-second",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "profile_term",
+          "term": "fixed-negative:observation-after-second"
+        }
+      },
+      {
+        "reference_id": "ref-verification",
+        "type_term": "cc:process",
+        "identity": {
+          "kind": "profile_term",
+          "term": "fixed-negative:verification"
+        }
+      },
+      {
+        "reference_id": "ref-intervening-reset-condition",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "profile_term",
+          "term": "fixed-negative:intervening-reset-condition"
+        }
+      },
+      {
+        "reference_id": "ref-duplicate-effect-condition",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "profile_term",
+          "term": "fixed-negative:duplicate-effect-condition"
+        }
+      }
+    ],
+    "propositions": [
+      {
+        "proposition_id": "prop-operation-effect-resource",
+        "subject_reference_id": "ref-operation",
+        "operator": "reference:writes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-effect-subject"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-idempotent-effect",
+        "subject_reference_id": "ref-state-after-second",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-second-invocation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-state-after-first"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-first-invocation",
+        "subject_reference_id": "ref-first-invocation",
+        "operator": "reference:performs",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-operation"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-first-input",
+        "subject_reference_id": "ref-first-invocation",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-first-input"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-first-effect-state",
+        "subject_reference_id": "ref-effect-subject",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-first-invocation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-state-after-first"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-first-observation-record",
+        "subject_reference_id": "ref-observation-after-first",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-first-invocation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-state-after-first"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-first-observation",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-first-invocation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-observation-after-first"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-pre-second-effect-state",
+        "subject_reference_id": "ref-effect-subject",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "before",
+          "operand_reference_ids": [
+            "ref-second-invocation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-state-before-second"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-pre-second-observation-record",
+        "subject_reference_id": "ref-observation-before-second",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "before",
+          "operand_reference_ids": [
+            "ref-second-invocation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-state-before-second"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-pre-second-observation",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "before",
+          "operand_reference_ids": [
+            "ref-second-invocation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-observation-before-second"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-pre-second-state-equality",
+        "subject_reference_id": "ref-state-before-second",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "before",
+          "operand_reference_ids": [
+            "ref-second-invocation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-state-after-first"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-second-invocation",
+        "subject_reference_id": "ref-second-invocation",
+        "operator": "reference:performs",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-first-invocation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-operation"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-second-input",
+        "subject_reference_id": "ref-second-invocation",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-first-invocation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-first-input"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-second-effect-state",
+        "subject_reference_id": "ref-effect-subject",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-second-invocation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-state-after-second"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-second-observation-record",
+        "subject_reference_id": "ref-observation-after-second",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-second-invocation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-state-after-second"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-second-observation",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-second-invocation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-observation-after-second"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-idempotency-equivalence-verification",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-operation"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-idempotency-equivalence-verification",
+        "subject_reference_id": "ref-state-after-second",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-duplicate-effect-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-state-after-first"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-pre-second-equality-verification",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-effect-subject"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-pre-second-equality-verification",
+        "subject_reference_id": "ref-state-before-second",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-intervening-reset-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-state-after-first"
+          }
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "claim_id": "claim-operation-effect-resource",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-operation-effect-resource"
+      },
+      {
+        "claim_id": "claim-idempotent-effect",
+        "kind": "behavior",
+        "modality": "MUST",
+        "proposition_id": "prop-idempotent-effect"
+      },
+      {
+        "claim_id": "claim-first-invocation",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-first-invocation"
+      },
+      {
+        "claim_id": "claim-first-input",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-first-input"
+      },
+      {
+        "claim_id": "claim-first-effect-state",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-first-effect-state"
+      },
+      {
+        "claim_id": "claim-first-observation-record",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-first-observation-record"
+      },
+      {
+        "claim_id": "claim-first-observation",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-first-observation"
+      },
+      {
+        "claim_id": "claim-pre-second-effect-state",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-pre-second-effect-state"
+      },
+      {
+        "claim_id": "claim-pre-second-observation-record",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-pre-second-observation-record"
+      },
+      {
+        "claim_id": "claim-pre-second-observation",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-pre-second-observation"
+      },
+      {
+        "claim_id": "claim-pre-second-state-equality",
+        "kind": "behavior",
+        "modality": "MUST",
+        "proposition_id": "prop-pre-second-state-equality"
+      },
+      {
+        "claim_id": "claim-second-invocation",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-second-invocation"
+      },
+      {
+        "claim_id": "claim-second-input",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-second-input"
+      },
+      {
+        "claim_id": "claim-second-effect-state",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-second-effect-state"
+      },
+      {
+        "claim_id": "claim-second-observation-record",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-second-observation-record"
+      },
+      {
+        "claim_id": "claim-second-observation",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-second-observation"
+      },
+      {
+        "claim_id": "claim-idempotency-equivalence-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-idempotency-equivalence-verification",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-idempotency-equivalence-verification"
+      },
+      {
+        "claim_id": "claim-pre-second-equality-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-pre-second-equality-verification",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-pre-second-equality-verification"
+      }
+    ],
+    "relations": [
+      {
+        "relation_id": "rel-verification-target-equivalence",
+        "role": "verifies",
+        "source_claim_id": "claim-idempotency-equivalence-verification",
+        "target_claim_id": "claim-idempotent-effect"
+      },
+      {
+        "relation_id": "rel-verification-target-pre-second-equality",
+        "role": "verifies",
+        "source_claim_id": "claim-pre-second-equality-verification",
+        "target_claim_id": "claim-pre-second-state-equality"
+      }
+    ],
+    "collections": [
+      {
+        "collection_id": "set-proof-sequence",
+        "collection_kind": "ordered_sequence",
+        "purpose": "profile_proof_sequence",
+        "member_claim_ids": [
+          "claim-first-invocation",
+          "claim-first-effect-state",
+          "claim-first-observation-record",
+          "claim-first-observation",
+          "claim-pre-second-effect-state",
+          "claim-pre-second-observation-record",
+          "claim-pre-second-observation",
+          "claim-second-invocation",
+          "claim-second-effect-state",
+          "claim-second-observation-record",
+          "claim-second-observation"
+        ]
+      },
+      {
+        "collection_id": "set-proof-population",
+        "collection_kind": "closed_set",
+        "purpose": "profile_proof_population",
+        "member_claim_ids": [
+          "claim-first-invocation",
+          "claim-first-effect-state",
+          "claim-first-observation-record",
+          "claim-first-observation",
+          "claim-pre-second-effect-state",
+          "claim-pre-second-observation-record",
+          "claim-pre-second-observation",
+          "claim-second-invocation",
+          "claim-second-effect-state",
+          "claim-second-observation-record",
+          "claim-second-observation"
+        ]
+      }
+    ],
+    "residue": [],
+    "annotations": [],
+    "test_proof_version": "controlled-contract-test-proof.v1",
+    "test_proofs": []
+  },
+  "evaluation_input": {
+    "input_version": "controlled-contract-verification-profile-input.v1",
+    "evaluation_stage": "pre_dispatch",
+    "reference_bindings": [
+      {
+        "role": "operation",
+        "reference_ids": [
+          "ref-operation"
+        ]
+      },
+      {
+        "role": "first_invocation",
+        "reference_ids": [
+          "ref-first-invocation"
+        ]
+      },
+      {
+        "role": "second_invocation",
+        "reference_ids": [
+          "ref-second-invocation"
+        ]
+      },
+      {
+        "role": "first_input",
+        "reference_ids": [
+          "ref-first-input"
+        ]
+      },
+      {
+        "role": "second_input",
+        "reference_ids": [
+          "ref-first-input"
+        ]
+      },
+      {
+        "role": "effect_subject",
+        "reference_ids": [
+          "ref-effect-subject"
+        ]
+      },
+      {
+        "role": "state_after_first",
+        "reference_ids": [
+          "ref-state-after-first"
+        ]
+      },
+      {
+        "role": "state_before_second",
+        "reference_ids": [
+          "ref-state-before-second"
+        ]
+      },
+      {
+        "role": "state_after_second",
+        "reference_ids": [
+          "ref-state-after-second"
+        ]
+      },
+      {
+        "role": "observation_after_first",
+        "reference_ids": [
+          "ref-observation-after-first"
+        ]
+      },
+      {
+        "role": "observation_before_second",
+        "reference_ids": [
+          "ref-observation-before-second"
+        ]
+      },
+      {
+        "role": "observation_after_second",
+        "reference_ids": [
+          "ref-observation-after-second"
+        ]
+      },
+      {
+        "role": "verification",
+        "reference_ids": [
+          "ref-verification"
+        ]
+      },
+      {
+        "role": "intervening_reset_condition",
+        "reference_ids": [
+          "ref-intervening-reset-condition"
+        ]
+      },
+      {
+        "role": "duplicate_effect_condition",
+        "reference_ids": [
+          "ref-duplicate-effect-condition"
+        ]
+      }
+    ],
+    "number_bindings": [],
+    "claim_pattern_bindings": [],
+    "resolver_facts": [],
+    "delivered_evidence": [],
+    "stable_evaluation": {}
+  }
+}

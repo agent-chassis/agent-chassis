@@ -1,0 +1,129 @@
+{
+  "schema_version": "authoring-ergonomics-trace.v1",
+  "trace_id": "FIXTURE-C-cross-focus-public-consumer",
+  "source": {
+    "source_kind": "abstract_counterexample",
+    "source_locator": "fixture://authoring-ergonomics/cross-focus-public-consumer",
+    "source_digest": null,
+    "source_ordinal": 0
+  },
+  "observed_identities": {
+    "repository": "REPO-GAMMA",
+    "records": ["UNIT-C"],
+    "focus": "FOCUS-GAMMA"
+  },
+  "workload_fixture": null,
+  "workflows": [{ "workflow_token": "WF-C1", "source_ordinal": 0 }],
+  "coverage": {
+    "declarations": [
+      {
+        "workload": "abstract-public-consumer",
+        "event_families": [
+          "authoritative_ref_observation",
+          "public_read_observation",
+          "public_query_observation"
+        ],
+        "population_class": "normal_and_failure",
+        "normal_success_population_complete": true
+      },
+      {
+        "workload": "abstract-public-consumer",
+        "event_families": ["persistence_receipt"],
+        "population_class": "unknown",
+        "normal_success_population_complete": null
+      }
+    ]
+  },
+  "events": [
+    {
+      "event_index": 0,
+      "event_kind": "authoritative_ref_observation",
+      "actor_kind": "authority",
+      "workflow_token": "WF-C1",
+      "target_identity": { "target_kind": "carrier_set", "target_id": "CS-C" },
+      "authoritative_input_identity": {
+        "identity_kind": "authoritative_ref_snapshot",
+        "identity_value": "UNIT-C@tip-1",
+        "descriptor_digest": "sha256:manifest-current"
+      },
+      "carrier_observation": {
+        "carrier_id": "CS-C",
+        "lifecycle_stage": "wk_ref",
+        "presence": "present",
+        "content_identity": "sha256:manifest-current",
+        "selection_fence": null
+      },
+      "provenance_note": "the same-WK manifest generation confirmed on the authoritative ref"
+    },
+    {
+      "event_index": 1,
+      "event_kind": "public_read_observation",
+      "actor_kind": "consumer",
+      "workflow_token": "WF-C1",
+      "producer_boundary": {
+        "boundary_kind": "public_ingress",
+        "boundary_id": "public.contract_artifact_ingress",
+        "producer_family": "public_selection"
+      },
+      "target_identity": { "target_kind": "carrier_set", "target_id": "CS-C" },
+      "authoritative_input_identity": {
+        "identity_kind": "public_selection_fence",
+        "identity_value": "MANIFEST-C",
+        "descriptor_digest": "sha256:manifest-current"
+      },
+      "carrier_observation": {
+        "carrier_id": "CS-C",
+        "lifecycle_stage": "public_selection",
+        "presence": "present",
+        "content_identity": "sha256:legacy-cross-focus",
+        "selection_fence": "MANIFEST-C"
+      },
+      "provenance_note": "read behind the manifest fence returned divergent legacy cross-focus bytes"
+    },
+    {
+      "event_index": 2,
+      "event_kind": "public_query_observation",
+      "actor_kind": "consumer",
+      "workflow_token": "WF-C1",
+      "producer_boundary": {
+        "boundary_kind": "public_ingress",
+        "boundary_id": "public.contract_artifact_ingress",
+        "producer_family": "public_selection"
+      },
+      "target_identity": { "target_kind": "carrier_set", "target_id": "CS-C" },
+      "authoritative_input_identity": {
+        "identity_kind": "public_selection_fence",
+        "identity_value": "MANIFEST-C",
+        "descriptor_digest": "sha256:manifest-current"
+      },
+      "carrier_observation": {
+        "carrier_id": "CS-C",
+        "lifecycle_stage": "public_selection",
+        "presence": "present",
+        "content_identity": "sha256:legacy-cross-focus",
+        "selection_fence": "MANIFEST-C"
+      },
+      "provenance_note": "query behind the same fence returned the same divergent legacy bytes"
+    },
+    {
+      "event_index": 3,
+      "event_kind": "public_read_observation",
+      "actor_kind": "consumer",
+      "workflow_token": "WF-C1",
+      "producer_boundary": {
+        "boundary_kind": "public_ingress",
+        "boundary_id": "public.contract_artifact_ingress",
+        "producer_family": "public_selection"
+      },
+      "target_identity": { "target_kind": "carrier_set", "target_id": "CS-C-SIBLING" },
+      "carrier_observation": {
+        "carrier_id": "CS-C-SIBLING",
+        "lifecycle_stage": "public_selection",
+        "presence": "unresolved",
+        "content_identity": null,
+        "selection_fence": "MANIFEST-C"
+      },
+      "provenance_note": "unresolved selection stays unknown: not a loss and not a divergence"
+    }
+  ]
+}

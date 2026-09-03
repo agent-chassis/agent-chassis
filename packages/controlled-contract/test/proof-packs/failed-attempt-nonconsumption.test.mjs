@@ -22,16 +22,16 @@ import {
   implementationPassed
 } from "./failed-attempt-nonconsumption-harness.mjs";
 import {
-  evaluateVerificationProfileV034,
-  validateProfileSemanticsV034
-} from "../../lib/verification-profile-v034.mjs";
+  evaluateStableProofPackFixtureV1,
+  validateProfileSemanticsV1
+} from "../support/stable-v1-proof-pack-runtime.mjs";
 
 const controlledContractRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)), ".."
 );
 const packDirectory = path.join(
   controlledContractRoot,
-  "certification/profiles/proof.authorization.failed-attempt-nonconsumption/1.0.0"
+  "certification/profiles/proof.authorization.failed-attempt-nonconsumption/2.0.0"
 );
 
 async function readJson(name) {
@@ -94,7 +94,9 @@ test("failed-attempt nonconsumption binds and passes all executable controls", a
   assert.equal(adequacy.profile_digest, profileDigest(profile));
   assert.equal(adequacy.guarantee_digest, guaranteeDigest(adequacy.guarantee));
 
-  const result = await runProofPackAdequacy(packDirectory);
+  const result = await runProofPackAdequacy(packDirectory, {
+    variationMode: "full_census"
+  });
   assert.equal(result.passed, true);
   assert.equal(result.control_count, 59);
   assert.equal(result.negative_fixture_count, 87);
@@ -131,7 +133,7 @@ test("aggregate role expansion rejects an operator-cardinality broadening", asyn
   profile.reference_roles.find(({ role }) =>
     role === "authority_state_before"
   ).cardinality = "one_or_more";
-  assert.ok(validateProfileSemanticsV034(profile).some(
+  assert.ok(validateProfileSemanticsV1(profile).some(
     ({ code, pattern_id: patternId, position }) =>
       code === "profile_operator_position_cardinality_incompatible" &&
       patternId === "authority-state-before-failed-attempt" &&
@@ -142,7 +144,7 @@ test("aggregate role expansion rejects an operator-cardinality broadening", asyn
 test("failed-attempt nonconsumption is satisfied across three authority domains", () => {
   for (const domain of ["capability_channel", "tenant_lease", "queue_permit"]) {
     const fixture = buildFailedAttemptNonconsumptionFixture({ domain });
-    const result = evaluateVerificationProfileV034({
+    const result = evaluateStableProofPackFixtureV1({
       contract: fixture.contract,
       profile: fixture.profile,
       evaluation_input: fixture.input

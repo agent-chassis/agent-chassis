@@ -1,0 +1,1613 @@
+{
+  "schema_version": "controlled-contract-verification-profile.v1",
+  "profile_id": "proof.failure.retry-convergence",
+  "profile_version": "2.0.0",
+  "contract_schema_version": "controlled-acceptance-contract.v1",
+  "vocabulary_version": "controlled-contract-vocabulary.v1",
+  "vocabulary_signature_digest": "596a4c44d98aed1d31dd9ab3842fc054be6f8ffa3d62a3867a3966e75ecab742",
+  "vocabulary_algebra_digest": "0fbea1e7377baeef1869cbc55dc588ef5509ed40c768ce2a3c4f58be1133cf9c",
+  "vocabulary_definitions_digest": "bb3d2a63cb6fc8c62b9bc36d29d07549dea6ad85e32badb0cbb3cacfd6ad4759",
+  "vocabulary_complete_digest": "45484504f06968c6b4ac812c24b9f1b6e47e1d34ba21fefebde8dd85d1290fa9",
+  "evaluation_stages": [
+    "pre_dispatch"
+  ],
+  "verification_falsifier_policy": "controlled_complement_per_target",
+  "reference_roles": [
+    {
+      "role": "operation",
+      "allowed_type_terms": [
+        "cc:operation"
+      ],
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "input",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:configuration",
+        "cc:entity",
+        "cc:resource"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "attempt_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "attempts",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "one_or_more"
+    },
+    {
+      "role": "failed_attempt",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "failure_event",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "cleanup_event",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "settlement_event",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "residue_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "residue_members",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:entity",
+        "cc:resource"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "residue_observation",
+      "allowed_type_terms": [
+        "cc:evidence"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "residue_count_signal",
+      "allowed_type_terms": [
+        "cc:evidence"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "retry_attempt",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "success_event",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "effect_resource",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:resource"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "final_effect_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "final_effect_members",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "one_or_more"
+    },
+    {
+      "role": "final_effect",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "effect_count_signal",
+      "allowed_type_terms": [
+        "cc:evidence"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "final_state_observation",
+      "allowed_type_terms": [
+        "cc:evidence"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "final_state",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "expected_state",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "verification",
+      "allowed_type_terms": [
+        "cc:process",
+        "cc:test"
+      ],
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "durable_id",
+        "repository_path"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "failed_accepted_condition",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "residue_survives_condition",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "retry_rejected_condition",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "failed_effect_condition",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "non_single_effect_condition",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "wrong_final_state_condition",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    }
+  ],
+  "number_roles": [
+    {
+      "role": "attempt_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 2,
+      "maximum": 2
+    },
+    {
+      "role": "residue_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 0,
+      "maximum": 0
+    },
+    {
+      "role": "effect_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 1,
+      "maximum": 1
+    }
+  ],
+  "distinct_reference_role_sets": [
+    {
+      "roles": [
+        "failed_attempt",
+        "retry_attempt"
+      ]
+    },
+    {
+      "roles": [
+        "failure_event",
+        "cleanup_event",
+        "settlement_event",
+        "success_event"
+      ]
+    },
+    {
+      "roles": [
+        "failed_accepted_condition",
+        "residue_survives_condition",
+        "retry_rejected_condition",
+        "failed_effect_condition",
+        "non_single_effect_condition",
+        "wrong_final_state_condition"
+      ]
+    }
+  ],
+  "reference_binding_patterns": [
+    {
+      "pattern_id": "complete-attempt-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "attempt_population",
+        "attempts"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    },
+    {
+      "pattern_id": "complete-residue-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "residue_population",
+        "residue_members"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    },
+    {
+      "pattern_id": "complete-final-effect-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "final_effect_population",
+        "final_effect_members"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    }
+  ],
+  "reference_role_count_bindings": [
+    {
+      "reference_role": "attempts",
+      "number_role": "attempt_count"
+    },
+    {
+      "reference_role": "residue_members",
+      "number_role": "residue_count"
+    },
+    {
+      "reference_role": "final_effect_members",
+      "number_role": "effect_count"
+    }
+  ],
+  "claim_patterns": [
+    {
+      "pattern_id": "operation-writes-resource",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "operation",
+        "operator": "reference:writes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "effect_resource"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "failed-attempt-member",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "failed_attempt",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "attempt_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "retry-attempt-member",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "retry_attempt",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "attempt_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "failed-attempt-performs-operation",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "failed_attempt",
+        "operator": "reference:performs",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "operation"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "retry-performs-operation",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "retry_attempt",
+        "operator": "reference:performs",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "operation"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "failed-attempt-uses-input",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "failed_attempt",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "input"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "retry-uses-same-input",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "retry_attempt",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "input"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "failed-attempt-precedes-failure",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "failed_attempt",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "failure_event"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "failure-rejects-attempt",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "failure_event",
+        "operator": "reference:rejects",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "failed_attempt"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "failed-attempt-not-accepted",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST_NOT"
+      ],
+      "proposition_template": {
+        "subject_role": "failure_event",
+        "operator": "reference:accepts",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "failed_attempt"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "failure-precedes-cleanup",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "failure_event",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "cleanup_event"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "cleanup-targets-residue",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "cleanup_event",
+        "operator": "reference:targets",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "residue_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "cleanup-precedes-settlement",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "cleanup_event",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "settlement_event"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "settlement-precedes-residue-observation",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "settlement_event",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "residue_observation"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "residue-observation-records-population",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "residue_observation",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "residue_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "residue-empty-after-settlement",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "residue_count_signal",
+        "operator": "number:equals",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value_role": "residue_count"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "settlement-precedes-retry",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "settlement_event",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "retry_attempt"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "retry-precedes-success",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "retry_attempt",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "success_event"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "success-accepts-retry",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "success_event",
+        "operator": "reference:accepts",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "retry_attempt"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "retry-not-rejected",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST_NOT"
+      ],
+      "proposition_template": {
+        "subject_role": "success_event",
+        "operator": "reference:rejects",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "retry_attempt"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "retry-creates-final-effect",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "retry_attempt",
+        "operator": "reference:creates",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "final_effect"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "final-effect-member",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "final_effect",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "final_effect_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "failed-attempt-no-final-effect",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST_NOT"
+      ],
+      "proposition_template": {
+        "subject_role": "failed_attempt",
+        "operator": "reference:creates",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "final_effect"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "final-effect-count-exactly-one",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "effect_count_signal",
+        "operator": "number:equals",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value_role": "effect_count"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "success-precedes-final-observation",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "success_event",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "final_state_observation"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "final-observation-reads-resource",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "final_state_observation",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "effect_resource"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "final-observation-records-state",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "final_state_observation",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "final_state"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "final-state-equals-expected",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "final_state",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "expected_state"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "verification-reads-spine",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "failed_attempt"
+          },
+          {
+            "kind": "reference",
+            "role": "failure_event"
+          },
+          {
+            "kind": "reference",
+            "role": "cleanup_event"
+          },
+          {
+            "kind": "reference",
+            "role": "settlement_event"
+          },
+          {
+            "kind": "reference",
+            "role": "residue_population"
+          },
+          {
+            "kind": "reference",
+            "role": "retry_attempt"
+          },
+          {
+            "kind": "reference",
+            "role": "success_event"
+          },
+          {
+            "kind": "reference",
+            "role": "final_effect_population"
+          },
+          {
+            "kind": "reference",
+            "role": "final_state"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "verify-failed-refusal",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "failure_event"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "failure_event",
+        "operator": "reference:accepts",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "failed_accepted_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "failed_attempt"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "verify-empty-residue",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "residue_count_signal"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "residue_count_signal",
+        "operator": "number:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "residue_survives_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value_role": "residue_count"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "verify-retry-success",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "success_event"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "success_event",
+        "operator": "reference:rejects",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "retry_rejected_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "retry_attempt"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "verify-failed-no-effect",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "failed_attempt"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "failed_attempt",
+        "operator": "reference:creates",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "failed_effect_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "final_effect"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "verify-final-effect-count",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "effect_count_signal"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "effect_count_signal",
+        "operator": "number:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "non_single_effect_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value_role": "effect_count"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "verify-final-state",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "final_state"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "final_state",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "wrong_final_state_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "expected_state"
+          }
+        ]
+      }
+    }
+  ],
+  "relation_patterns": [
+    {
+      "pattern_id": "verification-target-failed-refusal",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "verify-failed-refusal",
+      "target_claim_pattern_id": "failed-attempt-not-accepted"
+    },
+    {
+      "pattern_id": "verification-target-empty-residue",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "verify-empty-residue",
+      "target_claim_pattern_id": "residue-empty-after-settlement"
+    },
+    {
+      "pattern_id": "verification-target-retry-success",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "verify-retry-success",
+      "target_claim_pattern_id": "retry-not-rejected"
+    },
+    {
+      "pattern_id": "verification-target-failed-no-effect",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "verify-failed-no-effect",
+      "target_claim_pattern_id": "failed-attempt-no-final-effect"
+    },
+    {
+      "pattern_id": "verification-target-final-effect-count",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "verify-final-effect-count",
+      "target_claim_pattern_id": "final-effect-count-exactly-one"
+    },
+    {
+      "pattern_id": "verification-target-final-state",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "verify-final-state",
+      "target_claim_pattern_id": "final-state-equals-expected"
+    }
+  ],
+  "collection_patterns": [],
+  "resolver_fact_patterns": [],
+  "evidence_patterns": [],
+  "falsifier_condition_bindings": [
+    {
+      "relation_pattern_id": "verification-target-failed-refusal",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "failed_accepted_condition"
+        ]
+      }
+    },
+    {
+      "relation_pattern_id": "verification-target-empty-residue",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "residue_survives_condition"
+        ]
+      }
+    },
+    {
+      "relation_pattern_id": "verification-target-retry-success",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "retry_rejected_condition"
+        ]
+      }
+    },
+    {
+      "relation_pattern_id": "verification-target-failed-no-effect",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "failed_effect_condition"
+        ]
+      }
+    },
+    {
+      "relation_pattern_id": "verification-target-final-effect-count",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "non_single_effect_condition"
+        ]
+      }
+    },
+    {
+      "relation_pattern_id": "verification-target-final-state",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "wrong_final_state_condition"
+        ]
+      }
+    }
+  ],
+  "satisfaction_expression": {
+    "all_of": [
+      {
+        "pattern": "complete-attempt-population"
+      },
+      {
+        "pattern": "complete-residue-population"
+      },
+      {
+        "pattern": "complete-final-effect-population"
+      },
+      {
+        "pattern": "operation-writes-resource"
+      },
+      {
+        "pattern": "failed-attempt-member"
+      },
+      {
+        "pattern": "retry-attempt-member"
+      },
+      {
+        "pattern": "failed-attempt-performs-operation"
+      },
+      {
+        "pattern": "retry-performs-operation"
+      },
+      {
+        "pattern": "failed-attempt-uses-input"
+      },
+      {
+        "pattern": "retry-uses-same-input"
+      },
+      {
+        "pattern": "failed-attempt-precedes-failure"
+      },
+      {
+        "pattern": "failure-rejects-attempt"
+      },
+      {
+        "pattern": "failed-attempt-not-accepted"
+      },
+      {
+        "pattern": "failure-precedes-cleanup"
+      },
+      {
+        "pattern": "cleanup-targets-residue"
+      },
+      {
+        "pattern": "cleanup-precedes-settlement"
+      },
+      {
+        "pattern": "settlement-precedes-residue-observation"
+      },
+      {
+        "pattern": "residue-observation-records-population"
+      },
+      {
+        "pattern": "residue-empty-after-settlement"
+      },
+      {
+        "pattern": "settlement-precedes-retry"
+      },
+      {
+        "pattern": "retry-precedes-success"
+      },
+      {
+        "pattern": "success-accepts-retry"
+      },
+      {
+        "pattern": "retry-not-rejected"
+      },
+      {
+        "pattern": "retry-creates-final-effect"
+      },
+      {
+        "pattern": "final-effect-member"
+      },
+      {
+        "pattern": "failed-attempt-no-final-effect"
+      },
+      {
+        "pattern": "final-effect-count-exactly-one"
+      },
+      {
+        "pattern": "success-precedes-final-observation"
+      },
+      {
+        "pattern": "final-observation-reads-resource"
+      },
+      {
+        "pattern": "final-observation-records-state"
+      },
+      {
+        "pattern": "final-state-equals-expected"
+      },
+      {
+        "pattern": "verification-reads-spine"
+      },
+      {
+        "pattern": "verify-failed-refusal"
+      },
+      {
+        "pattern": "verify-empty-residue"
+      },
+      {
+        "pattern": "verify-retry-success"
+      },
+      {
+        "pattern": "verify-failed-no-effect"
+      },
+      {
+        "pattern": "verify-final-effect-count"
+      },
+      {
+        "pattern": "verify-final-state"
+      },
+      {
+        "pattern": "verification-target-failed-refusal"
+      },
+      {
+        "pattern": "verification-target-empty-residue"
+      },
+      {
+        "pattern": "verification-target-retry-success"
+      },
+      {
+        "pattern": "verification-target-failed-no-effect"
+      },
+      {
+        "pattern": "verification-target-final-effect-count"
+      },
+      {
+        "pattern": "verification-target-final-state"
+      }
+    ]
+  }
+}

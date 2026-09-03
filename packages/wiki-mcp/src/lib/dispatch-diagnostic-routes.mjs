@@ -9,6 +9,7 @@ import {
   loadRuntimeBlockerTaxonomy
 } from "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
 import {
+  authenticateCoordinationPreflightOwnerFacts,
   runCoordinationPreflight
 } from "@agent-chassis/wiki-core/src/lib/coordination-preflight.mjs";
 
@@ -26,6 +27,14 @@ import {
   STDIO_MCP_CONDUIT_COMPOSITION_FACT_SOURCE,
   buildManagedStdioMcpCompositionRefusal
 } from "@agent-chassis/agent-launch-cli/src/lib/stdio-mcp-conduit-composition-compatibility.mjs";
+import {
+  advanceTerminalReviewCandidate,
+  evaluateTerminalReviewCandidateStatus,
+  TERMINAL_CANDIDATE_RUNTIME_CODES
+} from "./dispatch-terminal-candidate-runtime.mjs";
+import {
+  TERMINAL_WK_CANDIDATE_CODES
+} from "@agent-chassis/agent-launch-cli/src/lib/terminal-wk-candidate.mjs";
 
 const CAPABILITY_FRESHNESS_FRESH = "fresh";
 
@@ -158,6 +167,28 @@ export function projectManagedLifecycleCapabilities({
   };
 }
 
+export function compactCoordinationPreflightCoverage(coverage) {
+  if (coverage === null || typeof coverage !== "object") {
+    return null;
+  }
+  const families = Array.isArray(coverage.families) ? coverage.families : [];
+  return {
+    schema_version: coverage.schema_version,
+
+    family_count: families.length,
+    evaluated_locally_count: coverage.evaluated_locally_count,
+    projected_count: coverage.projected_count,
+    not_evaluated_count: coverage.not_evaluated_count,
+    omitted_count: coverage.omitted_count,
+
+    omitted_family_detail_count: families.length,
+    local_handling_vocabulary: coverage.local_handling_vocabulary,
+    family_ids: coverage.family_ids,
+    deferred_boundaries: coverage.deferred_boundaries,
+    complete_retrieval: coverage.complete_retrieval
+  };
+}
+
 function resolveCoordinationPreflightWorkspace(resolveWorkspaceRepo, workspaceRepos, repo) {
   if (repo || workspaceRepos?.currentAlias) {
     return resolveWorkspaceRepo(workspaceRepos, repo);
@@ -183,8 +214,88 @@ export function registerDiagnosticRoutes(ctx) {
     graphImpactPersistenceAvailable,
     dispatchReviewerAvailable,
     dispatchBackend,
-    isPaidTier
+    isPaidTier,
+    evaluateTerminalReviewCandidateStatus: evaluateCandidateStatus =
+      evaluateTerminalReviewCandidateStatus,
+    advanceTerminalReviewCandidate: advanceCandidate = advanceTerminalReviewCandidate
   } = ctx;
+
+  const terminalCandidateRouteCodes = new Set([
+    ...Object.values(TERMINAL_CANDIDATE_RUNTIME_CODES),
+    TERMINAL_WK_CANDIDATE_CODES.INVALID_ARGUMENT,
+    TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED,
+    TERMINAL_WK_CANDIDATE_CODES.BASE_INVALID,
+    TERMINAL_WK_CANDIDATE_CODES.INPUT_MOVED,
+    TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_INVALID,
+    TERMINAL_WK_CANDIDATE_CODES.CANDIDATE_REF_DISAGREES,
+    TERMINAL_WK_CANDIDATE_CODES.BINDING_MISMATCH,
+    "agent_launch.terminal_candidate.exclusion_refused.v1"
+  ]);
+  const terminalCandidateRouteError = (error) => {
+    const code = terminalCandidateRouteCodes.has(error?.code)
+      ? error.code
+      : TERMINAL_CANDIDATE_RUNTIME_CODES.ROUTE_FAILURE;
+    return jsonContent({
+      schema_version: "agent_launch.terminal_candidate_route_refusal.v1",
+      ok: false,
+      code,
+      message: "terminal candidate route refused"
+    });
+  };
+
+  registerTool(
+    "workspace_terminal_review_candidate_status",
+    {
+      description:
+        "Read the launcher-owned terminal-review candidate state for one WK. Use only for a launcher-built managed terminal candidate; do not use for an operator-authorized direct-to-main review. Direct-to-main review first commits the exact scoped candidate, then uses workspace_agent_dispatch with a canonical WK or review-slice subject plus the complete diff_base_sha/reviewed_sha pair. The reviewer remains read-only and creates no Git objects. This route observes only exact candidate/fork/W authority and canonical coordination. Read-only; caller input cannot supply candidate identity, refs, SHAs, paths, policy, or pagination size.",
+      inputSchema: z.object({
+        repo: z.string().optional(),
+        wk_id: z.string().regex(/^WK-\d{4}$/u),
+        continuation: z.string().optional()
+      }).strict()
+    },
+    async (args) => {
+      try {
+        const workspace = resolveWorkspaceRepo(workspaceRepos, args?.repo);
+        const acceptedRepository = Object.hasOwn(args, "repo") ? workspace.repo : undefined;
+        return jsonContent(await evaluateCandidateStatus({
+          mainRepo: workspace.dir,
+          wkId: args.wk_id,
+          backend: dispatchBackend,
+          acceptedRepository,
+          continuation: args.continuation ?? null
+        }));
+      } catch (error) {
+        return terminalCandidateRouteError(error);
+      }
+    }
+  );
+
+  registerTool(
+    "workspace_terminal_review_candidate_advance",
+    {
+      description:
+        "Advance only a mechanically authenticated stale-W terminal-review candidate. The launcher re-evaluates status inside its per-WK exclusion, derives deterministic C from exact B/W authority, and performs one fixed-ref CAS. Caller input cannot supply any candidate or Git authority.",
+      inputSchema: z.object({
+        repo: z.string().optional(),
+        wk_id: z.string().regex(/^WK-\d{4}$/u)
+      }).strict()
+    },
+    async (args) => {
+      try {
+        const workspace = resolveWorkspaceRepo(workspaceRepos, args?.repo);
+        const acceptedRepository = Object.hasOwn(args, "repo") ? workspace.repo : undefined;
+        return jsonContent(await advanceCandidate({
+          mainRepo: workspace.dir,
+          wkId: args.wk_id,
+          backend: dispatchBackend,
+          acceptedRepository
+        }));
+      } catch (error) {
+        return terminalCandidateRouteError(error);
+      }
+    }
+  );
 
   registerTool(
     "workspace_runtime_blocker_taxonomy",
@@ -230,7 +341,7 @@ export function registerDiagnosticRoutes(ctx) {
     "workspace_coordination_preflight",
     {
       description:
-        "Report the coordinator/orchestrator preflight envelope: role/caller/target roles, subject, repo mount + docs/ + wiki/ writability, dispatch/reviewer/redteam/validate-dispatch availability, the independently sourced managed-lifecycle capability planes with freshness and stable blockers, surface counts, the active blocker list (codes + diagnostics), writeback classification, and next_action. Default output is compact (booleans and counts); pass verbose:true for the full route list, write-surface arrays, write_policy roots, and filesystem_diagnostics — actionable blocker diagnostics are never hidden. The optional target_dispatch_role lets a coordinator preflight a worker dispatch (role=coordinator, target_dispatch_role=worker) without claiming a worker caller role, so a read-only orchestrator repo root is not misread as a direct-write blocker. Read-only, with write-probes only inside docs/ and wiki/ (probe dirs removed before returning); caller-supplied identity carriers are refused and the dispatch-identity bootstrap state is returned.",
+        "Report the read-only coordinator/orchestrator preflight envelope: roles, subject, repository/docs/wiki writability, structured-route availability, managed-lifecycle capabilities, freshness, blockers, writeback classification, next_action, and per-fact ownership. A proceed result covers only reported families and is not full launch readiness; projected facts retain their external owner and are not re-evaluated. Default output is compact; verbose:true adds every fact family, route list, write surfaces, policy roots, and filesystem diagnostics. target_dispatch_role can preflight a worker dispatch without claiming worker caller identity. Caller identity carriers are refused.",
       inputSchema: {
         verbose: z.boolean().optional(),
         repo: z.string().optional(),
@@ -293,6 +404,8 @@ export function registerDiagnosticRoutes(ctx) {
 
         const identity =
           args?.identity_envelope == null ? null : resolveCallerIdentity(args.identity_envelope);
+
+        authenticateCoordinationPreflightOwnerFacts({ identity });
         const availableRoutes = [...registeredToolNames];
 
         const graphImpactPersistence = graphImpactPersistenceAvailable();
@@ -314,7 +427,9 @@ export function registerDiagnosticRoutes(ctx) {
           subject: args?.subject ?? null,
           available_structured_routes: availableRoutes,
           structured_dispatch_compatibility: structuredDispatchCompatibility,
-          graph_impact_state: args?.graph_impact_state ?? null
+          graph_impact_state: args?.graph_impact_state ?? null,
+
+          cce_policy_projection: null
         });
         const bootstrap = evaluateBootstrapReviewState({
           mcp_dispatch_reviewer_available: reviewerAvailable,
@@ -400,6 +515,8 @@ export function registerDiagnosticRoutes(ctx) {
           allowed_surface_count: allowedSurfaces.length,
           forbidden_surface_count: forbiddenSurfaces.length,
           structured_dispatch: preflight.structured_dispatch,
+          coverage: compactCoordinationPreflightCoverage(preflight.coverage),
+          proceed_scope: preflight.proceed_scope,
           writeback: preflight.writeback,
           blockers: preflight.blockers,
           analysis_blocked: preflight.analysis_blocked,

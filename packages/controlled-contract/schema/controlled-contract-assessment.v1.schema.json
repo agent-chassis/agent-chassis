@@ -81,6 +81,11 @@
         "exact_binding_capture": {
           "type": "string",
           "enum": ["assessed_by_deterministic_capture", "not_applicable"]
+        },
+        "projected_evaluation_binding": {
+          "description": "Whether the exact-bound declaration opted into binding the profile-selected contract nodes to the deterministic projected contract graph, and whether that binding held.",
+          "type": "string",
+          "enum": ["bound_to_deterministic_projection", "not_bound", "not_declared"]
         }
       }
     },

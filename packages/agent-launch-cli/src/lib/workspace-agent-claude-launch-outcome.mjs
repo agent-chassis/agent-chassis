@@ -3,10 +3,7 @@
 import {
   BACKEND_REFUSAL_CODES
 } from "./workspace-agent-dispatch-backend.mjs";
-import {
-  BubblewrapIsolationError,
-  isTerminalReviewSpawnBarrierRefusal
-} from "./launch-isolation.mjs";
+import { BubblewrapIsolationError } from "./launch-isolation.mjs";
 import {
   STDIO_MCP_CONDUIT_REQUIRES_BUBBLEWRAP_REASON,
   STDIO_MCP_CONDUIT_RUN_TIMEOUT_MS,
@@ -31,9 +28,6 @@ import {
   buildClaudeWriteScopeVerificationFailure,
   resolveClaudePlainSpawnPrimitive
 } from "./workspace-agent-claude-run-shaping.mjs";
-
-export const CLAUDE_EXACT_SLICE_REVIEW_SANDBOX_REQUIRED_REASON =
-  "claude_exact_slice_review_sandbox_required";
 
 function buildClaudePostRunVerification({
   needsDirectoryScope,
@@ -63,7 +57,6 @@ export async function resolveClaudeSpawnFailureOutcome(err, ctx) {
     subject,
     conduit,
     refuseAfterConduit,
-    launcherOwnedExactSliceReview,
     commandLine,
     argv,
     env,
@@ -72,17 +65,8 @@ export async function resolveClaudeSpawnFailureOutcome(err, ctx) {
     plainSpawn,
     captureFinalResult,
     resolvedClaudePath,
-    killTimeoutMs,
-    terminalReviewSpawnBarrier
+    killTimeoutMs
   } = ctx;
-
-  if (isTerminalReviewSpawnBarrierRefusal(err)) {
-    return await refuseAfterConduit(
-      BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
-      err.verdict.reason,
-      { role, subject, ...(err.verdict.detail ?? {}) }
-    );
-  }
   if (conduit) {
 
     let conduitCleanupDetail = null;
@@ -109,18 +93,6 @@ export async function resolveClaudeSpawnFailureOutcome(err, ctx) {
       BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
       "claude_executor_credentials_path_invalid",
       err.detail ?? null
-    );
-  }
-  if (launcherOwnedExactSliceReview === true) {
-    return makeRefusal(
-      BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
-      CLAUDE_EXACT_SLICE_REVIEW_SANDBOX_REQUIRED_REASON,
-      {
-        message: err?.message ?? String(err),
-        code: err?.code ?? null,
-        sandbox_required: true,
-        unenforced_fallback_permitted: false
-      }
     );
   }
   if (err instanceof BubblewrapIsolationError) {
@@ -183,14 +155,6 @@ export async function resolveClaudeSpawnFailureOutcome(err, ctx) {
             BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START,
             "plain_spawn_no_child",
             null
-          ),
-
-        preSpawnBarrier: terminalReviewSpawnBarrier,
-        buildPreSpawnBarrierRefusal: (verdict) =>
-          makeRefusal(
-            BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
-            verdict?.reason ?? "terminal_review_attempt_contract_recheck_failed",
-            { role, subject, ...(verdict?.detail ?? {}) }
           ),
 
         resolveSpawn: resolveClaudePlainSpawnPrimitive(plainSpawn),

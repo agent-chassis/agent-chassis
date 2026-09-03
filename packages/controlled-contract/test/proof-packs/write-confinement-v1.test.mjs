@@ -24,15 +24,15 @@ import {
   writeConfinementGuaranteeSatisfied
 } from "./write-confinement-v1-harness.mjs";
 import {
-  validateProfileSchemaV034,
-  validateProfileSemanticsV034
-} from "../../lib/verification-profile-v034.mjs";
+  validateProfileSchemaV1,
+  validateProfileSemanticsV1
+} from "../support/stable-v1-proof-pack-runtime.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const repositoryRoot = path.resolve(packageRoot, "../..");
 const packDirectory = path.join(
   packageRoot,
-  "test/certification/profiles/proof.scope.write-confinement/1.0.0"
+  "test/certification/profiles/proof.scope.write-confinement/2.0.0"
 );
 const readJson = async (name) => JSON.parse(await readFile(
   path.join(packDirectory, name), "utf8"
@@ -40,9 +40,9 @@ const readJson = async (name) => JSON.parse(await readFile(
 
 test("write-confinement profile is current, pre-dispatch, and digest bound", async () => {
   const adequacy = await readJson("adequacy.json");
-  assert.equal(validateProfileSchemaV034(WRITE_CONFINEMENT_V1_PROFILE), true,
-    JSON.stringify(validateProfileSchemaV034.errors));
-  assert.deepEqual(validateProfileSemanticsV034(WRITE_CONFINEMENT_V1_PROFILE), []);
+  assert.equal(validateProfileSchemaV1(WRITE_CONFINEMENT_V1_PROFILE), true,
+    JSON.stringify(validateProfileSchemaV1.errors));
+  assert.deepEqual(validateProfileSemanticsV1(WRITE_CONFINEMENT_V1_PROFILE), []);
   assert.deepEqual(WRITE_CONFINEMENT_V1_PROFILE.evaluation_stages, ["pre_dispatch"]);
   assert.equal(adequacy.profile_digest, profileDigest(WRITE_CONFINEMENT_V1_PROFILE));
   assert.equal(adequacy.guarantee_digest, guaranteeDigest(adequacy.guarantee));

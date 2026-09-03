@@ -1,4 +1,3 @@
-import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -11,13 +10,16 @@ import {
   createSidecarResultEnvelope
 } from "./sidecar-schema.mjs";
 import {
+  SIDECAR_GRAPH_SCHEMA_VERSION,
   SIDECAR_GRAPH_SECTION_FIELD,
   classifySidecarGraphArtifactSchema,
   createSidecarGraphState
 } from "./sidecar-graph-schema.mjs";
 import { normalizeSidecarRepoPath } from "./sidecar-paths.mjs";
-import { readSidecarArtifactBytes } from "./sidecar-artifact-bytes.mjs";
-import { computeSidecarGeneratorIdentity } from "./sidecar-generator-identity.mjs";
+import {
+  readVerifiedSidecarArtifactSnapshot,
+  resolveSidecarRepositoryIdentity
+} from "./sidecar-artifact-query-cache.mjs";
 
 const execFileAsync = promisify(execFile);
 const SIDECAR_GENERATOR_IDENTITY_PATTERN = /^sha256:[0-9a-f]{64}$/;
@@ -91,7 +93,7 @@ export async function assertSidecarCachePathIgnored({
 
 export async function discoverSidecarGitState(dir) {
   try {
-    const repoRoot = await runSidecarGit(dir, ["rev-parse", "--show-toplevel"]);
+    const repoRoot = await resolveSidecarRepositoryIdentity({ dir });
     const [head, tree, branchName, statusText, gitlinkText] = await Promise.all([
       runSidecarGit(repoRoot, ["rev-parse", "HEAD"]),
       runSidecarGit(repoRoot, ["rev-parse", "HEAD^{tree}"]),
@@ -172,31 +174,17 @@ export async function discoverSidecarGitState(dir) {
   }
 }
 
-async function readArtifact(artifactPath) {
-  try {
-    await access(artifactPath);
-  } catch {
-    return {
-      exists: false,
-      data: null,
-      read_error: null
-    };
-  }
-
-  try {
-    const { artifact } = await readSidecarArtifactBytes(artifactPath);
-    return {
-      exists: true,
-      data: artifact,
-      read_error: null
-    };
-  } catch (error) {
-    return {
-      exists: true,
-      data: null,
-      read_error: error instanceof Error ? error.message : String(error)
-    };
-  }
+async function readArtifact({ repoRoot, artifactRelativePath }) {
+  const snapshot = await readVerifiedSidecarArtifactSnapshot({
+    dir: repoRoot,
+    artifactRelativePath
+  });
+  return {
+    exists: snapshot.exists,
+    data: snapshot.artifact,
+    read_error: snapshot.read_error,
+    expected_generator_identity: snapshot.expected_generator_identity ?? null
+  };
 }
 
 function artifactMetadataCandidates(artifact) {
@@ -230,7 +218,7 @@ function getArtifactIdentity(artifact, metadata) {
   };
 }
 
-async function classifyArtifactState({ artifact, currentHead, repoRoot }) {
+async function classifyArtifactState({ artifact, currentHead }) {
   const unavailableGraphState = createSidecarGraphState({
     status_reason: artifact.exists ? "graph_unavailable" : "artifact_missing"
   });
@@ -280,26 +268,26 @@ async function classifyArtifactState({ artifact, currentHead, repoRoot }) {
   const artifactGeneratorIdentity =
     artifact.data?.[SIDECAR_GRAPH_SECTION_FIELD]?.generator_identity;
   let generatorIdentityReason = null;
-  let expectedGeneratorIdentity;
-  if (artifactGeneratorIdentity === undefined) {
+  const expectedGeneratorIdentity = artifact.expected_generator_identity ?? undefined;
+  const graphClaimsCurrentSchema =
+    artifact.data?.[SIDECAR_GRAPH_SECTION_FIELD]?.graph_schema_version ===
+      SIDECAR_GRAPH_SCHEMA_VERSION;
+  if (!graphClaimsCurrentSchema) {
+    generatorIdentityReason = null;
+  } else if (artifactGeneratorIdentity === undefined) {
     generatorIdentityReason = "generator_identity_missing";
   } else if (
     typeof artifactGeneratorIdentity !== "string" ||
     !SIDECAR_GENERATOR_IDENTITY_PATTERN.test(artifactGeneratorIdentity)
   ) {
     generatorIdentityReason = "generator_identity_malformed";
+  } else if (!expectedGeneratorIdentity) {
+    generatorIdentityReason = "generator_identity_unavailable";
   } else {
-    try {
-      const expected = await computeSidecarGeneratorIdentity({ repoRoot });
-      if (expected.committed_head !== currentHead) {
-        generatorIdentityReason = "generator_identity_unavailable";
-      } else {
-        expectedGeneratorIdentity = expected.generator_identity;
-        if (artifactGeneratorIdentity !== expectedGeneratorIdentity) {
-          generatorIdentityReason = "generator_identity_incompatible";
-        }
-      }
-    } catch {
+    if (artifactGeneratorIdentity !== expectedGeneratorIdentity) {
+      generatorIdentityReason = "generator_identity_incompatible";
+    }
+    if (artifact.data?.index_head !== currentHead) {
       generatorIdentityReason = "generator_identity_unavailable";
     }
   }
@@ -391,11 +379,13 @@ export async function getSidecarIndexStatus({
       artifactRelativePath: artifactPaths.artifactRelativePath
     });
   }
-  const artifact = await readArtifact(artifactPaths.artifactPath);
+  const artifact = await readArtifact({
+    repoRoot: gitState.repoRoot,
+    artifactRelativePath: artifactPaths.artifactRelativePath
+  });
   const artifactState = await classifyArtifactState({
     artifact,
-    currentHead: gitState.index_head,
-    repoRoot: gitState.repoRoot
+    currentHead: gitState.index_head
   });
 
   return createSidecarResultEnvelope({

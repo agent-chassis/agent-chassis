@@ -1,0 +1,5037 @@
+{
+  "schema_version": "controlled-contract-proof-pack-negative-fixture.experimental.v0.1",
+  "fixture_id": "semantic-claim-variations-base",
+  "covers": [
+    {
+      "surface_id": "claim-attempt-performs-operation-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-attempt-performs-operation-proposition-subject",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-attempt-precedes-protected-interval-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-attempt-precedes-protected-interval-proposition-subject",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-attempt-uses-subject-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-attempt-uses-subject-proposition-subject",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-mutation-prohibition-verification-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-mutation-prohibition-verification-proposition-subject",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-mutation-prohibition-verification-verification-methods",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-no-protected-mutation-before-refusal-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-no-protected-write-before-refusal-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-protected-effect-population-cardinality-proposition-subject",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-protected-effect-population-membership-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-protected-effect-population-membership-proposition-subject",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-protected-interval-precedes-refusal-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-protected-interval-precedes-refusal-proposition-subject",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-refusal-rejects-attempt-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-refusal-rejects-attempt-proposition-subject",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-subject-unauthorized-for-operation-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-subject-unauthorized-for-operation-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-subject-unauthorized-for-operation-proposition-subject",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-2-role",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-3-role",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-subject",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-write-prohibition-verification-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-write-prohibition-verification-proposition-subject",
+      "weakening_class": "proposition_weakening"
+    },
+    {
+      "surface_id": "claim-write-prohibition-verification-verification-methods",
+      "weakening_class": "proposition_weakening"
+    }
+  ],
+  "contract": {
+    "schema_version": "controlled-acceptance-contract.v1",
+    "vocabulary_version": "controlled-contract-vocabulary.v1",
+    "profile_id": "acceptance-contract.standard.v1",
+    "references": [
+      {
+        "reference_id": "ref-operation",
+        "type_term": "cc:capability",
+        "identity": {
+          "kind": "profile_term",
+          "term": "capability:operation"
+        }
+      },
+      {
+        "reference_id": "ref-attempt",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "profile_term",
+          "term": "capability:attempt"
+        }
+      },
+      {
+        "reference_id": "ref-subject",
+        "type_term": "cc:actor",
+        "identity": {
+          "kind": "profile_term",
+          "term": "capability:subject"
+        }
+      },
+      {
+        "reference_id": "ref-authority",
+        "type_term": "cc:authority",
+        "identity": {
+          "kind": "profile_term",
+          "term": "capability:authority"
+        }
+      },
+      {
+        "reference_id": "ref-refusal",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "profile_term",
+          "term": "capability:refusal"
+        }
+      },
+      {
+        "reference_id": "ref-protected-interval",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "profile_term",
+          "term": "capability:protected_interval"
+        }
+      },
+      {
+        "reference_id": "ref-protected-effect-population",
+        "type_term": "cc:scope",
+        "identity": {
+          "kind": "profile_term",
+          "term": "capability:protected_effect_population"
+        }
+      },
+      {
+        "reference_id": "ref-verification",
+        "type_term": "cc:test",
+        "identity": {
+          "kind": "profile_term",
+          "term": "capability:verification"
+        }
+      },
+      {
+        "reference_id": "ref-protected-channel",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "capability:protected-effect-1"
+        }
+      },
+      {
+        "reference_id": "ref-protected-configuration",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "profile_term",
+          "term": "capability:protected-effect-2"
+        }
+      }
+    ],
+    "propositions": [
+      {
+        "proposition_id": "prop-attempt-performs-operation",
+        "subject_reference_id": "ref-attempt",
+        "operator": "reference:performs",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-operation"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-attempt-uses-subject",
+        "subject_reference_id": "ref-attempt",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-subject"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-subject-unauthorized-for-operation",
+        "subject_reference_id": "ref-authority",
+        "operator": "reference:authorizes",
+        "applicability_context": {
+          "mode": "where",
+          "operand_reference_ids": [
+            "ref-operation"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-subject"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-refusal-rejects-attempt",
+        "subject_reference_id": "ref-refusal",
+        "operator": "reference:rejects",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-attempt"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-attempt-precedes-protected-interval",
+        "subject_reference_id": "ref-attempt",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-interval"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-protected-interval-precedes-refusal",
+        "subject_reference_id": "ref-protected-interval",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-refusal"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-protected-effect-population-membership",
+        "subject_reference_id": "ref-protected-effect-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-channel"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-configuration"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-protected-effect-population-cardinality",
+        "subject_reference_id": "ref-protected-effect-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-verification-observes-exact-proof-subjects",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-attempt"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-refusal"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-operation"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-channel"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-configuration"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-no-protected-write-before-refusal",
+        "subject_reference_id": "ref-attempt",
+        "operator": "reference:writes",
+        "applicability_context": {
+          "mode": "before",
+          "operand_reference_ids": [
+            "ref-refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-channel"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-configuration"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-no-protected-mutation-before-refusal",
+        "subject_reference_id": "ref-attempt",
+        "operator": "reference:mutates",
+        "applicability_context": {
+          "mode": "before",
+          "operand_reference_ids": [
+            "ref-refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-channel"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-configuration"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-write-prohibition-verification",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-attempt"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-write-prohibition-verification",
+        "subject_reference_id": "ref-attempt",
+        "operator": "reference:writes",
+        "applicability_context": {
+          "mode": "before",
+          "operand_reference_ids": [
+            "ref-refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-channel"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-configuration"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-mutation-prohibition-verification",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-effect-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-mutation-prohibition-verification",
+        "subject_reference_id": "ref-attempt",
+        "operator": "reference:mutates",
+        "applicability_context": {
+          "mode": "before",
+          "operand_reference_ids": [
+            "ref-refusal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-channel"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-configuration"
+          }
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "claim_id": "claim-attempt-performs-operation",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-attempt-performs-operation"
+      },
+      {
+        "claim_id": "claim-attempt-uses-subject",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-attempt-uses-subject"
+      },
+      {
+        "claim_id": "claim-subject-unauthorized-for-operation",
+        "kind": "evidence",
+        "modality": "MUST_NOT",
+        "proposition_id": "prop-subject-unauthorized-for-operation"
+      },
+      {
+        "claim_id": "claim-refusal-rejects-attempt",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-refusal-rejects-attempt"
+      },
+      {
+        "claim_id": "claim-attempt-precedes-protected-interval",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-attempt-precedes-protected-interval"
+      },
+      {
+        "claim_id": "claim-protected-interval-precedes-refusal",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-protected-interval-precedes-refusal"
+      },
+      {
+        "claim_id": "claim-protected-effect-population-membership",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-protected-effect-population-membership"
+      },
+      {
+        "claim_id": "claim-protected-effect-population-cardinality",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-protected-effect-population-cardinality"
+      },
+      {
+        "claim_id": "claim-verification-observes-exact-proof-subjects",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-verification-observes-exact-proof-subjects"
+      },
+      {
+        "claim_id": "claim-no-protected-write-before-refusal",
+        "kind": "behavior",
+        "modality": "MUST_NOT",
+        "proposition_id": "prop-no-protected-write-before-refusal"
+      },
+      {
+        "claim_id": "claim-no-protected-mutation-before-refusal",
+        "kind": "behavior",
+        "modality": "MUST_NOT",
+        "proposition_id": "prop-no-protected-mutation-before-refusal"
+      },
+      {
+        "claim_id": "claim-write-prohibition-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-write-prohibition-verification",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-write-prohibition-verification"
+      },
+      {
+        "claim_id": "claim-mutation-prohibition-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-mutation-prohibition-verification",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-mutation-prohibition-verification"
+      }
+    ],
+    "relations": [
+      {
+        "relation_id": "rel-write-verification-target",
+        "role": "verifies",
+        "source_claim_id": "claim-write-prohibition-verification",
+        "target_claim_id": "claim-no-protected-write-before-refusal"
+      },
+      {
+        "relation_id": "rel-mutation-verification-target",
+        "role": "verifies",
+        "source_claim_id": "claim-mutation-prohibition-verification",
+        "target_claim_id": "claim-no-protected-mutation-before-refusal"
+      }
+    ],
+    "collections": [
+      {
+        "collection_id": "set-proof-population",
+        "collection_kind": "closed_set",
+        "purpose": "profile_proof_population",
+        "member_claim_ids": [
+          "claim-attempt-performs-operation",
+          "claim-attempt-uses-subject",
+          "claim-subject-unauthorized-for-operation",
+          "claim-refusal-rejects-attempt",
+          "claim-attempt-precedes-protected-interval",
+          "claim-protected-interval-precedes-refusal",
+          "claim-verification-observes-exact-proof-subjects"
+        ]
+      }
+    ],
+    "residue": [],
+    "annotations": [],
+    "test_proof_version": "controlled-contract-test-proof.v1",
+    "test_proofs": []
+  },
+  "evaluation_input": {
+    "input_version": "controlled-contract-verification-profile-input.v1",
+    "evaluation_stage": "pre_dispatch",
+    "reference_bindings": [
+      {
+        "role": "operation",
+        "reference_ids": [
+          "ref-operation"
+        ]
+      },
+      {
+        "role": "attempt",
+        "reference_ids": [
+          "ref-attempt"
+        ]
+      },
+      {
+        "role": "subject",
+        "reference_ids": [
+          "ref-subject"
+        ]
+      },
+      {
+        "role": "authority",
+        "reference_ids": [
+          "ref-authority"
+        ]
+      },
+      {
+        "role": "refusal",
+        "reference_ids": [
+          "ref-refusal"
+        ]
+      },
+      {
+        "role": "protected_interval",
+        "reference_ids": [
+          "ref-protected-interval"
+        ]
+      },
+      {
+        "role": "protected_effect_population",
+        "reference_ids": [
+          "ref-protected-effect-population"
+        ]
+      },
+      {
+        "role": "verification",
+        "reference_ids": [
+          "ref-verification"
+        ]
+      },
+      {
+        "role": "protected_effects",
+        "reference_ids": [
+          "ref-protected-channel",
+          "ref-protected-configuration"
+        ]
+      }
+    ],
+    "number_bindings": [
+      {
+        "role": "protected_effect_count",
+        "value": 2
+      }
+    ],
+    "claim_pattern_bindings": [],
+    "resolver_facts": [],
+    "delivered_evidence": [],
+    "stable_evaluation": {}
+  },
+  "variations": [
+    {
+      "variant_id": "claim-attempt-performs-operation-proposition-operand-0-role-value-5b227265662d6174",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-performs-operation-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/0/operands/0/reference_id",
+          "value": "ref-attempt"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-performs-operation",
+              "claim_id": "claim-attempt-performs-operation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-performs-operation-proposition-operand-0-role-value-5b227265662d6175",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-performs-operation-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/0/operands/0/reference_id",
+          "value": "ref-authority"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-performs-operation",
+              "claim_id": "claim-attempt-performs-operation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-performs-operation-proposition-operand-0-role-value-5b227265662d7072",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-performs-operation-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/0/operands/0/reference_id",
+          "value": "ref-protected-interval"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-performs-operation",
+              "claim_id": "claim-attempt-performs-operation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-performs-operation-proposition-operand-0-role-value-5b227265662d7265",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-performs-operation-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/0/operands/0/reference_id",
+          "value": "ref-refusal"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-performs-operation",
+              "claim_id": "claim-attempt-performs-operation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-performs-operation-proposition-operand-0-role-value-5b227265662d7375",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-performs-operation-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/0/operands/0/reference_id",
+          "value": "ref-subject"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-performs-operation",
+              "claim_id": "claim-attempt-performs-operation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-performs-operation-proposition-operand-0-role-value-5b227265662d7665",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-performs-operation-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/0/operands/0/reference_id",
+          "value": "ref-verification"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-performs-operation",
+              "claim_id": "claim-attempt-performs-operation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-performs-operation-proposition-subject-value-5b227265662d6175",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-performs-operation-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/0/subject_reference_id",
+          "value": "ref-authority"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-performs-operation",
+              "claim_id": "claim-attempt-performs-operation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-performs-operation-proposition-subject-value-5b227265662d6f70",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-performs-operation-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/0/subject_reference_id",
+          "value": "ref-operation"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-performs-operation",
+              "claim_id": "claim-attempt-performs-operation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-performs-operation-proposition-subject-value-5b227265662d7072",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-performs-operation-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/0/subject_reference_id",
+          "value": "ref-protected-interval"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-performs-operation",
+              "claim_id": "claim-attempt-performs-operation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-performs-operation-proposition-subject-value-5b227265662d7265",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-performs-operation-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/0/subject_reference_id",
+          "value": "ref-refusal"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-performs-operation",
+              "claim_id": "claim-attempt-performs-operation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-performs-operation-proposition-subject-value-5b227265662d7375",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-performs-operation-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/0/subject_reference_id",
+          "value": "ref-subject"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-performs-operation",
+              "claim_id": "claim-attempt-performs-operation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-performs-operation-proposition-subject-value-5b227265662d7665",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-performs-operation-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/0/subject_reference_id",
+          "value": "ref-verification"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-performs-operation",
+              "claim_id": "claim-attempt-performs-operation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-precedes-protected-interval-proposition-operand-0-role-value-5b227265662d6175",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-precedes-protected-interval-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/4/operands/0/reference_id",
+          "value": "ref-authority"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-precedes-protected-interval",
+              "claim_id": "claim-attempt-precedes-protected-interval"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-precedes-protected-interval-proposition-operand-0-role-value-5b227265662d6f70",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-precedes-protected-interval-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/4/operands/0/reference_id",
+          "value": "ref-operation"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-precedes-protected-interval",
+              "claim_id": "claim-attempt-precedes-protected-interval"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-precedes-protected-interval-proposition-operand-0-role-value-5b227265662d7072",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-precedes-protected-interval-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/4/operands/0/reference_id",
+          "value": "ref-protected-effect-population"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-precedes-protected-interval",
+              "claim_id": "claim-attempt-precedes-protected-interval"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-precedes-protected-interval-proposition-operand-0-role-value-5b227265662d7265",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-precedes-protected-interval-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/4/operands/0/reference_id",
+          "value": "ref-refusal"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-precedes-protected-interval",
+              "claim_id": "claim-attempt-precedes-protected-interval"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-precedes-protected-interval-proposition-operand-0-role-value-5b227265662d7375",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-precedes-protected-interval-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/4/operands/0/reference_id",
+          "value": "ref-subject"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-precedes-protected-interval",
+              "claim_id": "claim-attempt-precedes-protected-interval"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-precedes-protected-interval-proposition-operand-0-role-value-5b227265662d7665",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-precedes-protected-interval-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/4/operands/0/reference_id",
+          "value": "ref-verification"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-precedes-protected-interval",
+              "claim_id": "claim-attempt-precedes-protected-interval"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-precedes-protected-interval-proposition-subject-value-5b227265662d6175",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-precedes-protected-interval-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/4/subject_reference_id",
+          "value": "ref-authority"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-precedes-protected-interval",
+              "claim_id": "claim-attempt-precedes-protected-interval"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-precedes-protected-interval-proposition-subject-value-5b227265662d6f70",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-precedes-protected-interval-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/4/subject_reference_id",
+          "value": "ref-operation"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-precedes-protected-interval",
+              "claim_id": "claim-attempt-precedes-protected-interval"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-precedes-protected-interval-proposition-subject-value-5b227265662d7072",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-precedes-protected-interval-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/4/subject_reference_id",
+          "value": "ref-protected-effect-population"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-precedes-protected-interval",
+              "claim_id": "claim-attempt-precedes-protected-interval"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-precedes-protected-interval-proposition-subject-value-5b227265662d7375",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-precedes-protected-interval-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/4/subject_reference_id",
+          "value": "ref-subject"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-precedes-protected-interval",
+              "claim_id": "claim-attempt-precedes-protected-interval"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-precedes-protected-interval-proposition-subject-value-5b227265662d7665",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-precedes-protected-interval-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/4/subject_reference_id",
+          "value": "ref-verification"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-precedes-protected-interval",
+              "claim_id": "claim-attempt-precedes-protected-interval"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-uses-subject-proposition-operand-0-role-value-5b227265662d6174",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-uses-subject-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/1/operands/0/reference_id",
+          "value": "ref-attempt"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-uses-subject",
+              "claim_id": "claim-attempt-uses-subject"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-uses-subject-proposition-operand-0-role-value-5b227265662d6175",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-uses-subject-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/1/operands/0/reference_id",
+          "value": "ref-authority"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-uses-subject",
+              "claim_id": "claim-attempt-uses-subject"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-uses-subject-proposition-operand-0-role-value-5b227265662d6f70",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-uses-subject-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/1/operands/0/reference_id",
+          "value": "ref-operation"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-uses-subject",
+              "claim_id": "claim-attempt-uses-subject"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-uses-subject-proposition-operand-0-role-value-5b227265662d7072",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-uses-subject-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/1/operands/0/reference_id",
+          "value": "ref-protected-interval"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-uses-subject",
+              "claim_id": "claim-attempt-uses-subject"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-uses-subject-proposition-operand-0-role-value-5b227265662d7265",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-uses-subject-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/1/operands/0/reference_id",
+          "value": "ref-refusal"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-uses-subject",
+              "claim_id": "claim-attempt-uses-subject"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-uses-subject-proposition-operand-0-role-value-5b227265662d7665",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-uses-subject-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/1/operands/0/reference_id",
+          "value": "ref-verification"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-uses-subject",
+              "claim_id": "claim-attempt-uses-subject"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-uses-subject-proposition-subject-value-5b227265662d6175",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-uses-subject-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/1/subject_reference_id",
+          "value": "ref-authority"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-uses-subject",
+              "claim_id": "claim-attempt-uses-subject"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-uses-subject-proposition-subject-value-5b227265662d6f70",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-uses-subject-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/1/subject_reference_id",
+          "value": "ref-operation"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-uses-subject",
+              "claim_id": "claim-attempt-uses-subject"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-uses-subject-proposition-subject-value-5b227265662d7072",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-uses-subject-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/1/subject_reference_id",
+          "value": "ref-protected-interval"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-uses-subject",
+              "claim_id": "claim-attempt-uses-subject"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-uses-subject-proposition-subject-value-5b227265662d7265",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-uses-subject-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/1/subject_reference_id",
+          "value": "ref-refusal"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-uses-subject",
+              "claim_id": "claim-attempt-uses-subject"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-uses-subject-proposition-subject-value-5b227265662d7375",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-uses-subject-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/1/subject_reference_id",
+          "value": "ref-subject"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-uses-subject",
+              "claim_id": "claim-attempt-uses-subject"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-attempt-uses-subject-proposition-subject-value-5b227265662d7665",
+      "covers": [
+        {
+          "surface_id": "claim-attempt-uses-subject-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/1/subject_reference_id",
+          "value": "ref-verification"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "attempt-uses-subject",
+              "claim_id": "claim-attempt-uses-subject"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-mutation-prohibition-verification-proposition-operand-0-role-value-5b227265662d6174",
+      "covers": [
+        {
+          "surface_id": "claim-mutation-prohibition-verification-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/13/operands/0/reference_id",
+          "value": "ref-attempt"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "mutation-prohibition-verification",
+              "claim_id": "claim-mutation-prohibition-verification"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-mutation-prohibition-verification-proposition-operand-0-role-value-5b227265662d6175",
+      "covers": [
+        {
+          "surface_id": "claim-mutation-prohibition-verification-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/13/operands/0/reference_id",
+          "value": "ref-authority"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "mutation-prohibition-verification",
+              "claim_id": "claim-mutation-prohibition-verification"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-mutation-prohibition-verification-proposition-operand-0-role-value-5b227265662d6f70",
+      "covers": [
+        {
+          "surface_id": "claim-mutation-prohibition-verification-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/13/operands/0/reference_id",
+          "value": "ref-operation"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "mutation-prohibition-verification",
+              "claim_id": "claim-mutation-prohibition-verification"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-mutation-prohibition-verification-proposition-operand-0-role-value-5b227265662d7072",
+      "covers": [
+        {
+          "surface_id": "claim-mutation-prohibition-verification-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/13/operands/0/reference_id",
+          "value": "ref-protected-interval"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "mutation-prohibition-verification",
+              "claim_id": "claim-mutation-prohibition-verification"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-mutation-prohibition-verification-proposition-operand-0-role-value-5b227265662d7265",
+      "covers": [
+        {
+          "surface_id": "claim-mutation-prohibition-verification-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/13/operands/0/reference_id",
+          "value": "ref-refusal"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "mutation-prohibition-verification",
+              "claim_id": "claim-mutation-prohibition-verification"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-mutation-prohibition-verification-proposition-operand-0-role-value-5b227265662d7375",
+      "covers": [
+        {
+          "surface_id": "claim-mutation-prohibition-verification-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/13/operands/0/reference_id",
+          "value": "ref-subject"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "mutation-prohibition-verification",
+              "claim_id": "claim-mutation-prohibition-verification"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-mutation-prohibition-verification-proposition-operand-0-role-value-5b227265662d7665",
+      "covers": [
+        {
+          "surface_id": "claim-mutation-prohibition-verification-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/13/operands/0/reference_id",
+          "value": "ref-verification"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "mutation-prohibition-verification",
+              "claim_id": "claim-mutation-prohibition-verification"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-mutation-prohibition-verification-proposition-subject-value-5b227265662d6174",
+      "covers": [
+        {
+          "surface_id": "claim-mutation-prohibition-verification-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/13/subject_reference_id",
+          "value": "ref-attempt"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "mutation-prohibition-verification",
+              "claim_id": "claim-mutation-prohibition-verification"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-mutation-prohibition-verification-proposition-subject-value-5b227265662d6175",
+      "covers": [
+        {
+          "surface_id": "claim-mutation-prohibition-verification-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/13/subject_reference_id",
+          "value": "ref-authority"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "mutation-prohibition-verification",
+              "claim_id": "claim-mutation-prohibition-verification"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-mutation-prohibition-verification-proposition-subject-value-5b227265662d6f70",
+      "covers": [
+        {
+          "surface_id": "claim-mutation-prohibition-verification-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/13/subject_reference_id",
+          "value": "ref-operation"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "mutation-prohibition-verification",
+              "claim_id": "claim-mutation-prohibition-verification"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-mutation-prohibition-verification-proposition-subject-value-5b227265662d7072",
+      "covers": [
+        {
+          "surface_id": "claim-mutation-prohibition-verification-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/13/subject_reference_id",
+          "value": "ref-protected-interval"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "mutation-prohibition-verification",
+              "claim_id": "claim-mutation-prohibition-verification"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-mutation-prohibition-verification-proposition-subject-value-5b227265662d7265",
+      "covers": [
+        {
+          "surface_id": "claim-mutation-prohibition-verification-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/13/subject_reference_id",
+          "value": "ref-refusal"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "mutation-prohibition-verification",
+              "claim_id": "claim-mutation-prohibition-verification"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-mutation-prohibition-verification-proposition-subject-value-5b227265662d7375",
+      "covers": [
+        {
+          "surface_id": "claim-mutation-prohibition-verification-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/13/subject_reference_id",
+          "value": "ref-subject"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "mutation-prohibition-verification",
+              "claim_id": "claim-mutation-prohibition-verification"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-mutation-prohibition-verification-verification-methods-value-5b22617564697422",
+      "covers": [
+        {
+          "surface_id": "claim-mutation-prohibition-verification-verification-methods",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/claims/12/verification_method",
+          "value": "audit"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "mutation-prohibition-verification",
+              "claim_id": "claim-mutation-prohibition-verification"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-mutation-prohibition-verification-verification-methods-value-5b22696e73706563",
+      "covers": [
+        {
+          "surface_id": "claim-mutation-prohibition-verification-verification-methods",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/claims/12/verification_method",
+          "value": "inspection"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "mutation-prohibition-verification",
+              "claim_id": "claim-mutation-prohibition-verification"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-no-protected-mutation-before-refusal-proposition-applicability-operands-value-5b5b227265662d61",
+      "covers": [
+        {
+          "surface_id": "claim-no-protected-mutation-before-refusal-proposition-applicability-operands",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/10/applicability_context/operand_reference_ids",
+          "value": [
+            "ref-attempt"
+          ]
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "no-protected-mutation-before-refusal",
+              "claim_id": "claim-no-protected-mutation-before-refusal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-no-protected-mutation-before-refusal-proposition-applicability-operands-value-5b5b227265662d6f",
+      "covers": [
+        {
+          "surface_id": "claim-no-protected-mutation-before-refusal-proposition-applicability-operands",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/10/applicability_context/operand_reference_ids",
+          "value": [
+            "ref-operation"
+          ]
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "no-protected-mutation-before-refusal",
+              "claim_id": "claim-no-protected-mutation-before-refusal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-no-protected-mutation-before-refusal-proposition-applicability-operands-value-5b5b227265662d70",
+      "covers": [
+        {
+          "surface_id": "claim-no-protected-mutation-before-refusal-proposition-applicability-operands",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/10/applicability_context/operand_reference_ids",
+          "value": [
+            "ref-protected-interval"
+          ]
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "no-protected-mutation-before-refusal",
+              "claim_id": "claim-no-protected-mutation-before-refusal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-no-protected-mutation-before-refusal-proposition-applicability-operands-value-5b5b227265662d73",
+      "covers": [
+        {
+          "surface_id": "claim-no-protected-mutation-before-refusal-proposition-applicability-operands",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/10/applicability_context/operand_reference_ids",
+          "value": [
+            "ref-subject"
+          ]
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "no-protected-mutation-before-refusal",
+              "claim_id": "claim-no-protected-mutation-before-refusal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-no-protected-mutation-before-refusal-proposition-applicability-operands-value-5b5b227265662d76",
+      "covers": [
+        {
+          "surface_id": "claim-no-protected-mutation-before-refusal-proposition-applicability-operands",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/10/applicability_context/operand_reference_ids",
+          "value": [
+            "ref-verification"
+          ]
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "no-protected-mutation-before-refusal",
+              "claim_id": "claim-no-protected-mutation-before-refusal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-no-protected-write-before-refusal-proposition-applicability-operands-value-5b5b227265662d61",
+      "covers": [
+        {
+          "surface_id": "claim-no-protected-write-before-refusal-proposition-applicability-operands",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/9/applicability_context/operand_reference_ids",
+          "value": [
+            "ref-attempt"
+          ]
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "no-protected-write-before-refusal",
+              "claim_id": "claim-no-protected-write-before-refusal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-no-protected-write-before-refusal-proposition-applicability-operands-value-5b5b227265662d6f",
+      "covers": [
+        {
+          "surface_id": "claim-no-protected-write-before-refusal-proposition-applicability-operands",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/9/applicability_context/operand_reference_ids",
+          "value": [
+            "ref-operation"
+          ]
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "no-protected-write-before-refusal",
+              "claim_id": "claim-no-protected-write-before-refusal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-no-protected-write-before-refusal-proposition-applicability-operands-value-5b5b227265662d70",
+      "covers": [
+        {
+          "surface_id": "claim-no-protected-write-before-refusal-proposition-applicability-operands",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/9/applicability_context/operand_reference_ids",
+          "value": [
+            "ref-protected-interval"
+          ]
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "no-protected-write-before-refusal",
+              "claim_id": "claim-no-protected-write-before-refusal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-no-protected-write-before-refusal-proposition-applicability-operands-value-5b5b227265662d73",
+      "covers": [
+        {
+          "surface_id": "claim-no-protected-write-before-refusal-proposition-applicability-operands",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/9/applicability_context/operand_reference_ids",
+          "value": [
+            "ref-subject"
+          ]
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "no-protected-write-before-refusal",
+              "claim_id": "claim-no-protected-write-before-refusal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-no-protected-write-before-refusal-proposition-applicability-operands-value-5b5b227265662d76",
+      "covers": [
+        {
+          "surface_id": "claim-no-protected-write-before-refusal-proposition-applicability-operands",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/9/applicability_context/operand_reference_ids",
+          "value": [
+            "ref-verification"
+          ]
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "no-protected-write-before-refusal",
+              "claim_id": "claim-no-protected-write-before-refusal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-protected-effect-population-cardinality-proposition-subject-value-5b227265662d6174",
+      "covers": [
+        {
+          "surface_id": "claim-protected-effect-population-cardinality-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/7/subject_reference_id",
+          "value": "ref-attempt"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "protected-effect-population-cardinality",
+              "claim_id": "claim-protected-effect-population-cardinality"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-protected-effect-population-cardinality-proposition-subject-value-5b227265662d6175",
+      "covers": [
+        {
+          "surface_id": "claim-protected-effect-population-cardinality-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/7/subject_reference_id",
+          "value": "ref-authority"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "protected-effect-population-cardinality",
+              "claim_id": "claim-protected-effect-population-cardinality"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-protected-effect-population-cardinality-proposition-subject-value-5b227265662d6f70",
+      "covers": [
+        {
+          "surface_id": "claim-protected-effect-population-cardinality-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/7/subject_reference_id",
+          "value": "ref-operation"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "protected-effect-population-cardinality",
+              "claim_id": "claim-protected-effect-population-cardinality"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-protected-effect-population-cardinality-proposition-subject-value-5b227265662d7072",
+      "covers": [
+        {
+          "surface_id": "claim-protected-effect-population-cardinality-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/7/subject_reference_id",
+          "value": "ref-protected-interval"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "protected-effect-population-cardinality",
+              "claim_id": "claim-protected-effect-population-cardinality"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-protected-effect-population-cardinality-proposition-subject-value-5b227265662d7265",
+      "covers": [
+        {
+          "surface_id": "claim-protected-effect-population-cardinality-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/7/subject_reference_id",
+          "value": "ref-refusal"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "protected-effect-population-cardinality",
+              "claim_id": "claim-protected-effect-population-cardinality"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-protected-effect-population-cardinality-proposition-subject-value-5b227265662d7375",
+      "covers": [
+        {
+          "surface_id": "claim-protected-effect-population-cardinality-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/7/subject_reference_id",
+          "value": "ref-subject"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "protected-effect-population-cardinality",
+              "claim_id": "claim-protected-effect-population-cardinality"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-protected-effect-population-cardinality-proposition-subject-value-5b227265662d7665",
+      "covers": [
+        {
+          "surface_id": "claim-protected-effect-population-cardinality-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/7/subject_reference_id",
+          "value": "ref-verification"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "protected-effect-population-cardinality",
+              "claim_id": "claim-protected-effect-population-cardinality"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-protected-effect-population-membership-proposition-subject-value-5b227265662d6174",
+      "covers": [
+        {
+          "surface_id": "claim-protected-effect-population-membership-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/6/subject_reference_id",
+          "value": "ref-attempt"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "protected-effect-population-membership",
+              "claim_id": "claim-protected-effect-population-membership"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-protected-effect-population-membership-proposition-subject-value-5b227265662d6175",
+      "covers": [
+        {
+          "surface_id": "claim-protected-effect-population-membership-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/6/subject_reference_id",
+          "value": "ref-authority"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "protected-effect-population-membership",
+              "claim_id": "claim-protected-effect-population-membership"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-protected-effect-population-membership-proposition-subject-value-5b227265662d6f70",
+      "covers": [
+        {
+          "surface_id": "claim-protected-effect-population-membership-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/6/subject_reference_id",
+          "value": "ref-operation"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "protected-effect-population-membership",
+              "claim_id": "claim-protected-effect-population-membership"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-protected-effect-population-membership-proposition-subject-value-5b227265662d7072",
+      "covers": [
+        {
+          "surface_id": "claim-protected-effect-population-membership-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/6/subject_reference_id",
+          "value": "ref-protected-interval"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "protected-effect-population-membership",
+              "claim_id": "claim-protected-effect-population-membership"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-protected-effect-population-membership-proposition-subject-value-5b227265662d7265",
+      "covers": [
+        {
+          "surface_id": "claim-protected-effect-population-membership-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/6/subject_reference_id",
+          "value": "ref-refusal"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "protected-effect-population-membership",
+              "claim_id": "claim-protected-effect-population-membership"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-protected-effect-population-membership-proposition-subject-value-5b227265662d7375",
+      "covers": [
+        {
+          "surface_id": "claim-protected-effect-population-membership-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/6/subject_reference_id",
+          "value": "ref-subject"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "protected-effect-population-membership",
+              "claim_id": "claim-protected-effect-population-membership"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-protected-effect-population-membership-proposition-subject-value-5b227265662d7665",
+      "covers": [
+        {
+          "surface_id": "claim-protected-effect-population-membership-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/6/subject_reference_id",
+          "value": "ref-verification"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "protected-effect-population-membership",
+              "claim_id": "claim-protected-effect-population-membership"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-protected-interval-precedes-refusal-proposition-operand-0-role-value-5b227265662d6175",
+      "covers": [
+        {
+          "surface_id": "claim-protected-interval-precedes-refusal-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/5/operands/0/reference_id",
+          "value": "ref-authority"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "protected-interval-precedes-refusal",
+              "claim_id": "claim-protected-interval-precedes-refusal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-protected-interval-precedes-refusal-proposition-operand-0-role-value-5b227265662d6f70",
+      "covers": [
+        {
+          "surface_id": "claim-protected-interval-precedes-refusal-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/5/operands/0/reference_id",
+          "value": "ref-operation"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "protected-interval-precedes-refusal",
+              "claim_id": "claim-protected-interval-precedes-refusal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-protected-interval-precedes-refusal-proposition-operand-0-role-value-5b227265662d7072",
+      "covers": [
+        {
+          "surface_id": "claim-protected-interval-precedes-refusal-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/5/operands/0/reference_id",
+          "value": "ref-protected-effect-population"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "protected-interval-precedes-refusal",
+              "claim_id": "claim-protected-interval-precedes-refusal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-protected-interval-precedes-refusal-proposition-operand-0-role-value-5b227265662d7375",
+      "covers": [
+        {
+          "surface_id": "claim-protected-interval-precedes-refusal-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/5/operands/0/reference_id",
+          "value": "ref-subject"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "protected-interval-precedes-refusal",
+              "claim_id": "claim-protected-interval-precedes-refusal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-protected-interval-precedes-refusal-proposition-operand-0-role-value-5b227265662d7665",
+      "covers": [
+        {
+          "surface_id": "claim-protected-interval-precedes-refusal-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/5/operands/0/reference_id",
+          "value": "ref-verification"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "protected-interval-precedes-refusal",
+              "claim_id": "claim-protected-interval-precedes-refusal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-protected-interval-precedes-refusal-proposition-subject-value-5b227265662d6174",
+      "covers": [
+        {
+          "surface_id": "claim-protected-interval-precedes-refusal-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/5/subject_reference_id",
+          "value": "ref-attempt"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "protected-interval-precedes-refusal",
+              "claim_id": "claim-protected-interval-precedes-refusal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-protected-interval-precedes-refusal-proposition-subject-value-5b227265662d6175",
+      "covers": [
+        {
+          "surface_id": "claim-protected-interval-precedes-refusal-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/5/subject_reference_id",
+          "value": "ref-authority"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "protected-interval-precedes-refusal",
+              "claim_id": "claim-protected-interval-precedes-refusal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-protected-interval-precedes-refusal-proposition-subject-value-5b227265662d6f70",
+      "covers": [
+        {
+          "surface_id": "claim-protected-interval-precedes-refusal-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/5/subject_reference_id",
+          "value": "ref-operation"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "protected-interval-precedes-refusal",
+              "claim_id": "claim-protected-interval-precedes-refusal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-protected-interval-precedes-refusal-proposition-subject-value-5b227265662d7072",
+      "covers": [
+        {
+          "surface_id": "claim-protected-interval-precedes-refusal-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/5/subject_reference_id",
+          "value": "ref-protected-effect-population"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "protected-interval-precedes-refusal",
+              "claim_id": "claim-protected-interval-precedes-refusal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-protected-interval-precedes-refusal-proposition-subject-value-5b227265662d7375",
+      "covers": [
+        {
+          "surface_id": "claim-protected-interval-precedes-refusal-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/5/subject_reference_id",
+          "value": "ref-subject"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "protected-interval-precedes-refusal",
+              "claim_id": "claim-protected-interval-precedes-refusal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-protected-interval-precedes-refusal-proposition-subject-value-5b227265662d7665",
+      "covers": [
+        {
+          "surface_id": "claim-protected-interval-precedes-refusal-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/5/subject_reference_id",
+          "value": "ref-verification"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "protected-interval-precedes-refusal",
+              "claim_id": "claim-protected-interval-precedes-refusal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-refusal-rejects-attempt-proposition-operand-0-role-value-5b227265662d6175",
+      "covers": [
+        {
+          "surface_id": "claim-refusal-rejects-attempt-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/3/operands/0/reference_id",
+          "value": "ref-authority"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "refusal-rejects-attempt",
+              "claim_id": "claim-refusal-rejects-attempt"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-refusal-rejects-attempt-proposition-operand-0-role-value-5b227265662d6f70",
+      "covers": [
+        {
+          "surface_id": "claim-refusal-rejects-attempt-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/3/operands/0/reference_id",
+          "value": "ref-operation"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "refusal-rejects-attempt",
+              "claim_id": "claim-refusal-rejects-attempt"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-refusal-rejects-attempt-proposition-operand-0-role-value-5b227265662d7072",
+      "covers": [
+        {
+          "surface_id": "claim-refusal-rejects-attempt-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/3/operands/0/reference_id",
+          "value": "ref-protected-interval"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "refusal-rejects-attempt",
+              "claim_id": "claim-refusal-rejects-attempt"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-refusal-rejects-attempt-proposition-operand-0-role-value-5b227265662d7265",
+      "covers": [
+        {
+          "surface_id": "claim-refusal-rejects-attempt-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/3/operands/0/reference_id",
+          "value": "ref-refusal"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "refusal-rejects-attempt",
+              "claim_id": "claim-refusal-rejects-attempt"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-refusal-rejects-attempt-proposition-operand-0-role-value-5b227265662d7375",
+      "covers": [
+        {
+          "surface_id": "claim-refusal-rejects-attempt-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/3/operands/0/reference_id",
+          "value": "ref-subject"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "refusal-rejects-attempt",
+              "claim_id": "claim-refusal-rejects-attempt"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-refusal-rejects-attempt-proposition-operand-0-role-value-5b227265662d7665",
+      "covers": [
+        {
+          "surface_id": "claim-refusal-rejects-attempt-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/3/operands/0/reference_id",
+          "value": "ref-verification"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "refusal-rejects-attempt",
+              "claim_id": "claim-refusal-rejects-attempt"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-refusal-rejects-attempt-proposition-subject-value-5b227265662d6174",
+      "covers": [
+        {
+          "surface_id": "claim-refusal-rejects-attempt-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/3/subject_reference_id",
+          "value": "ref-attempt"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "refusal-rejects-attempt",
+              "claim_id": "claim-refusal-rejects-attempt"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-refusal-rejects-attempt-proposition-subject-value-5b227265662d6175",
+      "covers": [
+        {
+          "surface_id": "claim-refusal-rejects-attempt-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/3/subject_reference_id",
+          "value": "ref-authority"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "refusal-rejects-attempt",
+              "claim_id": "claim-refusal-rejects-attempt"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-refusal-rejects-attempt-proposition-subject-value-5b227265662d6f70",
+      "covers": [
+        {
+          "surface_id": "claim-refusal-rejects-attempt-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/3/subject_reference_id",
+          "value": "ref-operation"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "refusal-rejects-attempt",
+              "claim_id": "claim-refusal-rejects-attempt"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-refusal-rejects-attempt-proposition-subject-value-5b227265662d7072",
+      "covers": [
+        {
+          "surface_id": "claim-refusal-rejects-attempt-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/3/subject_reference_id",
+          "value": "ref-protected-interval"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "refusal-rejects-attempt",
+              "claim_id": "claim-refusal-rejects-attempt"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-refusal-rejects-attempt-proposition-subject-value-5b227265662d7375",
+      "covers": [
+        {
+          "surface_id": "claim-refusal-rejects-attempt-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/3/subject_reference_id",
+          "value": "ref-subject"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "refusal-rejects-attempt",
+              "claim_id": "claim-refusal-rejects-attempt"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-refusal-rejects-attempt-proposition-subject-value-5b227265662d7665",
+      "covers": [
+        {
+          "surface_id": "claim-refusal-rejects-attempt-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/3/subject_reference_id",
+          "value": "ref-verification"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "refusal-rejects-attempt",
+              "claim_id": "claim-refusal-rejects-attempt"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-subject-unauthorized-for-operation-proposition-applicability-operands-value-5b5b227265662d61",
+      "covers": [
+        {
+          "surface_id": "claim-subject-unauthorized-for-operation-proposition-applicability-operands",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/2/applicability_context/operand_reference_ids",
+          "value": [
+            "ref-attempt"
+          ]
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "subject-unauthorized-for-operation",
+              "claim_id": "claim-subject-unauthorized-for-operation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-subject-unauthorized-for-operation-proposition-applicability-operands-value-5b5b227265662d70",
+      "covers": [
+        {
+          "surface_id": "claim-subject-unauthorized-for-operation-proposition-applicability-operands",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/2/applicability_context/operand_reference_ids",
+          "value": [
+            "ref-protected-interval"
+          ]
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "subject-unauthorized-for-operation",
+              "claim_id": "claim-subject-unauthorized-for-operation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-subject-unauthorized-for-operation-proposition-applicability-operands-value-5b5b227265662d72",
+      "covers": [
+        {
+          "surface_id": "claim-subject-unauthorized-for-operation-proposition-applicability-operands",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/2/applicability_context/operand_reference_ids",
+          "value": [
+            "ref-refusal"
+          ]
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "subject-unauthorized-for-operation",
+              "claim_id": "claim-subject-unauthorized-for-operation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-subject-unauthorized-for-operation-proposition-applicability-operands-value-5b5b227265662d73",
+      "covers": [
+        {
+          "surface_id": "claim-subject-unauthorized-for-operation-proposition-applicability-operands",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/2/applicability_context/operand_reference_ids",
+          "value": [
+            "ref-subject"
+          ]
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "subject-unauthorized-for-operation",
+              "claim_id": "claim-subject-unauthorized-for-operation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-subject-unauthorized-for-operation-proposition-applicability-operands-value-5b5b227265662d76",
+      "covers": [
+        {
+          "surface_id": "claim-subject-unauthorized-for-operation-proposition-applicability-operands",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/2/applicability_context/operand_reference_ids",
+          "value": [
+            "ref-verification"
+          ]
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "subject-unauthorized-for-operation",
+              "claim_id": "claim-subject-unauthorized-for-operation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-subject-unauthorized-for-operation-proposition-operand-0-role-value-5b227265662d6174",
+      "covers": [
+        {
+          "surface_id": "claim-subject-unauthorized-for-operation-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/2/operands/0/reference_id",
+          "value": "ref-attempt"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "subject-unauthorized-for-operation",
+              "claim_id": "claim-subject-unauthorized-for-operation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-subject-unauthorized-for-operation-proposition-operand-0-role-value-5b227265662d6175",
+      "covers": [
+        {
+          "surface_id": "claim-subject-unauthorized-for-operation-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/2/operands/0/reference_id",
+          "value": "ref-authority"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "subject-unauthorized-for-operation",
+              "claim_id": "claim-subject-unauthorized-for-operation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-subject-unauthorized-for-operation-proposition-operand-0-role-value-5b227265662d6f70",
+      "covers": [
+        {
+          "surface_id": "claim-subject-unauthorized-for-operation-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/2/operands/0/reference_id",
+          "value": "ref-operation"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "subject-unauthorized-for-operation",
+              "claim_id": "claim-subject-unauthorized-for-operation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-subject-unauthorized-for-operation-proposition-operand-0-role-value-5b227265662d7072",
+      "covers": [
+        {
+          "surface_id": "claim-subject-unauthorized-for-operation-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/2/operands/0/reference_id",
+          "value": "ref-protected-interval"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "subject-unauthorized-for-operation",
+              "claim_id": "claim-subject-unauthorized-for-operation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-subject-unauthorized-for-operation-proposition-operand-0-role-value-5b227265662d7265",
+      "covers": [
+        {
+          "surface_id": "claim-subject-unauthorized-for-operation-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/2/operands/0/reference_id",
+          "value": "ref-refusal"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "subject-unauthorized-for-operation",
+              "claim_id": "claim-subject-unauthorized-for-operation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-subject-unauthorized-for-operation-proposition-operand-0-role-value-5b227265662d7665",
+      "covers": [
+        {
+          "surface_id": "claim-subject-unauthorized-for-operation-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/2/operands/0/reference_id",
+          "value": "ref-verification"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "subject-unauthorized-for-operation",
+              "claim_id": "claim-subject-unauthorized-for-operation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-subject-unauthorized-for-operation-proposition-subject-value-5b227265662d6174",
+      "covers": [
+        {
+          "surface_id": "claim-subject-unauthorized-for-operation-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/2/subject_reference_id",
+          "value": "ref-attempt"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "subject-unauthorized-for-operation",
+              "claim_id": "claim-subject-unauthorized-for-operation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-subject-unauthorized-for-operation-proposition-subject-value-5b227265662d6f70",
+      "covers": [
+        {
+          "surface_id": "claim-subject-unauthorized-for-operation-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/2/subject_reference_id",
+          "value": "ref-operation"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "subject-unauthorized-for-operation",
+              "claim_id": "claim-subject-unauthorized-for-operation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-subject-unauthorized-for-operation-proposition-subject-value-5b227265662d7072",
+      "covers": [
+        {
+          "surface_id": "claim-subject-unauthorized-for-operation-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/2/subject_reference_id",
+          "value": "ref-protected-interval"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "subject-unauthorized-for-operation",
+              "claim_id": "claim-subject-unauthorized-for-operation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-subject-unauthorized-for-operation-proposition-subject-value-5b227265662d7265",
+      "covers": [
+        {
+          "surface_id": "claim-subject-unauthorized-for-operation-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/2/subject_reference_id",
+          "value": "ref-refusal"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "subject-unauthorized-for-operation",
+              "claim_id": "claim-subject-unauthorized-for-operation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-subject-unauthorized-for-operation-proposition-subject-value-5b227265662d7375",
+      "covers": [
+        {
+          "surface_id": "claim-subject-unauthorized-for-operation-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/2/subject_reference_id",
+          "value": "ref-subject"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "subject-unauthorized-for-operation",
+              "claim_id": "claim-subject-unauthorized-for-operation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-subject-unauthorized-for-operation-proposition-subject-value-5b227265662d7665",
+      "covers": [
+        {
+          "surface_id": "claim-subject-unauthorized-for-operation-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/2/subject_reference_id",
+          "value": "ref-verification"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "subject-unauthorized-for-operation",
+              "claim_id": "claim-subject-unauthorized-for-operation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-0-role-value-5b227265662d6175",
+      "covers": [
+        {
+          "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/8/operands/0/reference_id",
+          "value": "ref-authority"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "verification-observes-exact-proof-subjects",
+              "claim_id": "claim-verification-observes-exact-proof-subjects"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-0-role-value-5b227265662d6f70",
+      "covers": [
+        {
+          "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/8/operands/0/reference_id",
+          "value": "ref-operation"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "verification-observes-exact-proof-subjects",
+              "claim_id": "claim-verification-observes-exact-proof-subjects"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-0-role-value-5b227265662d7072",
+      "covers": [
+        {
+          "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/8/operands/0/reference_id",
+          "value": "ref-protected-interval"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "verification-observes-exact-proof-subjects",
+              "claim_id": "claim-verification-observes-exact-proof-subjects"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-0-role-value-5b227265662d7265",
+      "covers": [
+        {
+          "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/8/operands/0/reference_id",
+          "value": "ref-refusal"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "verification-observes-exact-proof-subjects",
+              "claim_id": "claim-verification-observes-exact-proof-subjects"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-0-role-value-5b227265662d7375",
+      "covers": [
+        {
+          "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/8/operands/0/reference_id",
+          "value": "ref-subject"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "verification-observes-exact-proof-subjects",
+              "claim_id": "claim-verification-observes-exact-proof-subjects"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-0-role-value-5b227265662d7665",
+      "covers": [
+        {
+          "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/8/operands/0/reference_id",
+          "value": "ref-verification"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "verification-observes-exact-proof-subjects",
+              "claim_id": "claim-verification-observes-exact-proof-subjects"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-1-role-value-5b227265662d6174",
+      "covers": [
+        {
+          "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-1-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/8/operands/1/reference_id",
+          "value": "ref-attempt"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "verification-observes-exact-proof-subjects",
+              "claim_id": "claim-verification-observes-exact-proof-subjects"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-1-role-value-5b227265662d6175",
+      "covers": [
+        {
+          "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-1-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/8/operands/1/reference_id",
+          "value": "ref-authority"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "verification-observes-exact-proof-subjects",
+              "claim_id": "claim-verification-observes-exact-proof-subjects"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-1-role-value-5b227265662d6f70",
+      "covers": [
+        {
+          "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-1-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/8/operands/1/reference_id",
+          "value": "ref-operation"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "verification-observes-exact-proof-subjects",
+              "claim_id": "claim-verification-observes-exact-proof-subjects"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-1-role-value-5b227265662d7072",
+      "covers": [
+        {
+          "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-1-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/8/operands/1/reference_id",
+          "value": "ref-protected-interval"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "verification-observes-exact-proof-subjects",
+              "claim_id": "claim-verification-observes-exact-proof-subjects"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-1-role-value-5b227265662d7375",
+      "covers": [
+        {
+          "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-1-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/8/operands/1/reference_id",
+          "value": "ref-subject"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "verification-observes-exact-proof-subjects",
+              "claim_id": "claim-verification-observes-exact-proof-subjects"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-1-role-value-5b227265662d7665",
+      "covers": [
+        {
+          "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-1-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/8/operands/1/reference_id",
+          "value": "ref-verification"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "verification-observes-exact-proof-subjects",
+              "claim_id": "claim-verification-observes-exact-proof-subjects"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-2-role-value-5b227265662d6174",
+      "covers": [
+        {
+          "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-2-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/8/operands/2/reference_id",
+          "value": "ref-attempt"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "verification-observes-exact-proof-subjects",
+              "claim_id": "claim-verification-observes-exact-proof-subjects"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-2-role-value-5b227265662d6175",
+      "covers": [
+        {
+          "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-2-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/8/operands/2/reference_id",
+          "value": "ref-authority"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "verification-observes-exact-proof-subjects",
+              "claim_id": "claim-verification-observes-exact-proof-subjects"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-2-role-value-5b227265662d7072",
+      "covers": [
+        {
+          "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-2-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/8/operands/2/reference_id",
+          "value": "ref-protected-interval"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "verification-observes-exact-proof-subjects",
+              "claim_id": "claim-verification-observes-exact-proof-subjects"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-2-role-value-5b227265662d7265",
+      "covers": [
+        {
+          "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-2-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/8/operands/2/reference_id",
+          "value": "ref-refusal"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "verification-observes-exact-proof-subjects",
+              "claim_id": "claim-verification-observes-exact-proof-subjects"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-2-role-value-5b227265662d7375",
+      "covers": [
+        {
+          "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-2-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/8/operands/2/reference_id",
+          "value": "ref-subject"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "verification-observes-exact-proof-subjects",
+              "claim_id": "claim-verification-observes-exact-proof-subjects"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-2-role-value-5b227265662d7665",
+      "covers": [
+        {
+          "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-2-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/8/operands/2/reference_id",
+          "value": "ref-verification"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "verification-observes-exact-proof-subjects",
+              "claim_id": "claim-verification-observes-exact-proof-subjects"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-verification-observes-exact-proof-subjects-proposition-subject-value-5b227265662d6174",
+      "covers": [
+        {
+          "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/8/subject_reference_id",
+          "value": "ref-attempt"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "verification-observes-exact-proof-subjects",
+              "claim_id": "claim-verification-observes-exact-proof-subjects"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-verification-observes-exact-proof-subjects-proposition-subject-value-5b227265662d6175",
+      "covers": [
+        {
+          "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/8/subject_reference_id",
+          "value": "ref-authority"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "verification-observes-exact-proof-subjects",
+              "claim_id": "claim-verification-observes-exact-proof-subjects"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-verification-observes-exact-proof-subjects-proposition-subject-value-5b227265662d6f70",
+      "covers": [
+        {
+          "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/8/subject_reference_id",
+          "value": "ref-operation"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "verification-observes-exact-proof-subjects",
+              "claim_id": "claim-verification-observes-exact-proof-subjects"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-verification-observes-exact-proof-subjects-proposition-subject-value-5b227265662d7072",
+      "covers": [
+        {
+          "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/8/subject_reference_id",
+          "value": "ref-protected-interval"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "verification-observes-exact-proof-subjects",
+              "claim_id": "claim-verification-observes-exact-proof-subjects"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-verification-observes-exact-proof-subjects-proposition-subject-value-5b227265662d7265",
+      "covers": [
+        {
+          "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/8/subject_reference_id",
+          "value": "ref-refusal"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "verification-observes-exact-proof-subjects",
+              "claim_id": "claim-verification-observes-exact-proof-subjects"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-verification-observes-exact-proof-subjects-proposition-subject-value-5b227265662d7375",
+      "covers": [
+        {
+          "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/8/subject_reference_id",
+          "value": "ref-subject"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "verification-observes-exact-proof-subjects",
+              "claim_id": "claim-verification-observes-exact-proof-subjects"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-write-prohibition-verification-proposition-operand-0-role-value-5b227265662d6175",
+      "covers": [
+        {
+          "surface_id": "claim-write-prohibition-verification-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/11/operands/0/reference_id",
+          "value": "ref-authority"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "write-prohibition-verification",
+              "claim_id": "claim-write-prohibition-verification"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-write-prohibition-verification-proposition-operand-0-role-value-5b227265662d6f70",
+      "covers": [
+        {
+          "surface_id": "claim-write-prohibition-verification-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/11/operands/0/reference_id",
+          "value": "ref-operation"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "write-prohibition-verification",
+              "claim_id": "claim-write-prohibition-verification"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-write-prohibition-verification-proposition-operand-0-role-value-5b227265662d7072",
+      "covers": [
+        {
+          "surface_id": "claim-write-prohibition-verification-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/11/operands/0/reference_id",
+          "value": "ref-protected-interval"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "write-prohibition-verification",
+              "claim_id": "claim-write-prohibition-verification"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-write-prohibition-verification-proposition-operand-0-role-value-5b227265662d7265",
+      "covers": [
+        {
+          "surface_id": "claim-write-prohibition-verification-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/11/operands/0/reference_id",
+          "value": "ref-refusal"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "write-prohibition-verification",
+              "claim_id": "claim-write-prohibition-verification"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-write-prohibition-verification-proposition-operand-0-role-value-5b227265662d7375",
+      "covers": [
+        {
+          "surface_id": "claim-write-prohibition-verification-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/11/operands/0/reference_id",
+          "value": "ref-subject"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "write-prohibition-verification",
+              "claim_id": "claim-write-prohibition-verification"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-write-prohibition-verification-proposition-operand-0-role-value-5b227265662d7665",
+      "covers": [
+        {
+          "surface_id": "claim-write-prohibition-verification-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/11/operands/0/reference_id",
+          "value": "ref-verification"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "write-prohibition-verification",
+              "claim_id": "claim-write-prohibition-verification"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-write-prohibition-verification-proposition-subject-value-5b227265662d6174",
+      "covers": [
+        {
+          "surface_id": "claim-write-prohibition-verification-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/11/subject_reference_id",
+          "value": "ref-attempt"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "write-prohibition-verification",
+              "claim_id": "claim-write-prohibition-verification"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-write-prohibition-verification-proposition-subject-value-5b227265662d6175",
+      "covers": [
+        {
+          "surface_id": "claim-write-prohibition-verification-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/11/subject_reference_id",
+          "value": "ref-authority"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "write-prohibition-verification",
+              "claim_id": "claim-write-prohibition-verification"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-write-prohibition-verification-proposition-subject-value-5b227265662d6f70",
+      "covers": [
+        {
+          "surface_id": "claim-write-prohibition-verification-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/11/subject_reference_id",
+          "value": "ref-operation"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "write-prohibition-verification",
+              "claim_id": "claim-write-prohibition-verification"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-write-prohibition-verification-proposition-subject-value-5b227265662d7072",
+      "covers": [
+        {
+          "surface_id": "claim-write-prohibition-verification-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/11/subject_reference_id",
+          "value": "ref-protected-interval"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "write-prohibition-verification",
+              "claim_id": "claim-write-prohibition-verification"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-write-prohibition-verification-proposition-subject-value-5b227265662d7265",
+      "covers": [
+        {
+          "surface_id": "claim-write-prohibition-verification-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/11/subject_reference_id",
+          "value": "ref-refusal"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "write-prohibition-verification",
+              "claim_id": "claim-write-prohibition-verification"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-write-prohibition-verification-proposition-subject-value-5b227265662d7375",
+      "covers": [
+        {
+          "surface_id": "claim-write-prohibition-verification-proposition-subject",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/11/subject_reference_id",
+          "value": "ref-subject"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "write-prohibition-verification",
+              "claim_id": "claim-write-prohibition-verification"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-write-prohibition-verification-verification-methods-value-5b22617564697422",
+      "covers": [
+        {
+          "surface_id": "claim-write-prohibition-verification-verification-methods",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/claims/11/verification_method",
+          "value": "audit"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "write-prohibition-verification",
+              "claim_id": "claim-write-prohibition-verification"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "claim-write-prohibition-verification-verification-methods-value-5b22696e73706563",
+      "covers": [
+        {
+          "surface_id": "claim-write-prohibition-verification-verification-methods",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/claims/11/verification_method",
+          "value": "inspection"
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "write-prohibition-verification",
+              "claim_id": "claim-write-prohibition-verification"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "protected-effect-population-membership-operand-0-role-subject",
+      "covers": [
+        {
+          "surface_id": "claim-protected-effect-population-membership-proposition-operand-0-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/6/operands",
+          "value": [
+            {
+              "kind": "reference",
+              "reference_id": "ref-subject"
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "protected-effect-population-membership",
+              "claim_id": "claim-protected-effect-population-membership"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "variant_id": "verification-observes-exact-proof-subjects-operand-3-role-subject",
+      "covers": [
+        {
+          "surface_id": "claim-verification-observes-exact-proof-subjects-proposition-operand-3-role",
+          "weakening_class": "proposition_weakening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/propositions/8/operands",
+          "value": [
+            {
+              "kind": "reference",
+              "reference_id": "ref-attempt"
+            },
+            {
+              "kind": "reference",
+              "reference_id": "ref-refusal"
+            },
+            {
+              "kind": "reference",
+              "reference_id": "ref-operation"
+            },
+            {
+              "kind": "reference",
+              "reference_id": "ref-subject"
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_pattern_bindings",
+          "value": [
+            {
+              "pattern_id": "verification-observes-exact-proof-subjects",
+              "claim_id": "claim-verification-observes-exact-proof-subjects"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

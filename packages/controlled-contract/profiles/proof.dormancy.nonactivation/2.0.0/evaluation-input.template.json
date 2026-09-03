@@ -1,0 +1,155 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.v1",
+  "evaluation_stage": "pre_dispatch",
+  "reference_bindings": [
+    {
+      "role": "construction_operation",
+      "reference_ids": [
+        "ref-direct-construction"
+      ]
+    },
+    {
+      "role": "registration_operation",
+      "reference_ids": [
+        "ref-direct-registration"
+      ]
+    },
+    {
+      "role": "registry",
+      "reference_ids": [
+        "ref-component-registry"
+      ]
+    },
+    {
+      "role": "dormant_component",
+      "reference_ids": [
+        "ref-dormant-component"
+      ]
+    },
+    {
+      "role": "production_graph",
+      "reference_ids": [
+        "ref-production-graph"
+      ]
+    },
+    {
+      "role": "graph_node_population",
+      "reference_ids": [
+        "ref-graph-node-population"
+      ]
+    },
+    {
+      "role": "graph_nodes",
+      "reference_ids": [
+        "ref-production-entry-a",
+        "ref-production-entry-b",
+        "ref-active-component",
+        "ref-dormant-component"
+      ]
+    },
+    {
+      "role": "production_entrypoint_population",
+      "reference_ids": [
+        "ref-production-entrypoint-population"
+      ]
+    },
+    {
+      "role": "production_entrypoints",
+      "reference_ids": [
+        "ref-production-entry-a",
+        "ref-production-entry-b"
+      ]
+    },
+    {
+      "role": "activation_event_population",
+      "reference_ids": [
+        "ref-activation-event-population"
+      ]
+    },
+    {
+      "role": "activation_events",
+      "reference_ids": []
+    },
+    {
+      "role": "activation_trace",
+      "reference_ids": [
+        "ref-activation-trace"
+      ]
+    },
+    {
+      "role": "default_configuration_artifact",
+      "reference_ids": [
+        "ref-default-config"
+      ]
+    },
+    {
+      "role": "default_inactive_state",
+      "reference_ids": [
+        "ref-inactive-state"
+      ]
+    },
+    {
+      "role": "verification",
+      "reference_ids": [
+        "ref-dormancy-verification"
+      ]
+    },
+    {
+      "role": "activation_detected_condition",
+      "reference_ids": [
+        "ref-condition-activation-detected"
+      ]
+    }
+  ],
+  "number_bindings": [
+    {
+      "role": "activation_event_count",
+      "value": 0
+    }
+  ],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [
+    {
+      "resolver_kind": "direct-construction",
+      "fact_key": "succeeds",
+      "argument_reference_ids": [
+        "ref-direct-construction",
+        "ref-dormant-component"
+      ],
+      "satisfied": true
+    },
+    {
+      "resolver_kind": "direct-registration",
+      "fact_key": "succeeds",
+      "argument_reference_ids": [
+        "ref-direct-registration",
+        "ref-component-registry",
+        "ref-dormant-component"
+      ],
+      "satisfied": true
+    },
+    {
+      "resolver_kind": "code-reachability",
+      "fact_key": "no-path-from-declared-production-entrypoints",
+      "argument_reference_ids": [
+        "ref-production-graph",
+        "ref-production-entry-a",
+        "ref-production-entry-b",
+        "ref-dormant-component"
+      ],
+      "satisfied": true
+    },
+    {
+      "resolver_kind": "activation-observation",
+      "fact_key": "complete-population-is-empty",
+      "argument_reference_ids": [
+        "ref-activation-trace",
+        "ref-activation-event-population",
+        "ref-dormant-component"
+      ],
+      "satisfied": true
+    }
+  ],
+  "delivered_evidence": [],
+  "stable_evaluation": {}
+}

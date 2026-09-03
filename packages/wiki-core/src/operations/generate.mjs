@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { loadManifest } from "../lib/contract.mjs";
+import { createWorkRecordCorpusSnapshot } from "../lib/work-record-corpus-snapshot.mjs";
 import { buildAreaReadmeProjections } from "./generate-area-readme-projection.mjs";
 import {
   ensureDirectory,
@@ -9,8 +10,7 @@ import {
   loadCanonicalState,
   pathExists,
   resolvePageFacets,
-  resolveContractContext,
-  today
+  resolveContractContext
 } from "../lib/wiki.mjs";
 
 async function countMarkdownFiles(directoryPath) {
@@ -19,6 +19,33 @@ async function countMarkdownFiles(directoryPath) {
   }
   const entries = await readdir(directoryPath, { withFileTypes: true });
   return entries.filter((entry) => entry.isFile() && entry.name.endsWith(".md")).length;
+}
+
+function immutableMap(source) {
+  const retained = new Map(source);
+  return Object.freeze({
+    get size() {
+      return retained.size;
+    },
+    get(key) {
+      return retained.get(key);
+    },
+    has(key) {
+      return retained.has(key);
+    },
+    keys() {
+      return retained.keys();
+    },
+    values() {
+      return retained.values();
+    },
+    entries() {
+      return retained.entries();
+    },
+    [Symbol.iterator]() {
+      return retained[Symbol.iterator]();
+    }
+  });
 }
 
 function priorityRank(value) {
@@ -572,16 +599,31 @@ export function generateCatalogPage(targetDir, state, manifest, context) {
   ].join("\n");
 }
 
-export async function buildGeneratedViews({
-  dir = ".",
-  profile = null,
-  extensionNamespaces = null
-} = {}) {
-  const targetDir = path.resolve(String(dir));
-  const context = await resolveContractContext(targetDir, {
-    profile,
-    extensionNamespaces
-  });
+export function resolveOperationDate(clock = null) {
+  const value = clock === null
+    ? new Date()
+    : typeof clock === "function"
+      ? clock()
+      : typeof clock?.now === "function"
+        ? clock.now()
+        : clock;
+  const instant = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(instant.valueOf())) {
+    throw new TypeError("operation clock must resolve to a valid UTC instant");
+  }
+  return instant.toISOString().slice(0, 10);
+}
+
+export async function buildGeneratedViewsFromCanonicalState({
+  targetDir,
+  context,
+  canonicalState,
+  operationDate,
+  instrumentation = null
+}) {
+  if (typeof instrumentation?.increment === "function") {
+    instrumentation.increment("generated_view_build_count", 1);
+  }
   const manifest = await loadManifest();
   const generatedDir = path.join(targetDir, manifest.generatedViews.defaultDirectory);
 
@@ -604,7 +646,7 @@ export async function buildGeneratedViews({
   const summaryLines = [
     "# Generated Wiki Summary",
     "",
-    `Generated: ${today()}`,
+    `Generated: ${operationDate}`,
     `Profile: ${context.profile}`,
     "",
     "> This file is derived output and is not canonical state.",
@@ -618,9 +660,7 @@ export async function buildGeneratedViews({
   ];
 
   const summaryPath = path.join(generatedDir, "summary.md");
-  const state = await loadCanonicalState(targetDir, {
-    extensionNamespaces: context.extensionNamespaces
-  });
+  const state = canonicalState;
   const outputs = new Map([
     [path.join(targetDir, "wiki", "now.md"), generateNowPage(targetDir, state, context)],
     [path.join(targetDir, "wiki", "inbox.md"), generateInboxPage(targetDir, state, context)],
@@ -646,7 +686,7 @@ export async function buildGeneratedViews({
     state,
     summaryPath,
     summaryContent: `${summaryLines.join("\n")}\n`,
-    outputs,
+    outputs: immutableMap(outputs),
     areaReadmePaths: areaReadmeProjection.paths,
     areaReadmeLeaks: areaReadmeProjection.leaks,
     areaReadmeDiagnostics,
@@ -654,12 +694,41 @@ export async function buildGeneratedViews({
   };
 }
 
-export async function generateViews({
+export async function buildGeneratedViews({
   dir = ".",
   profile = null,
-  extensionNamespaces = null
+  extensionNamespaces = null,
+  clock = null,
+  instrumentation = null
 } = {}) {
-  const build = await buildGeneratedViews({ dir, profile, extensionNamespaces });
+  const targetDir = path.resolve(String(dir));
+  const context = await resolveContractContext(targetDir, {
+    profile,
+    extensionNamespaces
+  });
+  const operationDate = resolveOperationDate(clock);
+  const snapshot = await createWorkRecordCorpusSnapshot({ dir: targetDir, instrumentation });
+  try {
+    if (typeof instrumentation?.increment === "function") {
+      instrumentation.increment("canonical_state_load_count", 1);
+    }
+    const canonicalState = await loadCanonicalState(targetDir, {
+      extensionNamespaces: context.extensionNamespaces,
+      workRecords: snapshot.loads
+    });
+    return await buildGeneratedViewsFromCanonicalState({
+      targetDir,
+      context,
+      canonicalState,
+      operationDate,
+      instrumentation
+    });
+  } finally {
+    snapshot.release();
+  }
+}
+
+export async function generateViewsFromBuild(build) {
 
   if (Array.isArray(build.areaReadmeLeaks) && build.areaReadmeLeaks.length > 0) {
     const detail = build.areaReadmeLeaks
@@ -684,10 +753,27 @@ export async function generateViews({
     summaryPath: build.summaryPath,
     outputPaths: [...build.outputs.keys(), build.summaryPath],
     generatedViews: [...build.outputs.keys()],
-
     areaReadmeDiagnostics: Array.isArray(build.areaReadmeDiagnostics)
       ? build.areaReadmeDiagnostics
       : [],
     counts: build.counts
   };
+}
+
+export async function generateViews({
+  dir = ".",
+  profile = null,
+  extensionNamespaces = null,
+  clock = null,
+  instrumentation = null
+} = {}) {
+  const build = await buildGeneratedViews({
+    dir,
+    profile,
+    extensionNamespaces,
+    clock,
+    instrumentation
+  });
+
+  return generateViewsFromBuild(build);
 }

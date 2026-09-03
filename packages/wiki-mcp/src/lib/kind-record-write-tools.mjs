@@ -7,7 +7,12 @@ import {
 } from "@agent-chassis/wiki-core/src/operations/kind-record-edit.mjs";
 import { assignWorkRecordToInitiativeByUnit as defaultAssignWorkRecordToInitiative } from "@agent-chassis/wiki-core/src/operations/work-record-contract-edit.mjs";
 
+import { parseWorkRecordUnitAddress } from "@agent-chassis/wiki-core/src/lib/work-record-contract-edit.mjs";
+import { INITIATIVE_ID_PATTERN } from "@agent-chassis/wiki-core/src/lib/work-record-contract-edit-shared.mjs";
+
 import { createWikiRecord } from "@agent-chassis/wiki-core/src/operations/create.mjs";
+
+import { MCP_WRITE_SEMANTICS } from "./register-tool.mjs";
 
 function createCompactKindRecordEditResponse(workspaceRepo, id, result) {
   const response = {
@@ -49,6 +54,98 @@ function createCompactInitiativeAssignmentResponse(workspaceRepo, result) {
     response.expected_source_digest = result.expected_source_digest;
   }
   return response;
+}
+
+export const ASSIGNMENT_MISSING_SEMANTIC_IDENTITY_CODE = "missing_semantic_identity";
+export const ASSIGNMENT_CONFLICTING_IDENTITY_ALIAS_CODE = "conflicting_identity_alias";
+export const ASSIGNMENT_REQUIRED_ONE_OF = Object.freeze([
+  Object.freeze(["unit", "work_record_id"]),
+  Object.freeze(["initiative", "initiative_id"])
+]);
+
+function parseAssignmentUnitIdentity(value) {
+  const parsed = parseWorkRecordUnitAddress(value);
+  if (!parsed.ok || parsed.unit.kind !== "work_item") {
+    return null;
+  }
+  return parsed.recordId;
+}
+
+function parseAssignmentInitiativeIdentity(value) {
+  return typeof value === "string" && INITIATIVE_ID_PATTERN.test(value) ? value : null;
+}
+
+function resolveAssignmentIdentityPair(args, { canonicalField, aliasField, parseIdentity }) {
+  const hasCanonical = args[canonicalField] !== undefined;
+  const hasAlias = args[aliasField] !== undefined;
+  if (!hasCanonical && !hasAlias) {
+    return { state: "missing", canonicalField, aliasField };
+  }
+  if (!hasCanonical || !hasAlias) {
+    const suppliedField = hasCanonical ? canonicalField : aliasField;
+    return { state: "resolved", value: args[suppliedField], identity: parseIdentity(args[suppliedField]) };
+  }
+
+  const canonicalValue = args[canonicalField];
+  const aliasValue = args[aliasField];
+  const canonicalIdentity = parseIdentity(canonicalValue);
+  const aliasIdentity = parseIdentity(aliasValue);
+  if (canonicalIdentity === null) {
+    return { state: "resolved", value: canonicalValue, identity: null };
+  }
+  if (aliasIdentity === null) {
+    return { state: "resolved", value: aliasValue, identity: null };
+  }
+  if (canonicalIdentity === aliasIdentity) {
+    return { state: "resolved", value: canonicalValue, identity: canonicalIdentity };
+  }
+  return {
+    state: "conflict",
+    canonicalField,
+    aliasField,
+    canonicalValue,
+    aliasValue,
+    value: canonicalValue,
+    identity: canonicalIdentity,
+    identities: [canonicalIdentity, aliasIdentity]
+  };
+}
+
+function assignmentBoundaryRefusal(workspaceRepo, { code, message, path, extra }) {
+  const error = new Error(message);
+  error.name = "InitiativeAssignmentInputError";
+  error.code = code;
+  error.envelope = {
+    workspaceRepo,
+    operation: "assign_work_record_to_initiative",
+    ok: false,
+    valid: false,
+    written: false,
+    no_op: false,
+    mechanical_failure: true,
+    diagnostics: [{ code, severity: "error", message, path }],
+    ...extra
+  };
+  return error;
+}
+
+function buildAssignmentRetryOptions(unitPair, initiativePair, args) {
+  const candidates = (pair) =>
+    pair.state === "conflict" ? pair.identities : [pair.identity];
+  const executionContext = {};
+  if (args?.repo !== undefined) {
+    executionContext.repo = args.repo;
+  }
+  if (args?.expected_source_digest !== undefined) {
+    executionContext.expected_source_digest = args.expected_source_digest;
+  }
+  const options = [];
+  for (const unit of candidates(unitPair)) {
+    for (const initiative of candidates(initiativePair)) {
+      options.push({ unit, initiative, ...executionContext });
+    }
+  }
+  return options;
 }
 
 export function registerKindRecordWriteTools({
@@ -105,45 +202,88 @@ export function registerKindRecordWriteTools({
     z
       .object({
         repo: z.string().optional(),
-        unit: z.string(),
-        initiative: z.string(),
+        unit: z.string().optional(),
+        work_record_id: z.string().optional(),
+        initiative: z.string().optional(),
+        initiative_id: z.string().optional(),
         expected_source_digest: z.string().optional()
       })
       .strict();
 
   const DEC_DRAFT_NOTE =
-    "DEC-0152: agents DRAFT decisions but cannot ratify. `create` mints a `proposed` DEC and `amend` edits a " +
-    "`proposed` DEC; neither can set `status`. Making a decision binding (`proposed`->`accepted`) is a HUMAN-ONLY " +
-    "action the operator performs with the `wiki decision ratify` CLI - there is no MCP ratify/unratify tool for " +
-    "any role. To get a decision ratified, finish the `proposed` draft and ask the operator to " +
-    "ratify it. Amending an `accepted` decision is refused until it is unratified back to `proposed`.";
+    "DEC-0152: agents may create and edit only `proposed` decisions. Human-only CLI actions ratify or " +
+    "unratify them; amending an accepted decision refuses.";
 
   const IN_DRAFT_NOTE =
-    "DEC-0152: agents draft initiatives (`IN-*`) freely - `create` mints a draft and `amend` edits it; neither " +
-    "can set lifecycle/provenance-managed fields (status/updated). Initiatives have no ratification gate.";
+    "Agents may create and edit draft initiatives. Lifecycle and provenance fields remain server-managed; " +
+    "initiatives have no ratification gate.";
 
   registerTool(
     "assign_work_record_to_initiative",
     {
+
+      writeSemantics: MCP_WRITE_SEMANTICS.NONE,
       description:
-        "Write-capable: assign one record-level work record (`WK-####`) to an existing initiative (`IN-####`). " +
-        "Slice selectors are refused before mutation. `WK.initiative` is the sole canonical assignment authority; " +
-        "initiative membership is derived by querying WK records with that scalar. The target initiative is " +
-        "validated before at most one CAS-protected WK write. This tool never writes an initiative record or " +
-        "`included_issues`. Repeating the current assignment is a true no-op without digest churn; reassignment " +
-        "atomically overwrites only the WK initiative scalar. Missing targets, invalid WK records, unsupported " +
-        "selectors, and stale expected_source_digest values return stable typed diagnostics without mutation. " +
-        "When supplied, expected_source_digest must be `sha256:<64 lowercase hex>`; malformed values return " +
-        "invalid_expected_source_digest rather than stale_source_digest.",
+        "Assign a record-level WK to an existing initiative. This is the sole canonical assignment authority: it CAS-updates only WK.initiative and never writes the initiative record. Use unit/work_record_id and initiative/initiative_id as equivalent input pairs; conflicting aliases or slice selectors refuse. Repeating the same assignment is a no-op.",
       inputSchema: initiativeAssignmentInputSchema()
     },
     async (args) => {
       try {
         const workspace = resolveWorkspaceRepo(workspaceRepos, args.repo);
+
+        const unitPair = resolveAssignmentIdentityPair(args, {
+          canonicalField: "unit",
+          aliasField: "work_record_id",
+          parseIdentity: parseAssignmentUnitIdentity
+        });
+        const initiativePair = resolveAssignmentIdentityPair(args, {
+          canonicalField: "initiative",
+          aliasField: "initiative_id",
+          parseIdentity: parseAssignmentInitiativeIdentity
+        });
+
+        const missing = [unitPair, initiativePair].filter((pair) => pair.state === "missing");
+        if (missing.length > 0) {
+          throw assignmentBoundaryRefusal(workspace.repo, {
+            code: ASSIGNMENT_MISSING_SEMANTIC_IDENTITY_CODE,
+            message:
+              "assign_work_record_to_initiative requires at least one of unit/work_record_id and at least one of " +
+              "initiative/initiative_id",
+            path: missing[0].canonicalField,
+            extra: {
+              required_one_of: ASSIGNMENT_REQUIRED_ONE_OF.map((pair) => [...pair]),
+              missing_semantic_identities: missing.map((pair) => [pair.canonicalField, pair.aliasField])
+            }
+          });
+        }
+
+        const identityErrors = [unitPair, initiativePair].some((pair) => pair.identity === null);
+        const conflicts = identityErrors
+          ? []
+          : [unitPair, initiativePair].filter((pair) => pair.state === "conflict");
+        if (conflicts.length > 0) {
+          throw assignmentBoundaryRefusal(workspace.repo, {
+            code: ASSIGNMENT_CONFLICTING_IDENTITY_ALIAS_CODE,
+            message:
+              "a canonical identity field and its alias were supplied with different canonical identities; " +
+              "retry with one of the canonical retry_options",
+            path: conflicts[0].canonicalField,
+            extra: {
+              conflicts: conflicts.map((pair) => ({
+                canonical_field: pair.canonicalField,
+                alias_field: pair.aliasField,
+                canonical_value: pair.canonicalValue,
+                alias_value: pair.aliasValue
+              })),
+              retry_options: buildAssignmentRetryOptions(unitPair, initiativePair, args)
+            }
+          });
+        }
+
         const result = await assignWorkRecordToInitiative({
           dir: workspace.dir,
-          unit: args.unit,
-          initiative: args.initiative,
+          unit: unitPair.value,
+          initiative: initiativePair.value,
           expectedSourceDigest: args.expected_source_digest ?? null,
           verbose: true
         });
@@ -158,10 +298,11 @@ export function registerKindRecordWriteTools({
     registerTool(
       toolName,
       {
+
+        writeSemantics: MCP_WRITE_SEMANTICS.WHOLE_FIELD_REPLACEMENT,
         description:
-          `Write-capable: amend one declared body section (\`section\`/\`value\`) of ${subjectDescription} ` +
-          "by id through the validated kind-record persistence path, honoring an optional expected_source_digest " +
-          `for stale-write protection. Identity is server-resolved; there is no actor input. ${note}`,
+          `Set one declared body section of ${subjectDescription}. Write-capable; validated persistence honors ` +
+          `optional expected_source_digest, and identity is server-resolved. ${note}`,
         inputSchema: sectionInputSchema()
       },
       async (args) => {
@@ -185,11 +326,11 @@ export function registerKindRecordWriteTools({
     registerTool(
       toolName,
       {
+
+        writeSemantics: MCP_WRITE_SEMANTICS.NONE,
         description:
-          `Write-capable: amend one controlled top-level scalar field (\`field\`/\`value\`) of ${subjectDescription} ` +
-          "by id through the validated kind-record persistence path, honoring an optional expected_source_digest " +
-          "for stale-write protection. Lifecycle/provenance-managed fields (status/ratified/updated) are refused. " +
-          `Identity is server-resolved; there is no actor input. ${note}`,
+          `Amend one controlled scalar of ${subjectDescription}. Write-capable; validated persistence honors optional ` +
+          `expected_source_digest. Server-managed lifecycle/provenance fields refuse; identity is server-resolved. ${note}`,
         inputSchema: scalarInputSchema()
       },
       async (args) => {
@@ -217,14 +358,10 @@ export function registerKindRecordWriteTools({
   registerTool(
     "workspace_decision_reject",
     {
+
+      writeSemantics: MCP_WRITE_SEMANTICS.NONE,
       description:
-        "Write-capable: reject a decision (`DEC-*`) record - the `proposed` -> `rejected` status flip - by id, " +
-        "stamping who/when provenance through the validated kind-record persistence path and honoring an optional " +
-        "expected_source_digest. AGENT-CALLABLE: an agent may decline/reject its OWN never-accepted `proposed` draft " +
-        "DEC. This is the ONLY DEC status transition an agent may perform (DEC-0155). It REFUSES any source status " +
-        "other than `proposed` with an invalid_lifecycle_transition diagnostic - an accepted DEC cannot be rejected " +
-        "as a backdoor unlock. Conferring or removing `accepted` authority (ratify/unratify/superseded/expired/" +
-        "deprecated) stays HUMAN-ONLY. Identity is server-resolved; there is no actor input.",
+        "Reject a never-accepted proposed decision. Write-capable and agent-callable; server-resolved provenance and optional expected_source_digest protect the write. Other source states refuse. Human-only actions confer or remove accepted authority.",
       inputSchema: lifecycleInputSchema()
     },
     async (args) => {
@@ -242,16 +379,15 @@ export function registerKindRecordWriteTools({
     }
   );
 
-  const registerCreate = (toolName, type, subjectDescription, note) =>
+  const registerCreate = (toolName, type, subjectDescription, birthState, note) =>
     registerTool(
       toolName,
       {
+
+        writeSemantics: MCP_WRITE_SEMANTICS.NONE,
         description:
-          `Write-capable: create a new ${subjectDescription} through the shared allocator/birth path (no ` +
-          "caller-supplied filesystem root). The record is born in its non-binding draft state (a decision as " +
-          "`proposed`), seeded to its required fields, and written as canonical `.json` with the `.md` projection in " +
-          "lockstep. Identity/provenance is server-resolved; there is no actor input. Returns the compact born-record " +
-          `envelope. ${note}`,
+          `Create one ${subjectDescription} ${birthState} through the shared allocator. Write-capable; server-resolved ` +
+          `identity and provenance produce canonical JSON and Markdown together. ${note}`,
         inputSchema: createInputSchema()
       },
       async (args) => {
@@ -274,6 +410,18 @@ export function registerKindRecordWriteTools({
       }
     );
 
-  registerCreate("workspace_decision_create", "decision", "decision (`DEC-*`) record", DEC_DRAFT_NOTE);
-  registerCreate("workspace_initiative_create", "initiative", "initiative (`IN-*`) record", IN_DRAFT_NOTE);
+  registerCreate(
+    "workspace_decision_create",
+    "decision",
+    "decision (`DEC-*`) record",
+    "in its non-binding `proposed` draft state",
+    DEC_DRAFT_NOTE
+  );
+  registerCreate(
+    "workspace_initiative_create",
+    "initiative",
+    "initiative (`IN-*`) record",
+    "as a draft initiative",
+    IN_DRAFT_NOTE
+  );
 }

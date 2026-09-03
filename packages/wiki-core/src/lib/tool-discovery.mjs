@@ -72,5 +72,13 @@ export {
   createToolDiscoveryFreshness,
   createToolDiscoveryEnvelope,
   loadToolDiscoveryEnvelope,
-  queryToolDiscoveryDescriptor
+  queryToolDiscoveryDescriptor,
+
+  TOOL_DOC_DOCUMENTATION_STATE_REASONS,
+  TOOL_DOC_PACKAGE_READ_TOOL,
+  TOOL_DOC_REFERENCE_SCOPE_PACKAGE,
+  TOOL_DOC_REFERENCE_SCOPE_WORKSPACE,
+  TOOL_DOC_WORKSPACE_READ_TOOL,
+  projectRuntimeToolDiscoveryDocumentation,
+  projectRuntimeToolDocumentationReferences
 } from "./tool-discovery/projection.mjs";

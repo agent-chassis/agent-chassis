@@ -1,0 +1,43 @@
+{
+  "controls": [
+    {
+      "control_id": "atomic-codeployment-positive"
+    },
+    {
+      "control_id": "case-population-duplicate-refused"
+    },
+    {
+      "control_id": "case-population-omission-refused"
+    },
+    {
+      "control_id": "case-population-substitution-refused"
+    },
+    {
+      "control_id": "cross-domain-api-schema-positive"
+    },
+    {
+      "control_id": "cross-domain-managed-repository-positive"
+    },
+    {
+      "control_id": "cross-domain-message-codec-positive"
+    },
+    {
+      "control_id": "missing-dag-source-refused"
+    },
+    {
+      "control_id": "missing-path-source-refused"
+    },
+    {
+      "control_id": "missing-unit-source-refused"
+    },
+    {
+      "control_id": "projection-result-splice-refused"
+    },
+    {
+      "control_id": "source-descriptor-splice-refused"
+    }
+  ],
+  "corpus_id": "integration-prefix-safety-exact-binding",
+  "corpus_version": "1.0.0",
+  "schema_version": "controlled-contract.integration-prefix-safety-exact-corpus.v1"
+}

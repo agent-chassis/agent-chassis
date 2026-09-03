@@ -1,7 +1,5 @@
 
 
-import { validateAcceptanceCriterionEntry } from "./work-record-schema-validators.mjs";
-import { buildNextCall } from "./next-calls-descriptor.mjs";
 import {
   evaluateWorkRecordPolicy,
   normalizeWorkRecordPolicyPath
@@ -111,80 +109,6 @@ export function collectForbiddenDecisionsWriteScopePaths(writeScope) {
     }
   }
   return [...forbidden].sort((left, right) => left.localeCompare(right));
-}
-
-function isCanonicalAcceptanceCriterion(entry) {
-  const diagnostics = [];
-  validateAcceptanceCriterionEntry(diagnostics, entry, "criteria", { allowString: true });
-  return diagnostics.length === 0;
-}
-
-function findingsAcceptanceCriterionText(entry) {
-  if (typeof entry === "string") {
-    const text = entry.trim();
-    return text ? text : null;
-  }
-  if (isObject(entry)) {
-    if (typeof entry.text !== "string") {
-      return null;
-    }
-    const text = entry.text.trim();
-    return text ? text : null;
-  }
-  return null;
-}
-
-function classifyProspectiveReviewAcceptanceSection(section) {
-  if (
-    !isObject(section) ||
-    !Array.isArray(section.criteria) ||
-    !Array.isArray(section.validation)
-  ) {
-    return "invalid";
-  }
-  const criteriaEmpty = section.criteria.length === 0;
-  const validationEmpty = section.validation.length === 0;
-  if (criteriaEmpty && validationEmpty) {
-    return "empty";
-  }
-  if (criteriaEmpty !== validationEmpty) {
-    return "invalid";
-  }
-  for (const entry of section.criteria) {
-    if (!isCanonicalAcceptanceCriterion(entry) || findingsAcceptanceCriterionText(entry) === null) {
-      return "invalid";
-    }
-  }
-  for (const entry of section.validation) {
-    if (typeof entry !== "string" || entry.trim() === "") {
-      return "invalid";
-    }
-  }
-  return "valid";
-}
-
-function collectProspectiveSliceReviewAcceptanceBlocker(record, selectedUnit, unit) {
-  const parentState = classifyProspectiveReviewAcceptanceSection(record?.acceptance);
-  if (parentState === "invalid") {
-    return {
-      code: "missing_validation",
-      remediation_unit: record.id,
-      reason:
-        `exact-slice review inherits parent acceptance from ${record.id}, but its acceptance is asymmetric or malformed; ` +
-        `set both acceptance.criteria and acceptance.validation (or leave both empty) with workspace_work_record_set_acceptance on ${record.id}`
-    };
-  }
-  const sliceState = classifyProspectiveReviewAcceptanceSection(selectedUnit?.acceptance);
-  if (sliceState !== "valid") {
-    return {
-      code: "missing_validation",
-      remediation_unit: unit.address,
-      reason:
-        `exact-slice review requires complete acceptance on the implementation slice ${unit.address}; ` +
-        `set acceptance.criteria and acceptance.validation with workspace_work_record_set_acceptance on ${unit.address}`
-    };
-  }
-  return null;
 }
 
 export function buildReadinessFromRecord({
@@ -381,30 +305,23 @@ export function buildReadinessFromRecord({
   }
 
   if (!readOnly) {
+    const acceptanceCriteria = Array.isArray(subject?.acceptance?.criteria)
+      ? subject.acceptance.criteria
+      : [];
+    if (acceptanceCriteria.length === 0) {
+      blockers.push({
+        code: "missing_acceptance_criteria",
+        reason: "acceptance.criteria must list at least one acceptance criterion"
+      });
+    }
     const acceptanceValidation = Array.isArray(subject?.acceptance?.validation)
       ? subject.acceptance.validation
       : [];
     if (acceptanceValidation.length === 0) {
       blockers.push({
         code: "missing_validation",
-        reason: "acceptance.validation must list at least one validation command"
+        reason: "acceptance.validation must list at least one validation declaration or note"
       });
-    }
-  }
-
-  let prospectiveReviewRemediationUnit = null;
-  if (!readOnly && unit.kind === "slice" && selectedUnit && subject?.work_kind === "implementation") {
-    const prospectiveReviewBlocker = collectProspectiveSliceReviewAcceptanceBlocker(
-      record,
-      selectedUnit,
-      unit
-    );
-    if (prospectiveReviewBlocker) {
-      blockers.push({
-        code: prospectiveReviewBlocker.code,
-        reason: prospectiveReviewBlocker.reason
-      });
-      prospectiveReviewRemediationUnit = prospectiveReviewBlocker.remediation_unit;
     }
   }
 
@@ -441,7 +358,9 @@ export function buildReadinessFromRecord({
     });
   }
 
-  if (isObject(record.migration) && !isMigrationReviewAcknowledged(record.migration)) {
+  if (!readOnly &&
+      isObject(record.migration) &&
+      !isMigrationReviewAcknowledged(record.migration)) {
     blockers.push({
       code: "migration_review_required",
       reason: "migrated work records require a trusted review acknowledgement before dispatch"
@@ -588,21 +507,9 @@ export function buildReadinessFromRecord({
       target_resolution: admissionRecovery?.recovery?.target_resolution
     }
   });
-
-  const prospectiveNextCalls =
-    prospectiveReviewRemediationUnit && decisionCode === "missing_validation"
-      ? [
-          buildNextCall({
-            tool: "workspace_work_record_set_acceptance",
-            arguments: { unit: prospectiveReviewRemediationUnit },
-            recommended: true
-          })
-        ]
-      : null;
   return {
     ...readiness,
     ...(graphImpactFailure ? { graph_impact_failure: graphImpactFailure } : {}),
-    ...(prospectiveNextCalls ? { next_calls: prospectiveNextCalls } : {}),
     state: {
       ...readiness.state,
       graph_state: {

@@ -42,6 +42,7 @@ import {
   readWorkRecordById,
   writeValidatedWorkRecordWithAdmissionSidecars
 } from "./work-records-store-io.mjs";
+import { normalizeReadinessEnvelope } from "../lib/work-record-dispatch-readiness-shape.mjs";
 import {
   isWorkerAdmissionDerivedEvidenceForUnit,
   materializeWorkRecordAdmissionDerivedEvidence,
@@ -232,33 +233,6 @@ function refreshNormalizedRequestOutputHashes(normalizedRequest) {
   }
 }
 
-function buildEvidenceOnlyMaterializationDispatchReadiness(unit) {
-  return {
-    schema_version: "dispatch-readiness.v1",
-    record_id: unit.record_id,
-    unit,
-    decision_code: "slice_review_acceptance.record_time_materialization.v1",
-    dispatchable: false,
-    clusters: [],
-    state: {
-      graph_available: false,
-      dirty_state: "unknown",
-      staleness: "unknown",
-      graph_state: {
-        graph_available: false,
-        edge_source: "unavailable",
-        dirty_graph_mode: "unavailable",
-        unavailable_paths: []
-      }
-    },
-    reasons: [
-      "slice-review acceptance evidence is integration authority only and does not assert dispatch readiness"
-    ],
-    accepted_escalations: [],
-    blast_radius: { level: "low", reasons: [], accepted_escalation_id: null }
-  };
-}
-
 function findAnyDerivedEvidenceEntryForUnit(record, unit) {
   const entries = Array.isArray(record?.derived_evidence) ? record.derived_evidence : [];
   return entries.find((entry) => isWorkerAdmissionDerivedEvidenceForUnit(entry, record.id, unit)) ?? null;
@@ -287,7 +261,17 @@ async function createFullEvidenceForSliceReviewAcceptance({ dir, record, unit, s
     fullEvidence: materializeWorkRecordAdmissionDerivedEvidence({
       record,
       repo: record.repo,
-      dispatch_readiness: buildEvidenceOnlyMaterializationDispatchReadiness(unit)
+      dispatch_readiness: normalizeReadinessEnvelope({
+        record_id: unit.record_id,
+        unit,
+        decision_code: "slice_review_acceptance.record_time_materialization.v1",
+        dispatchable: false,
+        clusters: [],
+        reasons: [
+          "slice-review acceptance evidence is integration authority only and does not assert dispatch readiness"
+        ],
+        accepted_escalations: []
+      })
     })
   };
 }

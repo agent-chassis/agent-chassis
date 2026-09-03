@@ -11,6 +11,7 @@ export async function searchRepo({
   limit = 8,
   offset = 0,
   unbounded = false,
+
   reindex = false,
   verbose = false,
   profile = null,
@@ -87,14 +88,13 @@ export async function searchRepo({
 
   const documentCount = countSearchDocuments(index);
   const warningCount = indexState === "existing" ? 0 : 1;
+
   const nextAction =
     returnedCount > 0
       ? "open one of the matching pages"
       : totalCount > 0
         ? "request an earlier offset or use unbounded retrieval"
-      : indexState === "existing"
-        ? "refine the query or adjust filters"
-        : "run build-search-index to refresh the lexical index cache";
+        : "refine the query or adjust filters";
 
   const compactResults = results.map((result) => summarizeSearchResult(result, { verbose }));
   const compactOutput = {

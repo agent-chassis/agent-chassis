@@ -1,0 +1,43 @@
+{
+  "schema_version": "controlled-contract-component-exclusion-applicability.v1",
+  "profile_id": "proof.design.implementation-readiness",
+  "profile_version": "2.1.0",
+  "profile_digest": "5ed3ee488a6a6f2a7c747bbeb3817f76e846e4cb663e8b8e5e03e7f8e98305b4",
+  "admission_digest": "9e55cfedd4f9b3c034cbc7ff2617957006dc22d38d165dc1929b159ad5285407",
+  "components": [
+    {
+      "selector": {
+        "kind": "claim",
+        "component_id": "design-names-grounded-loci"
+      },
+      "evaluation_stage": "pre_dispatch",
+      "exclusion_ids": [
+        "authored-population-truth",
+        "grounded-identity-existence",
+        "omitted-authored-requirement",
+        "product-sufficiency",
+        "runtime-and-repository-truth",
+        "warning-runtime-execution"
+      ],
+      "applicable_exclusion_ids": []
+    },
+    {
+      "selector": {
+        "kind": "claim",
+        "component_id": "warning-shape-verification"
+      },
+      "evaluation_stage": "pre_dispatch",
+      "exclusion_ids": [
+        "authored-population-truth",
+        "grounded-identity-existence",
+        "omitted-authored-requirement",
+        "product-sufficiency",
+        "runtime-and-repository-truth",
+        "warning-runtime-execution"
+      ],
+      "applicable_exclusion_ids": [
+        "warning-runtime-execution"
+      ]
+    }
+  ]
+}

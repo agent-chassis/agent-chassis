@@ -1,0 +1,469 @@
+{
+  "schema_version": "controlled-contract-verification-profile.v1",
+  "profile_id": "proof.state.bounded-interval-nonmutation",
+  "profile_version": "2.0.0",
+  "contract_schema_version": "controlled-acceptance-contract.v1",
+  "vocabulary_version": "controlled-contract-vocabulary.v1",
+  "vocabulary_signature_digest": "596a4c44d98aed1d31dd9ab3842fc054be6f8ffa3d62a3867a3966e75ecab742",
+  "vocabulary_algebra_digest": "0fbea1e7377baeef1869cbc55dc588ef5509ed40c768ce2a3c4f58be1133cf9c",
+  "vocabulary_definitions_digest": "bb3d2a63cb6fc8c62b9bc36d29d07549dea6ad85e32badb0cbb3cacfd6ad4759",
+  "vocabulary_complete_digest": "45484504f06968c6b4ac812c24b9f1b6e47e1d34ba21fefebde8dd85d1290fa9",
+  "evaluation_stages": [
+    "pre_dispatch"
+  ],
+  "verification_falsifier_policy": "controlled_complement_per_target",
+  "reference_roles": [
+    {
+      "role": "actor",
+      "allowed_type_terms": [
+        "cc:actor",
+        "cc:process",
+        "cc:runtime_component"
+      ],
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "interval",
+      "allowed_type_terms": [
+        "cc:event",
+        "cc:process",
+        "cc:scope"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "start_event",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "end_event",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "protected_resource_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "protected_resources",
+      "allowed_type_terms": [
+        "cc:resource",
+        "cc:artifact",
+        "cc:configuration",
+        "cc:state"
+      ],
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ],
+      "cardinality": "one_or_more"
+    },
+    {
+      "role": "verification",
+      "allowed_type_terms": [
+        "cc:test",
+        "cc:process"
+      ],
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "durable_id",
+        "repository_path"
+      ],
+      "cardinality": "exactly_one"
+    }
+  ],
+  "number_roles": [
+    {
+      "role": "protected_resource_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 1
+    }
+  ],
+  "distinct_reference_role_sets": [
+    {
+      "roles": [
+        "actor",
+        "interval",
+        "start_event",
+        "end_event",
+        "protected_resource_population"
+      ]
+    }
+  ],
+  "reference_binding_patterns": [
+    {
+      "pattern_id": "complete-protected-resource-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "protected_resource_population",
+        "protected_resources"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "interval"
+        ]
+      }
+    }
+  ],
+  "reference_role_count_bindings": [
+    {
+      "reference_role": "protected_resources",
+      "number_role": "protected_resource_count"
+    }
+  ],
+  "claim_patterns": [
+    {
+      "pattern_id": "start-event-starts-interval",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "start_event",
+        "operator": "reference:starts",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "interval"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "end-event-completes-interval",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "end_event",
+        "operator": "reference:completes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "interval"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "start-event-precedes-end-event",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "start_event",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "end_event"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "actor-does-not-write-protected-resources-during-interval",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST_NOT"
+      ],
+      "proposition_template": {
+        "subject_role": "actor",
+        "operator": "reference:writes",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "interval"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "protected_resources"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "actor-does-not-mutate-protected-resources-during-interval",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST_NOT"
+      ],
+      "proposition_template": {
+        "subject_role": "actor",
+        "operator": "reference:mutates",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "interval"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "protected_resources"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "verification-observes-exact-bounded-proof-subjects",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "actor"
+          },
+          {
+            "kind": "reference",
+            "role": "start_event"
+          },
+          {
+            "kind": "reference",
+            "role": "end_event"
+          },
+          {
+            "kind": "reference",
+            "role": "interval"
+          },
+          {
+            "kind": "reference",
+            "role": "protected_resources"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "verify-no-during-interval-write",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "protected_resource_population"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "actor",
+        "operator": "reference:writes",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "interval"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "protected_resources"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "verify-no-during-interval-mutation",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "interval"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "actor",
+        "operator": "reference:mutates",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "interval"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "protected_resources"
+          }
+        ]
+      }
+    }
+  ],
+  "relation_patterns": [
+    {
+      "pattern_id": "verification-target-no-write",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "verify-no-during-interval-write",
+      "target_claim_pattern_id": "actor-does-not-write-protected-resources-during-interval"
+    },
+    {
+      "pattern_id": "verification-target-no-mutation",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "verify-no-during-interval-mutation",
+      "target_claim_pattern_id": "actor-does-not-mutate-protected-resources-during-interval"
+    }
+  ],
+  "collection_patterns": [],
+  "resolver_fact_patterns": [],
+  "evidence_patterns": [],
+  "falsifier_condition_bindings": [
+    {
+      "relation_pattern_id": "verification-target-no-write",
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "interval"
+        ]
+      }
+    },
+    {
+      "relation_pattern_id": "verification-target-no-mutation",
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "interval"
+        ]
+      }
+    }
+  ],
+  "satisfaction_expression": {
+    "all_of": [
+      {
+        "pattern": "complete-protected-resource-population"
+      },
+      {
+        "pattern": "start-event-starts-interval"
+      },
+      {
+        "pattern": "end-event-completes-interval"
+      },
+      {
+        "pattern": "start-event-precedes-end-event"
+      },
+      {
+        "pattern": "actor-does-not-write-protected-resources-during-interval"
+      },
+      {
+        "pattern": "actor-does-not-mutate-protected-resources-during-interval"
+      },
+      {
+        "pattern": "verification-observes-exact-bounded-proof-subjects"
+      },
+      {
+        "pattern": "verify-no-during-interval-write"
+      },
+      {
+        "pattern": "verify-no-during-interval-mutation"
+      },
+      {
+        "pattern": "verification-target-no-write"
+      },
+      {
+        "pattern": "verification-target-no-mutation"
+      }
+    ]
+  }
+}

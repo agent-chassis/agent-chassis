@@ -1,0 +1,714 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-chassis.invalid/controlled-contract-projected-selection-supplement.experimental.v1.corrected.schema.json",
+  "title": "controlled-contract-projected-selection-supplement.experimental.v1 corrected design-freeze revision 3",
+  "description": "Additive corrected candidate schema for a same-cycle lossless projected-selection supplement. Protocol version remains experimental v1; supplement_schema_revision distinguishes this corrected design freeze from the rejected v2 candidate.",
+  "oneOf": [
+    { "$ref": "#/$defs/success" },
+    { "$ref": "#/$defs/refusal" }
+  ],
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "id": { "type": "string", "minLength": 1 },
+    "nullable_id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+    "nullable_sha256": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+    "node_kind": { "enum": ["claim", "collection", "proposition", "reference", "relation"] },
+    "claim_kind": { "enum": ["behavior", "evidence", "verification", null] },
+    "digest_commitment": {
+      "type": "object",
+      "required": ["domain", "digest", "canonical_bytes"],
+      "additionalProperties": false,
+      "properties": {
+        "domain": { "type": "string", "minLength": 1 },
+        "digest": { "$ref": "#/$defs/sha256" },
+        "canonical_bytes": { "type": "integer", "minimum": 2, "maximum": 67108864 }
+      }
+    },
+    "base": {
+      "type": "object",
+      "required": ["supplement_version", "supplement_schema_revision", "status", "digest_algorithm", "canonical_order", "authority", "diagnostics"],
+      "properties": {
+        "supplement_version": { "const": "controlled-contract-projected-selection-supplement.experimental.v1" },
+        "supplement_schema_revision": { "const": "unit1-lossless-correction.design-freeze.v3" },
+        "status": { "enum": ["success", "refused", "resource_limit", "unsupported_input", "missing_lossless_fact"] },
+        "digest_algorithm": { "const": "sha256-domain-separated-canonical-json-v1" },
+        "canonical_order": { "const": "utf16-code-unit-by-declared-composite-key-v1" },
+        "authority": { "$ref": "#/$defs/authority" },
+        "diagnostics": { "type": "array", "items": { "$ref": "#/$defs/diagnostic" } }
+      }
+    },
+    "success": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "required": ["supplement_version", "supplement_schema_revision", "status", "digest_algorithm", "canonical_order", "authority", "cycle_binding", "supplement_identity", "trace_authority", "validation_status", "counts", "projected_graph", "pattern_selections", "universal_iterations", "association_selections", "diagnostics"],
+          "additionalProperties": false,
+          "properties": {
+            "supplement_version": { "const": "controlled-contract-projected-selection-supplement.experimental.v1" },
+            "supplement_schema_revision": { "const": "unit1-lossless-correction.design-freeze.v3" },
+            "status": { "const": "success" },
+            "digest_algorithm": { "const": "sha256-domain-separated-canonical-json-v1" },
+            "canonical_order": { "const": "utf16-code-unit-by-declared-composite-key-v1" },
+            "authority": { "$ref": "#/$defs/authority" },
+            "cycle_binding": { "$ref": "#/$defs/cycle_binding" },
+            "supplement_identity": { "$ref": "#/$defs/supplement_identity" },
+            "trace_authority": { "$ref": "#/$defs/trace_authority" },
+            "validation_status": { "const": "validated_complete" },
+            "counts": { "$ref": "#/$defs/counts" },
+            "projected_graph": { "$ref": "#/$defs/projected_graph" },
+            "pattern_selections": { "type": "array", "items": { "$ref": "#/$defs/pattern_selection" } },
+            "universal_iterations": { "type": "array", "items": { "$ref": "#/$defs/universal_iteration" } },
+            "association_selections": { "type": "array", "items": { "$ref": "#/$defs/association_selection" } },
+            "diagnostics": { "type": "array", "maxItems": 0 }
+          }
+        }
+      ]
+    },
+    "refusal": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "required": ["supplement_version", "supplement_schema_revision", "status", "digest_algorithm", "canonical_order", "authority", "observed_binding", "refusal", "diagnostics"],
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": { "properties": { "status": { "const": "resource_limit" } }, "required": ["status"] },
+              "then": { "properties": { "refusal": { "$ref": "#/$defs/resource_refusal_detail" } } },
+              "else": { "properties": { "refusal": { "$ref": "#/$defs/refusal_detail" } } }
+            },
+            {
+              "if": { "properties": { "status": { "const": "unsupported_input" } }, "required": ["status"] },
+              "then": { "properties": { "refusal": { "$ref": "#/$defs/unsupported_refusal_detail" } } }
+            },
+            {
+              "if": { "properties": { "status": { "const": "missing_lossless_fact" } }, "required": ["status"] },
+              "then": { "properties": { "refusal": { "$ref": "#/$defs/missing_fact_refusal_detail" } } }
+            },
+            {
+              "if": { "properties": { "status": { "const": "refused" } }, "required": ["status"] },
+              "then": { "properties": { "refusal": { "$ref": "#/$defs/hard_refusal_detail" } } }
+            }
+          ],
+          "properties": {
+            "supplement_version": { "const": "controlled-contract-projected-selection-supplement.experimental.v1" },
+            "supplement_schema_revision": { "const": "unit1-lossless-correction.design-freeze.v3" },
+            "status": { "enum": ["refused", "resource_limit", "unsupported_input", "missing_lossless_fact"] },
+            "digest_algorithm": { "const": "sha256-domain-separated-canonical-json-v1" },
+            "canonical_order": { "const": "utf16-code-unit-by-declared-composite-key-v1" },
+            "authority": { "$ref": "#/$defs/authority" },
+            "observed_binding": { "$ref": "#/$defs/observed_binding" },
+            "refusal": { "type": "object" },
+            "diagnostics": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/diagnostic" } }
+          }
+        }
+      ]
+    },
+    "cycle_binding": {
+      "type": "object",
+      "required": ["assessment_pack_cycle_digest", "contract", "compiled_proof_plan", "assessment_identity", "assessment_manifest", "per_pack_assessment", "pack_identity", "profile_identity", "guarantee_identity", "admission_identity", "evaluation_input", "exact_binding_declaration", "exact_binding_result", "exact_capture_source_set", "projected_graph", "binding_set_digest"],
+      "additionalProperties": false,
+      "properties": {
+        "assessment_pack_cycle_digest": { "$ref": "#/$defs/sha256" },
+        "contract": { "$ref": "#/$defs/digest_commitment" },
+        "compiled_proof_plan": { "$ref": "#/$defs/digest_commitment" },
+        "assessment_identity": { "$ref": "#/$defs/sha256" },
+        "assessment_manifest": { "$ref": "#/$defs/digest_commitment" },
+        "per_pack_assessment": { "$ref": "#/$defs/digest_commitment" },
+        "pack_identity": { "$ref": "#/$defs/digest_commitment" },
+        "profile_identity": { "$ref": "#/$defs/digest_commitment" },
+        "guarantee_identity": { "$ref": "#/$defs/digest_commitment" },
+        "admission_identity": { "$ref": "#/$defs/digest_commitment" },
+        "evaluation_input": { "$ref": "#/$defs/digest_commitment" },
+        "exact_binding_declaration": { "$ref": "#/$defs/digest_commitment" },
+        "exact_binding_result": { "$ref": "#/$defs/digest_commitment" },
+        "exact_capture_source_set": { "$ref": "#/$defs/digest_commitment" },
+        "projected_graph": { "$ref": "#/$defs/digest_commitment" },
+        "binding_set_digest": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "observed_binding": {
+      "type": "object",
+      "required": ["validation_stage", "expected_assessment_pack_cycle_digest", "available_commitments"],
+      "additionalProperties": false,
+      "properties": {
+        "validation_stage": { "enum": ["input_validation", "projection", "selection", "universal_expansion", "association_expansion", "serialization"] },
+        "expected_assessment_pack_cycle_digest": { "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+        "available_commitments": { "type": "array", "items": { "$ref": "#/$defs/observed_commitment" } }
+      }
+    },
+    "observed_commitment": {
+      "type": "object",
+      "required": ["artifact_kind", "digest"],
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": { "enum": ["contract", "compiled_proof_plan", "assessment_manifest", "per_pack_assessment", "pack", "profile", "guarantee", "admission", "evaluation_input", "exact_binding_declaration", "exact_binding_result", "exact_capture_source_set", "projected_graph", "binding_set"] },
+        "digest": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "supplement_identity": {
+      "type": "object",
+      "required": ["domain", "digest", "payload_rule"],
+      "additionalProperties": false,
+      "properties": {
+        "domain": { "const": "controlled-contract:projected-selection-supplement:v1" },
+        "digest": { "$ref": "#/$defs/sha256" },
+        "payload_rule": { "const": "digest_complete_success_value_with_supplement_identity.digest_omitted" }
+      }
+    },
+    "trace_authority": {
+      "type": "object",
+      "required": ["source", "caller_supplied_trace_authoritative", "bounded_assessment_reconstruction_used", "complete_evaluator_trace_reconciled"],
+      "additionalProperties": false,
+      "properties": {
+        "source": { "const": "evaluator_owned_in_memory_trace" },
+        "caller_supplied_trace_authoritative": { "const": false },
+        "bounded_assessment_reconstruction_used": { "const": false },
+        "complete_evaluator_trace_reconciled": { "const": true }
+      }
+    },
+    "projected_graph": {
+      "type": "object",
+      "required": ["graph_digest", "node_count", "incidence_count", "incidence_participant_count", "nodes", "incidences"],
+      "additionalProperties": false,
+      "properties": {
+        "graph_digest": { "$ref": "#/$defs/sha256" },
+        "node_count": { "type": "integer", "minimum": 0, "maximum": 200000 },
+        "incidence_count": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+        "incidence_participant_count": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+        "nodes": { "type": "array", "items": { "$ref": "#/$defs/projected_node" } },
+        "incidences": { "type": "array", "items": { "$ref": "#/$defs/projected_incidence" } }
+      }
+    },
+    "projected_node": {
+      "type": "object",
+      "required": ["projected_node_id", "node_kind", "claim_kind", "source_contract_node_digest", "semantic_payload"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "properties": { "node_kind": { "const": "claim" } }, "required": ["node_kind"] },
+          "then": { "properties": { "claim_kind": { "enum": ["behavior", "evidence", "verification"] } } },
+          "else": { "properties": { "claim_kind": { "const": null } } }
+        },
+        {
+          "if": { "properties": { "node_kind": { "const": "reference" } }, "required": ["node_kind"] },
+          "then": { "properties": { "semantic_payload": { "$ref": "#/$defs/reference_payload" } } }
+        },
+        {
+          "if": { "properties": { "node_kind": { "const": "proposition" } }, "required": ["node_kind"] },
+          "then": { "properties": { "semantic_payload": { "$ref": "#/$defs/proposition_payload" } } }
+        },
+        {
+          "if": { "properties": { "node_kind": { "const": "claim" } }, "required": ["node_kind"] },
+          "then": { "properties": { "semantic_payload": { "$ref": "#/$defs/claim_payload" } } }
+        },
+        {
+          "if": { "properties": { "node_kind": { "const": "relation" } }, "required": ["node_kind"] },
+          "then": { "properties": { "semantic_payload": { "$ref": "#/$defs/relation_payload" } } }
+        },
+        {
+          "if": { "properties": { "node_kind": { "const": "collection" } }, "required": ["node_kind"] },
+          "then": { "properties": { "semantic_payload": { "$ref": "#/$defs/collection_payload" } } }
+        }
+      ],
+      "properties": {
+        "projected_node_id": { "$ref": "#/$defs/id" },
+        "node_kind": { "$ref": "#/$defs/node_kind" },
+        "claim_kind": { "$ref": "#/$defs/claim_kind" },
+        "source_contract_node_digest": { "$ref": "#/$defs/sha256" },
+        "semantic_payload": { "type": "object" }
+      }
+    },
+    "reference_payload": {
+      "type": "object",
+      "required": ["payload_kind", "type_term", "identity"],
+      "additionalProperties": false,
+      "properties": {
+        "payload_kind": { "const": "reference" },
+        "type_term": { "$ref": "#/$defs/id" },
+        "identity": { "$ref": "#/$defs/reference_identity" }
+      }
+    },
+    "reference_identity": {
+      "oneOf": [
+        {
+          "type": "object", "required": ["kind", "repository", "path"], "additionalProperties": false,
+          "properties": { "kind": { "const": "repository_path" }, "repository": { "$ref": "#/$defs/id" }, "path": { "$ref": "#/$defs/id" } }
+        },
+        {
+          "type": "object", "required": ["kind", "repository", "path", "symbol"], "additionalProperties": false,
+          "properties": { "kind": { "const": "code_symbol" }, "repository": { "$ref": "#/$defs/id" }, "path": { "$ref": "#/$defs/id" }, "symbol": { "$ref": "#/$defs/id" }, "scip_symbol": { "$ref": "#/$defs/id" } }
+        },
+        {
+          "type": "object", "required": ["kind", "domain", "value"], "additionalProperties": false,
+          "properties": { "kind": { "const": "durable_id" }, "domain": { "$ref": "#/$defs/id" }, "value": { "$ref": "#/$defs/id" } }
+        },
+        {
+          "type": "object", "required": ["kind", "name"], "additionalProperties": false,
+          "properties": { "kind": { "const": "runtime_parameter" }, "name": { "$ref": "#/$defs/id" } }
+        },
+        {
+          "type": "object", "required": ["kind", "term"], "additionalProperties": false,
+          "properties": { "kind": { "const": "profile_term" }, "term": { "$ref": "#/$defs/id" } }
+        }
+      ]
+    },
+    "proposition_payload": {
+      "type": "object",
+      "required": ["payload_kind", "operator"],
+      "additionalProperties": false,
+      "properties": { "payload_kind": { "const": "proposition" }, "operator": { "$ref": "#/$defs/id" } }
+    },
+    "claim_payload": {
+      "type": "object",
+      "required": ["payload_kind", "modality", "verification_method"],
+      "additionalProperties": false,
+      "properties": {
+        "payload_kind": { "const": "claim" },
+        "modality": { "enum": ["MUST", "MUST_NOT", "SHOULD", "SHOULD_NOT", "MAY"] },
+        "verification_method": { "enum": ["inspection", "analysis", "demonstration", "test_execution", "audit", "proof", null] }
+      }
+    },
+    "relation_payload": {
+      "type": "object",
+      "required": ["payload_kind", "relation_role"],
+      "additionalProperties": false,
+      "properties": {
+        "payload_kind": { "const": "relation" },
+        "relation_role": { "enum": ["satisfies", "verifies", "derives_from", "refines", "traces", "replaces", "depends_on", "precedes"] }
+      }
+    },
+    "collection_payload": {
+      "type": "object",
+      "required": ["payload_kind", "collection_kind", "purpose"],
+      "additionalProperties": false,
+      "properties": {
+        "payload_kind": { "const": "collection" },
+        "collection_kind": { "enum": ["closed_set", "ordered_sequence"] },
+        "purpose": { "$ref": "#/$defs/nullable_id" }
+      }
+    },
+    "projected_incidence": {
+      "oneOf": [
+        { "$ref": "#/$defs/proposition_incidence" },
+        { "$ref": "#/$defs/applicability_incidence" },
+        { "$ref": "#/$defs/claim_ownership_incidence" },
+        { "$ref": "#/$defs/relation_incidence" },
+        { "$ref": "#/$defs/collection_incidence" }
+      ]
+    },
+    "proposition_incidence": {
+      "type": "object",
+      "required": ["incidence_kind", "proposition_projected_node_id", "subject", "operands"],
+      "additionalProperties": false,
+      "properties": {
+        "incidence_kind": { "const": "proposition_structure" },
+        "proposition_projected_node_id": { "$ref": "#/$defs/id" },
+        "subject": { "$ref": "#/$defs/proposition_subject" },
+        "operands": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/proposition_operand" } }
+      }
+    },
+    "proposition_subject": {
+      "type": "object",
+      "required": ["subject_position", "subject_role", "reference_projected_node_id"],
+      "additionalProperties": false,
+      "properties": {
+        "subject_position": { "const": 0 },
+        "subject_role": { "const": "subject" },
+        "reference_projected_node_id": { "$ref": "#/$defs/id" }
+      }
+    },
+    "proposition_operand": {
+      "type": "object",
+      "required": ["operand_position", "operand_role", "operand_kind", "reference_projected_node_id", "literal_value"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "properties": { "operand_kind": { "const": "reference" } }, "required": ["operand_kind"] },
+          "then": { "properties": { "reference_projected_node_id": { "$ref": "#/$defs/id" }, "literal_value": { "const": null } } },
+          "else": { "properties": { "reference_projected_node_id": { "const": null } } }
+        },
+        {
+          "if": { "properties": { "operand_kind": { "const": "boolean" } }, "required": ["operand_kind"] },
+          "then": { "properties": { "literal_value": { "type": "boolean" } } }
+        },
+        {
+          "if": { "properties": { "operand_kind": { "const": "number" } }, "required": ["operand_kind"] },
+          "then": { "properties": { "literal_value": { "type": "number" } } }
+        },
+        {
+          "if": { "properties": { "operand_kind": { "const": "range" } }, "required": ["operand_kind"] },
+          "then": { "properties": { "literal_value": { "$ref": "#/$defs/range_value" } } }
+        }
+      ],
+      "properties": {
+        "operand_position": { "type": "integer", "minimum": 0 },
+        "operand_role": { "const": "operand" },
+        "operand_kind": { "enum": ["reference", "boolean", "number", "range"] },
+        "reference_projected_node_id": { "$ref": "#/$defs/nullable_id" },
+        "literal_value": {}
+      }
+    },
+    "range_value": {
+      "type": "object",
+      "required": ["minimum", "maximum"],
+      "additionalProperties": false,
+      "anyOf": [{ "properties": { "minimum": { "type": "number" } } }, { "properties": { "maximum": { "type": "number" } } }],
+      "properties": {
+        "minimum": { "oneOf": [{ "type": "number" }, { "type": "null" }] },
+        "maximum": { "oneOf": [{ "type": "number" }, { "type": "null" }] }
+      }
+    },
+    "applicability_incidence": {
+      "type": "object",
+      "required": ["incidence_kind", "proposition_projected_node_id", "applicability_mode", "operands"],
+      "additionalProperties": false,
+      "properties": {
+        "incidence_kind": { "const": "applicability_structure" },
+        "proposition_projected_node_id": { "$ref": "#/$defs/id" },
+        "applicability_mode": { "enum": ["unconditional", "if", "unless", "when", "while", "where", "before", "after", "during", "until", "frozen_base", "counterfactual"] },
+        "operands": { "type": "array", "items": { "$ref": "#/$defs/applicability_operand" } }
+      }
+    },
+    "applicability_operand": {
+      "type": "object",
+      "required": ["applicability_position", "applicability_role", "reference_projected_node_id"],
+      "additionalProperties": false,
+      "properties": {
+        "applicability_position": { "type": "integer", "minimum": 0 },
+        "applicability_role": { "const": "applicability_operand" },
+        "reference_projected_node_id": { "$ref": "#/$defs/id" }
+      }
+    },
+    "claim_ownership_incidence": {
+      "type": "object",
+      "required": ["incidence_kind", "claim_projected_node_id", "claim_kind", "proposition_projected_node_id", "falsifying_proposition_projected_node_id"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "properties": { "claim_kind": { "const": "verification" } }, "required": ["claim_kind"] },
+          "then": { "properties": { "falsifying_proposition_projected_node_id": { "$ref": "#/$defs/id" } } },
+          "else": { "properties": { "falsifying_proposition_projected_node_id": { "const": null } } }
+        }
+      ],
+      "properties": {
+        "incidence_kind": { "const": "claim_proposition_ownership" },
+        "claim_projected_node_id": { "$ref": "#/$defs/id" },
+        "claim_kind": { "enum": ["behavior", "evidence", "verification"] },
+        "proposition_projected_node_id": { "$ref": "#/$defs/id" },
+        "falsifying_proposition_projected_node_id": { "$ref": "#/$defs/nullable_id" }
+      }
+    },
+    "relation_incidence": {
+      "type": "object",
+      "required": ["incidence_kind", "relation_projected_node_id", "endpoints"],
+      "additionalProperties": false,
+      "properties": {
+        "incidence_kind": { "const": "relation_endpoints" },
+        "relation_projected_node_id": { "$ref": "#/$defs/id" },
+        "endpoints": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "$ref": "#/$defs/relation_endpoint" } }
+      }
+    },
+    "relation_endpoint": {
+      "type": "object",
+      "required": ["endpoint_position", "endpoint_role", "claim_projected_node_id"],
+      "additionalProperties": false,
+      "properties": {
+        "endpoint_position": { "type": "integer", "minimum": 0, "maximum": 1 },
+        "endpoint_role": { "enum": ["source", "target"] },
+        "claim_projected_node_id": { "$ref": "#/$defs/id" }
+      }
+    },
+    "collection_incidence": {
+      "type": "object",
+      "required": ["incidence_kind", "collection_projected_node_id", "ordered", "members"],
+      "additionalProperties": false,
+      "properties": {
+        "incidence_kind": { "const": "collection_membership" },
+        "collection_projected_node_id": { "$ref": "#/$defs/id" },
+        "ordered": { "type": "boolean" },
+        "members": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/collection_member" } }
+      }
+    },
+    "collection_member": {
+      "type": "object",
+      "required": ["member_position", "member_role", "claim_projected_node_id"],
+      "additionalProperties": false,
+      "properties": {
+        "member_position": { "type": "integer", "minimum": 0 },
+        "member_role": { "const": "member" },
+        "claim_projected_node_id": { "$ref": "#/$defs/id" }
+      }
+    },
+    "pattern_selection": {
+      "type": "object",
+      "required": ["pattern_instance_id", "pattern_kind", "evaluation_status", "selection_status", "branch_paths", "selected_nodes"],
+      "additionalProperties": false,
+      "properties": {
+        "pattern_instance_id": { "$ref": "#/$defs/id" },
+        "pattern_kind": { "enum": ["binding_constraint", "reference_binding", "claim", "relation", "collection", "resolver_fact", "evidence"] },
+        "evaluation_status": { "enum": ["satisfied", "unsatisfied", "indeterminate", "inactive"] },
+        "selection_status": { "enum": ["selected", "inactive_branch", "not_satisfied", "ambiguous", "not_applicable"] },
+        "branch_paths": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/branch_path" } },
+        "selected_nodes": { "type": "array", "items": { "$ref": "#/$defs/selected_node" } }
+      }
+    },
+    "branch_path": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/branch_position" }
+    },
+    "branch_position": {
+      "type": "object",
+      "required": ["gate_depth", "gate_operator", "branch_position"],
+      "additionalProperties": false,
+      "properties": {
+        "gate_depth": { "type": "integer", "minimum": 0 },
+        "gate_operator": { "enum": ["all_of", "any_of", "exactly_one"] },
+        "branch_position": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "selected_node": {
+      "type": "object",
+      "required": ["selection_position", "projected_node_id", "node_kind", "claim_kind", "selection_role"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "properties": { "node_kind": { "const": "claim" } }, "required": ["node_kind"] },
+          "then": { "properties": { "claim_kind": { "enum": ["behavior", "evidence", "verification"] } } },
+          "else": { "properties": { "claim_kind": { "const": null } } }
+        }
+      ],
+      "properties": {
+        "selection_position": { "type": "integer", "minimum": 0 },
+        "projected_node_id": { "$ref": "#/$defs/id" },
+        "node_kind": { "$ref": "#/$defs/node_kind" },
+        "claim_kind": { "$ref": "#/$defs/claim_kind" },
+        "selection_role": { "enum": ["claim", "subject", "operand", "relation", "collection", "member", "falsifier", "verification", "evidence", "proposition", "reference", "projection_result"] }
+      }
+    },
+    "universal_iteration": {
+      "type": "object",
+      "required": ["iteration_position", "pattern_instance_id", "pattern_kind", "population_binding", "complete_population_binding", "member_role", "member_positions", "branch_paths", "iteration_quantifier", "empty_behavior", "vacuous", "member_count", "occurrences"],
+      "additionalProperties": false,
+      "properties": {
+        "iteration_position": { "type": "integer", "minimum": 0 },
+        "pattern_instance_id": { "$ref": "#/$defs/id" },
+        "pattern_kind": { "const": "claim" },
+        "population_binding": { "$ref": "#/$defs/population_binding" },
+        "complete_population_binding": { "$ref": "#/$defs/complete_population_binding" },
+        "member_role": { "$ref": "#/$defs/id" },
+        "member_positions": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/member_position" } },
+        "branch_paths": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/branch_path" } },
+        "iteration_quantifier": { "enum": ["bound_population", "universal"] },
+        "empty_behavior": { "enum": ["not_vacuous", "vacuously_satisfied"] },
+        "vacuous": { "type": "boolean" },
+        "member_count": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+        "occurrences": { "type": "array", "items": { "$ref": "#/$defs/universal_occurrence" } }
+      }
+    },
+    "population_binding": {
+      "type": "object",
+      "required": ["population_role", "population_reference_projected_node_id", "binding_digest", "reference_count"],
+      "additionalProperties": false,
+      "properties": {
+        "population_role": { "$ref": "#/$defs/id" },
+        "population_reference_projected_node_id": { "$ref": "#/$defs/id" },
+        "binding_digest": { "$ref": "#/$defs/sha256" },
+        "reference_count": { "type": "integer", "minimum": 0, "maximum": 1000000 }
+      }
+    },
+    "complete_population_binding": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["status", "binding_identity_digest", "pattern_instance_id", "result_status", "result_digest"],
+          "additionalProperties": false,
+          "properties": {
+            "status": { "const": "declared" },
+            "binding_identity_digest": { "$ref": "#/$defs/sha256" },
+            "pattern_instance_id": { "$ref": "#/$defs/id" },
+            "result_status": { "enum": ["satisfied", "unsatisfied", "indeterminate", "inactive"] },
+            "result_digest": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["status", "binding_identity_digest", "pattern_instance_id", "result_status", "result_digest"],
+          "additionalProperties": false,
+          "properties": {
+            "status": { "const": "resolved_unique_by_population_role" },
+            "binding_identity_digest": { "$ref": "#/$defs/sha256" },
+            "pattern_instance_id": { "$ref": "#/$defs/id" },
+            "result_status": { "enum": ["satisfied", "unsatisfied", "indeterminate", "inactive"] },
+            "result_digest": { "$ref": "#/$defs/sha256" }
+          }
+        }
+      ]
+    },
+    "member_position": {
+      "type": "object",
+      "required": ["position_kind", "position"],
+      "additionalProperties": false,
+      "properties": {
+        "position_kind": { "enum": ["subject", "operand", "applicability_operand"] },
+        "position": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "universal_occurrence": {
+      "type": "object",
+      "required": ["member_occurrence_position", "member_projected_node_id", "member_node_kind", "member_role", "member_positions", "selection_status", "selected_nodes"],
+      "additionalProperties": false,
+      "properties": {
+        "member_occurrence_position": { "type": "integer", "minimum": 0 },
+        "member_projected_node_id": { "$ref": "#/$defs/id" },
+        "member_node_kind": { "const": "reference" },
+        "member_role": { "$ref": "#/$defs/id" },
+        "member_positions": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/member_position" } },
+        "selection_status": { "enum": ["selected", "not_satisfied", "ambiguous"] },
+        "selected_nodes": { "type": "array", "items": { "$ref": "#/$defs/selected_node" } }
+      }
+    },
+    "association_selection": {
+      "type": "object",
+      "required": ["pattern_instance_id", "universal_iteration_position", "member_occurrence_position", "association_position", "member_role", "member_position", "associated_role", "associated_position", "association_status", "associated_nodes", "cardinality"],
+      "additionalProperties": false,
+      "properties": {
+        "pattern_instance_id": { "$ref": "#/$defs/id" },
+        "universal_iteration_position": { "type": "integer", "minimum": 0 },
+        "member_occurrence_position": { "type": "integer", "minimum": 0 },
+        "association_position": { "type": "integer", "minimum": 0 },
+        "member_role": { "$ref": "#/$defs/id" },
+        "member_position": { "enum": ["subject", "reference_operand"] },
+        "associated_role": { "$ref": "#/$defs/id" },
+        "associated_position": { "enum": ["subject", "reference_operand"] },
+        "association_status": { "enum": ["satisfied", "unsatisfied", "indeterminate"] },
+        "associated_nodes": { "type": "array", "items": { "$ref": "#/$defs/associated_node" } },
+        "cardinality": { "enum": ["exactly_one", "one_or_more"] }
+      }
+    },
+    "associated_node": {
+      "type": "object",
+      "required": ["associated_node_position", "projected_node_id", "node_kind", "claim_kind"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "properties": { "node_kind": { "const": "claim" } }, "required": ["node_kind"] },
+          "then": { "properties": { "claim_kind": { "enum": ["behavior", "evidence", "verification"] } } },
+          "else": { "properties": { "claim_kind": { "const": null } } }
+        }
+      ],
+      "properties": {
+        "associated_node_position": { "type": "integer", "minimum": 0 },
+        "projected_node_id": { "$ref": "#/$defs/id" },
+        "node_kind": { "$ref": "#/$defs/node_kind" },
+        "claim_kind": { "$ref": "#/$defs/claim_kind" }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "required": ["verified_input_bytes", "successful_output_bytes", "projected_nodes", "projected_incidences", "projected_incidence_participants", "pattern_selections", "selected_nodes", "universal_iterations", "universal_member_occurrences", "association_selections", "association_members"],
+      "additionalProperties": false,
+      "properties": {
+        "verified_input_bytes": { "type": "integer", "minimum": 0, "maximum": 67108864 },
+        "successful_output_bytes": { "type": "integer", "minimum": 0, "maximum": 67108864 },
+        "projected_nodes": { "type": "integer", "minimum": 0, "maximum": 200000 },
+        "projected_incidences": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+        "projected_incidence_participants": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+        "pattern_selections": { "type": "integer", "minimum": 0, "maximum": 200000 },
+        "selected_nodes": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+        "universal_iterations": { "type": "integer", "minimum": 0, "maximum": 200000 },
+        "universal_member_occurrences": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+        "association_selections": { "type": "integer", "minimum": 0, "maximum": 1000000 },
+        "association_members": { "type": "integer", "minimum": 0, "maximum": 1000000 }
+      }
+    },
+    "refusal_detail": {
+      "type": "object",
+      "required": ["code", "blocked_stage"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "enum": ["PS_DIGEST_MISMATCH", "PS_SAME_CYCLE_MISMATCH", "PS_MISSING_PROJECTED_GRAPH", "PS_MISSING_SELECTED_NODE_TRACE", "PS_MISSING_UNIVERSAL_ITERATION_TRACE", "PS_TRACE_COMPLETENESS_MISMATCH", "PS_INCIDENCE_LOSSLESSNESS_FAILED", "PS_UNSUPPORTED_INPUT", "PS_VALIDATION_FAILED"] },
+        "blocked_stage": { "enum": ["input_validation", "projection", "selection", "universal_expansion", "association_expansion", "serialization"] }
+      }
+    },
+    "unsupported_refusal_detail": {
+      "type": "object",
+      "required": ["code", "blocked_stage"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "const": "PS_UNSUPPORTED_INPUT" },
+        "blocked_stage": { "enum": ["input_validation", "projection", "selection", "universal_expansion", "association_expansion", "serialization"] }
+      }
+    },
+    "missing_fact_refusal_detail": {
+      "type": "object",
+      "required": ["code", "blocked_stage"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "enum": ["PS_MISSING_PROJECTED_GRAPH", "PS_MISSING_SELECTED_NODE_TRACE", "PS_MISSING_UNIVERSAL_ITERATION_TRACE"] },
+        "blocked_stage": { "enum": ["input_validation", "projection", "selection", "universal_expansion", "association_expansion", "serialization"] }
+      }
+    },
+    "hard_refusal_detail": {
+      "type": "object",
+      "required": ["code", "blocked_stage"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "enum": ["PS_DIGEST_MISMATCH", "PS_SAME_CYCLE_MISMATCH", "PS_TRACE_COMPLETENESS_MISMATCH", "PS_INCIDENCE_LOSSLESSNESS_FAILED", "PS_VALIDATION_FAILED"] },
+        "blocked_stage": { "enum": ["input_validation", "projection", "selection", "universal_expansion", "association_expansion", "serialization"] }
+      }
+    },
+    "resource_refusal_detail": {
+      "type": "object",
+      "required": ["code", "blocked_stage", "unit", "measured", "limit", "count_point", "partial_result_released"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "const": "PS_RESOURCE_LIMIT" },
+        "blocked_stage": { "enum": ["input_validation", "projection", "selection", "universal_expansion", "association_expansion", "serialization"] },
+        "unit": { "enum": ["canonical_input_bytes", "canonical_output_bytes", "projected_nodes", "projected_incidences", "projected_incidence_participants", "pattern_selections", "selected_nodes", "universal_iterations", "universal_member_occurrences", "association_selections", "association_members"] },
+        "measured": { "type": "integer", "minimum": 0 },
+        "limit": { "type": "integer", "minimum": 1 },
+        "count_point": { "enum": ["verified_canonical_supplement_inputs_before_normalization", "complete_canonical_success_before_release", "normalized_first_class_projected_node_population", "normalized_typed_projected_incidence_population", "normalized_participant_occurrences_across_projected_incidences", "normalized_evaluator_pattern_instance_population", "selected_node_occurrences_across_patterns_and_universal_occurrences", "reconciled_for_each_begin_end_pairs", "reconciled_standalone_member_occurrence_population", "reconciled_association_declaration_member_selections", "associated_node_occurrences_across_association_selections"] },
+        "partial_result_released": { "const": false }
+      }
+    },
+    "diagnostic": {
+      "type": "object",
+      "required": ["code", "classification", "subject_digests"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string", "minLength": 1 },
+        "classification": { "enum": ["hard_invalidity", "missing_lossless_fact", "resource_limit", "unsupported_input"] },
+        "subject_digests": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/sha256" } }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "required": ["kind", "authoritative", "mandatory_exclusions"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "const": "lossless_assessment_supplement_not_runtime_evidence" },
+        "authoritative": { "const": false },
+        "mandatory_exclusions": { "$ref": "#/$defs/mandatory_exclusions" }
+      }
+    },
+    "mandatory_exclusions": {
+      "type": "object",
+      "required": ["proof_applicability", "optimality", "correct_ownership", "runtime_truth", "evidence_authority", "cce_consequences", "readiness", "status_transition_authority", "dispatch_authority", "mutation_or_publication_permission"],
+      "additionalProperties": false,
+      "properties": {
+        "proof_applicability": { "const": false },
+        "optimality": { "const": false },
+        "correct_ownership": { "const": false },
+        "runtime_truth": { "const": false },
+        "evidence_authority": { "const": false },
+        "cce_consequences": { "const": false },
+        "readiness": { "const": false },
+        "status_transition_authority": { "const": false },
+        "dispatch_authority": { "const": false },
+        "mutation_or_publication_permission": { "const": false }
+      }
+    }
+  }
+}

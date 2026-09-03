@@ -3,61 +3,41 @@
   "kind": "tool-discovery-fragment",
   "repository": "agent-chassis/agent-chassis",
   "fragment": "controlled-contract-tools.json",
-  "summary": "Structured controlled-contract carrier, authoring, proof-plan, assessment, and artifact tools.",
-  "tool_count": 14,
+  "summary": "Structured semantic controlled-contract authoring, task-complete proof selection and coverage authoring, bounded assessment queries, integration-test-design assessment, and deterministic private-scope census tools. Server ownership protects canonical identity, currentness, and mutation integrity rather than secrecy; registered routes expose no raw carrier bytes or generic content-reference fallback.",
+  "tool_count": 44,
   "tools": [
-    {
-      "tool_name": "workspace_controlled_contract_carrier_read",
-      "display_name": "Controlled contract carrier read",
-      "kind": "mcp_tool",
-      "entrypoint": "workspace_controlled_contract_carrier_read",
-      "task_ids": ["read-canonical"],
-      "install_state": "installed",
-      "runtime_posture": "supported",
-      "recommended_route": "mcp",
-      "audience": ["operator"],
-      "priority": 112,
-      "side_effects": ["read_only"],
-      "authority": ["checked_in_descriptor", "workspace_repo"],
-      "tier_visibility": ["free_local"],
-      "docs_refs": ["docs/mcp-operation-reference.md", "docs/tool-discovery.md"],
-      "source_files": ["packages/wiki-core/src/operations/controlled-contract.mjs", "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"],
-      "notes": "Operator-recovery-only full-carrier read. It accepts no path, root, cwd, environment, module, executable, catalog, profile directory, artifact URI, or output location."
-    },
-    {
-      "tool_name": "workspace_controlled_contract_carrier_write",
-      "display_name": "Controlled contract carrier write",
-      "kind": "mcp_tool",
-      "entrypoint": "workspace_controlled_contract_carrier_write",
-      "task_ids": ["contract-edit"],
-      "install_state": "installed",
-      "runtime_posture": "supported",
-      "recommended_route": "mcp",
-      "audience": ["operator"],
-      "priority": 111,
-      "side_effects": ["workspace_write"],
-      "authority": ["checked_in_descriptor", "workspace_repo"],
-      "tier_visibility": ["free_local"],
-      "docs_refs": ["docs/mcp-operation-reference.md", "docs/mcp-integration.md"],
-      "source_files": ["packages/wiki-core/src/lib/controlled-contract-tools.mjs", "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"],
-      "notes": "Operator-recovery-only full replacement for a controlled-contract or evaluation-input carrier. Normal authoring uses create/query/patch."
-    },
     {
       "tool_name": "workspace_controlled_vocabulary_query",
       "display_name": "Controlled vocabulary query",
       "kind": "mcp_tool",
       "entrypoint": "workspace_controlled_vocabulary_query",
-      "task_ids": ["controlled-contract-authoring"],
+      "task_ids": [
+        "controlled-contract-authoring"
+      ],
       "install_state": "installed",
       "runtime_posture": "supported",
       "recommended_route": "mcp",
-      "audience": ["agent", "operator"],
+      "audience": [
+        "agent",
+        "operator"
+      ],
       "priority": 105,
-      "side_effects": ["read_only"],
-      "authority": ["checked_in_descriptor"],
-      "tier_visibility": ["free_local"],
-      "docs_refs": ["docs/mcp-operation-reference.md"],
-      "source_files": ["packages/wiki-core/src/operations/controlled-contract.mjs", "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"],
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/operations/controlled-contract.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
       "notes": "Thin bounded query over the package-owned vocabulary. The result is advisory authoring assistance and never runtime truth, readiness, authorization, or policy."
     },
     {
@@ -65,89 +45,217 @@
       "display_name": "Controlled proof intents discover",
       "kind": "mcp_tool",
       "entrypoint": "workspace_controlled_proof_intents_discover",
-      "task_ids": ["controlled-contract-proof-selection"],
+      "task_ids": [
+        "controlled-contract-proof-selection"
+      ],
       "install_state": "installed",
       "runtime_posture": "supported",
       "recommended_route": "mcp",
-      "audience": ["agent", "operator"],
-      "priority": 108,
-      "side_effects": ["read_only"],
-      "authority": ["checked_in_descriptor"],
-      "tier_visibility": ["free_local"],
-      "docs_refs": ["docs/mcp-operation-reference.md"],
-      "source_files": ["packages/wiki-core/src/operations/controlled-contract.mjs", "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"],
-      "notes": "Lists or searches all package-owned controlled proof intents through the bounded library API. It performs no pack selection, invocation, admission, or authority decision."
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 151,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/operations/controlled-contract.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "notes": "Lists or searches all package-owned controlled proof intents through the bounded library API. Query length is package-measured in UTF-8 bytes with a 1024-byte maximum and package-owned bounded smaller-query recovery. It performs no pack selection, invocation, admission, or authority decision.",
+      "use_when": [
+        "The controlled proof intent remains semantically unknown after the caller provides its task or query."
+      ],
+      "do_not_use_when": [
+        "Exact controlled proof intent IDs are known; use workspace_controlled_proof_packs_select."
+      ],
+      "authoritative_for": [
+        "bounded discovery of package-owned controlled proof intent identities"
+      ],
+      "recommended_first_call": {
+        "routing_intents": [
+          "controlled_contract_proof_selection"
+        ],
+        "operation": "discover an unknown controlled proof intent",
+        "arguments": {
+          "query": "$proof_query_if_known"
+        },
+        "omit_null_arguments": true
+      }
     },
     {
       "tool_name": "workspace_controlled_proof_packs_select",
       "display_name": "Controlled proof packs select",
       "kind": "mcp_tool",
       "entrypoint": "workspace_controlled_proof_packs_select",
-      "task_ids": ["controlled-contract-proof-selection"],
+      "task_ids": [
+        "controlled-contract-proof-selection"
+      ],
       "install_state": "installed",
       "runtime_posture": "supported",
       "recommended_route": "mcp",
-      "audience": ["agent", "operator"],
+      "audience": [
+        "agent",
+        "operator"
+      ],
       "priority": 109,
-      "side_effects": ["read_only"],
-      "authority": ["checked_in_descriptor", "workspace_repo"],
-      "tier_visibility": ["free_local"],
-      "docs_refs": ["docs/mcp-operation-reference.md"],
-      "source_files": ["packages/wiki-core/src/operations/controlled-contract.mjs", "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"],
-      "notes": "Runs exact package selection for explicit intent IDs against a canonical contract and returns the package compact selection shape. It does not infer applicability, evidence sufficiency, policy, readiness, or authorization."
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md"
+      ],
+      "source_files": [
+        "packages/controlled-contract/lib/proof-intent-selection.mjs",
+        "packages/controlled-contract/schema/controlled-contract-proof-pack-selection.v2.schema.json",
+        "packages/wiki-core/src/operations/controlled-contract/proof-pack-operations.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-task-cursors.mjs",
+        "packages/wiki-mcp/src/lib/mcp-response.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "notes": "Selects package-owned proof packs for explicit intent IDs and returns canonical WK/focus context, exact inspection calls, and bounded transport. It performs no invocation, admission, policy, or lifecycle decision.",
+      "use_when": [
+        "A caller needs the decision state, compatible exact candidate identities, unresolved authoring inputs, and callable inspections for explicit controlled proof intents."
+      ],
+      "do_not_use_when": [
+        "The caller needs unrelated contract or proof-pack populations, raw package results, paths, carrier bytes, admission, authorization, certification, or CCE decisions."
+      ],
+      "authoritative_for": [
+        "controlled_contract_proof_pack_selection:task_complete_transport_projection"
+      ],
+      "recommended_first_call": {
+        "routing_intents": [
+          "controlled_contract_proof_selection"
+        ],
+        "operation": "select task-complete controlled proof-pack context",
+        "arguments": {
+          "wk_id": "$work_record_if_known",
+          "focus": "$focus_if_known",
+          "requested_intents": "$requested_intents_if_known"
+        },
+        "omit_null_arguments": true
+      }
     },
     {
       "tool_name": "workspace_controlled_proof_pack_describe",
       "display_name": "Controlled proof pack describe",
       "kind": "mcp_tool",
       "entrypoint": "workspace_controlled_proof_pack_describe",
-      "task_ids": ["controlled-contract-proof-selection"],
+      "task_ids": [
+        "controlled-contract-proof-selection"
+      ],
       "install_state": "installed",
       "runtime_posture": "supported",
       "recommended_route": "mcp",
-      "audience": ["agent", "operator"],
+      "audience": [
+        "agent",
+        "operator"
+      ],
       "priority": 107,
-      "side_effects": ["read_only"],
-      "authority": ["checked_in_descriptor"],
-      "tier_visibility": ["free_local"],
-      "docs_refs": ["docs/mcp-operation-reference.md"],
-      "source_files": ["packages/wiki-core/src/operations/controlled-contract.mjs", "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"],
-      "notes": "Orchestrator/operator authoring projection for one exact package-owned pack identity. It accepts no profile path, package root, module, executable, catalog, cwd, or environment override."
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/operations/controlled-contract.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "notes": "Authoring projection for one exact package-owned pack identity. It accepts no profile path, package root, module, executable, catalog, cwd, or environment override."
     },
     {
       "tool_name": "workspace_controlled_proof_pack_bindings_inspect",
       "display_name": "Controlled proof pack bindings inspect",
       "kind": "mcp_tool",
       "entrypoint": "workspace_controlled_proof_pack_bindings_inspect",
-      "task_ids": ["controlled-contract-proof-selection"],
+      "task_ids": [
+        "controlled-contract-proof-selection"
+      ],
       "install_state": "installed",
       "runtime_posture": "supported",
       "recommended_route": "mcp",
-      "audience": ["agent", "operator"],
+      "audience": [
+        "agent",
+        "operator"
+      ],
       "priority": 106,
-      "side_effects": ["read_only"],
-      "authority": ["checked_in_descriptor", "workspace_repo"],
-      "tier_visibility": ["free_local"],
-      "docs_refs": ["docs/mcp-operation-reference.md"],
-      "source_files": ["packages/wiki-core/src/operations/controlled-contract.mjs", "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"],
-      "notes": "Compact-first selector-aware binding assistance. Omitted evaluation_focus uses no input, null selects the canonical root carrier, and a canonical slug selects a focused carrier. Role/status pages are digest-bound and compatible candidates remain unselected and non-authoritative."
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/operations/controlled-contract.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "notes": "Compact-first selector-aware binding assistance. Omitted evaluation_focus uses no input, null selects the canonical root carrier, and a canonical lowercase slug of at most 128 UTF-8 bytes selects a focused carrier; invalid focus refuses before path resolution. Role/status pages are digest-bound and compatible candidates remain unselected and non-authoritative."
     },
     {
       "tool_name": "workspace_controlled_proof_plan_build",
       "display_name": "Controlled proof plan build",
       "kind": "mcp_tool",
       "entrypoint": "workspace_controlled_proof_plan_build",
-      "task_ids": ["controlled-contract-proof-plan"],
+      "task_ids": [
+        "controlled-contract-proof-plan"
+      ],
       "install_state": "installed",
       "runtime_posture": "supported",
       "recommended_route": "mcp",
-      "audience": ["agent", "operator"],
+      "audience": [
+        "agent",
+        "operator"
+      ],
       "priority": 110,
-      "side_effects": ["workspace_write"],
-      "authority": ["checked_in_descriptor", "workspace_repo"],
-      "tier_visibility": ["free_local"],
-      "docs_refs": ["docs/mcp-operation-reference.md", "docs/mcp-integration.md"],
-      "source_files": ["packages/wiki-core/src/operations/controlled-contract.mjs", "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"],
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/operations/controlled-contract.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
       "notes": "Orchestrator/operator compilation from server-resolved canonical carriers through the package buildProofPlan export. It validates the complete supplied binding set without enumerating the independently bounded binding-assistance candidate projection, then CAS-writes only the deterministic proof-plan carrier."
     },
     {
@@ -155,53 +263,235 @@
       "display_name": "Controlled contract assess",
       "kind": "mcp_tool",
       "entrypoint": "workspace_controlled_contract_assess",
-      "task_ids": ["controlled-contract-assessment"],
+      "task_ids": [
+        "controlled-contract-assessment"
+      ],
       "install_state": "installed",
       "runtime_posture": "supported",
       "recommended_route": "mcp",
-      "audience": ["agent", "operator"],
+      "audience": [
+        "agent",
+        "operator"
+      ],
       "priority": 113,
-      "side_effects": ["workspace_write"],
-      "authority": ["checked_in_descriptor", "workspace_repo"],
-      "tier_visibility": ["free_local"],
-      "docs_refs": ["docs/mcp-operation-reference.md", "docs/mcp-integration.md"],
-      "source_files": ["packages/wiki-core/src/operations/controlled-contract.mjs", "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"],
-      "notes": "Assesses canonical contract/proof-plan carriers through package library exports and writes only the package-produced ignored content-addressed assessment bundle. Compact output preserves typed axes and remains non-authoritative; lossless detail requires artifact retrieval."
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/operations/controlled-contract.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "notes": "Planning-only. One final-envelope owner returns a bounded non-authoritative task-relevant summary with assessment_identity, exact counts and omissions, and typed continuation through workspace_controlled_contract_assessment_query. It exposes no raw carriers or source-derived detail, result, population, or requirement digests.",
+      "use_when": ["A caller needs a deterministic planning assessment of one canonical contract and persisted proof plan."],
+      "do_not_use_when": ["The caller needs runtime test execution, raw carriers, filesystem paths, persistence, or lifecycle authority."],
+      "authoritative_for": ["controlled_contract_assessment:public_operation_contract"],
+      "recommended_first_call": {"routing_intents": ["controlled_contract_assessment"], "operation": "assess canonical contract and proof plan", "arguments": {"wk_id": "$work_record_if_known"}, "omit_null_arguments": true}
     },
     {
-      "tool_name": "workspace_controlled_contract_artifact_read",
-      "display_name": "Controlled contract artifact read",
       "kind": "mcp_tool",
-      "entrypoint": "workspace_controlled_contract_artifact_read",
-      "task_ids": ["controlled-contract-assessment"],
       "install_state": "installed",
       "runtime_posture": "supported",
       "recommended_route": "mcp",
-      "audience": ["agent", "operator"],
-      "priority": 104,
-      "side_effects": ["read_only"],
-      "authority": ["checked_in_descriptor", "workspace_repo"],
-      "tier_visibility": ["free_local"],
-      "docs_refs": ["docs/mcp-operation-reference.md", "docs/mcp-integration.md"],
-      "source_files": ["packages/wiki-core/src/lib/controlled-contract-tools.mjs", "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"],
-      "notes": "Reads one fixed package bundle file by exact sha256 assessment identity. Forged artifact URIs and caller paths are not accepted; oversized lossless JSON uses the existing MCP response content-reference mechanism."
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-controlled-contract-operations.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/operations/controlled-contract.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "tool_name": "workspace_controlled_contract_assessment_query",
+      "display_name": "Controlled contract assessment query",
+      "entrypoint": "workspace_controlled_contract_assessment_query",
+      "task_ids": [
+        "controlled-contract-assessment"
+      ],
+      "priority": 114,
+      "notes": "Queries one task-relevant proof-assessment collection. Authenticated cursors continue rows and typed fields; oversized scalars use offset/length ranges with exact total. Identity, currentness, and expiry bind each page. No raw carrier, artifact, spill, persistence, or lifecycle authority.",
+      "use_when": ["A caller needs bounded semantic detail from a live proof assessment snapshot."],
+      "do_not_use_when": ["The caller needs raw carrier, proof artifact, filesystem path, persistence, spill, or lifecycle access."],
+      "authoritative_for": ["controlled_contract_assessment:bounded_semantic_projection"],
+      "recommended_first_call": {"operation": "query proof assessment semantic collection", "arguments": {"assessment_identity": "$assessment_identity", "collection": "diagnostics"}, "omit_null_arguments": true}
+    },
+    {
+      "tool_name": "workspace_controlled_contract_runtime_prove",
+      "display_name": "Controlled contract runtime prove",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_controlled_contract_runtime_prove",
+      "task_ids": [
+        "controlled-contract-assessment"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 114,
+      "notes": "Executable targets resolve only from exact acceptance.validation[] {operation: node_test, target, verification_ids} declarations through the shared wiki-core owner; strings and {note, verification_ids} objects are inert. Public results contain only the requested subject, one common subject-binding summary, aggregate status/counts, compact proof and verification identity/status rows, and minimal reason/recovery facts for non-satisfied outcomes. structuredContent never exceeds 65,536 UTF-8 bytes and never exposes inventories, output, stacks, absolute paths, commands, argv, environment, or raw runtime payloads.",
+      "side_effects": [
+        "process_spawn",
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo",
+        "work_record"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/test-proof-runtime-identity.md",
+        "docs/mcp-operation-reference.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/controlled-contract-runtime-proof-tool.mjs",
+        "packages/agent-launch-cli/src/lib/workspace-agent-integrated-test-proof-runtime.mjs",
+        "packages/controlled-contract/lib/test-proof-assessment.mjs"
+      ],
+      "use_when": [
+        "An orchestrator or operator needs runtime proof for one exact integrated controlled-contract implementation slice."
+      ],
+      "do_not_use_when": [
+        "The subject is a whole WK, the slice is not integrated, or the caller needs planning assessment, proof authoring, admission, or lifecycle authority."
+      ],
+      "authoritative_for": [
+        "controlled_contract_runtime_proof:integrated_slice_assessment"
+      ],
+      "notes": "Post-integration orchestrator/operator route for proving one exact integrated implementation slice; a whole-WK subject is refused. Caller input is only { repo?, unit, focus? }. Side effects are process_spawn and workspace_write. The route resolves the canonical slice lifecycle and launcher-owned fixed fork/tip, creates one private mode-0700 detached checkout at that tip, runs the declared candidate, falsifier, and traversal population through the launcher-owned provider, validates every authenticated runtime-evidence receipt, and returns a runtime-scoped, non-authoritative assessment. Caller-supplied lifecycle, Git, path, command, environment, provider, receipt, witness, assessment, or authority fields are refused rather than overridden. Lifecycle, population, provider, receipt, or assessment failure returns a typed refusal, never a planning assessment; this route never calls workspace_controlled_contract_assess. It is not a proof-pack authoring, selection, assessment, admission, or authority surface and grants no admission, certification, CCE, or dispatch outcome.",
+      "recommended_first_call": {
+        "routing_intents": ["controlled_contract_runtime_proof"],
+        "operation": "prove one integrated controlled-contract slice at runtime",
+        "arguments": {"unit": "$unit_if_known", "focus": "$focus_if_known"},
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "workspace_verify_proof",
+      "display_name": "Verify declared proof population",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_verify_proof",
+      "task_ids": [
+        "controlled-contract-assessment"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "use_when": [
+        "An authenticated orchestrator must verify the complete proof population selected by one canonical WK, slice, test-proof, or obligation subject against the configured clean or dirty worktree, or against a shared authenticated private detached materialization of an exact full Git commit.",
+        "An eligible launcher-managed worker or reviewer must execute every exact server-resolved declared test proof selected by one canonical subject."
+      ],
+      "do_not_use_when": [
+        "A managed worker or reviewer wants to supply git_sha or escape its launcher-bound candidate.",
+        "The task needs a caller-selected path, command, target, environment, provider, evaluator, receipt, policy, authority, arbitrary test execution, replay authority, or lifecycle authority."
+      ],
+      "authoritative_for": [
+        "advisory satisfied, unsatisfied, not_executable, or typed-refusal verification of one deterministic, completely preflighted proof population with canonical relationship projection, authenticated selected-worktree facts, confined execution, receipt, proof-pack, and evaluator identities"
+      ],
+      "recommended_first_call": {
+        "operation": "verify one canonically selected proof population",
+        "arguments": {
+          "subject": "$canonical_WK_slice_test_proof_or_obligation_id",
+          "repo": "$configured_workspace_alias_if_needed",
+          "git_sha": "$optional_exact_full_commit_for_orchestrator"
+        },
+        "omit_null_arguments": true
+      },
+      "audience": [
+        "agent"
+      ],
+      "priority": 114,
+      "side_effects": [
+        "process_spawn",
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "launcher_backend",
+        "runtime_env",
+        "work_record"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/test-proof-runtime-identity.md",
+        "docs/mcp-controlled-contract-operations.md",
+        "docs/mcp-operation-reference.md",
+        "docs/mcp-dispatch-managed-run-lifecycle.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/verify-proof-tool.mjs",
+        "packages/wiki-core/src/operations/controlled-contract/verify-proof-operations.mjs",
+        "packages/agent-launch-core/src/lib/workspace-agent-verify-proof-capability.mjs",
+        "packages/agent-launch-cli/src/lib/workspace-agent-orchestrator-test-proof-runtime.mjs",
+        "packages/agent-launch-cli/src/lib/backend-immutable-candidate.mjs",
+        "packages/agent-launch-cli/src/lib/workspace-agent-test-proof-runtime-identity.mjs",
+        "packages/controlled-contract/lib/proof-obligation-runtime-resolver.mjs"
+      ]
     },
     {
       "tool_name": "workspace_controlled_contract_carrier_create",
       "display_name": "Controlled contract carrier create",
       "kind": "mcp_tool",
       "entrypoint": "workspace_controlled_contract_carrier_create",
-      "task_ids": ["controlled-contract-authoring"],
+      "task_ids": [
+        "controlled-contract-authoring"
+      ],
       "install_state": "installed",
       "runtime_posture": "supported",
       "recommended_route": "mcp",
-      "audience": ["agent", "operator"],
+      "audience": [
+        "agent",
+        "operator"
+      ],
       "priority": 114,
-      "side_effects": ["workspace_write"],
-      "authority": ["checked_in_descriptor", "workspace_repo"],
-      "tier_visibility": ["free_local"],
-      "docs_refs": ["docs/mcp-operation-reference.md", "docs/mcp-integration.md"],
-      "source_files": ["packages/wiki-core/src/operations/controlled-contract.mjs", "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"],
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/operations/controlled-contract.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
       "notes": "Orchestrator/operator expected-absence creation for contract, evaluation-input, and proof-plan-request carriers through package validation; returns no carrier content."
     },
     {
@@ -209,54 +499,1583 @@
       "display_name": "Controlled contract carrier query",
       "kind": "mcp_tool",
       "entrypoint": "workspace_controlled_contract_carrier_query",
-      "task_ids": ["controlled-contract-authoring", "controlled-contract-proof-plan", "controlled-contract-assessment"],
+      "task_ids": [
+        "controlled-contract-authoring",
+        "controlled-contract-proof-plan",
+        "controlled-contract-assessment"
+      ],
       "install_state": "installed",
       "runtime_posture": "supported",
       "recommended_route": "mcp",
-      "audience": ["agent", "operator"],
+      "audience": [
+        "agent",
+        "operator"
+      ],
       "priority": 115,
-      "side_effects": ["read_only"],
-      "authority": ["checked_in_descriptor", "workspace_repo"],
-      "tier_visibility": ["free_local"],
-      "docs_refs": ["docs/mcp-operation-reference.md", "docs/mcp-integration.md"],
-      "source_files": ["packages/wiki-core/src/lib/controlled-contract-tools.mjs", "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"],
-      "notes": "Bounded index or selective stable-ID/binding-role projection. It never implicitly returns or spills a complete carrier."
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "use_when": [
+        "A caller needs a bounded index or selective stable-ID projection of one canonical controlled-contract carrier."
+      ],
+      "do_not_use_when": [
+        "The caller needs to mutate a carrier or retrieve an unbounded complete carrier."
+      ],
+      "authoritative_for": [
+        "controlled_contract_carrier:bounded_query_projection"
+      ],
+      "notes": "Bounded index or selective stable-ID/binding-role projection. Index mode applies the registry-derived carrier target, filter, and cursor vocabulary. A nonempty selectors list selects selected mode and intentionally ignores target, filter, and cursor. Invalid index targets return registry-derived valid targets and retry guidance. It never implicitly returns or spills a complete carrier.",
+      "recommended_first_call": {
+        "routing_intents": ["controlled_contract_proof_plan"],
+        "operation": "query canonical controlled-contract proof-plan carrier",
+        "arguments": {"wk_id": "$work_record_if_known", "carrier_kind": "proof_plan"},
+        "omit_null_arguments": true
+      }
     },
     {
       "tool_name": "workspace_controlled_contract_carrier_patch",
       "display_name": "Controlled contract carrier patch",
       "kind": "mcp_tool",
       "entrypoint": "workspace_controlled_contract_carrier_patch",
-      "task_ids": ["controlled-contract-authoring"],
+      "task_ids": [
+        "controlled-contract-authoring"
+      ],
       "install_state": "installed",
       "runtime_posture": "supported",
       "recommended_route": "mcp",
-      "audience": ["agent", "operator"],
+      "audience": [
+        "agent",
+        "operator"
+      ],
       "priority": 116,
-      "side_effects": ["workspace_write"],
-      "authority": ["checked_in_descriptor", "workspace_repo"],
-      "tier_visibility": ["free_local"],
-      "docs_refs": ["docs/mcp-operation-reference.md", "docs/mcp-integration.md"],
-      "source_files": ["packages/wiki-core/src/lib/controlled-contract-tools.mjs", "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"],
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
       "notes": "Orchestrator/operator bounded typed domain mutation with prospective package validation and one expected-digest CAS write; direct proof-plan mutation is forbidden."
+    },
+    {
+      "tool_name": "workspace_controlled_verification_bundle_patch",
+      "display_name": "Controlled verification bundle patch",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_controlled_verification_bundle_patch",
+      "task_ids": [
+        "controlled-contract-authoring"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 124,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/controlled-contract/lib/test-proof-contract-v1.mjs",
+        "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+        "packages/wiki-core/src/operations/controlled-contract.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "notes": "Orchestrator/operator-only atomic stable-v1 verification-bundle mutation. Arguments are repo?, wk_id, focus?, expected_content_digest, and 1..64 complete controlled-contract-verification-bundle.v1 upsert/remove operations. The controlled-contract package owns the bundle shape and required-field population, which this route derives; authoring state emits an operation-ready bundle with server-known identities, attachment relation, target constraints, and provider/version bindings bound. The server resolves the canonical carrier and performs at most one workspace write using digest CAS after package validation. Caller paths and authority carriers are not accepted, and the route confers no authority beyond that validated mutation."
     },
     {
       "tool_name": "workspace_controlled_contract_authoring_describe",
       "display_name": "Controlled contract authoring describe",
       "kind": "mcp_tool",
       "entrypoint": "workspace_controlled_contract_authoring_describe",
-      "task_ids": ["controlled-contract-authoring"],
+      "task_ids": [
+        "controlled-contract-authoring"
+      ],
       "install_state": "installed",
       "runtime_posture": "supported",
       "recommended_route": "mcp",
-      "audience": ["agent", "operator"],
+      "audience": [
+        "agent",
+        "operator"
+      ],
       "priority": 117,
-      "side_effects": ["read_only"],
-      "authority": ["checked_in_descriptor"],
-      "tier_visibility": ["free_local"],
-      "docs_refs": ["docs/mcp-operation-reference.md", "docs/mcp-integration.md"],
-      "source_files": ["packages/wiki-core/src/lib/controlled-contract-authoring-projections.mjs", "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"],
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/lib/controlled-contract-authoring-projections.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
       "notes": "Package-backed compact schema, identity, mutability, and minimal-template projection for one carrier kind and optional target; complete schemas and proof corpora remain out of default discovery responses."
+    },
+    {
+      "tool_name": "workspace_controlled_contract_authoring_state",
+      "display_name": "Controlled contract task authoring state",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_controlled_contract_authoring_state",
+      "task_ids": [
+        "controlled-contract-authoring",
+        "controlled-contract-proof-plan",
+        "controlled-contract-assessment"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 152,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/lib/controlled-contract-authoring-state.mjs",
+        "packages/wiki-core/src/operations/controlled-contract.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "notes": "Read-only task-directed state for same-WK carriers. Inputs are repo?, wk_id, focus?, and continuation?. The state owner solely defines the stage vocabulary and exactly-one-next-action-or-stop invariant. Valid published root, focused, and existing-request continuations settle directly at proof_plan_ready; no carrier-conflict recovery hop is valid. Results are bounded, omit carrier and candidate populations, and confer no mutation, admission, or policy authority.",
+      "use_when": [
+        "A coordinator needs the canonical next authoring action or direct settled state for same-WK carriers."
+      ],
+      "do_not_use_when": [
+        "The caller intends to supply source declarations or filesystem authority; canonical source state is server-owned.",
+        "The intent is to mutate carriers or publish a proof graph; this route is read-only."
+      ],
+      "authoritative_for": [
+        "controlled_contract_authoring:state_and_next_action_projection"
+      ],
+      "recommended_first_call": {
+        "routing_intents": [
+          "controlled_contract_authoring"
+        ],
+        "operation": "inspect canonical controlled-contract authoring state",
+        "arguments": {
+          "wk_id": "$work_record_if_known"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "workspace_controlled_contract_proof_graph_continue",
+      "display_name": "Controlled contract proof-graph continuation",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_controlled_contract_proof_graph_continue",
+      "task_ids": [
+        "controlled-contract-authoring",
+        "controlled-contract-proof-plan"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 121,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/lib/controlled-contract-authoring-state.mjs",
+        "packages/wiki-core/src/lib/controlled-contract-authoring-projections.mjs",
+        "packages/wiki-core/src/operations/controlled-contract.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "notes": "Atomic orchestrator/operator publication of the server-held proof graph. Inputs are repo?, wk_id, focus?, and one server-issued continuation; no caller proposal or source declaration is accepted. The exact source declaration is server-owned and derived from authenticated canonical state. Valid root, focused, and existing-request continuations next settle directly at proof_plan_ready. No admission or policy authority is granted.",
+      "use_when": [
+        "A coordinator holds the exact server-issued continuation for a complete proof-graph proposal and needs atomic publication."
+      ],
+      "do_not_use_when": [
+        "The caller intends to supply a proposal, source declaration, path, environment, persistence carrier, or other authority input.",
+        "Server composition still reports unresolved pointers; controlled_contract_proof_graph_proposal_incomplete describes only that reachable state.",
+        "The proposal still needs author semantics; return to the exact authoring-state next action."
+      ],
+      "authoritative_for": [
+        "controlled_contract_proof_graph:atomic_server_owned_publication"
+      ],
+      "recommended_first_call": {
+        "routing_intents": [
+          "controlled_contract_proof_graph_continuation"
+        ],
+        "operation": "publish one server-held proof graph",
+        "arguments": {
+          "wk_id": "$work_record_if_known",
+          "continuation": "$continuation_if_known"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "workspace_controlled_proof_authoring_skeleton",
+      "display_name": "Controlled proof authoring skeleton",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_controlled_proof_authoring_skeleton",
+      "task_ids": [
+        "controlled-contract-authoring",
+        "controlled-contract-proof-selection"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 119,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md",
+        "docs/mcp-integration.md",
+        "docs/mcp-controlled-contract-operations.md"
+      ],
+      "source_files": [
+        "packages/controlled-contract/lib/proof-authoring-skeleton.mjs",
+        "packages/wiki-core/src/operations/controlled-contract.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "notes": "Read-only orchestrator/operator route for package-backed proof skeleton generation. Supply repo?, wk_id, focus?, one exact selected_pack, explicit requested_intents, exactly one of caller bindings or evaluation_input, and optionally a proposal_draft containing only carrier_operations. The exact source declaration is server-owned and derived from authenticated canonical state; the public schema accepts no caller source declaration. The server derives evaluation-input basenames, composes the canonical selected-pack population, mints continuation identities, and returns one next action. Continuation-integrity failures remain typed and distinct. Results confer no mutation, admission, or policy authority. See docs/mcp-operation-reference.md for the exact taxonomy.",
+      "use_when": [
+        "A coordinator needs the package-owned evaluation-input and composed proof-plan-request skeleton for one exact admitted pack before authoring proof carriers."
+      ],
+      "do_not_use_when": [
+        "The caller intends to supply carrier paths, basenames, or any other filesystem authority; every canonical path is server-resolved from wk_id and focus.",
+        "The intent is to mutate, admit, or integrate a carrier; this route projects a skeleton and confers no mutation, admission, or policy authority."
+      ],
+      "authoritative_for": [
+        "controlled_contract_proof_authoring:read_only_skeleton_projection"
+      ],
+      "recommended_first_call": {
+        "routing_intents": ["controlled_contract_proof_skeleton"],
+        "operation": "project one skeleton from an exact admitted pack",
+        "arguments": {
+          "wk_id": "$work_record_if_known",
+          "selected_pack": {
+            "profile_id": "$admitted_profile_id_if_known",
+            "profile_version": "$admitted_profile_version_if_known"
+          },
+          "requested_intents": "$requested_intents_if_known",
+          "bindings": "$bindings_if_known"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "workspace_controlled_common_proof_capture",
+      "display_name": "Controlled common proof capture",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_controlled_common_proof_capture",
+      "task_ids": [
+        "controlled-contract-authoring",
+        "controlled-contract-proof-plan"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 125,
+      "side_effects": [
+        "read_only",
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo",
+        "launcher_backend"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/lib/common-proof-capture-tools.mjs",
+        "packages/wiki-core/src/operations/common-proof-capture.mjs",
+        "packages/wiki-mcp/src/lib/common-proof-capture-tools.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "notes": "Orchestrator/operator-only mixed-effect common proof capture over one server-resolved repository alias, canonical WK and unit, optional canonical focus, one of behavioral_preservation, declared_boundary_consistency, test_verification_validity, or write_confinement, exact profile identity, and optional verification identity. Behavioral-preservation, test-verification-validity, and write-confinement are read-only joins over launcher-owned receipts through the optional private resolver; when that resolver is unavailable they return a typed prerequisite refusal. Declared-boundary-consistency instead resolves canonical repository inputs and may atomically publish its canonical carrier. Integration-prefix is deliberately absent because workspace_controlled_integration_prefix_capture_author remains its owner. The route accepts no roots, paths, receipt payloads, reports, policies, commits, executors, resolvers, continuations, or authority digests. Results are advisory and make no admission, certification, CCE, dispatch, review, or proof-authority decision."
+    },
+    {
+      "tool_name": "workspace_controlled_integration_prefix_capture_author",
+      "display_name": "Controlled integration-prefix capture author",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_controlled_integration_prefix_capture_author",
+      "task_ids": [
+        "controlled-contract-authoring",
+        "controlled-contract-proof-plan"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 124,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo",
+        "launcher_backend"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/controlled-contract/lib/proof-authoring-skeleton.mjs",
+        "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+        "packages/wiki-core/src/operations/controlled-contract.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "notes": "Orchestrator/operator-only canonical integration-prefix capture authoring. Arguments are wk_id, optional canonical focus, and optional exact proof.integration.prefix-safety@1.0.0 profile selectors; repository identity, carriers, complete populations, graph inputs, filesystem paths, source digests, writer authority, and completeness are server-resolved and cannot be supplied by the caller. The wiki-core controlled authoring operation owns package invocation, the live source lease, atomic carrier-set publication, validation, and typed failures. Success returns integration-prefix-capture-authoring-receipt-v1 with identity, generation and manifest digests, complete counts, and bound digests, bounded to 8192 UTF-8 bytes; overflow fails loudly without returning an inline population."
+    },
+    {
+      "tool_name": "workspace_controlled_contract_authoring_continue",
+      "display_name": "Controlled contract task authoring continuation",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_controlled_contract_authoring_continue",
+      "task_ids": [
+        "controlled-contract-authoring",
+        "controlled-contract-proof-plan"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 118,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+        "packages/wiki-core/src/operations/controlled-contract.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "use_when": [
+        "An orchestrator or operator has a server-issued continuation for task-directed controlled-contract authoring."
+      ],
+      "do_not_use_when": [
+        "No valid server-issued continuation is available, or the caller only needs to inspect authoring state."
+      ],
+      "authoritative_for": [
+        "controlled_contract_authoring:continued_publication"
+      ],
+      "notes": "Orchestrator/operator continuation mutation. Arguments are repo?, wk_id, focus?, one server-issued continuation identity, and optional returned expected_stage. It validates WK, focus, contract, package continuation, stage, and canonical carrier state before one expected-absence CAS write; recoverable refusals return a state-derived replacement call.",
+      "recommended_first_call": {
+        "routing_intents": ["controlled_contract_authoring_continuation"],
+        "operation": "continue task-directed controlled-contract authoring",
+        "arguments": {
+          "wk_id": "$work_record_if_known",
+          "focus": "$focus_if_known",
+          "continuation": "$continuation_if_known"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "workspace_controlled_test_proof_authoring_describe",
+      "display_name": "Controlled test-proof authoring describe",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_controlled_test_proof_authoring_describe",
+      "task_ids": [
+        "controlled-contract-authoring"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 121,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/controlled-contract/lib/test-proof-contract-v1.mjs",
+        "packages/controlled-contract/lib/test-proof-provider-registry.mjs",
+        "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "notes": "Package-derived stable-v1 test-proof binding contract, provider-registry identity, compatibility rules, and authoring limits."
+    },
+    {
+      "tool_name": "workspace_controlled_test_proof_query",
+      "display_name": "Controlled test-proof query",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_controlled_test_proof_query",
+      "task_ids": [
+        "controlled-contract-authoring"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 122,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/controlled-contract/lib/test-proof-contract-v1.mjs",
+        "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "notes": "Bounded selective stable-v1 package validation by exact same-WK verification identity; experimental and mixed families refuse."
+    },
+    {
+      "tool_name": "workspace_controlled_test_proof_patch",
+      "display_name": "Controlled test-proof patch",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_controlled_test_proof_patch",
+      "task_ids": [
+        "controlled-contract-authoring"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 123,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/controlled-contract/lib/test-proof-contract-v1.mjs",
+        "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "notes": "Orchestrator/operator package-validated typed test-proof binding mutation with stale-digest refusal and one digest-CAS write."
+    },
+    {
+      "tool_name": "workspace_controlled_contract_acceptance_coverage_describe",
+      "display_name": "Controlled contract acceptance-coverage describe",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_controlled_contract_acceptance_coverage_describe",
+      "task_ids": [
+        "controlled-contract-authoring",
+        "acceptance-gap-review",
+        "mapping-repair"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 159,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/acceptance-coverage-mcp.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-facts.mjs",
+        "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-operations.mjs",
+        "packages/wiki-core/src/operations/controlled-contract/coverage-recovery-guidance.mjs",
+        "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-coverage-authoring-sessions.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-recovery-presentation.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "use_when": [
+        "Start here for acceptance-gap review or mapping repair; the task-complete page resolves absent, current, or stale mapping state before any query or mutation.",
+        "A caller needs a transport-efficient batch of unresolved rows with criterion identity and text, relevant node and proof choices, caller field contracts, exact accounting, executable continuation, and server-fixed mutation or recovery arguments for one canonical WK or slice.",
+        "For absent coverage, consume the single authoring_action as one complete-population atomic create; use read_pagination only to retrieve more row descriptors and use patch or upsert only for an existing carrier."
+      ],
+      "do_not_use_when": [
+        "The caller wants proof-adequacy assessment or runtime proof; describe is a non-authoritative mapping projection.",
+        "The caller intends to provide paths, digests, counts, completeness, currentness, provider authority, or to choose a mutation before describe.",
+        "The caller wants unrelated contract, proof-pack, or internal 39-entry bookkeeping populations; describe returns all task-required semantic context and has no raw-carrier or content-reference fallback.",
+        "A stale semantic mapping has no discovery-visible owner route; report the WK-2427 no-agent-route operator action instead of inventing one."
+      ],
+      "authoritative_for": [
+        "acceptance_coverage:describe_operation_contract"
+      ],
+      "recommended_first_call": {
+        "routing_intents": [
+          "controlled_contract_acceptance_coverage"
+        ],
+        "operation": "describe canonical acceptance coverage",
+        "arguments": {
+          "unit": "$unit_if_known"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "workspace_controlled_contract_acceptance_coverage_create",
+      "display_name": "Controlled contract acceptance-coverage create",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_controlled_contract_acceptance_coverage_create",
+      "task_ids": [
+        "controlled-contract-authoring"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 127,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/acceptance-coverage-mcp.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-facts.mjs",
+        "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-operations.mjs",
+        "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-coverage-authoring-sessions.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "use_when": [
+        "Describe proved carrier absence and returned the exact source/carrier identities plus one complete, nonrepeating population of opaque row-slot identities; create accepts those identities with caller-authored row fields and injects current criterion identities server-side."
+      ],
+      "do_not_use_when": [
+        "A carrier is present, current or stale; use query and an admitted digest-CAS mutation only for current state.",
+        "The caller cannot supply the unchanged identities, selected-unit digest, and complete unexpired row-slot population returned by describe continuations."
+      ],
+      "authoritative_for": [
+        "acceptance_coverage:create_operation_contract"
+      ],
+      "recommended_first_call": {
+        "operation": "create described absent acceptance coverage",
+        "arguments": {
+          "unit": "$canonical_unit",
+          "carrier_identity": "$describe_carrier_identity",
+          "source_identity": "$describe_source_identity",
+          "expected_unit_digest": "$describe_unit_digest",
+          "expected_content_digest": null,
+        "authored_rows": []
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "workspace_controlled_contract_acceptance_coverage_upsert",
+      "display_name": "Controlled contract acceptance-coverage upsert",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_controlled_contract_acceptance_coverage_upsert",
+      "task_ids": [
+        "controlled-contract-authoring"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 128,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/acceptance-coverage-mcp.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-facts.mjs",
+        "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-operations.mjs",
+        "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "use_when": [
+        "A current carrier exists and one current criterion mapping must be added or replaced under the returned digest."
+      ],
+      "do_not_use_when": [
+        "The carrier is absent or stale, or the criterion selector was not returned for the current selected unit."
+      ],
+      "authoritative_for": [
+        "acceptance_coverage:upsert_operation_contract"
+      ],
+      "recommended_first_call": {
+        "operation": "upsert one current criterion mapping",
+        "arguments": {
+          "unit": "$canonical_unit",
+          "carrier_identity": "$current_carrier_identity",
+          "source_identity": "$current_source_identity",
+          "expected_content_digest": "$current_content_digest",
+          "criterion_selector": "$current_criterion_selector",
+          "row": "$closed_mapping_row"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "workspace_controlled_contract_acceptance_coverage_remove",
+      "display_name": "Controlled contract acceptance-coverage remove",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_controlled_contract_acceptance_coverage_remove",
+      "task_ids": [
+        "controlled-contract-authoring"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 129,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/acceptance-coverage-mcp.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-facts.mjs",
+        "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-operations.mjs",
+        "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "use_when": [
+        "A current carrier exists and one mapping must be removed by its current typed criterion selector under digest CAS."
+      ],
+      "do_not_use_when": [
+        "The carrier is absent or stale, or the selector does not name a current selected-unit criterion."
+      ],
+      "authoritative_for": [
+        "acceptance_coverage:remove_operation_contract"
+      ],
+      "recommended_first_call": {
+        "operation": "remove one current criterion mapping",
+        "arguments": {
+          "unit": "$canonical_unit",
+          "carrier_identity": "$current_carrier_identity",
+          "source_identity": "$current_source_identity",
+          "expected_content_digest": "$current_content_digest",
+          "criterion_selector": "$current_criterion_selector"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "workspace_controlled_contract_acceptance_coverage_query",
+      "display_name": "Controlled contract acceptance-coverage query",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_controlled_contract_acceptance_coverage_query",
+      "task_ids": [
+        "controlled-contract-authoring"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 130,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/acceptance-coverage-mcp.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-facts.mjs",
+        "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-operations.mjs",
+        "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "use_when": [
+        "A caller needs bounded gap-first acceptance-coverage state for one canonical WK or slice, optionally by typed selector or returned continuation."
+      ],
+      "do_not_use_when": [
+        "The carrier is absent and the caller needs the legitimate create identity; start with describe.",
+        "The caller wants proof adequacy, lifecycle authority, or a caller-authored census."
+      ],
+      "authoritative_for": [
+        "acceptance_coverage:query_operation_contract"
+      ],
+      "recommended_first_call": {
+        "operation": "query canonical acceptance coverage",
+        "arguments": {
+          "unit": "$canonical_unit"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "workspace_controlled_contract_acceptance_coverage_rebase",
+      "display_name": "Controlled contract acceptance-coverage semantic rebase",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_controlled_contract_acceptance_coverage_rebase",
+      "task_ids": [
+        "controlled-contract-authoring"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 138,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/acceptance-coverage-mcp.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-facts.mjs",
+        "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-operations.mjs",
+        "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-rebase.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "use_when": [
+        "Describe reports carrier_present_stale, the obligation source is current, and the caller holds the exact server identities for semantic attempt, conflict paging, or complete resolution."
+      ],
+      "do_not_use_when": [
+        "The obligation source is stale, the carrier is absent or current, or the caller proposes paths, raw bytes, generic replacement, policy, authority, or partial dispositions."
+      ],
+      "authoritative_for": [
+        "acceptance_coverage:rebase_operation_contract"
+      ],
+      "recommended_first_call": {
+        "operation": "attempt described stale acceptance-coverage rebase",
+        "arguments": {
+          "mode": "attempt",
+          "unit": "$canonical_unit",
+          "carrier_identity": "$describe_carrier_identity",
+          "source_identity": "$describe_source_identity",
+          "expected_unit_digest": "$describe_unit_digest"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "workspace_controlled_contract_acceptance_coverage_patch",
+      "display_name": "Controlled contract acceptance-coverage atomic patch",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_controlled_contract_acceptance_coverage_patch",
+      "task_ids": [
+        "controlled-contract-authoring"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 139,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/acceptance-coverage-mcp.md",
+        "docs/mcp-operation-reference.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/controlled-contract/lib/carrier-patch-v1.mjs",
+        "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-operations.mjs",
+        "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "use_when": [
+        "Describe reports carrier_present_current and supplies the complete immutable identity for one atomic typed operation sequence against that exact carrier."
+      ],
+      "do_not_use_when": [
+        "The carrier is absent or stale, any describe-emitted identity is unavailable, or the caller proposes a raw carrier, path, generic replacement, authority claim, or alternate persistence primitive."
+      ],
+      "authoritative_for": [
+        "acceptance_coverage:patch_operation_contract"
+      ],
+      "recommended_first_call": {
+        "operation": "atomically patch current acceptance coverage",
+        "arguments": {
+          "unit": "$canonical_unit",
+          "carrier_identity": "$describe_carrier_identity",
+          "source_identity": "$describe_source_identity",
+          "expected_unit_digest": "$describe_unit_digest",
+          "expected_authoring_identity": "$describe_authoring_identity",
+          "expected_content_digest": "$current_content_digest",
+          "operations": []
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "workspace_controlled_contract_obligation_coverage_describe",
+      "display_name": "Controlled contract obligation-source describe",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_controlled_contract_obligation_coverage_describe",
+      "task_ids": [
+        "controlled-contract-authoring",
+        "obligation-inventory",
+        "proof-obligation-map-inspection"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 160,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/acceptance-coverage-mcp.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-facts.mjs",
+        "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-operations.mjs",
+        "packages/wiki-core/src/operations/controlled-contract/coverage-recovery-guidance.mjs",
+        "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-coverage-authoring-sessions.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-recovery-presentation.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "use_when": [
+        "Start here for obligation inventory or proof-and-obligation map inspection; the task-complete page resolves source state before any query or mutation.",
+        "A caller needs a transport-efficient batch of unresolved rows with criterion identity and text, relevant node and proof choices, caller field contracts, exact accounting, executable continuation, and server-fixed mutation or recovery arguments.",
+        "For absent coverage, consume the single authoring_action as one complete-population atomic create; use read_pagination only to retrieve more row descriptors and use patch or upsert only for an existing source."
+      ],
+      "do_not_use_when": [
+        "The caller wants to supply a path, generation, canonical digest, pack identity, completeness claim, writer, transport, authority source, or to choose a mutation before describe.",
+        "The caller wants unrelated contract, proof-pack, or internal 39-entry bookkeeping populations; describe returns all task-required semantic context and has no raw-carrier or content-reference fallback.",
+        "A stale semantic source has no discovery-visible owner route; report the WK-2427 no-agent-route operator action instead of inventing one."
+      ],
+      "authoritative_for": [
+        "obligation_coverage:describe_operation_contract"
+      ],
+      "recommended_first_call": {
+        "routing_intents": [
+          "controlled_contract_obligation_coverage"
+        ],
+        "operation": "describe canonical obligation source",
+        "arguments": {
+          "unit": "$unit_if_known"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "workspace_controlled_contract_obligation_coverage_create",
+      "display_name": "Controlled contract obligation-source create",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_controlled_contract_obligation_coverage_create",
+      "task_ids": [
+        "controlled-contract-authoring"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 132,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/acceptance-coverage-mcp.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-facts.mjs",
+        "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-operations.mjs",
+        "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-coverage-authoring-sessions.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "use_when": [
+        "Describe proved exact source absence and returned the authoring identity plus one complete, nonrepeating population of opaque row-slot identities; create accepts those identities with caller-authored row fields and injects current criterion selectors server-side."
+      ],
+      "do_not_use_when": [
+        "The source is present, a describe or row-slot identity is stale, expired, replayed, forged, or cross-boundary, or the caller proposes canonical or pack authority fields."
+      ],
+      "authoritative_for": [
+        "obligation_coverage:create_operation_contract"
+      ],
+      "recommended_first_call": {
+        "operation": "create described absent obligation source",
+        "arguments": {
+          "unit": "$canonical_unit",
+          "expected_authoring_identity": "$describe_authoring_identity",
+          "expected_content_digest": null,
+        "authored_rows": []
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "workspace_controlled_contract_obligation_coverage_upsert",
+      "display_name": "Controlled contract obligation-source upsert",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_controlled_contract_obligation_coverage_upsert",
+      "task_ids": [
+        "controlled-contract-authoring"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 133,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/acceptance-coverage-mcp.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-facts.mjs",
+        "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-operations.mjs",
+        "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "use_when": [
+        "One current obligation row must be added or replaced under exact content-digest CAS and a typed obligation selector."
+      ],
+      "do_not_use_when": [
+        "The source is absent or stale, or the row names non-current criterion, contract-node, mechanism, or pack components."
+      ],
+      "authoritative_for": [
+        "obligation_coverage:upsert_operation_contract"
+      ],
+      "recommended_first_call": {
+        "operation": "upsert one current authored obligation",
+        "arguments": {
+          "unit": "$canonical_unit",
+          "expected_content_digest": "$current_content_digest",
+          "obligation_selector": "$typed_obligation_selector",
+          "row": "$closed_authored_row"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "workspace_controlled_contract_obligation_coverage_remove",
+      "display_name": "Controlled contract obligation-source remove",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_controlled_contract_obligation_coverage_remove",
+      "task_ids": [
+        "controlled-contract-authoring"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 134,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/acceptance-coverage-mcp.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-facts.mjs",
+        "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-operations.mjs",
+        "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "use_when": [
+        "One current obligation row must be removed under exact content-digest CAS while criterion coverage remains complete."
+      ],
+      "do_not_use_when": [
+        "The source is absent or stale, the selector is not current, or removal would make the authored population incomplete."
+      ],
+      "authoritative_for": [
+        "obligation_coverage:remove_operation_contract"
+      ],
+      "recommended_first_call": {
+        "operation": "remove one current authored obligation",
+        "arguments": {
+          "unit": "$canonical_unit",
+          "expected_content_digest": "$current_content_digest",
+          "obligation_selector": "$typed_obligation_selector"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "workspace_controlled_contract_obligation_coverage_query",
+      "display_name": "Controlled contract obligation-source query",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_controlled_contract_obligation_coverage_query",
+      "task_ids": [
+        "controlled-contract-authoring"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 135,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/acceptance-coverage-mcp.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-facts.mjs",
+        "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-operations.mjs",
+        "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "use_when": [
+        "A caller needs deterministic gap-first bounded obligation rows, typed filtering, or complete pagination."
+      ],
+      "do_not_use_when": [
+        "The source is absent and a create identity is needed; describe first. Query grants no proof or lifecycle authority."
+      ],
+      "authoritative_for": [
+        "obligation_coverage:query_operation_contract"
+      ],
+      "recommended_first_call": {
+        "operation": "query canonical obligation source",
+        "arguments": {
+          "unit": "$canonical_unit"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "workspace_controlled_contract_obligation_coverage_rebase",
+      "display_name": "Controlled contract obligation-source semantic rebase",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_controlled_contract_obligation_coverage_rebase",
+      "task_ids": [
+        "controlled-contract-authoring"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 137,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/acceptance-coverage-mcp.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-facts.mjs",
+        "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-operations.mjs",
+        "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-rebase.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "use_when": [
+        "Describe reports source_present_stale and supplies the exact server identities required for a semantic attempt, conflict page, or complete resolution."
+      ],
+      "do_not_use_when": [
+        "The source is absent or current, or the caller proposes paths, raw bytes, generic replacement, policy, authority, or a partial disposition population."
+      ],
+      "authoritative_for": [
+        "obligation_coverage:rebase_operation_contract"
+      ],
+      "recommended_first_call": {
+        "operation": "attempt described stale obligation-source rebase",
+        "arguments": {
+          "mode": "attempt",
+          "unit": "$canonical_unit",
+          "expected_authoring_identity": "$describe_authoring_identity",
+          "source_identity": "$describe_source_identity"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "workspace_controlled_contract_obligation_coverage_patch",
+      "display_name": "Controlled contract obligation-source atomic patch",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_controlled_contract_obligation_coverage_patch",
+      "task_ids": [
+        "controlled-contract-authoring"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 140,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/acceptance-coverage-mcp.md",
+        "docs/mcp-operation-reference.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/controlled-contract/lib/carrier-patch-v1.mjs",
+        "packages/wiki-core/src/operations/controlled-contract/acceptance-coverage-operations.mjs",
+        "packages/wiki-core/src/lib/controlled-contract-tools.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "use_when": [
+        "Describe reports source_present_current and supplies the complete immutable identity for one atomic typed operation sequence against that exact canonical source."
+      ],
+      "do_not_use_when": [
+        "The source is absent or stale, any describe-emitted identity is unavailable, or the caller proposes raw carrier content, a path, generic replacement, authority claim, or alternate persistence primitive."
+      ],
+      "authoritative_for": [
+        "obligation_coverage:patch_operation_contract"
+      ],
+      "recommended_first_call": {
+        "operation": "atomically patch current obligation coverage",
+        "arguments": {
+          "unit": "$canonical_unit",
+          "source_identity": "$describe_source_identity",
+          "expected_authoring_identity": "$describe_authoring_identity",
+          "expected_content_digest": "$current_content_digest",
+          "operations": []
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "workspace_controlled_contract_integration_test_design_assess",
+      "display_name": "Controlled contract integration-test design assessment (experimental)",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_controlled_contract_integration_test_design_assess",
+      "task_ids": [
+        "controlled-contract-assessment"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "priority": 136,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-controlled-contract-operations.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/controlled-contract/lib/integration-test-design-assessment.mjs",
+        "packages/wiki-core/src/operations/controlled-contract/integration-test-design-assessment-operations.mjs",
+        "packages/wiki-core/src/operations/controlled-contract/integration-test-design-census-providers.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "use_when": [
+        "A caller needs a deterministic experimental assessment of authored integration-test design declarations against the current canonical obligation, acceptance, and registered census populations."
+      ],
+      "do_not_use_when": [
+        "The caller needs proof-plan assessment, runtime test execution, CI gating, or any lifecycle authority. workspace_controlled_contract_assess keeps its existing proof-plan meaning."
+      ],
+      "authoritative_for": [
+        "integration_test_design_assessment:public_operation_contract"
+      ],
+      "recommended_first_call": {
+        "routing_intents": ["controlled_contract_integration_test_design_assessment"],
+        "operation": "assess authored integration-test design",
+        "arguments": {
+          "unit": "$unit_if_known",
+          "axis_applicability": "$inline_axis_decisions_if_known",
+          "declared_integration_tests": "$declared_integration_tests_if_known",
+          "integration_scenarios": "$integration_scenarios_if_known",
+          "interaction_requirements": "$interaction_requirements_if_known",
+          "review_questions": "$review_questions_if_known"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "kind": "mcp_tool",
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-controlled-contract-operations.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/operations/controlled-contract.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "tool_name": "workspace_controlled_contract_integration_test_design_query",
+      "display_name": "Controlled contract integration test design query",
+      "entrypoint": "workspace_controlled_contract_integration_test_design_query",
+      "task_ids": [
+        "controlled-contract-assessment"
+      ],
+      "priority": 115,
+      "notes": "Query task-relevant integration-design collection. Cursors continue rows and typed fields; oversized scalars use offset/length ranges with exact total. No raw joins, spill, persistence, or authority.",
+      "use_when": ["A caller needs bounded semantic detail from a live integration-test-design assessment snapshot."],
+      "do_not_use_when": ["The caller needs evaluator join graphs, raw carriers, filesystem paths, persistence, spill, or lifecycle access."],
+      "authoritative_for": ["controlled_contract_integration_test_design_assessment:bounded_semantic_projection"],
+      "recommended_first_call": {"operation": "query integration test design semantic collection", "arguments": {"assessment_identity": "$assessment_identity", "collection": "gaps"}, "omit_null_arguments": true}
+    },
+    {
+      "kind": "mcp_tool", "install_state": "installed", "runtime_posture": "supported", "recommended_route": "mcp",
+      "audience": ["agent", "operator"], "side_effects": ["read_only"],
+      "authority": ["checked_in_descriptor", "workspace_repo"], "tier_visibility": ["free_local"],
+      "docs_refs": ["docs/mcp-controlled-contract-operations.md", "docs/mcp-operation-reference.md"],
+      "source_files": ["packages/wiki-core/src/operations/controlled-contract/refactor-semantic-operations.mjs", "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"],
+      "tool_name": "workspace_controlled_contract_refactor_plan", "display_name": "Controlled contract refactor plan", "entrypoint": "workspace_controlled_contract_refactor_plan",
+      "task_ids": ["controlled-contract-authoring"], "priority": 116,
+      "use_when": ["A caller needs to rename one stable identity or explicitly replace one controlled-contract subgraph."],
+      "do_not_use_when": ["The caller wants a generic diff, migration, rollback, policy decision, or raw carrier mutation."],
+      "authoritative_for": ["controlled_contract_refactor:semantic_plan"],
+      "recommended_first_call": {"routing_intents": ["controlled_contract_refactor"], "operation": "plan controlled-contract refactor", "arguments": {"wk_id": "$work_record_if_known", "expected_generation": "$generation_if_known", "mode": "$rename_or_replace_mode"}, "omit_null_arguments": true}
+    },
+    {
+      "kind": "mcp_tool", "install_state": "installed", "runtime_posture": "supported", "recommended_route": "mcp",
+      "audience": ["agent", "operator"], "side_effects": ["read_only"],
+      "authority": ["checked_in_descriptor", "workspace_repo"], "tier_visibility": ["free_local"],
+      "docs_refs": ["docs/mcp-controlled-contract-operations.md", "docs/mcp-operation-reference.md"],
+      "source_files": ["packages/wiki-core/src/operations/controlled-contract/refactor-semantic-operations.mjs", "packages/wiki-core/src/operations/controlled-contract/refactor-operations.mjs", "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"],
+      "tool_name": "workspace_controlled_contract_refactor_query", "display_name": "Controlled contract refactor query", "entrypoint": "workspace_controlled_contract_refactor_query",
+      "task_ids": ["controlled-contract-authoring"], "priority": 117,
+      "use_when": ["A caller needs the next or selected semantic page of one exact refactor plan or immutable receipt."],
+      "do_not_use_when": ["The caller wants a generic artifact query, raw carrier bytes, or a cursor from another resource."],
+      "authoritative_for": ["controlled_contract_refactor:lossless_query"],
+      "recommended_first_call": {"operation": "query controlled-contract refactor resource", "arguments": {"resource_identity": "$resource_identity", "resource_kind": "$plan_or_receipt"}, "omit_null_arguments": true}
+    },
+    {
+      "kind": "mcp_tool", "install_state": "installed", "runtime_posture": "supported", "recommended_route": "mcp",
+      "audience": ["agent", "operator"], "side_effects": ["workspace_write"],
+      "authority": ["checked_in_descriptor", "workspace_repo"], "tier_visibility": ["free_local"],
+      "docs_refs": ["docs/mcp-controlled-contract-operations.md", "docs/acceptance-coverage-mcp.md", "docs/mcp-operation-reference.md"],
+      "source_files": ["packages/wiki-core/src/operations/controlled-contract/refactor-operations.mjs", "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"],
+      "tool_name": "workspace_controlled_contract_refactor_apply", "display_name": "Controlled contract refactor apply", "entrypoint": "workspace_controlled_contract_refactor_apply",
+      "task_ids": ["controlled-contract-authoring"], "priority": 118,
+      "use_when": ["A complete current refactor plan has released its opaque apply continuation."],
+      "do_not_use_when": ["The caller has unresolved coverage conflicts, a stale plan, raw dispositions, or caller-supplied carrier bytes."],
+      "authoritative_for": ["controlled_contract_refactor:atomic_apply_receipt"],
+      "recommended_first_call": {"operation": "apply controlled-contract refactor", "arguments": {"continuation": "$opaque_continuation"}, "omit_null_arguments": true}
+    },
+    {
+      "kind": "mcp_tool",
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "agent",
+        "operator"
+      ],
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "free_local"
+      ],
+      "docs_refs": [
+        "docs/mcp-controlled-contract-operations.md",
+        "docs/mcp-integration.md"
+      ],
+      "source_files": [
+        "packages/wiki-core/src/operations/controlled-contract.mjs",
+        "packages/wiki-mcp/src/lib/controlled-contract-tools.mjs"
+      ],
+      "tool_name": "workspace_controlled_contract_private_scope_census",
+      "display_name": "Controlled contract private scope census",
+      "entrypoint": "workspace_controlled_contract_private_scope_census",
+      "task_ids": [
+        "controlled-contract-authoring"
+      ],
+      "priority": 116,
+      "notes": "Deterministic digest-bound read-only census of canonical nonterminal WK and slice scope intersections with the private controlled-contract path. Facts are possible CCE input and are not local refusal authority.",
+      "use_when": ["A caller needs the deterministic canonical census of nonterminal private-path scope intersections."],
+      "do_not_use_when": ["The caller seeks a local policy refusal or an authenticated CCE decision."],
+      "authoritative_for": ["controlled_contract_private_scope:census_facts"],
+      "recommended_first_call": {"routing_intents": ["controlled_contract_private_scope_census"], "operation": "census controlled-contract private-scope intersections", "arguments": {}, "omit_null_arguments": true}
     }
   ]
 }

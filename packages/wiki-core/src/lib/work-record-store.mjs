@@ -14,13 +14,11 @@ export const WORK_RECORD_SCAN_TEMP_DIRECTORY_PREFIXES = [
   ".graph-sidecar-tmp-"
 ];
 
-function hasOwn(object, key) {
-  return Object.prototype.hasOwnProperty.call(object, key);
-}
-
 function isJsonFile(entry) {
   return entry.endsWith(".json");
 }
+
+export const CANONICAL_WORK_RECORD_BASENAME_PATTERN = /^WK-\d{4}\.json$/;
 
 function toPosixRelativePath(targetDir, absolutePath) {
   return path.relative(targetDir, absolutePath).split(path.sep).join("/");
@@ -28,6 +26,9 @@ function toPosixRelativePath(targetDir, absolutePath) {
 
 function createFileStore(targetDir) {
   return {
+    async readBytes(filePath) {
+      return readFile(filePath);
+    },
     async readText(filePath) {
       return readFile(filePath, "utf8");
     },
@@ -41,6 +42,9 @@ function createFileStore(targetDir) {
     },
     async listJsonPaths() {
       return listWorkRecordJsonPaths(targetDir);
+    },
+    async listCanonicalPaths() {
+      return listCanonicalWorkRecordPaths(targetDir);
     }
   };
 }
@@ -88,43 +92,120 @@ export async function listWorkRecordJsonPaths(targetDir = ".") {
   return entries.sort((left, right) => left.localeCompare(right));
 }
 
+export async function listCanonicalWorkRecordPaths(targetDir = ".") {
+  const workRecordDir = getWorkRecordDirectory(targetDir);
+  let entries;
+  try {
+    entries = await readdir(workRecordDir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  return entries
+    .filter(
+      (entry) =>
+        entry.isFile() && CANONICAL_WORK_RECORD_BASENAME_PATTERN.test(entry.name)
+    )
+    .map((entry) => path.join(workRecordDir, entry.name))
+    .sort((left, right) => left.localeCompare(right));
+}
+
+function recordInstrumentation(instrumentation, name, amount = 1) {
+  if (typeof instrumentation?.increment === "function") {
+    instrumentation.increment(name, amount);
+  }
+}
+
+function filterCanonicalPaths(targetDir, paths) {
+  const workRecordDir = getWorkRecordDirectory(targetDir);
+  return paths
+    .map((entry) => path.resolve(String(entry)))
+    .filter(
+      (entry) =>
+        path.dirname(entry) === workRecordDir &&
+        CANONICAL_WORK_RECORD_BASENAME_PATTERN.test(path.basename(entry))
+    )
+    .sort((left, right) => left.localeCompare(right));
+}
+
+async function listCanonicalPathsFromStore(targetDir, store) {
+  if (typeof store.listCanonicalPaths === "function") {
+    return filterCanonicalPaths(targetDir, await store.listCanonicalPaths());
+  }
+  if (typeof store.listJsonPaths === "function") {
+    return filterCanonicalPaths(targetDir, await store.listJsonPaths());
+  }
+  return [];
+}
+
+async function readStoreBytes(store, absolutePath) {
+  if (typeof store.readBytes === "function") {
+    const value = await store.readBytes(absolutePath);
+    return Buffer.isBuffer(value) ? value : Buffer.from(value);
+  }
+  if (typeof store.readText === "function") {
+    return Buffer.from(await store.readText(absolutePath), "utf8");
+  }
+  throw new TypeError("work-record store must expose readBytes or readText");
+}
+
+export class WorkRecordCorpusUnstableError extends Error {
+  constructor({ before, after }) {
+    super("Canonical work-record path population changed while the corpus was being captured");
+    this.name = "WorkRecordCorpusUnstableError";
+    this.code = "work_record_corpus_unstable";
+    this.before = Object.freeze([...before]);
+    this.after = Object.freeze([...after]);
+  }
+}
+
+export async function captureCanonicalWorkRecordInventory({
+  dir = ".",
+  recordStore = null,
+  instrumentation = null
+} = {}) {
+  const targetDir = path.resolve(String(dir));
+  const store = await resolveStore(targetDir, recordStore);
+  const before = await listCanonicalPathsFromStore(targetDir, store);
+  recordInstrumentation(instrumentation, "canonical_inventory_count", before.length);
+  const captured = [];
+
+  for (const absolutePath of before) {
+    let rawBytes = null;
+    let readError = null;
+    try {
+      rawBytes = await readStoreBytes(store, absolutePath);
+      recordInstrumentation(instrumentation, "canonical_read_count");
+      recordInstrumentation(instrumentation, "canonical_bytes_read", rawBytes.byteLength);
+    } catch (error) {
+      readError = error;
+      recordInstrumentation(instrumentation, "canonical_read_count");
+    }
+    captured.push({
+      absolutePath,
+      relativePath: toPosixRelativePath(targetDir, absolutePath),
+      rawBytes,
+      prefix: rawBytes === null ? Buffer.alloc(0) : rawBytes.subarray(0, 2),
+      readError
+    });
+  }
+
+  const after = await listCanonicalPathsFromStore(targetDir, store);
+  if (before.length !== after.length || before.some((entry, index) => entry !== after[index])) {
+    throw new WorkRecordCorpusUnstableError({
+      before: before.map((entry) => toPosixRelativePath(targetDir, entry)),
+      after: after.map((entry) => toPosixRelativePath(targetDir, entry))
+    });
+  }
+
+  return captured;
+}
+
 async function resolveStore(targetDir, recordStore) {
   if (recordStore) {
     return recordStore;
   }
   return createFileStore(targetDir);
-}
-
-async function collectDuplicateClaims(targetDir, recordId, currentPath, recordStore) {
-  const store = await resolveStore(targetDir, recordStore);
-  if (typeof store.listJsonPaths !== "function") {
-    return [];
-  }
-
-  const jsonPaths = await store.listJsonPaths();
-  const claims = [];
-  for (const absolutePath of jsonPaths) {
-    if (path.resolve(absolutePath) === path.resolve(currentPath)) {
-      continue;
-    }
-    let text;
-    try {
-      text = await store.readText(absolutePath);
-    } catch {
-      continue;
-    }
-    const parsed = parseWorkRecordJson(text, { sourcePath: absolutePath });
-    if (!parsed.ok || !hasOwn(parsed.value, "id")) {
-      continue;
-    }
-    if (parsed.value.id === recordId) {
-      claims.push({
-        path: absolutePath,
-        id: parsed.value.id
-      });
-    }
-  }
-  return claims;
 }
 
 function isDuplicateClaimsIndex(value) {
@@ -156,33 +237,25 @@ export async function buildWorkRecordDuplicateClaimsIndex({
 } = {}) {
   const targetDir = path.resolve(String(dir));
   const store = await resolveStore(targetDir, recordStore);
-  const index = new Map();
   if (typeof store.listJsonPaths !== "function") {
-    return index;
+    throw new TypeError(
+      "duplicate-claim indexing requires a work-record store with listJsonPaths"
+    );
   }
 
-  const jsonPaths = await store.listJsonPaths();
+  const jsonPaths = [...new Set(
+    (await store.listJsonPaths()).map((entry) => path.resolve(String(entry)))
+  )].sort((left, right) => left.localeCompare(right));
+  const index = new Map();
   for (const absolutePath of jsonPaths) {
-    if (!isJsonFile(path.basename(absolutePath))) {
+    const rawBytes = await readStoreBytes(store, absolutePath);
+    const parsed = parseWorkRecordJson(rawBytes.toString("utf8"), { sourcePath: absolutePath });
+    if (!parsed.ok || typeof parsed.value?.id !== "string" || parsed.value.id.length === 0) {
       continue;
     }
-    let text;
-    try {
-      text = await store.readText(absolutePath);
-    } catch {
-      continue;
-    }
-    const parsed = parseWorkRecordJson(text, { sourcePath: absolutePath });
-    if (!parsed.ok || !hasOwn(parsed.value, "id")) {
-      continue;
-    }
-    const recordId = parsed.value.id;
-    if (!recordId) {
-      continue;
-    }
-    const claimants = index.get(recordId) || [];
+    const claimants = index.get(parsed.value.id) || [];
     claimants.push(absolutePath);
-    index.set(recordId, claimants);
+    index.set(parsed.value.id, claimants);
   }
   return index;
 }

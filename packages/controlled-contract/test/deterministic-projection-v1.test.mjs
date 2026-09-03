@@ -15,6 +15,7 @@ import { snapshotExactBindingAssessmentRequest } from
   "../lib/exact-binding-plain-data.mjs";
 import {
   executeDeterministicProjection,
+  executeUncappedIntegrationPrefixProjection,
   runTransformerTwice
 } from "../lib/deterministic-projection.mjs";
 
@@ -369,6 +370,17 @@ test("over-limit populations return the stable typed diagnostic", () => {
     "integration-prefix-census.v1",
     values.map((value) => canonicalJsonBytes(value, { file: true }))
   ), { code: "projection_population_limit_exceeded" });
+});
+
+test("package authoring has an explicit uncapped route through the shared census owner", () => {
+  const sources = capacityDocuments({ unitCount: 21, branchCount: 1 })
+    .map((value) => canonicalJsonBytes(value, { file: true }));
+  assert.throws(() => executeDeterministicProjection(
+    "integration-prefix-census.v1", sources
+  ), { code: "projection_population_limit_exceeded" });
+  const result = JSON.parse(executeUncappedIntegrationPrefixProjection(sources));
+  assert.equal(result.prefixes.length, 22);
+  assert.equal(result.cases.length, 22);
 });
 
 test("repeated derivation and capture remain deterministic", async () => {

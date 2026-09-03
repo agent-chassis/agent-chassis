@@ -1,14 +1,14 @@
 import { readFile } from "node:fs/promises";
 
 import {
-  PROFILE_ID_V034,
-  SCHEMA_VERSION_V034,
-  VOCABULARY_VERSION_V034
-} from "../../lib/native-contract-carrier-v034.mjs";
-import { EVALUATION_INPUT_VERSION_V034 } from "../../lib/verification-profile-v034.mjs";
+  PROFILE_ID_V1,
+  SCHEMA_VERSION_V1,
+  VOCABULARY_VERSION_V1
+} from "../../lib/native-contract-carrier-v1.mjs";
+import { EVALUATION_INPUT_VERSION_V1 } from "../support/stable-v1-proof-pack-runtime.mjs";
 
 const SINGLE_WINNER_EFFECT_V1_PROFILE = JSON.parse(await readFile(new URL(
-  "../certification/profiles/proof.concurrency.single-winner-effect/1.0.0/profile.json",
+  "../certification/profiles/proof.concurrency.single-winner-effect/2.0.0/profile.json",
   import.meta.url
 ), "utf8"));
 
@@ -142,12 +142,12 @@ function buildSingleWinnerEffectFixture({
     }
   }
   const contract = {
-    schema_version: SCHEMA_VERSION_V034,
-    vocabulary_version: VOCABULARY_VERSION_V034,
-    profile_id: PROFILE_ID_V034,
+    schema_version: SCHEMA_VERSION_V1,
+    vocabulary_version: VOCABULARY_VERSION_V1,
+    profile_id: PROFILE_ID_V1,
     references: [...referenceById.values()],
     propositions: [], claims: [], relations: [], collections: [], residue: [],
-    annotations: []
+    annotations: [], test_proof_version: "controlled-contract-test-proof.v1", test_proofs: []
   };
   for (const pattern of profile.reference_binding_patterns) {
     if (pattern.comparison !== "complete_population") continue;
@@ -203,7 +203,7 @@ function buildSingleWinnerEffectFixture({
     }] : [];
   });
   const input = {
-    input_version: EVALUATION_INPUT_VERSION_V034,
+    input_version: EVALUATION_INPUT_VERSION_V1,
     evaluation_stage: "pre_dispatch",
     reference_bindings: profile.reference_roles.map(({ role }) => ({
       role, reference_ids: [...(roleIds[role] ?? [])]
@@ -211,7 +211,7 @@ function buildSingleWinnerEffectFixture({
     number_bindings: profile.number_roles.map(({ role }) => ({
       role, value: numberValues[role]
     })),
-    claim_pattern_bindings: [], resolver_facts: [], delivered_evidence: []
+    claim_pattern_bindings: [], resolver_facts: [], delivered_evidence: [], stable_evaluation: {}
   };
   mutateContract?.(contract, { claimIdsByPattern, roleIds, numberValues });
   mutateInput?.(input, { roleIds, numberValues });

@@ -42,12 +42,17 @@ import {
 } from "./workspace-agent-dispatch-claude-executor.mjs";
 import {
   buildClaudeStdioMcpAllowedToolsArgs,
-  createStdioMcpConduit,
   projectStdioMcpChannelClientRegistration
 } from "./stdio-mcp-conduit.mjs";
 import {
-  mintTrustedStdioMcpConduitAuthority
+  mintTrustedStdioMcpConduitAuthority,
+  resolveLauncherAgentSessionContract
 } from "./stdio-mcp-conduit-authority.mjs";
+
+import {
+  assertManagedStdioMcpCompositionAuthority,
+  createManagedStdioMcpCompositionAuthority
+} from "./stdio-mcp-conduit-composition-compatibility.mjs";
 import { resolveLauncherRoleToolNames } from "./launcher-role-tool-profile.mjs";
 import {
   CLAUDE_COMMAND_LINE_CONTRACT_SCHEMA_VERSION,
@@ -647,7 +652,9 @@ function spawnClaudeOrchestratorChild({ plan, io = {} }) {
 async function runClaudeOrchestratorCommand(plan, io = {}, {
   verifyNativePermissionEnforcement = probeClaudeNativePermissionEnforcement,
   mintNativePermissionSettings = mintLauncherOwnedClaudeNativePermissionSettings,
-  resolveClaudeRuntimeFacts = resolveLauncherOwnedClaudeRuntimeFacts
+  resolveClaudeRuntimeFacts = resolveLauncherOwnedClaudeRuntimeFacts,
+
+  managedStdioMcpCompositionAuthority = createManagedStdioMcpCompositionAuthority()
 } = {}) {
   if (plan.mode === "refusal") {
     const refusal = {
@@ -666,6 +673,16 @@ async function runClaudeOrchestratorCommand(plan, io = {}, {
     throw new Error("claude orchestrator wiki-MCP requires the launcher bwrap FIFO topology");
   }
 
+  const { createConduit: createStdioMcpConduit } =
+    assertManagedStdioMcpCompositionAuthority(managedStdioMcpCompositionAuthority);
+
+  const conduitAuthority = mintTrustedStdioMcpConduitAuthority({
+    family: "claude",
+    role: "orchestrator",
+    assignedUnit: launchPlan.subject,
+    workspaceDir: launchPlan.repo
+  });
+  const sessionContract = resolveLauncherAgentSessionContract(conduitAuthority);
   const conduit = await createStdioMcpConduit({
     family: "claude",
     role: "orchestrator",
@@ -674,12 +691,8 @@ async function runClaudeOrchestratorCommand(plan, io = {}, {
     workspaceAlias: launchPlan.env.WIKI_MCP_WORKSPACE_ALIAS ?? null,
     dispatchWorktreeRoot: launchPlan.dispatchWorktreeRoot,
     responseStateDir: launchPlan.env.WIKI_MCP_RESPONSE_STATE_DIR,
-    authority: mintTrustedStdioMcpConduitAuthority({
-      family: "claude",
-      role: "orchestrator",
-      assignedUnit: launchPlan.subject,
-      workspaceDir: launchPlan.repo
-    })
+    authority: conduitAuthority,
+    sessionContract
   });
 
   const failOrchestratorLaunch = async (reason, detail) => {
@@ -806,7 +819,9 @@ export async function runClaudeOrchestrator({
   logFile = null,
   probeBwrapAvailability = probeOrchestratorBwrapAvailability,
   mintNativePermissionSettings = mintLauncherOwnedClaudeNativePermissionSettings,
-  verifyNativePermissionEnforcement = probeClaudeNativePermissionEnforcement
+  verifyNativePermissionEnforcement = probeClaudeNativePermissionEnforcement,
+
+  managedStdioMcpCompositionAuthority = createManagedStdioMcpCompositionAuthority()
 } = {}) {
   const plan = await buildClaudeOrchestratorPlan({
     role,
@@ -843,7 +858,8 @@ export async function runClaudeOrchestrator({
 
   return runClaudeOrchestratorCommand(plan, io, {
     verifyNativePermissionEnforcement,
-    mintNativePermissionSettings
+    mintNativePermissionSettings,
+    managedStdioMcpCompositionAuthority
   });
 }
 
@@ -856,7 +872,9 @@ export async function runClaudeOrchestratorResume({
   resolvedProfile = null,
   io = {},
   dryRunJson = false,
-  probeBwrapAvailability = probeOrchestratorBwrapAvailability
+  probeBwrapAvailability = probeOrchestratorBwrapAvailability,
+
+  managedStdioMcpCompositionAuthority = createManagedStdioMcpCompositionAuthority()
 } = {}) {
   const plan = await buildClaudeOrchestratorPlan({
     role: "orch-resume",
@@ -907,5 +925,5 @@ export async function runClaudeOrchestratorResume({
     return plan;
   }
 
-  return runClaudeOrchestratorCommand(plan, io);
+  return runClaudeOrchestratorCommand(plan, io, { managedStdioMcpCompositionAuthority });
 }

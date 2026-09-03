@@ -23,15 +23,21 @@ export const REVIEW_ATTESTATION_SCHEMA_VERSION = "review-attestation.v1";
 export const REVIEW_ATTESTATION_AUTHORITY = "portfolio_local_reference";
 export const REVIEW_ATTESTATION_REVIEWER_ROLE_CLASS_VALUES = Object.freeze(["reviewer", "redteam"]);
 
-export const REVIEW_ATTESTATION_DISPOSITION_VALUES = Object.freeze(["accepted_no_findings", "accepted_with_nonblocking_findings"]);
+export const REVIEW_ATTESTATION_DISPOSITION_VALUES = Object.freeze([
+  "accepted_no_findings",
+  "accepted_with_nonblocking_findings",
+  "accepted_control_pass_with_findings"
+]);
 
 export const REVIEW_ATTESTATION_REVIEW_OUTCOME_VALUES = Object.freeze([
   "no_findings",
-  "passed_no_blocking_or_medium_findings"
+  "passed_no_blocking_or_medium_findings",
+  "changes_requested"
 ]);
 const REVIEW_OUTCOME_TO_DISPOSITION = Object.freeze({
   no_findings: "accepted_no_findings",
-  passed_no_blocking_or_medium_findings: "accepted_with_nonblocking_findings"
+  passed_no_blocking_or_medium_findings: "accepted_with_nonblocking_findings",
+  changes_requested: "accepted_control_pass_with_findings"
 });
 
 export function canonicalizeReviewOutcome(value) {
@@ -60,6 +66,9 @@ export const REVIEW_ATTESTATION_DECISION_CODES = Object.freeze({
   untrustedProvenance: "review_attestation.untrusted_provenance.v1",
   blockingFindings: "review_attestation.blocking_findings.v1",
   missingTrustedReviewResultApi: "review_attestation.missing_trusted_review_result_api.v1",
+  malformedTrustedReviewResult: "review_attestation.malformed_trusted_review_result.v1",
+  requestedControlFailed: "review_attestation.requested_control_reported_fail.v1",
+  requestedControlAbsent: "review_attestation.requested_control_absent.v1",
   expired: "review_attestation.expired.v1",
   digestMismatch: "review_attestation.digest_mismatch.v1",
   missingExpectation: "review_attestation.missing_expectation.v1"
@@ -520,6 +529,10 @@ function reviewAttestationBoundedFacts(a) {
   if (a.review_unit !== undefined && a.review_unit !== null) {
     facts.review_unit = a.review_unit;
   }
+
+  if (a.review_target_identity !== undefined && a.review_target_identity !== null) {
+    facts.review_target_identity = a.review_target_identity;
+  }
   return facts;
 }
 export function computeReviewAttestationDigest(attestation) {
@@ -563,7 +576,7 @@ export function buildReviewAttestation(input) {
   if (reviewedMs === null || expiresMs === null) return refuse(CODES.malformed, "reviewed_at/expires_at must be ISO-8601 UTC");
   if (expiresMs <= reviewedMs) return refuse(CODES.malformed, "expires_at must be after reviewed_at");
   if (!REVIEW_ATTESTATION_REVIEWER_ROLE_CLASS_VALUES.includes(reviewerRoleClass)) return refuse(CODES.wrongRole, "reviewer_role_class not in trusted set");
-  if (!status || !REVIEW_ATTESTATION_DISPOSITION_VALUES.includes(status)) return refuse(CODES.blockingFindings, "review_outcome is not an accepted (non-blocking) outcome");
+  if (!status || !REVIEW_ATTESTATION_DISPOSITION_VALUES.includes(status)) return refuse(CODES.blockingFindings, "review_outcome cannot produce bounded review-control evidence");
 
   const blockingCount = classifyNonNegativeInteger(input.blocking_finding_count);
   const mediumCount = classifyNonNegativeInteger(input.medium_finding_count);
@@ -571,7 +584,9 @@ export function buildReviewAttestation(input) {
     return refuse(CODES.blockingFindings, "blocking/medium finding counts must be non-negative integers");
   }
   const trustedCleanReviewSignal = input.trusted_clean_review === true;
-  if ((blockingCount.status === "missing" || mediumCount.status === "missing") && !trustedCleanReviewSignal) {
+  const findingsBearingControlPass = status === "accepted_control_pass_with_findings";
+  if ((blockingCount.status === "missing" || mediumCount.status === "missing") &&
+      (!trustedCleanReviewSignal || findingsBearingControlPass)) {
     return refuse(
       CODES.missingTrustedReviewResultApi,
       "trusted structured review result must provide blocking_finding_count and medium_finding_count, or an equivalent trusted clean-review signal"
@@ -579,7 +594,7 @@ export function buildReviewAttestation(input) {
   }
   const blockingFindingCount = blockingCount.status === "missing" ? 0 : blockingCount.value;
   const mediumFindingCount = mediumCount.status === "missing" ? 0 : mediumCount.value;
-  if (blockingFindingCount > 0 || mediumFindingCount > 0) {
+  if (!findingsBearingControlPass && (blockingFindingCount > 0 || mediumFindingCount > 0)) {
     return refuse(CODES.blockingFindings, "blocking or medium findings present");
   }
   if (!reviewRunRef) return refuse(CODES.untrustedProvenance, "review_run lacks a structured minted-run identity");

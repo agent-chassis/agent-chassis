@@ -1,7 +1,22 @@
 
 
 import path from "node:path";
-import { createHash } from "node:crypto";
+import {
+  CRASH_DURABLE_RESULTS,
+  createSyncEffects,
+  planLockAcquisition,
+  planReplacement,
+  runCrashDurablePlanSync
+} from "@agent-chassis/wiki-core/src/lib/crash-durable-state.mjs";
+import {
+  ATTEMPT_JOURNAL_REFUSALS,
+  attemptJournalFilePath,
+  attemptJournalRefusal,
+  attemptPartitionLockPath,
+  parseAttemptJournal,
+  serializeAttemptJournal
+} from "@agent-chassis/agent-launch-core";
+import { createHash, randomUUID } from "node:crypto";
 import {
   closeSync,
   constants as fsConstants,
@@ -10,6 +25,7 @@ import {
   readdirSync,
   readFileSync,
   renameSync,
+  rmSync,
   unlinkSync,
   writeSync
 } from "node:fs";
@@ -55,6 +71,84 @@ export function managedRunProcessIdentityFilePath(mainRepo, tuple) {
   ]);
   const digest = createHash("sha256").update(key).digest("hex");
   return path.join(managedRunProcessIdentityStoreDir(mainRepo), `identity-${digest}.json`);
+}
+
+export function readAttemptJournalEvents({ mainRepo, repository, subject }) {
+  const filePath = attemptJournalFilePath(mainRepo, repository, subject);
+  let body;
+  try {
+    body = readFileSync(filePath, "utf8");
+  } catch (err) {
+    if (err && err.code === "ENOENT") return Object.freeze({ events: Object.freeze([]), refusal: null, file_path: filePath });
+    return Object.freeze({
+      events: Object.freeze([]),
+      refusal: attemptJournalRefusal(ATTEMPT_JOURNAL_REFUSALS.UNREADABLE, "the attempt journal could not be read", { errno: err?.code ?? null }),
+      file_path: filePath
+    });
+  }
+  const parsed = parseAttemptJournal(body);
+  if (parsed.ok !== true) {
+    return Object.freeze({
+      events: Object.freeze(parsed.durable_prefix ?? []),
+      refusal: parsed.refusal,
+      file_path: filePath
+    });
+  }
+  return Object.freeze({ events: Object.freeze(parsed.events), refusal: null, file_path: filePath });
+}
+
+export function publishAttemptJournalEvents({ mainRepo, repository, subject, events }) {
+  const filePath = attemptJournalFilePath(mainRepo, repository, subject);
+  mkdirSync(path.dirname(filePath), { recursive: true });
+  const result = runCrashDurablePlanSync(
+    planReplacement({
+      targetPath: filePath,
+      privatePath: `${filePath}.attempt-${process.pid}.tmp`,
+      bytes: serializeAttemptJournal(events)
+    }),
+    createSyncEffects({ mode: 0o600 })
+  );
+  if (result.classification !== CRASH_DURABLE_RESULTS.PUBLISHED) {
+    fail(
+      MANAGED_RUN_PROCESS_IDENTITY_CODES.STORE_WRITE_FAILED,
+      `failed to durably publish the managed-worker attempt journal: ${filePath}`,
+      { errno: result.error?.code ?? null },
+      result.error
+    );
+  }
+  return Object.freeze({ published: true, file_path: filePath, event_count: events.length });
+}
+
+export function withAttemptPartitionLock({ mainRepo, repository, subject }, mutate) {
+  const canonicalPath = attemptPartitionLockPath(mainRepo, repository, subject);
+  const ownerToken = randomUUID();
+  const stagingPath = `${canonicalPath}.staging-${ownerToken}`;
+  mkdirSync(path.dirname(canonicalPath), { recursive: true });
+  let ownerIdentity;
+  try {
+    ownerIdentity = JSON.stringify(captureProcessIdentity(process.pid, defaultLivenessDeps));
+  } catch (error) {
+    fail(
+      MANAGED_RUN_PROCESS_IDENTITY_CODES.IDENTITY_CAPTURE_FAILED,
+      "cannot capture the partition lock owner identity; refusing to mutate (fail closed)",
+      { source_code: error?.code ?? null },
+      error
+    );
+  }
+  const acquisition = runCrashDurablePlanSync(
+    planLockAcquisition({ canonicalPath, stagingPath, ownerToken, ownerIdentity }),
+    createSyncEffects({ mode: 0o600 })
+  );
+  if (acquisition.classification !== CRASH_DURABLE_RESULTS.LOCK_ACQUIRED) {
+    return Object.freeze({ acquired: false, contended: true, result: null });
+  }
+  try {
+    return Object.freeze({ acquired: true, contended: false, result: mutate() });
+  } finally {
+    try {
+      rmSync(canonicalPath, { recursive: true, force: true });
+    } catch {   }
+  }
 }
 
 const PENDING_BRAND = Symbol("managed-run-process-identity.PendingPublication");
@@ -117,17 +211,12 @@ export function writeExclusive(filePath, contents) {
 
 export function replaceAtomically(filePath, contents) {
   const temp = `${filePath}.publish-${process.pid}.tmp`;
-  let fd;
-  try {
-    fd = openSync(temp, fsConstants.O_CREAT | fsConstants.O_TRUNC | fsConstants.O_WRONLY, 0o600);
-    writeSync(fd, contents);
-    closeSync(fd);
-    fd = null;
-
-    renameSync(temp, filePath);
-  } catch (err) {
-    if (fd !== null) { try { closeSync(fd); } catch {   } }
-    try { unlinkSync(temp); } catch {   }
+  const result = runCrashDurablePlanSync(
+    planReplacement({ targetPath: filePath, privatePath: temp, bytes: contents }),
+    createSyncEffects({ mode: 0o600 })
+  );
+  if (result.classification !== CRASH_DURABLE_RESULTS.PUBLISHED) {
+    const err = result.error;
     fail(
       MANAGED_RUN_PROCESS_IDENTITY_CODES.STORE_WRITE_FAILED,
       `failed to atomically complete the managed-run identity record: ${filePath}`,

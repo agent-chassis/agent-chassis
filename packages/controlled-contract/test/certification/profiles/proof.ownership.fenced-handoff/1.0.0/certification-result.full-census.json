@@ -7,9 +7,9 @@
   "pack": {
     "profile_id": "proof.ownership.fenced-handoff",
     "profile_version": "1.0.0",
-    "profile_digest": "5278a8e5d0bbf634de452415b14e56affb3fdd0f5390113516ca7b379ff2c3d7",
+    "profile_digest": "064ea1fefbb37a686ca49bd0568074ffefaed79427f4c1562a42f40cd4d66e36",
     "guarantee_digest": "68c788f79b75254bb8600eb8805fb8bf6589052825cc26b243f482261641f975",
-    "adequacy_digest": "d120164dd3d90b144258dcefe494589fb117b7ca4a3b615fcc174ac2956303b1"
+    "adequacy_digest": "616f6844362b82bba15685315c4983290b072c09739ab646ca6413766b2eaf1b"
   },
   "passed": true,
   "control_count": 26,
@@ -20,7 +20,7 @@
     "schema_version": "controlled-contract-proof-pack-adequacy-run.experimental.v0.1",
     "profile_id": "proof.ownership.fenced-handoff",
     "profile_version": "1.0.0",
-    "profile_digest": "5278a8e5d0bbf634de452415b14e56affb3fdd0f5390113516ca7b379ff2c3d7",
+    "profile_digest": "064ea1fefbb37a686ca49bd0568074ffefaed79427f4c1562a42f40cd4d66e36",
     "guarantee_digest": "68c788f79b75254bb8600eb8805fb8bf6589052825cc26b243f482261641f975",
     "controls": [
       {
@@ -1279,7 +1279,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-dual-active-observations-zero-modalities",
       "variant_id": "reject-claim-dual-active-observations-zero-modalities",
-      "weakened_profile_digest": "6937fd17df4890757222568b08c36921ef155ddfbaa1d40b9fc223bcfcbd7abc",
+      "weakened_profile_digest": "59113db80a09956a89a46a6ed8368afade38fb2e5e0d83e4c2a7d8d00c0ed869",
       "outcome": "survived"
     },
     {
@@ -1287,7 +1287,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-dual-active-verification-modalities",
       "variant_id": "reject-claim-dual-active-verification-modalities",
-      "weakened_profile_digest": "be3daa6659b8354022f94a8ee8d004afee792258fa430c59e4e30a9e7c0188b2",
+      "weakened_profile_digest": "29f3d470c228c4d6f8babf8ab066801cc1c83598b4b84e75038afc3cdf26ebc3",
       "outcome": "survived"
     },
     {
@@ -1295,7 +1295,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-dual-active-verification-proposition-operand-0-role",
       "variant_id": "reject-claim-dual-active-verification-proposition-operand-0-role",
-      "weakened_profile_digest": "c5168c6c74950935d182ce1a04d6eee41c802faaeb9458ebed30fa1f7be2a08e",
+      "weakened_profile_digest": "1937f2cbd3bda72ee203919d3fa36964ed6851048941c9b00bd38f7c8de70a29",
       "outcome": "survived"
     },
     {
@@ -1303,7 +1303,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-dual-active-verification-proposition-operand-1-role",
       "variant_id": "reject-claim-dual-active-verification-proposition-operand-1-role",
-      "weakened_profile_digest": "d8302bbf064dea444f77fbb031a0525f1efa29ac748257bbb10a4ffef6ea8aa6",
+      "weakened_profile_digest": "c191b63e298157ea26d4eedd38aa290ea29238497f8ffc140987cd98eaac3fef",
       "outcome": "survived"
     },
     {
@@ -1311,7 +1311,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-dual-active-verification-proposition-operand-2-role",
       "variant_id": "reject-claim-dual-active-verification-proposition-operand-2-role",
-      "weakened_profile_digest": "ec434c5f6fb01221a8314c182d03fa93b4b3b7660ffcd51530afa3eef5c883aa",
+      "weakened_profile_digest": "e31aade9c6a349e61d76c524067d9ea67530a9921d8f6a3564758ba4f573a400",
       "outcome": "survived"
     },
     {
@@ -1319,7 +1319,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-dual-active-verification-proposition-operand-3-role",
       "variant_id": "reject-claim-dual-active-verification-proposition-operand-3-role",
-      "weakened_profile_digest": "111b6398608ee951f4e52bd56bebc64244d40e478c836935a372f7ce16b9e930",
+      "weakened_profile_digest": "d9a146515e79d3dc9da43ea9b5362610f4c482c59ec668d54927a83684e52dfe",
       "outcome": "survived"
     },
     {
@@ -1327,7 +1327,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-dual-active-verification-proposition-operand-4-role",
       "variant_id": "reject-claim-dual-active-verification-proposition-operand-4-role",
-      "weakened_profile_digest": "211196382f1b315a6a56a5c73bec812a9ce9fc3fb50e02266a940376674b454f",
+      "weakened_profile_digest": "c265f6797630126e2254d022ef393353f36cdf7ed89811ffd504fcdf7231d96f",
       "outcome": "survived"
     },
     {
@@ -1335,7 +1335,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-dual-active-verification-proposition-operand-5-role",
       "variant_id": "reject-claim-dual-active-verification-proposition-operand-5-role",
-      "weakened_profile_digest": "af2921f3a9c302f01c0f5dbc14dc4184a4f11e38c065c15e0415f68e0798a8fb",
+      "weakened_profile_digest": "6e021255c9a7b391e198764df906e50ffc0201aade48fdf039d8eeae100a2f47",
       "outcome": "survived"
     },
     {
@@ -1343,7 +1343,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-dual-active-verification-proposition-operator",
       "variant_id": "reject-claim-dual-active-verification-proposition-operator",
-      "weakened_profile_digest": "e2c4d7153ed44e701eced980bf92972de45fe36b1f85d43812aa42a9eb48cc59",
+      "weakened_profile_digest": "7d09db20d2d42982b1f39638b219a7f68d301b6ff540e112ccc4129fcc37c2ed",
       "outcome": "survived"
     },
     {
@@ -1351,7 +1351,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-dual-active-verification-proposition-subject",
       "variant_id": "reject-claim-dual-active-verification-proposition-subject",
-      "weakened_profile_digest": "61ed2bc987ad6e9832f4cd85179e60d6080757806703dffa63abbf753e6ca0f5",
+      "weakened_profile_digest": "c06d948d22c8b2b9b15d2fca09db4774e5ebab90ce6dc1af33a50c95fe7ff3ec",
       "outcome": "survived"
     },
     {
@@ -1359,7 +1359,7 @@
       "weakening_class": "verification_method_broadening",
       "fixture_id": "reject-claim-dual-active-verification-verification-methods",
       "variant_id": "reject-claim-dual-active-verification-verification-methods",
-      "weakened_profile_digest": "f04cc22d7292617d86b07299cfa28914c78cf7cfa5340e7a321e5766e85c878d",
+      "weakened_profile_digest": "32360599493081b1af62fb1fd30e984ddc061decd4c8da867656af3743c8cf20",
       "outcome": "survived"
     },
     {
@@ -1367,7 +1367,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-each-observation-not-dual-active-modalities",
       "variant_id": "reject-claim-each-observation-not-dual-active-modalities",
-      "weakened_profile_digest": "96f1dd367d18b7c592f0b9f85ffad64d694fb3f2da9b96c0873b77bca9e8f572",
+      "weakened_profile_digest": "5b6cb473efeaf0be1f7e9fe72db6e34e124f0fc98fd23598fe28146366d42b1a",
       "outcome": "survived"
     },
     {
@@ -1375,7 +1375,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-observation-not-dual-active-proposition-operand-0-role",
       "variant_id": "reject-claim-each-observation-not-dual-active-proposition-operand-0-role",
-      "weakened_profile_digest": "92ae2038f6970a264685e0af470ff011517a7b1efcf1c7e15e006a240d3a87d0",
+      "weakened_profile_digest": "3008d74c61e5ac2986ece9c8761186fb2ac1545dc86afe610552bbddfd74e141",
       "outcome": "survived"
     },
     {
@@ -1383,7 +1383,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-observation-not-dual-active-proposition-operator",
       "variant_id": "reject-claim-each-observation-not-dual-active-proposition-operator",
-      "weakened_profile_digest": "0680dcdd5d7b90e98427bb88210b626dfb4961dcba1ae28e1442ae2275882791",
+      "weakened_profile_digest": "4c0b4f430f213423e2340f4807501c992f35d41fc26c0b8f11daa98352489e03",
       "outcome": "survived"
     },
     {
@@ -1391,7 +1391,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-each-predecessor-effect-before-fence-modalities",
       "variant_id": "reject-claim-each-predecessor-effect-before-fence-modalities",
-      "weakened_profile_digest": "df32d2360c4c97f0a7fefbd519f5a6d15f6347708060c251d5b88141808cc1d2",
+      "weakened_profile_digest": "c9e2d9e31a2f7ed9cbcab97f53d1cc5270f91c5cc49f328cf4f5af0dd64a9bed",
       "outcome": "survived"
     },
     {
@@ -1399,7 +1399,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-predecessor-effect-before-fence-proposition-operand-0-role",
       "variant_id": "reject-claim-each-predecessor-effect-before-fence-proposition-operand-0-role",
-      "weakened_profile_digest": "22745cdeb55c83f2c1dbe649b6505c61d819cc32cf2b95edde089585c5279883",
+      "weakened_profile_digest": "15dbe39827e61be9afaf47e8ca001388bef1de95544faa5bf5e89262f53a94b1",
       "outcome": "survived"
     },
     {
@@ -1407,7 +1407,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-predecessor-effect-before-fence-proposition-operator",
       "variant_id": "reject-claim-each-predecessor-effect-before-fence-proposition-operator",
-      "weakened_profile_digest": "c12ae519cba397b25d9f88d4504fe0f43d22005c44a2a9820801a6320c620728",
+      "weakened_profile_digest": "2d43de80b9d7f1aafc4f589ac0075aa4230e2f18c665c2155459ccc94b77d301",
       "outcome": "survived"
     },
     {
@@ -1415,7 +1415,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-each-predecessor-effect-uses-authority-epoch-resource-modalities",
       "variant_id": "reject-claim-each-predecessor-effect-uses-authority-epoch-resource-modalities",
-      "weakened_profile_digest": "f97e5c4a77c3b946413ba60b50e62113b73427684a7874bf5e915bd3afbaf337",
+      "weakened_profile_digest": "78d000d9b291ca020a71030ebae4541311c0d25c9c5e722e482522f08e601f92",
       "outcome": "survived"
     },
     {
@@ -1423,7 +1423,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-predecessor-effect-uses-authority-epoch-resource-proposition-operand-0-role",
       "variant_id": "reject-claim-each-predecessor-effect-uses-authority-epoch-resource-proposition-operand-0-role",
-      "weakened_profile_digest": "58987cf926391cff094f42ab9af1f74b0d988ec71f5efefee40d68937a6b7431",
+      "weakened_profile_digest": "360553f647fea30eb11baf59eaf32e85a0f1ea7d449a85b1712a17164f3f4704",
       "outcome": "survived"
     },
     {
@@ -1431,7 +1431,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-predecessor-effect-uses-authority-epoch-resource-proposition-operand-1-role",
       "variant_id": "reject-claim-each-predecessor-effect-uses-authority-epoch-resource-proposition-operand-1-role",
-      "weakened_profile_digest": "c0f3870ff4aadc42f75c6cf19f21a8ba43968a84fd7a55673b1cace7167a69fd",
+      "weakened_profile_digest": "281b6e52ec24f5e2676cdf531ade684cbaa1c8fe7121f04be79fb2e3c4db1aa2",
       "outcome": "survived"
     },
     {
@@ -1439,7 +1439,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-predecessor-effect-uses-authority-epoch-resource-proposition-operand-2-role",
       "variant_id": "reject-claim-each-predecessor-effect-uses-authority-epoch-resource-proposition-operand-2-role",
-      "weakened_profile_digest": "5c04c8c48b6cc33c1549eaea771e31d67eba946d56483d0c2fc84d833afa09e0",
+      "weakened_profile_digest": "4baf8834faedfbdb95ab49adfeff25122dc77dbaab512951386fd08c80adad8d",
       "outcome": "survived"
     },
     {
@@ -1447,7 +1447,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-predecessor-effect-uses-authority-epoch-resource-proposition-operator",
       "variant_id": "reject-claim-each-predecessor-effect-uses-authority-epoch-resource-proposition-operator",
-      "weakened_profile_digest": "e6940f39c9860ff38445c545c23dc7e835c6ec1f225aa30636915d3df9b0765f",
+      "weakened_profile_digest": "6ec77945af848ae4c1de8390468b7786486e73d2637ecf3100625db5a1e4cafd",
       "outcome": "survived"
     },
     {
@@ -1455,7 +1455,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-each-predecessor-post-fence-attempt-after-fence-modalities",
       "variant_id": "reject-claim-each-predecessor-post-fence-attempt-after-fence-modalities",
-      "weakened_profile_digest": "3d2332bc10ffdaabc9ebe3f0cc84cdb420bfabb3cb0d47866856ef144710840e",
+      "weakened_profile_digest": "92ad1af78bd74ce81746bc700a20a0c48b090a8dff315815e1d68299dbf0cc30",
       "outcome": "survived"
     },
     {
@@ -1463,7 +1463,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-predecessor-post-fence-attempt-after-fence-proposition-operator",
       "variant_id": "reject-claim-each-predecessor-post-fence-attempt-after-fence-proposition-operator",
-      "weakened_profile_digest": "abd8a22da57596c53ffb5756d1f627076752faa58aada68c0d972dd28e31da30",
+      "weakened_profile_digest": "5fd1c483c439e4697f35bd10145965cc0c1fe949f03aa31cbab57a93672c9095",
       "outcome": "survived"
     },
     {
@@ -1471,7 +1471,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-predecessor-post-fence-attempt-after-fence-proposition-subject",
       "variant_id": "reject-claim-each-predecessor-post-fence-attempt-after-fence-proposition-subject",
-      "weakened_profile_digest": "d525b9e18f3ff0a278ea91a576f2b1775ee30a5245fb93760ce3c1596401b2d7",
+      "weakened_profile_digest": "3084e8e63cab54dd3d84f348e12ad3b31f867cb1ef921317a47ed39099bc0262",
       "outcome": "survived"
     },
     {
@@ -1479,7 +1479,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-each-predecessor-post-fence-attempt-no-mutation-modalities",
       "variant_id": "reject-claim-each-predecessor-post-fence-attempt-no-mutation-modalities",
-      "weakened_profile_digest": "38f38c30d4cf674a1436bfc41bdba3c29ed1a1f5a17f3d217514f16d7dc7ec7c",
+      "weakened_profile_digest": "8102c738150fa86f15f4363d49fd2adae2824e36bf5dd4af395136fcdde8031e",
       "outcome": "survived"
     },
     {
@@ -1487,7 +1487,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-predecessor-post-fence-attempt-no-mutation-proposition-applicability-mode",
       "variant_id": "reject-claim-each-predecessor-post-fence-attempt-no-mutation-proposition-applicability-mode",
-      "weakened_profile_digest": "a550f5d76fed9de21708a038977fff37fb300d693c40d554f4edd503ff5988d8",
+      "weakened_profile_digest": "aaf371985923b7da824f5d98cbb70540bd2c6c7782be5eca006f495084eb3597",
       "outcome": "survived"
     },
     {
@@ -1495,7 +1495,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-predecessor-post-fence-attempt-no-mutation-proposition-applicability-operands",
       "variant_id": "reject-claim-each-predecessor-post-fence-attempt-no-mutation-proposition-applicability-operands",
-      "weakened_profile_digest": "d99bd41efffb024805c02f5f923b2f8633123ffac82e6fb6d583383a678afab0",
+      "weakened_profile_digest": "0e536d08b32978d9c9bf5300b8dd7cd5d5f4aa571703e66108aec0379fec2b42",
       "outcome": "survived"
     },
     {
@@ -1503,7 +1503,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-predecessor-post-fence-attempt-no-mutation-proposition-operand-0-role",
       "variant_id": "reject-claim-each-predecessor-post-fence-attempt-no-mutation-proposition-operand-0-role",
-      "weakened_profile_digest": "9dabd1483195b5120203b3aef2327f103b68c4dfc24c4a87875b3d24077df30b",
+      "weakened_profile_digest": "201719219b81c65f8f4471f8caa45940ff0e355a0cc3c207b7da4c90a527d995",
       "outcome": "survived"
     },
     {
@@ -1511,7 +1511,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-predecessor-post-fence-attempt-no-mutation-proposition-operator",
       "variant_id": "reject-claim-each-predecessor-post-fence-attempt-no-mutation-proposition-operator",
-      "weakened_profile_digest": "67cdc8c7f023f9272f9b18def2bd897a20b5a815228ba6669dcbc0c0d49e0bfb",
+      "weakened_profile_digest": "2e65c5a62d4928d82a675811c8025c269d8e02f9e4f0c6a8e2770ab0bac9fbb0",
       "outcome": "survived"
     },
     {
@@ -1519,7 +1519,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-each-predecessor-post-fence-attempt-no-write-modalities",
       "variant_id": "reject-claim-each-predecessor-post-fence-attempt-no-write-modalities",
-      "weakened_profile_digest": "f7af0ea7f40808742fdc1be4ffe5998583860038220672116b59e782417d924f",
+      "weakened_profile_digest": "eeb0086dd7a55b562703131a0f2043d0f91ac517e09360829b99a96e87595502",
       "outcome": "survived"
     },
     {
@@ -1527,7 +1527,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-predecessor-post-fence-attempt-no-write-proposition-applicability-mode",
       "variant_id": "reject-claim-each-predecessor-post-fence-attempt-no-write-proposition-applicability-mode",
-      "weakened_profile_digest": "86e8909a73fd1d09b29a90c46b53b2e53e653c9625d74c8e24edd7a2a9b3baf9",
+      "weakened_profile_digest": "3e1dea513e72dda6ea1f9baeeef365228c65c27a0281a5bada4a18c709a813ef",
       "outcome": "survived"
     },
     {
@@ -1535,7 +1535,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-predecessor-post-fence-attempt-no-write-proposition-applicability-operands",
       "variant_id": "reject-claim-each-predecessor-post-fence-attempt-no-write-proposition-applicability-operands",
-      "weakened_profile_digest": "d232976f01b37ed44439bfbf4529261dc6782dcbd6be716ab519cd4b96851432",
+      "weakened_profile_digest": "649e95d5fc5505c91540fd3337cccdd1fdc56c3ddde21a362b0a92296f1da738",
       "outcome": "survived"
     },
     {
@@ -1543,7 +1543,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-predecessor-post-fence-attempt-no-write-proposition-operand-0-role",
       "variant_id": "reject-claim-each-predecessor-post-fence-attempt-no-write-proposition-operand-0-role",
-      "weakened_profile_digest": "535100d18bcbb70f2b7ce990c4b89b9c8416f57797c850b6f7d61c8b5a909c6e",
+      "weakened_profile_digest": "ac6088723afbe893eafb85588e8972c5d474502fea185670aaa19b82c2d84c9b",
       "outcome": "survived"
     },
     {
@@ -1551,7 +1551,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-predecessor-post-fence-attempt-no-write-proposition-operator",
       "variant_id": "reject-claim-each-predecessor-post-fence-attempt-no-write-proposition-operator",
-      "weakened_profile_digest": "f76b9ef67681ff971f90585763d4174cf99521ced2332b079696ea32f403a179",
+      "weakened_profile_digest": "ef4740e69003889255681af3fd06a317ed9a624cea7d57b34206d453b2fb3c95",
       "outcome": "survived"
     },
     {
@@ -1559,7 +1559,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-each-predecessor-post-fence-attempt-refused-modalities",
       "variant_id": "reject-claim-each-predecessor-post-fence-attempt-refused-modalities",
-      "weakened_profile_digest": "49e959cf86a1b20742c08b835718eaf3fcc103ee7e93923cc054fb85c2c11b2d",
+      "weakened_profile_digest": "dcec14549d03b949af62c488e4f6abc32facecd29d9403e7e00d2bb515c41825",
       "outcome": "survived"
     },
     {
@@ -1567,7 +1567,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-predecessor-post-fence-attempt-refused-proposition-applicability-mode",
       "variant_id": "reject-claim-each-predecessor-post-fence-attempt-refused-proposition-applicability-mode",
-      "weakened_profile_digest": "b347681e24d06c364398c36115ac4eb4801785a13dc33cfe74d0d0376739821b",
+      "weakened_profile_digest": "5ee7ca5093c0b578f5e8a06b647b98990b0f6cc0d6daac448979abd90b87455e",
       "outcome": "survived"
     },
     {
@@ -1575,7 +1575,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-predecessor-post-fence-attempt-refused-proposition-applicability-operands",
       "variant_id": "reject-claim-each-predecessor-post-fence-attempt-refused-proposition-applicability-operands",
-      "weakened_profile_digest": "34bedbc89dc2e255a92f169d5def2c5c83fd3ec086b3e468d2b1979f3ebbe2a8",
+      "weakened_profile_digest": "ff364a07d84ea4a426b0107ceb3bbf31dbec1107159c5067501a288a27eda4f1",
       "outcome": "survived"
     },
     {
@@ -1583,7 +1583,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-predecessor-post-fence-attempt-refused-proposition-operand-0-role",
       "variant_id": "reject-claim-each-predecessor-post-fence-attempt-refused-proposition-operand-0-role",
-      "weakened_profile_digest": "61588d873ecd43a21fbb3510a3e3c154c8063909b0bd5ca72bbe552e7fde7a4e",
+      "weakened_profile_digest": "60ea2d1455fec76d93abe7d6226b57d303337ee32d5b592de362e27b5af9c80a",
       "outcome": "survived"
     },
     {
@@ -1591,7 +1591,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-predecessor-post-fence-attempt-refused-proposition-operator",
       "variant_id": "reject-claim-each-predecessor-post-fence-attempt-refused-proposition-operator",
-      "weakened_profile_digest": "8f717a80e80fdf4f443d9bf626a3f968f5c51c5833ec6295449c0474d8f2281e",
+      "weakened_profile_digest": "25dfd8b3cea70c3ac2d6a0c2af983647188149b69d134d421ddd85957d02947c",
       "outcome": "survived"
     },
     {
@@ -1599,7 +1599,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-each-predecessor-post-fence-attempt-uses-authority-and-epoch-modalities",
       "variant_id": "reject-claim-each-predecessor-post-fence-attempt-uses-authority-and-epoch-modalities",
-      "weakened_profile_digest": "2d0647b27c0441e5950441a5f187d4de78bce888835575e3205a6d31813bc1fb",
+      "weakened_profile_digest": "3928bf03300974c9aa2d65c58cf1cf4a398d64eb3cc78096713701dfbc9e5587",
       "outcome": "survived"
     },
     {
@@ -1607,7 +1607,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-predecessor-post-fence-attempt-uses-authority-and-epoch-proposition-operand-0-role",
       "variant_id": "reject-claim-each-predecessor-post-fence-attempt-uses-authority-and-epoch-proposition-operand-0-role",
-      "weakened_profile_digest": "eb891c8eb1c00ab34c6e8fc98fe20b3a02e72e0ecac1cb95aa556f49f5befcaf",
+      "weakened_profile_digest": "fb4cd4ed8b8a0fd717c2e793fcd89fc61e81d73a7329aa65c0285a2d5f6e336d",
       "outcome": "survived"
     },
     {
@@ -1615,7 +1615,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-predecessor-post-fence-attempt-uses-authority-and-epoch-proposition-operand-1-role",
       "variant_id": "reject-claim-each-predecessor-post-fence-attempt-uses-authority-and-epoch-proposition-operand-1-role",
-      "weakened_profile_digest": "649a9edec0317699e4eea4734bb458e9a88d5ac68a3d4564ec42a00abaf56ce5",
+      "weakened_profile_digest": "38e54f09ac950f0a55347ba1ceb03b223aed5cd7f7bdeeeaa64089af5256bf63",
       "outcome": "survived"
     },
     {
@@ -1623,7 +1623,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-predecessor-post-fence-attempt-uses-authority-and-epoch-proposition-operand-2-role",
       "variant_id": "reject-claim-each-predecessor-post-fence-attempt-uses-authority-and-epoch-proposition-operand-2-role",
-      "weakened_profile_digest": "de183b9e1ca1ae0e01af5e0813129f14922d79d5a8ccb73bba68bdcdd70639ff",
+      "weakened_profile_digest": "9f05c16ebcc769fded0b68a7428c0403887e982ed9c9aad74d5e2e4bb464ca6a",
       "outcome": "survived"
     },
     {
@@ -1631,7 +1631,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-predecessor-post-fence-attempt-uses-authority-and-epoch-proposition-operator",
       "variant_id": "reject-claim-each-predecessor-post-fence-attempt-uses-authority-and-epoch-proposition-operator",
-      "weakened_profile_digest": "18595c4786962e5fa0f37812646aee7191b2d7dfa849276a3309a91828db1143",
+      "weakened_profile_digest": "6b75eaf2cf37fc2b2410f4a334577b8df3222a69913e8aa6b70f3ed4c55c42dd",
       "outcome": "survived"
     },
     {
@@ -1639,7 +1639,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-each-predecessor-pre-fence-attempt-before-fence-modalities",
       "variant_id": "reject-claim-each-predecessor-pre-fence-attempt-before-fence-modalities",
-      "weakened_profile_digest": "6a01adeb4a682a7dd659cebefd2c39d89f439440772e614c6382fc707e93644d",
+      "weakened_profile_digest": "a128fb2e6246d89db15472f3ef712b0e120dbef6f9995154fbd7a1565b6b2ea3",
       "outcome": "survived"
     },
     {
@@ -1647,7 +1647,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-predecessor-pre-fence-attempt-before-fence-proposition-operand-0-role",
       "variant_id": "reject-claim-each-predecessor-pre-fence-attempt-before-fence-proposition-operand-0-role",
-      "weakened_profile_digest": "3116eba557bf0ba0d029de8d002425d9b5f934ebc2fae77fb07b26de288b98c7",
+      "weakened_profile_digest": "d74999b540d6b7f321d0b13d45d964480fac4e47c3ff65afdaf3f4676d588eb1",
       "outcome": "survived"
     },
     {
@@ -1655,7 +1655,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-predecessor-pre-fence-attempt-before-fence-proposition-operator",
       "variant_id": "reject-claim-each-predecessor-pre-fence-attempt-before-fence-proposition-operator",
-      "weakened_profile_digest": "17b4825db8512767ce3e90db67c20d9fcf1361e763b5158b91ebbcab8119c4ef",
+      "weakened_profile_digest": "34f025af1dec3af3262fa590dd57888d7efee95c3265ba686811fb642b54ba29",
       "outcome": "survived"
     },
     {
@@ -1663,7 +1663,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-each-predecessor-pre-fence-attempt-uses-authority-and-epoch-modalities",
       "variant_id": "reject-claim-each-predecessor-pre-fence-attempt-uses-authority-and-epoch-modalities",
-      "weakened_profile_digest": "bf11cc3e0cec7192719a04705d07cca5af97877b79e466103198ab23d19ead0a",
+      "weakened_profile_digest": "599625d4ba0d05d744502e50e6fda6a75087109b7a9cc1e2e55cd5a60f62150e",
       "outcome": "survived"
     },
     {
@@ -1671,7 +1671,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-predecessor-pre-fence-attempt-uses-authority-and-epoch-proposition-operand-0-role",
       "variant_id": "reject-claim-each-predecessor-pre-fence-attempt-uses-authority-and-epoch-proposition-operand-0-role",
-      "weakened_profile_digest": "f0d578158cc282d04b75a28e62bce60bcff2fae5cb8ac080baf4db252a799529",
+      "weakened_profile_digest": "5bce184685e3f499d0c7ea61b69352afff6a3d15bf04e99843118f7b944f7193",
       "outcome": "survived"
     },
     {
@@ -1679,7 +1679,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-predecessor-pre-fence-attempt-uses-authority-and-epoch-proposition-operand-1-role",
       "variant_id": "reject-claim-each-predecessor-pre-fence-attempt-uses-authority-and-epoch-proposition-operand-1-role",
-      "weakened_profile_digest": "bff179d6cb721dd0cae1f884876b6492df472293d67d8a04df9c8565d97acfce",
+      "weakened_profile_digest": "51df61e7dce0809de7a59a8500036af94e9356c42ae70b4773117225541587f8",
       "outcome": "survived"
     },
     {
@@ -1687,7 +1687,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-predecessor-pre-fence-attempt-uses-authority-and-epoch-proposition-operand-2-role",
       "variant_id": "reject-claim-each-predecessor-pre-fence-attempt-uses-authority-and-epoch-proposition-operand-2-role",
-      "weakened_profile_digest": "b425d8000afcb29de9dac3a971e99c39c486a2f56ac6882035a78650a93a3332",
+      "weakened_profile_digest": "90a2b1180c0a9913322f93ff53c2cffcfaffe70cfbc07986c1be26bb1d254137",
       "outcome": "survived"
     },
     {
@@ -1695,7 +1695,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-predecessor-pre-fence-attempt-uses-authority-and-epoch-proposition-operator",
       "variant_id": "reject-claim-each-predecessor-pre-fence-attempt-uses-authority-and-epoch-proposition-operator",
-      "weakened_profile_digest": "cbb12501b6f29481a7cd066de6c09d6782e10cef0f1d355bee0edfd775130fad",
+      "weakened_profile_digest": "d1d6b08836b30e97ed523fb91faf3764f8df266f2ef72cd27fea8372ae520ae6",
       "outcome": "survived"
     },
     {
@@ -1703,7 +1703,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-each-successor-effect-after-fence-modalities",
       "variant_id": "reject-claim-each-successor-effect-after-fence-modalities",
-      "weakened_profile_digest": "2d18a21f620fd3579517e260b8223546bbe3489dd3933eaf6c1db7651e60ad7c",
+      "weakened_profile_digest": "4b1ca11edcc1bf55081c5330b79de971d6afd69f0a4faac33695b51c8dedfd6d",
       "outcome": "survived"
     },
     {
@@ -1711,7 +1711,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-successor-effect-after-fence-proposition-operator",
       "variant_id": "reject-claim-each-successor-effect-after-fence-proposition-operator",
-      "weakened_profile_digest": "4af27541fb4c916ec67eeabe90a19bf162097467a562588f710da3970230ee64",
+      "weakened_profile_digest": "a0d5c04e889fadba9ce9a9ecbc11e9529c9000cdc1bf676a20673868bc4370a3",
       "outcome": "survived"
     },
     {
@@ -1719,7 +1719,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-successor-effect-after-fence-proposition-subject",
       "variant_id": "reject-claim-each-successor-effect-after-fence-proposition-subject",
-      "weakened_profile_digest": "1f700f28c44e0c3e8bbeb75c23a30e2c7795462cfea7dcde1d2ef0615251af7b",
+      "weakened_profile_digest": "b84c832947c8f99bfc88aa83fcb98f6b83461deff4c381b6a1c8bf6a468388c1",
       "outcome": "survived"
     },
     {
@@ -1727,7 +1727,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-each-successor-effect-uses-authority-epoch-resource-modalities",
       "variant_id": "reject-claim-each-successor-effect-uses-authority-epoch-resource-modalities",
-      "weakened_profile_digest": "ab960e66a75e1cd8c21c6732968aa80ca856dd24ca27cf9b18e6fa3bcc9d3825",
+      "weakened_profile_digest": "b1200d75ab692e659c22545f773193926e1e77591e5bd864028b43e51da191fa",
       "outcome": "survived"
     },
     {
@@ -1735,7 +1735,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-successor-effect-uses-authority-epoch-resource-proposition-operand-0-role",
       "variant_id": "reject-claim-each-successor-effect-uses-authority-epoch-resource-proposition-operand-0-role",
-      "weakened_profile_digest": "e6ae23319ddcd5c12f73544be97bd7fe578c35abb8e5b02386dc2b0281812da7",
+      "weakened_profile_digest": "e51a4b55eed83a032af383221f14a62011fc9b12673f6c9191028e29498c6ff1",
       "outcome": "survived"
     },
     {
@@ -1743,7 +1743,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-successor-effect-uses-authority-epoch-resource-proposition-operand-1-role",
       "variant_id": "reject-claim-each-successor-effect-uses-authority-epoch-resource-proposition-operand-1-role",
-      "weakened_profile_digest": "ba88b11cf1533436f15d0ca51f6a2c863139acf07b77b1ca41dceeb45d4c8dca",
+      "weakened_profile_digest": "6fdb6289f294041491ba999a328065687698cfbc1825e19a59f6cbd58f1c81df",
       "outcome": "survived"
     },
     {
@@ -1751,7 +1751,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-successor-effect-uses-authority-epoch-resource-proposition-operand-2-role",
       "variant_id": "reject-claim-each-successor-effect-uses-authority-epoch-resource-proposition-operand-2-role",
-      "weakened_profile_digest": "13394f8d7301f711b7e3028c94baa5d5ba8191c604d56be27ba297d67c2cd221",
+      "weakened_profile_digest": "660a597e885fbce94b090f4998bc8d25a0ac47379ad2ddd5e3ab71f71ca9d44d",
       "outcome": "survived"
     },
     {
@@ -1759,7 +1759,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-successor-effect-uses-authority-epoch-resource-proposition-operator",
       "variant_id": "reject-claim-each-successor-effect-uses-authority-epoch-resource-proposition-operator",
-      "weakened_profile_digest": "0c03e84aae52b4cb5b8bc81280282721b029a59de78cdae0aee8d6b529664f32",
+      "weakened_profile_digest": "91bc4e6018ba886343480584510dbb363907ad6b0db8c9a502fa60f6be782042",
       "outcome": "survived"
     },
     {
@@ -1767,7 +1767,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-each-successor-post-fence-attempt-after-fence-modalities",
       "variant_id": "reject-claim-each-successor-post-fence-attempt-after-fence-modalities",
-      "weakened_profile_digest": "2fad27d1059d61d7729b31397235f227c90803bb1b1b6b4fcbd625ef725dab38",
+      "weakened_profile_digest": "7770cb24cc3edcacd7c153821a1e484abc1037a8369c70e4228b2625bd702db3",
       "outcome": "survived"
     },
     {
@@ -1775,7 +1775,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-successor-post-fence-attempt-after-fence-proposition-operator",
       "variant_id": "reject-claim-each-successor-post-fence-attempt-after-fence-proposition-operator",
-      "weakened_profile_digest": "afeb8243a463a99e183516577406bd1e22581972dcc9426e12e56e907f110990",
+      "weakened_profile_digest": "a9ed3c84c657cc5ab49457615c7e4d18f958b00c8ce555a9ee7678453c621628",
       "outcome": "survived"
     },
     {
@@ -1783,7 +1783,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-successor-post-fence-attempt-after-fence-proposition-subject",
       "variant_id": "reject-claim-each-successor-post-fence-attempt-after-fence-proposition-subject",
-      "weakened_profile_digest": "a9d3f07d4917f162dfbb3154d2f7408c6d2cec74bd8df74001e281377ede2e66",
+      "weakened_profile_digest": "61cc4204876e83aabc087b6c925f21fb621ae0242eda0d9f6f939a323cbc0f9e",
       "outcome": "survived"
     },
     {
@@ -1791,7 +1791,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-each-successor-post-fence-attempt-uses-authority-and-epoch-modalities",
       "variant_id": "reject-claim-each-successor-post-fence-attempt-uses-authority-and-epoch-modalities",
-      "weakened_profile_digest": "54fb502675c473b32affe5fa62ac60f6010b55ba8087ba21e21d98c902ec8f64",
+      "weakened_profile_digest": "5c74cfd4a3d2d30236afaa48941bde50eec1d0e96b9a059807b506e7802ef939",
       "outcome": "survived"
     },
     {
@@ -1799,7 +1799,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-successor-post-fence-attempt-uses-authority-and-epoch-proposition-operand-0-role",
       "variant_id": "reject-claim-each-successor-post-fence-attempt-uses-authority-and-epoch-proposition-operand-0-role",
-      "weakened_profile_digest": "e98b861da8f9d8eac38cdec516e14ada979b6dde055c88103cef56cc6f680cc0",
+      "weakened_profile_digest": "a7dc8d3f0918de98158ee4147fc90a0cd08331f4261bc22e625091e52c8be03c",
       "outcome": "survived"
     },
     {
@@ -1807,7 +1807,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-successor-post-fence-attempt-uses-authority-and-epoch-proposition-operand-1-role",
       "variant_id": "reject-claim-each-successor-post-fence-attempt-uses-authority-and-epoch-proposition-operand-1-role",
-      "weakened_profile_digest": "da52cf85e1472a43e82438875a1ecf4479cf52be3bb11fd7b7f8eaca41ffe946",
+      "weakened_profile_digest": "43846986f96dffd8a83b588d479bc6d3623861c1a7677387f481d5d5fb544611",
       "outcome": "survived"
     },
     {
@@ -1815,7 +1815,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-successor-post-fence-attempt-uses-authority-and-epoch-proposition-operand-2-role",
       "variant_id": "reject-claim-each-successor-post-fence-attempt-uses-authority-and-epoch-proposition-operand-2-role",
-      "weakened_profile_digest": "9abf99f9cd1585fd4bffac00b99b52624effc43f7754608022aa1596b28d9cf2",
+      "weakened_profile_digest": "5e5242fd6bbc85540d6058c24f6e0a91548a1385032be5e76c3742adb5901b8c",
       "outcome": "survived"
     },
     {
@@ -1823,7 +1823,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-each-successor-post-fence-attempt-uses-authority-and-epoch-proposition-operator",
       "variant_id": "reject-claim-each-successor-post-fence-attempt-uses-authority-and-epoch-proposition-operator",
-      "weakened_profile_digest": "d264d187a96882a008805d53064304ba9491716fa98a6d4d18ec207dd4388157",
+      "weakened_profile_digest": "6a543a127323256b3cf67c7f98751e298801bc582c3f5182a691b8b7db70a1dd",
       "outcome": "survived"
     },
     {
@@ -1831,7 +1831,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-fence-precedes-successor-activation-modalities",
       "variant_id": "reject-claim-fence-precedes-successor-activation-modalities",
-      "weakened_profile_digest": "847bf3ebddf346c61232ade7a6cc49645b08c38f9e962eba4f7dae4d123ea9a3",
+      "weakened_profile_digest": "230be4c922dd4269bc3ac078e84f16cda01e51464b2bac57a96cb72d987bc118",
       "outcome": "survived"
     },
     {
@@ -1839,7 +1839,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-fence-precedes-successor-activation-proposition-operand-0-role",
       "variant_id": "reject-claim-fence-precedes-successor-activation-proposition-operand-0-role",
-      "weakened_profile_digest": "f14af5ded9db46ca4ffad31f55fad1ca9a84c89093c0c55985945237ed6bb820",
+      "weakened_profile_digest": "e24931fa053db92060623cbb224cdb6eacb5a1f2d74cef77d19db4add481f5f8",
       "outcome": "survived"
     },
     {
@@ -1847,7 +1847,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-fence-precedes-successor-activation-proposition-operator",
       "variant_id": "reject-claim-fence-precedes-successor-activation-proposition-operator",
-      "weakened_profile_digest": "9bfa50d349582399dfbd47ebe67e35486a0fd5503b62345ef6f2325f620d542d",
+      "weakened_profile_digest": "325691741c6f05d020a2c74ace8d026fc84e0b7faa25a97ee04cbf1b89976321",
       "outcome": "survived"
     },
     {
@@ -1855,7 +1855,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-fence-precedes-successor-activation-proposition-subject",
       "variant_id": "reject-claim-fence-precedes-successor-activation-proposition-subject",
-      "weakened_profile_digest": "c1fbf2f1cb4cb2025f4f1e49f8a4ef6aaadfc77ddbe3b88b654f0b83f240dcb2",
+      "weakened_profile_digest": "0b838774ec863ef62260a518926b9b1bd10170ea13900985d9fbf9eb2a80751a",
       "outcome": "survived"
     },
     {
@@ -1863,7 +1863,7 @@
       "weakening_class": "deletion",
       "fixture_id": "reject-claim-patterns",
       "variant_id": "reject-claim-patterns",
-      "weakened_profile_digest": "1a0f8fc179ddd37fb55c4abcbb3cf096d8dbdff759d41154f3c6d869ed69430b",
+      "weakened_profile_digest": "319d586d08950bcdd86c9e66c703d5c43456ab365d367356b9b626ca32c3a1d6",
       "outcome": "survived"
     },
     {
@@ -1871,7 +1871,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-post-fence-observation-after-fence-modalities",
       "variant_id": "reject-claim-post-fence-observation-after-fence-modalities",
-      "weakened_profile_digest": "229da2f56f1370664fb1d043dbb1ba76b65d0082d31b814449471633e878783c",
+      "weakened_profile_digest": "8e078aefc6bc7d95e17ed83e239124db4a0e4a0b1efd03f21e33fcd7a9ff50a6",
       "outcome": "survived"
     },
     {
@@ -1879,7 +1879,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-post-fence-observation-after-fence-proposition-operand-0-role",
       "variant_id": "reject-claim-post-fence-observation-after-fence-proposition-operand-0-role",
-      "weakened_profile_digest": "ae148e9f273323eac1ca7270bd51ec7d0a693dea90d208973f92d691c3a21be1",
+      "weakened_profile_digest": "07956472db1756ca15096cbce74ea2eb5f57bfb3c18c24385ddf6117f65d884a",
       "outcome": "survived"
     },
     {
@@ -1887,7 +1887,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-post-fence-observation-after-fence-proposition-operator",
       "variant_id": "reject-claim-post-fence-observation-after-fence-proposition-operator",
-      "weakened_profile_digest": "21f396b8ea0c302dfbf348f11bf280ccc9f686775d03f08dd97c8621226c47c5",
+      "weakened_profile_digest": "1760f8ebb0274fd3f6cb2315f009739c66e4fa5d77877ce06fcb6cc1bacd31c6",
       "outcome": "survived"
     },
     {
@@ -1895,7 +1895,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-post-fence-observation-after-fence-proposition-subject",
       "variant_id": "reject-claim-post-fence-observation-after-fence-proposition-subject",
-      "weakened_profile_digest": "d05b017040581773a624181b1653566b5019637424d239d35b27f21838cbd951",
+      "weakened_profile_digest": "ed9eb18a8526bdb589a4572d62f9110730b24c786d3953ee0472bf47db5ac9a6",
       "outcome": "survived"
     },
     {
@@ -1903,7 +1903,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-post-fence-observation-in-population-modalities",
       "variant_id": "reject-claim-post-fence-observation-in-population-modalities",
-      "weakened_profile_digest": "52580e1eaac06a2203528b7aff2a72fd2d38c3cdee8169cbcf1cf9b88f19322e",
+      "weakened_profile_digest": "72f602cfb98894784eb62215efdcb91b0e683fafe64066d24ececf4c1a39a304",
       "outcome": "survived"
     },
     {
@@ -1911,7 +1911,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-post-fence-observation-in-population-proposition-operand-0-role",
       "variant_id": "reject-claim-post-fence-observation-in-population-proposition-operand-0-role",
-      "weakened_profile_digest": "4f5b7f922b559ec526e3b3e3f2c13f2600dbe15ff3b479b32eba46cf707321d3",
+      "weakened_profile_digest": "7b818ddb31e9b9b09cefabedf12f08d187310a17c8ba16bade2e71533539e10f",
       "outcome": "survived"
     },
     {
@@ -1919,7 +1919,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-post-fence-observation-in-population-proposition-operator",
       "variant_id": "reject-claim-post-fence-observation-in-population-proposition-operator",
-      "weakened_profile_digest": "2f2489b8334fa9cc58214d0628d12a779e8934c1080ff7d39021ce0e7717b9a3",
+      "weakened_profile_digest": "c61510d20d844cf4a9c33fe762c1bc5b5adca69cf1c14a2b1e748417c69c2d9e",
       "outcome": "survived"
     },
     {
@@ -1927,7 +1927,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-post-fence-observation-in-population-proposition-subject",
       "variant_id": "reject-claim-post-fence-observation-in-population-proposition-subject",
-      "weakened_profile_digest": "6c27133a799fdcb17783214f5038022adaf8f5a8a0e1e9127004e172712ca119",
+      "weakened_profile_digest": "e644f9e07853b81d6d5bc0f75f11ad5b898902a5711ee90538247d3945f325e8",
       "outcome": "survived"
     },
     {
@@ -1935,7 +1935,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-post-fence-observation-records-active-side-modalities",
       "variant_id": "reject-claim-post-fence-observation-records-active-side-modalities",
-      "weakened_profile_digest": "682537b321cd03ab62417164c54770925330e2489c063dec197cc1f6625e292e",
+      "weakened_profile_digest": "1d3cf99b0ee0cd7adbc7cea0b57434cf45308f7933d1ff6d8392a5c18037ae89",
       "outcome": "survived"
     },
     {
@@ -1943,7 +1943,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-post-fence-observation-records-active-side-proposition-operand-0-role",
       "variant_id": "reject-claim-post-fence-observation-records-active-side-proposition-operand-0-role",
-      "weakened_profile_digest": "68d074117fce180c22327b540406e4ed95cca5507d192d6fdc9dc141c6b2b96d",
+      "weakened_profile_digest": "1edc0176283176613e08c94e238a20fb2463481dea967c4a1ca6cd433b2c0a08",
       "outcome": "survived"
     },
     {
@@ -1951,7 +1951,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-post-fence-observation-records-active-side-proposition-operand-1-role",
       "variant_id": "reject-claim-post-fence-observation-records-active-side-proposition-operand-1-role",
-      "weakened_profile_digest": "38c4b0c43ed7a6337bd74aa69838cf77dee9f2577aaba710566131a929226421",
+      "weakened_profile_digest": "8471e46aa2c9c9b8085e6218c295bc90bdc41f8f253500985e1e441e0c38263d",
       "outcome": "survived"
     },
     {
@@ -1959,7 +1959,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-post-fence-observation-records-active-side-proposition-operand-2-role",
       "variant_id": "reject-claim-post-fence-observation-records-active-side-proposition-operand-2-role",
-      "weakened_profile_digest": "40309d71aec00fa02ef74bc6109fe4cd01b6bbb3d6b7cf760ee083d8c35e92e3",
+      "weakened_profile_digest": "6c9c47f45f618e37a8af11e81f813ad29f0f32e718ed5286f3e843d62c88143e",
       "outcome": "survived"
     },
     {
@@ -1967,7 +1967,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-post-fence-observation-records-active-side-proposition-operator",
       "variant_id": "reject-claim-post-fence-observation-records-active-side-proposition-operator",
-      "weakened_profile_digest": "12c98f8bb8bb4ca3a7fca5e8fa88c83d9f6fd911e50b0773c9b501fc1d1c3cd6",
+      "weakened_profile_digest": "f655e463b91b71acab414e73fc3c20ff5496d687c36c580cc23d7ceaf75b14d3",
       "outcome": "survived"
     },
     {
@@ -1975,7 +1975,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-post-fence-observation-records-active-side-proposition-subject",
       "variant_id": "reject-claim-post-fence-observation-records-active-side-proposition-subject",
-      "weakened_profile_digest": "8c8922703b47878571ecfe7ee9e6cd3f12b95ea52a3a398375920fa3d2a052f7",
+      "weakened_profile_digest": "b7eac211d41ff1b5e9c7ffef8209e2e572ed23a97568cb943072feda65ef6e9b",
       "outcome": "survived"
     },
     {
@@ -1983,7 +1983,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-post-fence-predecessor-effects-subset-modalities",
       "variant_id": "reject-claim-post-fence-predecessor-effects-subset-modalities",
-      "weakened_profile_digest": "8a0c496519cecaf76cd0889f25abc6a2d0209902e761fdb65e8c59588ef5573b",
+      "weakened_profile_digest": "ff61d2ba68874d0d452b13bc931f69172fb29bb0e51cbb14557ebea1870af80c",
       "outcome": "survived"
     },
     {
@@ -1991,7 +1991,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-post-fence-predecessor-effects-subset-proposition-applicability-mode",
       "variant_id": "reject-claim-post-fence-predecessor-effects-subset-proposition-applicability-mode",
-      "weakened_profile_digest": "0b7d6aa555d26377a6e5f1568122f149c1673eeec1419f2cf5a13008f6a4c85a",
+      "weakened_profile_digest": "6a9cb5b143279387e596f8814ce26b54dd932f2710906b8d4d8aed46a9b36bfc",
       "outcome": "survived"
     },
     {
@@ -1999,7 +1999,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-post-fence-predecessor-effects-subset-proposition-applicability-operands",
       "variant_id": "reject-claim-post-fence-predecessor-effects-subset-proposition-applicability-operands",
-      "weakened_profile_digest": "d9fcad25f3181e729ad1dea5097aae247777cdcd84fd465a195e4dc1a4af5a80",
+      "weakened_profile_digest": "f393bf489b8ebebbdb0b5170871dc88096a1e1eca070aac4bc32278c1ca1f913",
       "outcome": "survived"
     },
     {
@@ -2007,7 +2007,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-post-fence-predecessor-effects-subset-proposition-operand-0-role",
       "variant_id": "reject-claim-post-fence-predecessor-effects-subset-proposition-operand-0-role",
-      "weakened_profile_digest": "4cdc32fed8726e1a1f301c99fccf802685980625be5b33807644ab0e23a5c40e",
+      "weakened_profile_digest": "133bd939d61091663bb9b5a5a23f5ceb9e33ac56569fe15f0e91a786d97e32b2",
       "outcome": "survived"
     },
     {
@@ -2015,7 +2015,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-post-fence-predecessor-effects-subset-proposition-operator",
       "variant_id": "reject-claim-post-fence-predecessor-effects-subset-proposition-operator",
-      "weakened_profile_digest": "bce5de5e6079d72f59dba9374730ccb8f5233e5bcd9b0c58ac799f4fcec6ec26",
+      "weakened_profile_digest": "f075ef45ab03b9072ec33f33953584170c33a53fc27644d63dc666bd65745a3d",
       "outcome": "survived"
     },
     {
@@ -2023,7 +2023,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-post-fence-predecessor-effects-subset-proposition-subject",
       "variant_id": "reject-claim-post-fence-predecessor-effects-subset-proposition-subject",
-      "weakened_profile_digest": "11a6cae0e4f3f0bfc18f5d0a8e4a564916dea24d21ec21d3877bc6f918323d5b",
+      "weakened_profile_digest": "a2d5c66369df47bb3babdf8e320ff74b324b1ff65219e2bfdba17970a47e5afd",
       "outcome": "survived"
     },
     {
@@ -2031,7 +2031,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-post-fence-predecessor-protected-effects-zero-modalities",
       "variant_id": "reject-claim-post-fence-predecessor-protected-effects-zero-modalities",
-      "weakened_profile_digest": "1ac0669b2b9ac240edfe7a9f6efcc8aefbe9767c874fd9bf128991b674e1d3e0",
+      "weakened_profile_digest": "0f659babe6ca55badbfc28fe97c42558c7a6a1668124a7442afd226b7174ac80",
       "outcome": "survived"
     },
     {
@@ -2039,7 +2039,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-post-fence-predecessor-protected-effects-zero-proposition-applicability-mode",
       "variant_id": "reject-claim-post-fence-predecessor-protected-effects-zero-proposition-applicability-mode",
-      "weakened_profile_digest": "3f99ff65c0368fc184635241a40775d6313d19bbf6eb5a497c0e5e9e65797759",
+      "weakened_profile_digest": "bfae7d4ed8fd88c019db1f0dc47b97d86b341b76c1949c21a407bc09c03c859c",
       "outcome": "survived"
     },
     {
@@ -2047,7 +2047,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-post-fence-predecessor-protected-effects-zero-proposition-applicability-operands",
       "variant_id": "reject-claim-post-fence-predecessor-protected-effects-zero-proposition-applicability-operands",
-      "weakened_profile_digest": "aa3bcb0d7f233827aca4e82abe4e0ce02105303242dc4f007353043b9bd066af",
+      "weakened_profile_digest": "909522a300f1cbafdf498a0cb8fedac629511d377a4169243fe8f0e327c7772b",
       "outcome": "survived"
     },
     {
@@ -2055,7 +2055,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-post-fence-refusal-verification-modalities",
       "variant_id": "reject-claim-post-fence-refusal-verification-modalities",
-      "weakened_profile_digest": "8755efc1bb279eba32034531d33d9b909e4a9edaca8bb662f8a1e8f717194753",
+      "weakened_profile_digest": "913d13bd1c3309efa8a8d2ee9eca7a24033d4836f2bd74832ff8dfb6ce70f8fe",
       "outcome": "survived"
     },
     {
@@ -2063,7 +2063,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-post-fence-refusal-verification-proposition-operand-0-role",
       "variant_id": "reject-claim-post-fence-refusal-verification-proposition-operand-0-role",
-      "weakened_profile_digest": "59b27fa0cf278befbf4d1a508d9f3995b7eeb6d03ed4c7fdc7a3404928f7c6f9",
+      "weakened_profile_digest": "87ab9b33896131efa43292fb78a27eb89f0d9c92c4e45f0b7e6af6ebaad7be97",
       "outcome": "survived"
     },
     {
@@ -2071,7 +2071,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-post-fence-refusal-verification-proposition-operand-1-role",
       "variant_id": "reject-claim-post-fence-refusal-verification-proposition-operand-1-role",
-      "weakened_profile_digest": "4c14673b367f0d542b2170c4f8d8334475444d4d520dbdf7d7da0820022d1717",
+      "weakened_profile_digest": "15dbf0797a4f61ceb0b985b0301b68d38eb8345ec5c52ee5858c94dd384bb6ce",
       "outcome": "survived"
     },
     {
@@ -2079,7 +2079,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-post-fence-refusal-verification-proposition-operand-2-role",
       "variant_id": "reject-claim-post-fence-refusal-verification-proposition-operand-2-role",
-      "weakened_profile_digest": "8f07a90588713a2b805bafc664f3a7b462b19ca7672bedae1d81af7d9358403e",
+      "weakened_profile_digest": "b9dcff636c34d0781ae1cc76c328522c33a4baa496e49cbaf40263d0478ee2bd",
       "outcome": "survived"
     },
     {
@@ -2087,7 +2087,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-post-fence-refusal-verification-proposition-operand-3-role",
       "variant_id": "reject-claim-post-fence-refusal-verification-proposition-operand-3-role",
-      "weakened_profile_digest": "b71497e9705719ea9e2947393d4387f8774fe83260edf8e59f1782a7c8f1ce97",
+      "weakened_profile_digest": "973218e87659659bf2c2ee6eff544e7ba144ce5ef21effe1ca940eeaf9b5054b",
       "outcome": "survived"
     },
     {
@@ -2095,7 +2095,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-post-fence-refusal-verification-proposition-operand-4-role",
       "variant_id": "reject-claim-post-fence-refusal-verification-proposition-operand-4-role",
-      "weakened_profile_digest": "f9d11031f85e6020a0679fb271026b8cc3f14ad9d2b1039e9d53335b00f08ae8",
+      "weakened_profile_digest": "19b7e2569b7254ea98dd1af25319e0d983583573f56b39911e2710536b31bbe5",
       "outcome": "survived"
     },
     {
@@ -2103,7 +2103,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-post-fence-refusal-verification-proposition-operand-5-role",
       "variant_id": "reject-claim-post-fence-refusal-verification-proposition-operand-5-role",
-      "weakened_profile_digest": "b8a92721b4fab0983ae70c88f0b36a2622ae75d484103808427f9aacee1c7aa8",
+      "weakened_profile_digest": "67d2ec63a06a4e608002bac0d1039167e7aab1543a398ed22898a8f1b1dbc4af",
       "outcome": "survived"
     },
     {
@@ -2111,7 +2111,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-post-fence-refusal-verification-proposition-operator",
       "variant_id": "reject-claim-post-fence-refusal-verification-proposition-operator",
-      "weakened_profile_digest": "342adcbb98fd4473e29b18ce75564ece5160a7a0db0dbc82905ab0b6dcc06a64",
+      "weakened_profile_digest": "05827b6a5be5711293aa357cfd93949e61d3e2343cb5514ff0686475f2784b5c",
       "outcome": "survived"
     },
     {
@@ -2119,7 +2119,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-post-fence-refusal-verification-proposition-subject",
       "variant_id": "reject-claim-post-fence-refusal-verification-proposition-subject",
-      "weakened_profile_digest": "9244968748c48b92858764a5b462b0d7bb9ffd5f67b361df290928667584600e",
+      "weakened_profile_digest": "9a53b7061df77ed1cb62eeb1144f107fe46d976ed788366b2de4a8884d5a4484",
       "outcome": "survived"
     },
     {
@@ -2127,7 +2127,7 @@
       "weakening_class": "verification_method_broadening",
       "fixture_id": "reject-claim-post-fence-refusal-verification-verification-methods",
       "variant_id": "reject-claim-post-fence-refusal-verification-verification-methods",
-      "weakened_profile_digest": "c387de0e935ae2f60d8106e3e69e41f7149b1631a4247724cf55947fb6a09662",
+      "weakened_profile_digest": "77d1165298f0d31891c44a343dc36dedffa3a855b81b08d3b5489257a7503bf7",
       "outcome": "survived"
     },
     {
@@ -2135,7 +2135,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-pre-fence-observation-before-fence-modalities",
       "variant_id": "reject-claim-pre-fence-observation-before-fence-modalities",
-      "weakened_profile_digest": "4be2411fdc90d336286f878b94b9c18ec84533897e56c3087e3f8441706a450e",
+      "weakened_profile_digest": "7b43b69b804f48077ff72533c0226c1337d833ddc26bdbaca5f7704c5b94a509",
       "outcome": "survived"
     },
     {
@@ -2143,7 +2143,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-pre-fence-observation-before-fence-proposition-operand-0-role",
       "variant_id": "reject-claim-pre-fence-observation-before-fence-proposition-operand-0-role",
-      "weakened_profile_digest": "c83c449bdffdf69b0aa0242b84aa472c33eaee0a886adf04bf9245eaa727d816",
+      "weakened_profile_digest": "937a1a50fa32c2d3484631b3d22ff5a7cf402d528a4c6ddb247a353289dc470b",
       "outcome": "survived"
     },
     {
@@ -2151,7 +2151,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-pre-fence-observation-before-fence-proposition-operator",
       "variant_id": "reject-claim-pre-fence-observation-before-fence-proposition-operator",
-      "weakened_profile_digest": "94deedfc7df1fbc2a30f9b036738c8267fdba22fdda69508b9211de9b272310c",
+      "weakened_profile_digest": "b21e2070fa537dfe2538e0ec40b3515ae62bbcb861529dfd7f436a3369d7ad99",
       "outcome": "survived"
     },
     {
@@ -2159,7 +2159,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-pre-fence-observation-before-fence-proposition-subject",
       "variant_id": "reject-claim-pre-fence-observation-before-fence-proposition-subject",
-      "weakened_profile_digest": "c23927d13da2b10a3ef5c3abb504c8e8311ac61065322b23d26bbfdf602e6079",
+      "weakened_profile_digest": "3aa32713b3d7bed89205d1cedb43dfbaab3219d994568ab4987e49b583ef6c4a",
       "outcome": "survived"
     },
     {
@@ -2167,7 +2167,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-pre-fence-observation-in-population-modalities",
       "variant_id": "reject-claim-pre-fence-observation-in-population-modalities",
-      "weakened_profile_digest": "0d5533a0192c28cd700d0871eb21a0bd2df1237d686fe6a845c3cfb02afeeb5f",
+      "weakened_profile_digest": "ddb3e6d432b4771e7a13549c7ff3558456b519342cceec1fd6c0c9d45a89a969",
       "outcome": "survived"
     },
     {
@@ -2175,7 +2175,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-pre-fence-observation-in-population-proposition-operand-0-role",
       "variant_id": "reject-claim-pre-fence-observation-in-population-proposition-operand-0-role",
-      "weakened_profile_digest": "6a5bc21b2964623db2c862bc2bb5dca15b01c975a71f35c7885ff647bdd8ab6c",
+      "weakened_profile_digest": "baae8c4906a90eaa5e76ebf552e10430faedf8a89a1499776d30daaff1d93f66",
       "outcome": "survived"
     },
     {
@@ -2183,7 +2183,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-pre-fence-observation-in-population-proposition-operator",
       "variant_id": "reject-claim-pre-fence-observation-in-population-proposition-operator",
-      "weakened_profile_digest": "c8cf44092b1adb25a8843891aab5808cc00fd22b3d9f03d6d955222e418e1756",
+      "weakened_profile_digest": "4314c4f9acdfcf205e7f70359bd1ebe2e3d6f808e470abe80538a8f9e01a1d5d",
       "outcome": "survived"
     },
     {
@@ -2191,7 +2191,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-pre-fence-observation-in-population-proposition-subject",
       "variant_id": "reject-claim-pre-fence-observation-in-population-proposition-subject",
-      "weakened_profile_digest": "405a9b65ef3a9f9ca7ee5d304d15c0ee5ae8a74fac259571629596346b30e9f1",
+      "weakened_profile_digest": "bf95f4d7f9be6e0a50abccb6d36dd42dceff65a3379c2a3252cb9ed0d879fbfb",
       "outcome": "survived"
     },
     {
@@ -2199,7 +2199,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-pre-fence-observation-records-active-side-modalities",
       "variant_id": "reject-claim-pre-fence-observation-records-active-side-modalities",
-      "weakened_profile_digest": "3bf1a976d3bfd0d4a0284bbea039aa4f8fe133846d377f46fda55bb123f7bf33",
+      "weakened_profile_digest": "ced17b39b1d14dc082dc08d48a4eb1f8a10884cbaf5b0b477c2314418aec2773",
       "outcome": "survived"
     },
     {
@@ -2207,7 +2207,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-pre-fence-observation-records-active-side-proposition-operand-0-role",
       "variant_id": "reject-claim-pre-fence-observation-records-active-side-proposition-operand-0-role",
-      "weakened_profile_digest": "46307f7b66fde18f5d943a8fc501f4f396af9ccfd42f176f2469fb1150e2abbb",
+      "weakened_profile_digest": "6039bff484623d8fa9861dcc5c42e88bca82ce2d3fed7d7547a90dda4f15972a",
       "outcome": "survived"
     },
     {
@@ -2215,7 +2215,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-pre-fence-observation-records-active-side-proposition-operand-1-role",
       "variant_id": "reject-claim-pre-fence-observation-records-active-side-proposition-operand-1-role",
-      "weakened_profile_digest": "1d9cae0900c340cf9f23636acee9982f5413ab53b00ae4d915fa87c166035bef",
+      "weakened_profile_digest": "e1440a032571e1b6c6bd6db60eb4aea23b975aacf71de152c9d6225c264f422e",
       "outcome": "survived"
     },
     {
@@ -2223,7 +2223,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-pre-fence-observation-records-active-side-proposition-operand-2-role",
       "variant_id": "reject-claim-pre-fence-observation-records-active-side-proposition-operand-2-role",
-      "weakened_profile_digest": "b8fa55fda9567a37927c31474fc9f2b828fe6ade97ae5e4161b1ba516240e2d7",
+      "weakened_profile_digest": "88a74493649ea71a8684963f71c9d8b1edb9b152ae7b108658e6a47c60943049",
       "outcome": "survived"
     },
     {
@@ -2231,7 +2231,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-pre-fence-observation-records-active-side-proposition-operator",
       "variant_id": "reject-claim-pre-fence-observation-records-active-side-proposition-operator",
-      "weakened_profile_digest": "f23b76a02fa99160799dfad3e1cefd956b3148352c6ef1d60a2251070a7c539b",
+      "weakened_profile_digest": "e64dc3236baa9290182858f92f3ea0eb517042701a58f7c4f8253422932e14ea",
       "outcome": "survived"
     },
     {
@@ -2239,7 +2239,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-pre-fence-observation-records-active-side-proposition-subject",
       "variant_id": "reject-claim-pre-fence-observation-records-active-side-proposition-subject",
-      "weakened_profile_digest": "98ce5bcd23803da3dd4ffe8684ac7092f64f09a7467ac563343f9e5c05a41360",
+      "weakened_profile_digest": "eff6746e1834a56e5b6960e50b01a8ebd2352c6f065e608f416e614cae4b913d",
       "outcome": "survived"
     },
     {
@@ -2247,7 +2247,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-predecessor-authority-epoch-modalities",
       "variant_id": "reject-claim-predecessor-authority-epoch-modalities",
-      "weakened_profile_digest": "b46df46aa11ce0efd0d99a0a0e1e0ecbec7f9b3c3fa27820e77177f0f53e2d98",
+      "weakened_profile_digest": "3a1b829485cb839879af01bcab711302f7f886d92ea71dacd823dde3cc413ea8",
       "outcome": "survived"
     },
     {
@@ -2255,7 +2255,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-predecessor-authority-epoch-proposition-applicability-mode",
       "variant_id": "reject-claim-predecessor-authority-epoch-proposition-applicability-mode",
-      "weakened_profile_digest": "81147a55d367e6018b9eb43578da33adc52e578ad0b4f31f3f89b29b34964850",
+      "weakened_profile_digest": "02ec2cbaa8e07a9838c3ce46f6b66031597fe651464e41c7015d6334b9132c69",
       "outcome": "survived"
     },
     {
@@ -2263,7 +2263,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-predecessor-authority-epoch-proposition-applicability-operands",
       "variant_id": "reject-claim-predecessor-authority-epoch-proposition-applicability-operands",
-      "weakened_profile_digest": "d606cac180613230df1cbe0ba51bb77f86284b0065896aca8b05c2820a33d53c",
+      "weakened_profile_digest": "6c23da3533700b2a426695656178f239042eac2d97efacf98125c412ed9c5252",
       "outcome": "survived"
     },
     {
@@ -2271,7 +2271,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-predecessor-authority-epoch-proposition-operand-0-role",
       "variant_id": "reject-claim-predecessor-authority-epoch-proposition-operand-0-role",
-      "weakened_profile_digest": "2e5d63bf850b197daaef347b488d8bab9bc8c648fba7de25c42a8afee4f3a87f",
+      "weakened_profile_digest": "6b4c5a3c664df9427e5bf6e597bfcfbaff7bfe77a161f2c038654e222aaecb72",
       "outcome": "survived"
     },
     {
@@ -2279,7 +2279,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-predecessor-authority-epoch-proposition-operator",
       "variant_id": "reject-claim-predecessor-authority-epoch-proposition-operator",
-      "weakened_profile_digest": "adc4513cbc0a472854563a6601f827ef31b67c343b3b2f60fa168d12d3367247",
+      "weakened_profile_digest": "d2c3da3707c840800964f25711cbd2bb36b44c7c838ec8cc5d9a677736730ddf",
       "outcome": "survived"
     },
     {
@@ -2287,7 +2287,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-predecessor-authority-epoch-proposition-subject",
       "variant_id": "reject-claim-predecessor-authority-epoch-proposition-subject",
-      "weakened_profile_digest": "a9308a931e49f717b278032101efc8ac2333aa0c1e3bf179d3b9de99bac45fc3",
+      "weakened_profile_digest": "86db108226dc27c5b6b92f2e9c5ddd41dc1272883ead3df9d594d0478c6dc0f3",
       "outcome": "survived"
     },
     {
@@ -2295,7 +2295,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-predecessor-authorizes-resource-modalities",
       "variant_id": "reject-claim-predecessor-authorizes-resource-modalities",
-      "weakened_profile_digest": "da404aa3ae52ec39a17ebd921e882c7c5543604487d1e389b03e0c0bc32bc12c",
+      "weakened_profile_digest": "e7d34288d748a0b15257120a6795e083a7580738cc4315bd62e6d7b9099d8276",
       "outcome": "survived"
     },
     {
@@ -2303,7 +2303,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-predecessor-authorizes-resource-proposition-applicability-mode",
       "variant_id": "reject-claim-predecessor-authorizes-resource-proposition-applicability-mode",
-      "weakened_profile_digest": "b03f98c2e8b8f7686d6688904dfdf322f443bf240b54c985c279bb49a053cc4d",
+      "weakened_profile_digest": "cf47064434e2ca94588e639b02f1c9a7b56fc8cf2930cf5cd8a163c0ac6ce4b8",
       "outcome": "survived"
     },
     {
@@ -2311,7 +2311,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-predecessor-authorizes-resource-proposition-applicability-operands",
       "variant_id": "reject-claim-predecessor-authorizes-resource-proposition-applicability-operands",
-      "weakened_profile_digest": "dc4524cf7b4b1d83712b447d8401065ced6356e536a423aef63f4d0bc2689a0b",
+      "weakened_profile_digest": "9b973558313339688685efae29340c3d7c6f5840833dce95f3e21d91780ce184",
       "outcome": "survived"
     },
     {
@@ -2319,7 +2319,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-predecessor-authorizes-resource-proposition-operand-0-role",
       "variant_id": "reject-claim-predecessor-authorizes-resource-proposition-operand-0-role",
-      "weakened_profile_digest": "e2c1437ea63e9aab1e2f95161c4aa413779041cfe2fcf6836507aaead878faae",
+      "weakened_profile_digest": "b720cd8f3c240f07a5e270ed9ab65d3e29e4b82d555e31a98b9b1344050e633e",
       "outcome": "survived"
     },
     {
@@ -2327,7 +2327,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-predecessor-authorizes-resource-proposition-operator",
       "variant_id": "reject-claim-predecessor-authorizes-resource-proposition-operator",
-      "weakened_profile_digest": "5afc85e1635a9f1a16383dfdc546f6c44d7d46ad8203ee8180132d98254c029b",
+      "weakened_profile_digest": "30ad3328a6f3b322547436aef55e4216702e804d62055b57976621d0132e9c54",
       "outcome": "survived"
     },
     {
@@ -2335,7 +2335,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-predecessor-authorizes-resource-proposition-subject",
       "variant_id": "reject-claim-predecessor-authorizes-resource-proposition-subject",
-      "weakened_profile_digest": "ebb98884f81138eb63a7f27ea8011fb7885e0096e01f48f016c91f16f0128ca3",
+      "weakened_profile_digest": "473ed40e5e836f534925fb00d73833623caf4f332a4af591b7c5622d270d353d",
       "outcome": "survived"
     },
     {
@@ -2343,7 +2343,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-predecessor-effects-before-fence-modalities",
       "variant_id": "reject-claim-predecessor-effects-before-fence-modalities",
-      "weakened_profile_digest": "ec0408600f295aa8dd8f8ba0111e727bf4d2533b93510f1f459ae2018cbab075",
+      "weakened_profile_digest": "62739d47160592fe517e5407e08a4116685b199f6c0f3d262f8abc287d85468b",
       "outcome": "survived"
     },
     {
@@ -2351,7 +2351,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-predecessor-effects-before-fence-proposition-applicability-mode",
       "variant_id": "reject-claim-predecessor-effects-before-fence-proposition-applicability-mode",
-      "weakened_profile_digest": "21bdc6ffd2204bd50c5984838926e62a1aab5028a7feda8e44a27f9e4fd8e31e",
+      "weakened_profile_digest": "24e9a9b5621e82df3b6d34d9cc753347ca455b9fbc5fdf3a7be18a3c79618252",
       "outcome": "survived"
     },
     {
@@ -2359,7 +2359,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-predecessor-effects-before-fence-proposition-applicability-operands",
       "variant_id": "reject-claim-predecessor-effects-before-fence-proposition-applicability-operands",
-      "weakened_profile_digest": "6e34ab78e2895d3a4dae402703d2ee3749f9b03153b4de80c62210c3d483bbdf",
+      "weakened_profile_digest": "e07e0fec8b3d1cdc05f0a8113d8b68f021f55660bb231b9bf83475a72665f8c7",
       "outcome": "survived"
     },
     {
@@ -2367,7 +2367,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-predecessor-order-verification-modalities",
       "variant_id": "reject-claim-predecessor-order-verification-modalities",
-      "weakened_profile_digest": "5fb6cf2cce40a5fa57bf36f913cfb5acaa864b2d717294e24fc4df0eb8c8e6af",
+      "weakened_profile_digest": "424ecb75be5f5f06bcf4336951b322a538af3d0d102eec2d230e43164bde7e67",
       "outcome": "survived"
     },
     {
@@ -2375,7 +2375,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-predecessor-order-verification-proposition-operand-0-role",
       "variant_id": "reject-claim-predecessor-order-verification-proposition-operand-0-role",
-      "weakened_profile_digest": "503d5fd6e3d749d9558ce6a891eae810b045a3a9fc7a7bc4f1a208fd39533fe1",
+      "weakened_profile_digest": "5535e0ef79321b1f07116a2c0663b36a272fe697b4f5cee2b17efb58392a3b37",
       "outcome": "survived"
     },
     {
@@ -2383,7 +2383,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-predecessor-order-verification-proposition-operand-1-role",
       "variant_id": "reject-claim-predecessor-order-verification-proposition-operand-1-role",
-      "weakened_profile_digest": "af9178841d5c5e7cb185f0508a86d8f11ceeb0adf2cb2e0f80d051a91f14a7f0",
+      "weakened_profile_digest": "f48d9851c18b2306b0dd41a2244b521c1007074c78608dd6f7dde5ca682f162d",
       "outcome": "survived"
     },
     {
@@ -2391,7 +2391,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-predecessor-order-verification-proposition-operand-2-role",
       "variant_id": "reject-claim-predecessor-order-verification-proposition-operand-2-role",
-      "weakened_profile_digest": "74636d4493d457582ab48193bbf3a3788f4bb0f8b2583cfac99fc3107b704f30",
+      "weakened_profile_digest": "95bffb28f32af4246d845c0151b0664a2e81f81c2c6cc6332dc31b03b47bfbab",
       "outcome": "survived"
     },
     {
@@ -2399,7 +2399,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-predecessor-order-verification-proposition-operand-3-role",
       "variant_id": "reject-claim-predecessor-order-verification-proposition-operand-3-role",
-      "weakened_profile_digest": "4a6b2a3d2ee478a397efdbd92d141d68cddf67b06d37bd42031822571e31bb72",
+      "weakened_profile_digest": "a6c4a9128fd999cc03fbdd671c8b65da7ec2112116abd12fb7b30bec813877b0",
       "outcome": "survived"
     },
     {
@@ -2407,7 +2407,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-predecessor-order-verification-proposition-operand-4-role",
       "variant_id": "reject-claim-predecessor-order-verification-proposition-operand-4-role",
-      "weakened_profile_digest": "2ae609ea480544ce344ada0aa7655dd5d29edad1f0079dc01abf3c7ff505ccd2",
+      "weakened_profile_digest": "4cbb8e268cfd73520e51e7a2a03a50cf6f8a403e3a64f4c873be6107a2c7bda7",
       "outcome": "survived"
     },
     {
@@ -2415,7 +2415,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-predecessor-order-verification-proposition-operator",
       "variant_id": "reject-claim-predecessor-order-verification-proposition-operator",
-      "weakened_profile_digest": "2a9288a6d0e7a9ac1e10864a58c375e6ff9da39075150b051c867f9cf6118158",
+      "weakened_profile_digest": "58bb623f3dbe1c04f65a3be4f21ecc06bfd95658555212739f8d094f68b72adf",
       "outcome": "survived"
     },
     {
@@ -2423,7 +2423,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-predecessor-order-verification-proposition-subject",
       "variant_id": "reject-claim-predecessor-order-verification-proposition-subject",
-      "weakened_profile_digest": "33b7d1d5a3a3b749a214da4a294fcbefdc84d8460cedee2367bff96bf83b0aa9",
+      "weakened_profile_digest": "69b452eac48f18bf37ec3baad919bfb7035f41cbd8027cc90f4982afed35fca3",
       "outcome": "survived"
     },
     {
@@ -2431,7 +2431,7 @@
       "weakening_class": "verification_method_broadening",
       "fixture_id": "reject-claim-predecessor-order-verification-verification-methods",
       "variant_id": "reject-claim-predecessor-order-verification-verification-methods",
-      "weakened_profile_digest": "3ee1b15495045903936c073981be674f119ebfeda82d53de725befdd17d970b0",
+      "weakened_profile_digest": "d711249542897ae78f03fe15923066232e3f6b9ac408b66c9b1b7065615803eb",
       "outcome": "survived"
     },
     {
@@ -2439,7 +2439,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-successor-activation-and-effects-after-fence-modalities",
       "variant_id": "reject-claim-successor-activation-and-effects-after-fence-modalities",
-      "weakened_profile_digest": "d51da2513131d3faf171f1646536367a6995048b757eacc04122870afc8222a6",
+      "weakened_profile_digest": "41b391694e6526feda257986a2292266160580dd9f8bcf0abe2537c0c2b7bed8",
       "outcome": "survived"
     },
     {
@@ -2447,7 +2447,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-successor-activation-and-effects-after-fence-proposition-applicability-mode",
       "variant_id": "reject-claim-successor-activation-and-effects-after-fence-proposition-applicability-mode",
-      "weakened_profile_digest": "e9e421e3cc96d9b1e8d4d100f1489672159fae8763d26ef5efd892c48ac87013",
+      "weakened_profile_digest": "eec07a8c12d1c4239f40673e360d78959a88d89e2c752e40c43060c9f71eb827",
       "outcome": "survived"
     },
     {
@@ -2455,7 +2455,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-successor-activation-and-effects-after-fence-proposition-applicability-operands",
       "variant_id": "reject-claim-successor-activation-and-effects-after-fence-proposition-applicability-operands",
-      "weakened_profile_digest": "048dbce398cfc5c692176585f778e86139783251246cc62f482dcbcd5c8363cf",
+      "weakened_profile_digest": "d6eac665d0282ed09efe732752a75d389120647d57e0c1d18508b65f85615607",
       "outcome": "survived"
     },
     {
@@ -2463,7 +2463,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-successor-activation-starts-authority-modalities",
       "variant_id": "reject-claim-successor-activation-starts-authority-modalities",
-      "weakened_profile_digest": "8d97ce8197320fec7debdffd9e2659ee7afba64ba6f171056901b68938bf5794",
+      "weakened_profile_digest": "5a02168d09b1df60f4daf291ab1e168c806d24fbd88b88385e2de70473980fb9",
       "outcome": "survived"
     },
     {
@@ -2471,7 +2471,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-successor-activation-starts-authority-proposition-applicability-mode",
       "variant_id": "reject-claim-successor-activation-starts-authority-proposition-applicability-mode",
-      "weakened_profile_digest": "0c47794736105c6f25c5743c6bbbd0ad93875c29bef5fd01fcac4206937b1d3a",
+      "weakened_profile_digest": "96bf2dd1a12908835a01b9e5af4cd22a59c7a5b0fcc776ad05a8abf5e22d695c",
       "outcome": "survived"
     },
     {
@@ -2479,7 +2479,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-successor-activation-starts-authority-proposition-applicability-operands",
       "variant_id": "reject-claim-successor-activation-starts-authority-proposition-applicability-operands",
-      "weakened_profile_digest": "16bbf562b77f60fac933cc5c46d6f56324fd4e5869db72e42993d89770b97ab7",
+      "weakened_profile_digest": "789c619929345b8b37472300c8ffad3fafaab90aa2f5fb91197fdc642cae3e5d",
       "outcome": "survived"
     },
     {
@@ -2487,7 +2487,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-successor-activation-starts-authority-proposition-operand-0-role",
       "variant_id": "reject-claim-successor-activation-starts-authority-proposition-operand-0-role",
-      "weakened_profile_digest": "e5f897d1427ff6223653c708b67ca65fd14496d8451d0ab0d26bebe503876f22",
+      "weakened_profile_digest": "9b8615ec26def12ff9361a232f30dca32d791db569fe12b6ec6cda92b961f6e6",
       "outcome": "survived"
     },
     {
@@ -2495,7 +2495,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-successor-activation-starts-authority-proposition-operator",
       "variant_id": "reject-claim-successor-activation-starts-authority-proposition-operator",
-      "weakened_profile_digest": "1330782df925d37c6f1f90fb8bb5e3039a315ac863413991f3095349d36dc43d",
+      "weakened_profile_digest": "d46e356574820ff32bf3b576c1dfea124a7cbb1494f63a1413e2b66c82fbe8e7",
       "outcome": "survived"
     },
     {
@@ -2503,7 +2503,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-successor-activation-starts-authority-proposition-subject",
       "variant_id": "reject-claim-successor-activation-starts-authority-proposition-subject",
-      "weakened_profile_digest": "df0c475e3b17802cbad711d6867957a15956efcf6b1f4e3609d13ca8055faf18",
+      "weakened_profile_digest": "ab9e32f79f395c64693d972081ece41e1883535856da3b50b91c27fe8c029a34",
       "outcome": "survived"
     },
     {
@@ -2511,7 +2511,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-successor-authority-epoch-modalities",
       "variant_id": "reject-claim-successor-authority-epoch-modalities",
-      "weakened_profile_digest": "dc51ef4abde2ca25c3c930f5b75df46dd070e1eb1791fc393df42361eede5fae",
+      "weakened_profile_digest": "a6c087a4269542c313573c8bffbe0e3129af20455dcb9dbd606bb88f1f25451d",
       "outcome": "survived"
     },
     {
@@ -2519,7 +2519,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-successor-authority-epoch-proposition-applicability-mode",
       "variant_id": "reject-claim-successor-authority-epoch-proposition-applicability-mode",
-      "weakened_profile_digest": "369236c2d5dbd16ae91ff158c4d73e44cc87834a00a4c65d273c228db7db0a35",
+      "weakened_profile_digest": "8dac96e7fcc8385a51141c6ad663721c84ce5d473062f70b589f9f6ad7728ba6",
       "outcome": "survived"
     },
     {
@@ -2527,7 +2527,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-successor-authority-epoch-proposition-applicability-operands",
       "variant_id": "reject-claim-successor-authority-epoch-proposition-applicability-operands",
-      "weakened_profile_digest": "0c65878d64138acec36610d41c58834949a7b7ea2ab0e07ed1d6394bba341053",
+      "weakened_profile_digest": "0fd90c6e9e94f0dedfc00fde492c4570a1d9ea8756a0e48459679392861135c8",
       "outcome": "survived"
     },
     {
@@ -2535,7 +2535,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-successor-authority-epoch-proposition-operand-0-role",
       "variant_id": "reject-claim-successor-authority-epoch-proposition-operand-0-role",
-      "weakened_profile_digest": "d74bf1b4d64d0084ebe7ea265fd16a223f689889e07be58e222cce77f6a33cfc",
+      "weakened_profile_digest": "d30c32a3b9fa451a275bd9afffd5f06961f77d05f50a290e463d363585b33f7d",
       "outcome": "survived"
     },
     {
@@ -2543,7 +2543,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-successor-authority-epoch-proposition-operator",
       "variant_id": "reject-claim-successor-authority-epoch-proposition-operator",
-      "weakened_profile_digest": "131d51d0bb4aaa50da2b9e6bf4f086f2787aa46f12fb6ed72d1f95880c6c738b",
+      "weakened_profile_digest": "0bd54e1c354bb7fe4c2b23a603be27c7f7fbf54dc81cdb42d22f1c2466d6ea93",
       "outcome": "survived"
     },
     {
@@ -2551,7 +2551,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-successor-authority-epoch-proposition-subject",
       "variant_id": "reject-claim-successor-authority-epoch-proposition-subject",
-      "weakened_profile_digest": "4f7d00324e3a7ef1bbb6adc7ec3d648821b4921bc4bf50ccfdf6c24964aa0ecf",
+      "weakened_profile_digest": "77b6dcfe0a1d796414d6a4165e711ae2d9411b20d415f895481487ce6376e5cd",
       "outcome": "survived"
     },
     {
@@ -2559,7 +2559,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-successor-authorizes-resource-modalities",
       "variant_id": "reject-claim-successor-authorizes-resource-modalities",
-      "weakened_profile_digest": "e383e6868bb2d9e3235abb9918a9a0f438fbb088dafc61fb7cf1f9b5783001aa",
+      "weakened_profile_digest": "fb56c3b0d3ae634cb9f3fe6e1b22ab1209e3e532797d4a226092652734182f0d",
       "outcome": "survived"
     },
     {
@@ -2567,7 +2567,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-successor-authorizes-resource-proposition-applicability-mode",
       "variant_id": "reject-claim-successor-authorizes-resource-proposition-applicability-mode",
-      "weakened_profile_digest": "cd87eee4995450e8aec82da66c17f121656f2728e1dcd1f028d950c7e0e1e291",
+      "weakened_profile_digest": "3467073edf474acef35782b43d4734f69c9480ed4511b7bef258ae415ad57e10",
       "outcome": "survived"
     },
     {
@@ -2575,7 +2575,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-successor-authorizes-resource-proposition-applicability-operands",
       "variant_id": "reject-claim-successor-authorizes-resource-proposition-applicability-operands",
-      "weakened_profile_digest": "491e102534f8ae3324519598a2bb0dee71303387fd1b78eb5853389e8ac5372b",
+      "weakened_profile_digest": "17296cc7f6baa53a76dbe23f5cf15200e5f79af05ee39ef141e01858d229aee4",
       "outcome": "survived"
     },
     {
@@ -2583,7 +2583,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-successor-authorizes-resource-proposition-operand-0-role",
       "variant_id": "reject-claim-successor-authorizes-resource-proposition-operand-0-role",
-      "weakened_profile_digest": "22276a31c4f4abed2186f7ca462742cbe582820d0930e3c023e10df6b408779e",
+      "weakened_profile_digest": "890e39774291162c991cfab0c987e9546b7bf38091652a442b4f02ee9a0ba853",
       "outcome": "survived"
     },
     {
@@ -2591,7 +2591,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-successor-authorizes-resource-proposition-operator",
       "variant_id": "reject-claim-successor-authorizes-resource-proposition-operator",
-      "weakened_profile_digest": "cceb00b92cef66af2ab23172ee2ca219011c407c728c8e3a9d05e469ced3cc72",
+      "weakened_profile_digest": "f46666607e33ac76ab18c8f8bde695dc0521dd940640ff7830f222593f8d4ecc",
       "outcome": "survived"
     },
     {
@@ -2599,7 +2599,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-successor-authorizes-resource-proposition-subject",
       "variant_id": "reject-claim-successor-authorizes-resource-proposition-subject",
-      "weakened_profile_digest": "c8152e430ff0cf9399da449fdd3cc994681ecbf21f0461f2e014595c98962b33",
+      "weakened_profile_digest": "dd3b88dce72ff3c81157553a89f76727397708349986d342a1842890f88a953d",
       "outcome": "survived"
     },
     {
@@ -2607,7 +2607,7 @@
       "weakening_class": "modality_broadening",
       "fixture_id": "reject-claim-successor-order-verification-modalities",
       "variant_id": "reject-claim-successor-order-verification-modalities",
-      "weakened_profile_digest": "873a6d74c6a14c683f6aca4d74debf4fb7d812fc6f3cf274fa9717bbbd13c56b",
+      "weakened_profile_digest": "ad4c20d4f89465af7afd8ce50163c1b915d06d9c9885ee57bdb38065124364f3",
       "outcome": "survived"
     },
     {
@@ -2615,7 +2615,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-successor-order-verification-proposition-operand-0-role",
       "variant_id": "reject-claim-successor-order-verification-proposition-operand-0-role",
-      "weakened_profile_digest": "d437443cbd913a9fdc1fd2d4c610a410dc61c900e78b2a8e166a4cc8d26f4c3d",
+      "weakened_profile_digest": "dd52d686031c0cdc7af2ac872a5c19a28a949318ea483f7302d080db12d550d0",
       "outcome": "survived"
     },
     {
@@ -2623,7 +2623,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-successor-order-verification-proposition-operand-1-role",
       "variant_id": "reject-claim-successor-order-verification-proposition-operand-1-role",
-      "weakened_profile_digest": "ab13ade56a92317fc2f903060d908e83ff3d5c7be2636c398b94b52c810d8997",
+      "weakened_profile_digest": "cff7f5e756c93da9c835b95d63772c693131df0506fd783d47d680acc1a26ee0",
       "outcome": "survived"
     },
     {
@@ -2631,7 +2631,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-successor-order-verification-proposition-operand-2-role",
       "variant_id": "reject-claim-successor-order-verification-proposition-operand-2-role",
-      "weakened_profile_digest": "0298cb1a2e39fb67c241b19f400a60f3a0c5c61829e85d55c6e943535ec7769f",
+      "weakened_profile_digest": "3f26bda92510f463bf18e6380ec27e9f4256646a56b26f4ab8435afc41fc1b0d",
       "outcome": "survived"
     },
     {
@@ -2639,7 +2639,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-successor-order-verification-proposition-operand-3-role",
       "variant_id": "reject-claim-successor-order-verification-proposition-operand-3-role",
-      "weakened_profile_digest": "1dcf0d0b095673fc2d69eeaecaca6c7e91a53bb306bbb67c85ab203ed1db6a66",
+      "weakened_profile_digest": "bdf56144ecc92486ab8917e8b926102365fc8b7ab0f491c1417d6973360dbc68",
       "outcome": "survived"
     },
     {
@@ -2647,7 +2647,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-successor-order-verification-proposition-operand-4-role",
       "variant_id": "reject-claim-successor-order-verification-proposition-operand-4-role",
-      "weakened_profile_digest": "3cb9351074a64992824299781d134abb9c717b746f9877506fefec321b6d4f64",
+      "weakened_profile_digest": "a25060b8e46618e48870e30fe164d1a8a22e097b977da62c839a945a10732c83",
       "outcome": "survived"
     },
     {
@@ -2655,7 +2655,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-successor-order-verification-proposition-operand-5-role",
       "variant_id": "reject-claim-successor-order-verification-proposition-operand-5-role",
-      "weakened_profile_digest": "1c30a0690d0b9ac9319b725c9e5dbec65f49c5c17c429e58a7a554bd165a0374",
+      "weakened_profile_digest": "ed1eb392d6fd7a9ba7c7f76d9d8e1c6753b41aa1df58168c6cc57e805f508cca",
       "outcome": "survived"
     },
     {
@@ -2663,7 +2663,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-successor-order-verification-proposition-operator",
       "variant_id": "reject-claim-successor-order-verification-proposition-operator",
-      "weakened_profile_digest": "ab4acb11c5ad86d3e09bcf7dc3b5cd32e90f9baba3e520be8eeac71e3ba06c93",
+      "weakened_profile_digest": "37043d752e820f6b715c2a3c5c28bab9dcb785123f09a8571b436f690f66b8ac",
       "outcome": "survived"
     },
     {
@@ -2671,7 +2671,7 @@
       "weakening_class": "proposition_weakening",
       "fixture_id": "reject-claim-successor-order-verification-proposition-subject",
       "variant_id": "reject-claim-successor-order-verification-proposition-subject",
-      "weakened_profile_digest": "56f0d4c77638f1906a08a5a7ea4ffaae9b5422fa92cb1bc840f8541bf4bdc541",
+      "weakened_profile_digest": "5547a52882327bdc7b878be498cb73312f2d9b4f08b194092366df0053fe1675",
       "outcome": "survived"
     },
     {
@@ -2679,7 +2679,7 @@
       "weakening_class": "verification_method_broadening",
       "fixture_id": "reject-claim-successor-order-verification-verification-methods",
       "variant_id": "reject-claim-successor-order-verification-verification-methods",
-      "weakened_profile_digest": "8c58146f7e8bdb6c17a261ed4cfacdee588e7e1802431073825e477eab72a87f",
+      "weakened_profile_digest": "76876435e78b812eca44020397126ab1a3705d76471710fb6ccb2641f14726c5",
       "outcome": "survived"
     },
     {
@@ -2687,7 +2687,7 @@
       "weakening_class": "binding_constraint_weakening",
       "fixture_id": "reject-distinct-reference-role-sets",
       "variant_id": "reject-distinct-reference-role-sets",
-      "weakened_profile_digest": "73a19059a5914ccb5795518cfa1a08e4e129d564f970e2f6b2d9cdb7dc144280",
+      "weakened_profile_digest": "a5f9e5a81060cc136cd32a7ae143e6da0f5411f9257f37136a2bd7e6bb16c3d7",
       "outcome": "survived"
     },
     {
@@ -2695,7 +2695,7 @@
       "weakening_class": "falsifier_weakening",
       "fixture_id": "reject-falsifier-condition-bindings",
       "variant_id": "reject-falsifier-condition-bindings",
-      "weakened_profile_digest": "00c1d5a6a148c133f599129422af8411e222a27a977cbb78f1807c152bfc6af2",
+      "weakened_profile_digest": "27e065d4c2fae632fa60f8d0a023f7f10e538b8a79f3dba0a9f5cfd676aed555",
       "outcome": "survived"
     },
     {
@@ -2703,7 +2703,7 @@
       "weakening_class": "cardinality_broadening",
       "fixture_id": "reject-number-roles",
       "variant_id": "reject-number-roles",
-      "weakened_profile_digest": "0b627e1b2697a4131df4dcd111b6ae6d8b31c20a30d0674967f30879775b3ca9",
+      "weakened_profile_digest": "49a78f467b1800ee22b5a59f32db84e8dff1146cebb529ebc4ed5d9afdcb2109",
       "outcome": "survived"
     },
     {
@@ -2711,7 +2711,7 @@
       "weakening_class": "binding_constraint_weakening",
       "fixture_id": "reject-reference-binding-patterns",
       "variant_id": "reject-reference-binding-patterns",
-      "weakened_profile_digest": "f3e20c5eac2da161737652124bf90188e305eb6d2a100f446fa9660424b4bdf5",
+      "weakened_profile_digest": "162ebf0675f8b81c256382e468d53f7eb54fe27e082451ffdff063593630eb91",
       "outcome": "survived"
     },
     {
@@ -2719,7 +2719,7 @@
       "weakening_class": "binding_constraint_weakening",
       "fixture_id": "reject-reference-role-count-bindings",
       "variant_id": "reject-reference-role-count-bindings",
-      "weakened_profile_digest": "c1b3455b4f8b180d8738304e8228e7edf1fe266056830e372b2fd5222fd8c999",
+      "weakened_profile_digest": "9a54f84956a5b86105743d8ab6805906b11deddb762db4d56a489819f443d59e",
       "outcome": "survived"
     },
     {
@@ -2727,7 +2727,7 @@
       "weakening_class": "relation_weakening",
       "fixture_id": "reject-relation-patterns",
       "variant_id": "reject-relation-patterns",
-      "weakened_profile_digest": "697ced845faebf2a4d6726583c97de95cfb14481dfe06217ad0df2d4eaed06f2",
+      "weakened_profile_digest": "a1b7255202774f93145ff1755b7c6f8e1bbcb5b40a0114a0274f4e2202a8f157",
       "outcome": "survived"
     },
     {
@@ -2735,7 +2735,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-active-authority-observation-population-types",
       "variant_id": "reject-role-active-authority-observation-population-types",
-      "weakened_profile_digest": "2dbe4440def28449dc6de40039b243203070cd0920962b0a6015eac3db78d800",
+      "weakened_profile_digest": "c5b0f484182328f7ee478cab46f4b7bb8fa8271dd6663446fe637d6144965f85",
       "outcome": "survived"
     },
     {
@@ -2743,7 +2743,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-active-authority-observations-types",
       "variant_id": "reject-role-active-authority-observations-types",
-      "weakened_profile_digest": "ff886cf13f51840853f797832e248d9b1263b74d0e4e72784ab366cd96534b6b",
+      "weakened_profile_digest": "f583dc41afadd59aaf1697744d0646b686d90016e75e56f9bcd8549624198549",
       "outcome": "survived"
     },
     {
@@ -2751,7 +2751,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-after-fence-state-types",
       "variant_id": "reject-role-after-fence-state-types",
-      "weakened_profile_digest": "81f7e61214339da5126b4fb3dd8433370a099080ad3a80627195813808549deb",
+      "weakened_profile_digest": "fa2c469dfdd4cb5b1a4ece86507ab8aefe3e9eb1494ccd4832cdbf0094642680",
       "outcome": "survived"
     },
     {
@@ -2759,7 +2759,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-before-fence-state-types",
       "variant_id": "reject-role-before-fence-state-types",
-      "weakened_profile_digest": "8cd120beade66ef5ddc9373f600372feec965bda722c95d570ad88c2dfd9fbc0",
+      "weakened_profile_digest": "da608c7976d285286764ef67b7f8584660763646faa14285dcbe387ba588d45d",
       "outcome": "survived"
     },
     {
@@ -2767,7 +2767,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-dual-active-observation-population-types",
       "variant_id": "reject-role-dual-active-observation-population-types",
-      "weakened_profile_digest": "5476da1531a6ec9c5a5736eba0c71ea68976f483bf9ba4fe1ff719060ef7446b",
+      "weakened_profile_digest": "c3a09bb35bc58fda0ab3235070b3e26ed212000715bd8a71ab2ec7c853585b35",
       "outcome": "survived"
     },
     {
@@ -2775,7 +2775,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-dual-active-observations-types",
       "variant_id": "reject-role-dual-active-observations-types",
-      "weakened_profile_digest": "6a2bad1ea282806c9e0912de8d3e18f22d4fc7b6a157701ef193066a77269dc1",
+      "weakened_profile_digest": "bd4326dcf089c9fb6d50309437addfc259f31e6b609fb74c09a756d0c170d218",
       "outcome": "survived"
     },
     {
@@ -2783,7 +2783,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-dual-active-verification-types",
       "variant_id": "reject-role-dual-active-verification-types",
-      "weakened_profile_digest": "942aae0070e8d680a4a3997237e0cfb55ffd6f68a20c268c9f9912bf8309879f",
+      "weakened_profile_digest": "69a098b2155d0141a161887bda384157495bd86935f577db867a912466294380",
       "outcome": "survived"
     },
     {
@@ -2791,7 +2791,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-fence-event-types",
       "variant_id": "reject-role-fence-event-types",
-      "weakened_profile_digest": "af960a2412930aef37d92f01c299b5b26d52c02a55f491ebcb233d54220c32c4",
+      "weakened_profile_digest": "3f25eaf1fa384122cd41ca03affecfabd4503280b7e79b9895ed0f0d8895808d",
       "outcome": "survived"
     },
     {
@@ -2799,7 +2799,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-post-fence-observation-types",
       "variant_id": "reject-role-post-fence-observation-types",
-      "weakened_profile_digest": "ff886cf13f51840853f797832e248d9b1263b74d0e4e72784ab366cd96534b6b",
+      "weakened_profile_digest": "f583dc41afadd59aaf1697744d0646b686d90016e75e56f9bcd8549624198549",
       "outcome": "survived"
     },
     {
@@ -2807,7 +2807,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-post-fence-predecessor-protected-effect-population-types",
       "variant_id": "reject-role-post-fence-predecessor-protected-effect-population-types",
-      "weakened_profile_digest": "99d16706e690534c547ea144fdbe11f81de24334b57b46047d6fe449adc0db06",
+      "weakened_profile_digest": "ae5f10ec4d55a358ae5c528384b4e74e056423414068987d3ae830a084bd1c93",
       "outcome": "survived"
     },
     {
@@ -2815,7 +2815,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-post-fence-predecessor-protected-effects-types",
       "variant_id": "reject-role-post-fence-predecessor-protected-effects-types",
-      "weakened_profile_digest": "6ab2c2a22dac7f3338ad88a3c68339d4d68de9f018c750227c3a6e69b1afdccc",
+      "weakened_profile_digest": "78dd8920255b673e16c8a0b59f679e78771382826b6befe27347e6896744850b",
       "outcome": "survived"
     },
     {
@@ -2823,7 +2823,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-post-fence-refusal-verification-types",
       "variant_id": "reject-role-post-fence-refusal-verification-types",
-      "weakened_profile_digest": "acb0af196ff8256d1615e6dd77252de5db4cde70b91840ab87b685f21b31715c",
+      "weakened_profile_digest": "b5c50cbffe0dca20b8217dd272da397b3b5087618f94f8df2a752c3281d6d0d8",
       "outcome": "survived"
     },
     {
@@ -2831,7 +2831,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-pre-fence-observation-types",
       "variant_id": "reject-role-pre-fence-observation-types",
-      "weakened_profile_digest": "ff886cf13f51840853f797832e248d9b1263b74d0e4e72784ab366cd96534b6b",
+      "weakened_profile_digest": "f583dc41afadd59aaf1697744d0646b686d90016e75e56f9bcd8549624198549",
       "outcome": "survived"
     },
     {
@@ -2839,7 +2839,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-predecessor-authority-types",
       "variant_id": "reject-role-predecessor-authority-types",
-      "weakened_profile_digest": "b5615e59111823c0adf1ad265d197d088019dd3c68d0c7d436e402ac21802ef1",
+      "weakened_profile_digest": "cdd053a4d68ed30787eb0055a9a9cad80bf547c2c0a0ad0fc8f94d47d5405b96",
       "outcome": "survived"
     },
     {
@@ -2847,7 +2847,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-predecessor-effect-population-types",
       "variant_id": "reject-role-predecessor-effect-population-types",
-      "weakened_profile_digest": "62c60f989f60bf0aca981c278f8bb1c43e4a0c814a5d4cd77cafea5e3db2c931",
+      "weakened_profile_digest": "4f68dcdc3462c20cc2c91e571b884d115cc312f93a326abb75c7063c7062ea8b",
       "outcome": "survived"
     },
     {
@@ -2855,7 +2855,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-predecessor-effect-window-state-types",
       "variant_id": "reject-role-predecessor-effect-window-state-types",
-      "weakened_profile_digest": "aef6040804ac7a85b65e57abb41a75fb910db5393a066cc06b86de91178a9820",
+      "weakened_profile_digest": "1eee282e8580bb99c2fad2215822f338f490596e74f8004361763ee2e76c1634",
       "outcome": "survived"
     },
     {
@@ -2863,7 +2863,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-predecessor-effects-types",
       "variant_id": "reject-role-predecessor-effects-types",
-      "weakened_profile_digest": "1a9e72427ce8dc4581a28a605c1da09a851d781cd01a5db62f34f9f16fc43e16",
+      "weakened_profile_digest": "4a72bedb524826a7b4fea099a3eb9adc7c92755b105436632f9cdce48e8ee58b",
       "outcome": "survived"
     },
     {
@@ -2871,7 +2871,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-predecessor-epoch-types",
       "variant_id": "reject-role-predecessor-epoch-types",
-      "weakened_profile_digest": "3309b7f79499a54157a10d35825d4c5aa65f8de8472399a64412224f98e362ca",
+      "weakened_profile_digest": "60d175ace14edcb9d6c052411890f472a3de5e5f03c110bd21a6c13b617b3114",
       "outcome": "survived"
     },
     {
@@ -2879,7 +2879,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-predecessor-order-verification-types",
       "variant_id": "reject-role-predecessor-order-verification-types",
-      "weakened_profile_digest": "b993a2cfa633d602d8dd41c1edac80b5d64b845ad61f8d5b1a64b9a9fb8f27e3",
+      "weakened_profile_digest": "67aae1dab37adaddae8016a2f184e05391cd022ae8ead2e5482c50f029789e40",
       "outcome": "survived"
     },
     {
@@ -2887,7 +2887,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-predecessor-post-fence-attempt-population-types",
       "variant_id": "reject-role-predecessor-post-fence-attempt-population-types",
-      "weakened_profile_digest": "fa090c0bf824e159abbe7cb4b3da65b9771d7a66b48c45857d9a4e3199257ac0",
+      "weakened_profile_digest": "cff2cb558a6523834bfa4f6b5f92f9577cc55754696af42d341dc43bcb7fd712",
       "outcome": "survived"
     },
     {
@@ -2895,7 +2895,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-predecessor-post-fence-attempts-types",
       "variant_id": "reject-role-predecessor-post-fence-attempts-types",
-      "weakened_profile_digest": "84fe5a5d018a633f96fea7c15c08164e3f49eae65eaf090149fd7fbfbe4f2e0a",
+      "weakened_profile_digest": "e362a49f19b3c74ac9f198c10340629154502d928889faa931fa38da4fa0536f",
       "outcome": "survived"
     },
     {
@@ -2903,7 +2903,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-predecessor-pre-fence-attempt-population-types",
       "variant_id": "reject-role-predecessor-pre-fence-attempt-population-types",
-      "weakened_profile_digest": "d00565ebed2e0d090c9baa8d948a47e3bd6658d92e0277def831c59ea1302b1a",
+      "weakened_profile_digest": "da5a84cfc5400217af9359f5244466d8b742157d00fdad90ef7e39acb509a971",
       "outcome": "survived"
     },
     {
@@ -2911,7 +2911,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-predecessor-pre-fence-attempts-types",
       "variant_id": "reject-role-predecessor-pre-fence-attempts-types",
-      "weakened_profile_digest": "e329768a99c9ea1fa04cb8a3c0fc44195dd06631556b6aa6fdfaa385423cf5d0",
+      "weakened_profile_digest": "d99123b0a2aabdcb53e714e49804dce80fa23ee50f3b4446ae1ab64efd2e8915",
       "outcome": "survived"
     },
     {
@@ -2919,7 +2919,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-refused-state-types",
       "variant_id": "reject-role-refused-state-types",
-      "weakened_profile_digest": "f128e434d62498200ee1faec00d2c303f5c0fd3a085101e46d3b260225d16699",
+      "weakened_profile_digest": "dddf4d50a645d75e3807ce8f45beb2c94db0c826fe58798e5e2420735cdd8bf1",
       "outcome": "survived"
     },
     {
@@ -2927,7 +2927,7 @@
       "weakening_class": "cardinality_broadening",
       "fixture_id": "reject-role-resource-cardinality",
       "variant_id": "reject-role-resource-cardinality",
-      "weakened_profile_digest": "eb62648557a4341856725e66b9d809f42d3eed9c1d3a690641fb7d90fbe453b4",
+      "weakened_profile_digest": "ca31a0519345f977f5f31898f4bc9e4e6049c1674584c11331dddc69ffb826c1",
       "outcome": "survived"
     },
     {
@@ -2935,7 +2935,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-resource-types",
       "variant_id": "reject-role-resource-types",
-      "weakened_profile_digest": "1a32b864292ab57f2d3c9138479d76e628e83effff36112f00372a56ed071b8b",
+      "weakened_profile_digest": "0c036852d3ed53bd361a0fb6e7efeabc40eabcdce7c607cce3933e9f83010b53",
       "outcome": "survived"
     },
     {
@@ -2943,7 +2943,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-successor-activation-event-types",
       "variant_id": "reject-role-successor-activation-event-types",
-      "weakened_profile_digest": "93bb7230d3da5002bc891198fdb21b5f7989a69107a9a555ece749d04fc4829d",
+      "weakened_profile_digest": "3d5c3a1905148cd91d8761b08dac3896cb40e6aa185d5877c80b8021f449a12a",
       "outcome": "survived"
     },
     {
@@ -2951,7 +2951,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-successor-authority-types",
       "variant_id": "reject-role-successor-authority-types",
-      "weakened_profile_digest": "536d467fe8662feca9b0fc76ad0d0c048800da601734da3c23e53e678157d91d",
+      "weakened_profile_digest": "20fd09c67f45d28e138b58e88954a8282238512d40a4f4efb76d5ad03ab5628b",
       "outcome": "survived"
     },
     {
@@ -2959,7 +2959,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-successor-effect-population-types",
       "variant_id": "reject-role-successor-effect-population-types",
-      "weakened_profile_digest": "fffd48fade799af212d639ff5025137d0e12dc848566bb340e35b7578bd66da9",
+      "weakened_profile_digest": "22cdc498642a1874486363098ce8724726f2e55a58ab7ca346e2b6465020db21",
       "outcome": "survived"
     },
     {
@@ -2967,7 +2967,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-successor-effect-window-state-types",
       "variant_id": "reject-role-successor-effect-window-state-types",
-      "weakened_profile_digest": "93c61aab591ad9d106488f9a446a2874210fd1b91562851332448143017d40b7",
+      "weakened_profile_digest": "40e1ec165c8c70c5d72c08dd1fbd15ca316dc90e0fc6efcdd6e629eaf69b9358",
       "outcome": "survived"
     },
     {
@@ -2975,7 +2975,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-successor-effects-types",
       "variant_id": "reject-role-successor-effects-types",
-      "weakened_profile_digest": "1b26d9881859bbec276433be7694011bcba08e7d389b1d9677e1e69b4cf74526",
+      "weakened_profile_digest": "45ccfd2317875b6c171a5492b484ecce69d0d561bed35c9b25422a52b68e7aea",
       "outcome": "survived"
     },
     {
@@ -2983,7 +2983,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-successor-epoch-types",
       "variant_id": "reject-role-successor-epoch-types",
-      "weakened_profile_digest": "e498c213d2ff2940e9f4d08c3d15f76f803fe2adae47aae74b2267c05f69e4d2",
+      "weakened_profile_digest": "5179dd2a73001cdb47f7634c9be1c573f8979a034f4e50f52ac31554728ee32f",
       "outcome": "survived"
     },
     {
@@ -2991,7 +2991,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-successor-order-verification-types",
       "variant_id": "reject-role-successor-order-verification-types",
-      "weakened_profile_digest": "7d4f0685860fb8ee546f4b4653b56cc5a694bea79d5da25acaccad25a59aa124",
+      "weakened_profile_digest": "edc78c5e6854d7fad92bc43d20e13a97e50c0a43142e49dd3f286e757f2b391d",
       "outcome": "survived"
     },
     {
@@ -2999,7 +2999,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-successor-post-fence-attempt-population-types",
       "variant_id": "reject-role-successor-post-fence-attempt-population-types",
-      "weakened_profile_digest": "38545c195432332519678ddf484eda08d0e04e9ac6dfb9a1854c404484a1d5d7",
+      "weakened_profile_digest": "3a17741c67d8496609f786a8e1e4a40cb0812377ced420f0923f7f750900082f",
       "outcome": "survived"
     },
     {
@@ -3007,7 +3007,7 @@
       "weakening_class": "type_broadening",
       "fixture_id": "reject-role-successor-post-fence-attempts-types",
       "variant_id": "reject-role-successor-post-fence-attempts-types",
-      "weakened_profile_digest": "6ec6bacb6ac3acd6004e05ea08b6171c92299a2267f3ef55e87ec06df78df582",
+      "weakened_profile_digest": "df02029622c943252e044c657bbb3c42d771a6e9128b805b446ec198f6b73bbb",
       "outcome": "survived"
     },
     {
@@ -3015,7 +3015,7 @@
       "weakening_class": "satisfaction_branch_broadening",
       "fixture_id": "reject-satisfaction-expression",
       "variant_id": "reject-satisfaction-expression",
-      "weakened_profile_digest": "405ad18f65efd4571627e14e8762b973f8340c7013711e45bfd7868fc4eab5cb",
+      "weakened_profile_digest": "8b96e80d828d81427270f1d449f67a0ff805930fe87a872c5c6a57f4f98deeae",
       "outcome": "survived"
     }
   ]

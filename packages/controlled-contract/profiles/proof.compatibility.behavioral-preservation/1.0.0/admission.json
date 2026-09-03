@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-admitted-proof-pack.v2",
   "profile_id": "proof.compatibility.behavioral-preservation",
   "profile_version": "1.0.0",
-  "profile_digest": "fedc131cdb3739d10ca9143708a3419f6ac4f7eb004a6d1d5ce0e13b43493761",
+  "profile_digest": "4056a01541f7f6c32d4de3ed9c6a257ff9adbfdc2ee153c7032dba7aa0655294",
   "guarantee": "For one declared logical behavior source, two distinct baseline and candidate behavior-report artifacts expose equal complete populations of typed observable descriptors by mutual subset, bind one shared exact nonnegative observable count, emit count signals equal to that count, and expose one explicitly selected canonical observable-value pair that is exactly equal. One verification reads both full reports and each verified equality has its controlled complement as a separate falsifier. Exact-bound admission additionally requires two distinct caller-selected source descriptors for the full report artifacts whose complete captured bytes have the same SHA-256.",
   "guarantee_digest": "85c6d4e5fd97c4cb01ad7fc5f81d15b7519d174eb130895291118e5c69947ae8",
   "explicit_exclusions": [
@@ -22,15 +22,15 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "35f15c1647cbeb685affff9efefb4345bf2cd4a94377182cebdf3ca2e65375b7",
-    "adequacy_result_digest": "101be14d370042213b1866d11eb0fc95e202e104fcf13e7e6f84f6eb4670900b",
+    "adequacy_declaration_digest": "95adbe9b14e497e32f08c21b3f595009a0e0f94562dccf991d985bef01cbfdb6",
+    "adequacy_result_digest": "83d31eb74cca8f958636769783d9e91e6d12f2982f80978b57dbe8e1880de98d",
     "executable_control_count": 41,
     "negative_fixture_count": 87,
     "coverage_witness_count": 87
   },
   "exact_binding": {
-    "declaration_digest": "97d8231c9d9922f654bbb066a2659abed98d8b3d5523ecaabcb01e8536dcb415",
-    "certification_result_digest": "24292e4cbaa027c5a57b107cea528b08a17dafb41afcc8048d55675ec7b9c54f",
+    "declaration_digest": "ff26a984d7316d0dc1eed461f8dc3ee88eaf840da1110c513d81116e7c0ef0a7",
+    "certification_result_digest": "7f5525c063dbed7168b245ce852e7e555cb9552b2b62b9e728d73b2efe5691a8",
     "executable_control_count": 12,
     "binding_kinds": [
       "artifact_bytes"

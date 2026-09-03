@@ -111,7 +111,12 @@ function assertIsolationWorkerScopeAuthority(authority) {
     !frozenStringArray(authority.read_scope) ||
     !frozenStringArray(authority.repo_paths) ||
     !frozenStringArray(authority.readable_scope) ||
-    !frozenStringArray(authority.write_scope)
+    !frozenStringArray(authority.write_scope) ||
+    (authority.scope_exclusions !== undefined && (
+      !frozenStringArray(authority.scope_exclusions) ||
+      authority.scope_exclusions.length !== 1 ||
+      authority.scope_exclusions[0] !== "wiki/contracts"
+    ))
   ) {
     fail(
       BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.BIND_ENTRY_INVALID,
@@ -196,6 +201,13 @@ export function buildSparseWorkerNamespace({
     authority: frozenAuthority,
     readable: Object.freeze(readable),
     writable: Object.freeze(writable),
+    exclusions: Object.freeze((frozenAuthority.scope_exclusions ?? []).map((entry, index) =>
+      Object.freeze({
+        relative: entry,
+        absolute: relativeAuthorityPathToAbsolute(
+          entry, `workerScopeAuthority.scope_exclusions[${index}]`, repoReal
+        )
+      }))),
     skeleton: Object.freeze(sparseNamespaceSkeleton(visible.map((entry) => entry.absolute), repoReal))
   });
 }

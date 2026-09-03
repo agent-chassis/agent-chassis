@@ -1,7 +1,7 @@
 import {
   PROOF_PACK_ADEQUACY_RUN_VERSION
 } from "../support/proof-pack-adequacy-constants.mjs";
-import { evaluateVerificationProfileV034 } from "../../lib/verification-profile-v034.mjs";
+import { evaluateStableProofPackFixtureV1 } from "../support/stable-v1-proof-pack-runtime.mjs";
 import {
   buildCancellationIsolationFixture,
   collapseReference,
@@ -17,12 +17,12 @@ import {
 } from "./cancellation-isolation-v1-harness.mjs";
 
 const PROFILE_DIGEST =
-  "2e5869f940bccdf63572b277ecc40541b7b3073292d70f0733fe1c07bd264e28";
+  "2b79f57e8f7e16cbc02e06edb9224bc2f6dd8facd982b66d491017af7aafec71";
 const GUARANTEE_DIGEST =
   "20b89764350b8a5bd1a4c04f0ef63b2a648b72619515aa4fb174ce6d7e03b109";
 
 function evaluateFixture(fixture) {
-  return evaluateVerificationProfileV034({
+  return evaluateStableProofPackFixtureV1({
     contract: fixture.contract,
     profile: fixture.profile,
     evaluation_input: fixture.input

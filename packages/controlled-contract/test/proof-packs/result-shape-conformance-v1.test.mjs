@@ -25,10 +25,10 @@ import {
   resultShapeGuaranteeSatisfied
 } from "./result-shape-conformance-v1-harness.mjs";
 import {
-  evaluateVerificationProfileV034,
-  validateProfileSchemaV034,
-  validateProfileSemanticsV034
-} from "../../lib/verification-profile-v034.mjs";
+  evaluateStableProofPackFixtureV1,
+  validateProfileSchemaV1,
+  validateProfileSemanticsV1
+} from "../support/stable-v1-proof-pack-runtime.mjs";
 
 const controlledContractRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)), ".."
@@ -36,7 +36,7 @@ const controlledContractRoot = path.resolve(
 const repositoryRoot = path.resolve(controlledContractRoot, "../../..");
 const packDirectory = path.join(
   controlledContractRoot,
-  "certification/profiles/proof.result-shape.conformance/1.0.0"
+  "certification/profiles/proof.result-shape.conformance/2.0.0"
 );
 
 async function readJson(name) {
@@ -127,7 +127,7 @@ test("every result-shape coverage binding has a canonical kill and weakened-prof
             weakening_class: coverage.weakening_class
           }], key);
           const expanded = expandVariant(fixture, variant);
-          const canonical = evaluateVerificationProfileV034({
+          const canonical = evaluateStableProofPackFixtureV1({
             contract: expanded.contract,
             profile,
             evaluation_input: expanded.evaluation_input
@@ -138,10 +138,10 @@ test("every result-shape coverage binding has a canonical kill and weakened-prof
 
           const weakened = applyReplacementPatches(profile, witness.profile_patches);
           assert.equal(canonicalDigest(weakened), witness.weakened_profile_digest, key);
-          assert.equal(validateProfileSchemaV034(weakened), true,
-            `${key}: ${JSON.stringify(validateProfileSchemaV034.errors)}`);
-          assert.deepEqual(validateProfileSemanticsV034(weakened), [], key);
-          const rebound = evaluateVerificationProfileV034({
+          assert.equal(validateProfileSchemaV1(weakened), true,
+            `${key}: ${JSON.stringify(validateProfileSchemaV1.errors)}`);
+          assert.deepEqual(validateProfileSemanticsV1(weakened), [], key);
+          const rebound = evaluateStableProofPackFixtureV1({
             contract: expanded.contract,
             profile: weakened,
             evaluation_input: expanded.evaluation_input
@@ -235,7 +235,7 @@ test("status-only verification and invented result/schema terms are rejected", (
         [role]: { kind: "profile_term", term: `invented-${role}` }
       }
     });
-    const result = evaluateVerificationProfileV034({
+    const result = evaluateStableProofPackFixtureV1({
       contract: fixture.contract,
       profile: fixture.profile,
       evaluation_input: fixture.input
@@ -263,7 +263,7 @@ test("control and profile evaluation are deterministic and declaration-order inv
       profile: RESULT_SHAPE_CONFORMANCE_V1_PROFILE
     });
     const before = canonicalDigest(fixture);
-    const canonical = evaluateVerificationProfileV034({
+    const canonical = evaluateStableProofPackFixtureV1({
       contract: fixture.contract,
       profile: fixture.profile,
       evaluation_input: fixture.input
@@ -282,7 +282,7 @@ test("control and profile evaluation are deterministic and declaration-order inv
       "resolver_facts",
       "delivered_evidence"
     ]) reordered.input[key].reverse();
-    const reorderedResult = evaluateVerificationProfileV034({
+    const reorderedResult = evaluateStableProofPackFixtureV1({
       contract: reordered.contract,
       profile: reordered.profile,
       evaluation_input: reordered.input

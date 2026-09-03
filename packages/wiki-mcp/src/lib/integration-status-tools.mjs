@@ -182,7 +182,6 @@ export function buildWorkspaceIntegrationStatus({ workspaceRepo, workspaceDir, i
     schema_version: SCHEMA_VERSION,
     workspaceRepo,
     initiative,
-    expected_integration_ref: `integration/${initiative}`,
     expected_wk_branch_pattern: `wk/${initiative}/WK-YYYY`,
     sources: {
       initiative: initiativeRelated,
@@ -209,7 +208,7 @@ export function registerIntegrationStatusTools({
     "workspace_integration_status",
     {
       description:
-        "Read-only local coordination status for an initiative integration branch. Accepts only server-resolved repo selection plus initiative id; reports expected refs, related WK rows, and explicit unknown/not-available local facts. It is not policy, review, merge, or promotion authority.",
+        "Read-only local coordination status for an initiative. Accepts only server-resolved repo selection plus initiative id; reports short-lived WK refs, related WK rows, and explicit unknown/not-available local facts. It is not branch, policy, review, merge, or promotion authority.",
       inputSchema: {
         repo: z.string().optional(),
         initiative: z.string()

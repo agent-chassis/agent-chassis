@@ -1,0 +1,22 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v1",
+  "profile_id": "proof.verification.test-validity",
+  "profile_version": "1.0.0",
+  "profile_digest": "971decf85630954c73217e8fea367a1f3ca5ae5859a23c83652cde9253f55946",
+  "guarantee": "For every v0.3 test_execution verification, one exact test-proof binding and one execution witness establish exact versioned launcher-registry provider bindings and capability-snapshot evidence for candidate execution, every falsifier, and traversal; launcher-owned Node test structured events and content-addressed artifacts that ignore test-controlled output; identity-matched system-under-test traversal observed through launcher-owned V8 coverage and an exact node_test_structured_assertion observation seam; a complete unchanged candidate pass; isolated execution of every discriminating launcher-applied module-substitution falsifier against its declared proposition with its exact strategy-bound structured failure reason; complete declared and launcher-observed test inventories with every baseline coverage item dispositioned; no newly skipped test; and no prohibited source-text inspection or caller-injected executor. Unsupported traversal is registry-authenticated and remains review_only. Mechanical evaluation does not determine whether the coordinator selected the semantically correct boundary, observable, falsifiers, coverage disposition, or provider.",
+  "guarantee_digest": "14b559626689afd3d8bcaf1768b0c0be322d166401f1bfd0be19ef5f19dfbfeb",
+  "explicit_exclusions": [
+    "authority-grant",
+    "coordinator-semantic-judgment",
+    "delivered-runtime-truth",
+    "provider-support-invention"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "83d16ca876540dae39cb7666bfd1015ecb04da79e812aa298f0004c7f94a374f",
+    "adequacy_result_digest": "8d7ad99b066380329e1caab0d3281dd7d4e35900feaad18cced919bffd140f47",
+    "executable_control_count": 37,
+    "negative_fixture_count": 36,
+    "coverage_witness_count": 36
+  }
+}

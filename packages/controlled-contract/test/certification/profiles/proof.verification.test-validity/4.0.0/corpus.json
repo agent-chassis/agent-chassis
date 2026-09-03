@@ -1,0 +1,15 @@
+{
+  "schema_version": "controlled-contract-test-validity-post-delivery-certification-corpus.v1",
+  "profile_id": "proof.verification.test-validity",
+  "profile_version": "4.0.0",
+  "positive_cases": ["complete-authenticated-positive-facts"],
+  "single_axis_weakenings": [
+    {"case_id": "failed-candidate", "expected_code": "test_validity_post_delivery_candidate_failed"},
+    {"case_id": "missing-declared-test", "expected_code": "test_validity_post_delivery_declared_discovered_inventory_mismatch"},
+    {"case_id": "missing-discovered-test", "expected_code": "test_validity_post_delivery_declared_discovered_inventory_mismatch"},
+    {"case_id": "missing-executed-test", "expected_code": "test_validity_post_delivery_declared_executed_inventory_mismatch"},
+    {"case_id": "inert-falsifier", "expected_code": "test_validity_post_delivery_falsifier_inert"},
+    {"case_id": "unproven-traversal", "expected_code": "test_validity_post_delivery_traversal_unproven"},
+    {"case_id": "prohibited-shortcut", "expected_code": "test_validity_post_delivery_prohibited_shortcut"}
+  ]
+}

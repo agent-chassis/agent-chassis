@@ -41,10 +41,45 @@ docs lists, closure prose, long diagnostics, or raw evidence payloads. Use
 explicit verbose or selected-action disclosure only when the compact action row
 is insufficient to decide which structured tool to call next.
 
+Compact `top_actions` rows carry only `target_unit`, `reason_code`, and
+`suggested_tool`; compact `next_action` uses the same projection, and the other
+action fields are available through explicit verbose disclosure. The default
+action channel is independently bounded by the requested count (five by
+default) and a 1,000-byte pretty-JSON
+row budget. `top_actions_total`, `top_actions_returned`, and
+`top_actions_truncated` distinguish the complete ranked population from the
+returned projection even when the byte budget is reached before the count cap.
+
 For initiative frontier scans, start with `workspace_initiative_status` before
 sampling individual `workspace_work_record_summary` results. Use work-record
 summaries only for the selected unit or narrow follow-up called for by the
 compact status row, not as the first pass across an initiative.
+
+A repository with no `wiki/work-records` directory is a fresh empty corpus, not
+an error and not a request to initialize storage. Initiative status returns the
+same stable empty frontier as an existing empty directory and leaves the absent
+directory absent. Only `ENOENT` from enumerating that exact corpus directory has
+this meaning: malformed records, non-directory paths, permission/I/O failures,
+and a record that disappears after enumeration remain loud read failures.
+
+That empty-corpus rule applies only after the requested initiative resolves to
+an existing, valid canonical `wiki/initiatives/IN-####.json` record whose loaded
+identity equals the selector. `loadKindRecordById` owns the grammar, contained
+path, equality, validation, and failure classification. Traversal-shaped,
+mistyped, missing, malformed, or identity-mismatched initiatives refuse before
+counts are projected; only initial `ENOENT` for the exact canonical initiative
+file is missing, while other I/O and a later disappearance remain loud. A valid
+initiative with no corpus or no matching WKs retains the zero-member result and
+creates nothing.
+
+The action taxonomy and the runtime-blocker taxonomy the route projects against
+are PACKAGE-OWNED controlled vocabularies that ship inside
+`@agent-chassis/wiki-core`. They resolve from the package's own location, never
+from the repository being read, so a consuming repository is never expected to
+contain a copy of them and never sees a filesystem error for a file it does not
+own. A test or caller that injects a taxonomy is exercising a deterministic
+seam, not the installed product path: the zero-member behavior above must hold
+with nothing injected.
 
 ## Consistency Channel
 
@@ -67,11 +102,18 @@ arrays). `parked` parents are intentionally out of scope: terminal here means
 `done` or `cancelled` only, and an open slice under a parked parent stays in the
 actionable units.
 
-The `consistency` array is always present in scan mode (empty when there is no
-mismatch), giving callers a stable contract. In single-unit mode (`unit` is
-supplied) it is omitted: that lens is a frontier-only action view for one
-selected record/slice and is not authoritative on initiative-wide
-actionability.
+Compact consistency rows retain only the mismatch `kind` and deduplicated unit
+`address`; record and slice fields derivable from that identity are verbose-only.
+The default channel is independently bounded to ten rows and a 600-byte
+pretty-JSON row budget. `consistency_total`, `consistency_returned`, and
+`consistency_truncated` report the exact complete and returned populations.
+Explicit `verbose: true` preserves the complete consistency detail.
+
+The `consistency` array and its metadata are always present in scan mode (empty
+and zeroed when there is no mismatch), giving callers a stable contract. In
+single-unit mode (`unit` is supplied) they are omitted: that lens is a
+frontier-only action view for one selected record/slice and is not authoritative
+on initiative-wide actionability.
 
 ## Tool Boundaries
 

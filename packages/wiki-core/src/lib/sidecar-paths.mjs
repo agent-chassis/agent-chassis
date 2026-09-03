@@ -41,6 +41,10 @@ export const SIDECAR_FORBIDDEN_PATH_PATTERNS = Object.freeze([
   { pattern: "**/.env*", reason: "nested secret-like local file" }
 ]);
 
+export const SIDECAR_UNINDEXED_SOURCE_PATTERNS = Object.freeze([
+  { pattern: "wiki/**", reason: "non-canonical coordination surface; not code-indexed" }
+]);
+
 export const SIDECAR_DIRTY_IGNORED_RUNTIME_PATTERNS = Object.freeze([
   { pattern: ".cache/**", reason: "ignored generated cache state" },
   { pattern: ".codex", reason: "ignored local agent-control state" },
@@ -55,7 +59,9 @@ export const SIDECAR_DIRTY_IGNORED_RUNTIME_PATTERNS = Object.freeze([
 
 export const SIDECAR_SOURCE_PATH_FIXTURES = Object.freeze([
   { path: "packages/wiki-core/src/index.mjs", forbidden: false, dirtyIgnored: false },
-  { path: "wiki/issues/WK-0036.md", forbidden: false, dirtyIgnored: false },
+  { path: "wiki/issues/WK-0036.md", forbidden: false, dirtyIgnored: false, unindexed: true },
+  { path: "wiki/work-records/WK-0036.json", forbidden: false, dirtyIgnored: false, unindexed: true },
+  { path: "wiki/contracts/WK-0036.carrier-set-manifest.json", forbidden: false, dirtyIgnored: false, unindexed: true },
   { path: "wiki/catalog.md", forbidden: true, pattern: "wiki/catalog.md", dirtyIgnored: false },
   { path: "wiki/now.md", forbidden: true, pattern: "wiki/now.md", dirtyIgnored: false },
   { path: "wiki/inbox.md", forbidden: true, pattern: "wiki/inbox.md", dirtyIgnored: false },
@@ -338,6 +344,19 @@ export function isForbiddenSidecarSourcePath(relativePath) {
   return getForbiddenSidecarPathMatch(relativePath) != null;
 }
 
+export function getUnindexedSidecarSourceMatch(relativePath) {
+  const normalizedPath = normalizePathInput(relativePath);
+  return (
+    SIDECAR_UNINDEXED_SOURCE_PATTERNS.find(({ pattern }) =>
+      patternMatches(pattern, normalizedPath)
+    ) || null
+  );
+}
+
+export function isUnindexedSidecarSourcePath(relativePath) {
+  return getUnindexedSidecarSourceMatch(relativePath) != null;
+}
+
 export function getSidecarDirtyIgnoredPathMatch(relativePath) {
   const normalizedPath = normalizePathInput(relativePath);
   return (
@@ -402,6 +421,10 @@ export function filterSidecarSourcePaths(inputPaths) {
   for (const inputPath of inputPaths) {
     try {
       const { relativePath } = validateVirtualSidecarPath(inputPath);
+
+      if (isUnindexedSidecarSourcePath(relativePath)) {
+        continue;
+      }
       included.push(relativePath);
     } catch (error) {
       if (error instanceof SidecarPathValidationError) {

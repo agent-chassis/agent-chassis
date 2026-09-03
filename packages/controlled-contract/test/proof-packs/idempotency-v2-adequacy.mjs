@@ -6,17 +6,17 @@ import {
   referenceIdForRole
 } from "./idempotency-v2-test-fixture.mjs";
 import {
-  evaluateVerificationProfileV034
-} from "../../lib/verification-profile-v034.mjs";
+  evaluateStableProofPackFixtureV1
+} from "../support/stable-v1-proof-pack-runtime.mjs";
 
 const ref = (referenceId) => ({ kind: "reference", reference_id: referenceId });
 const IDEMPOTENCY_V2_GUARANTEE_DIGEST =
   "38166c31a5bcf62c7d3cdde9af1b4ecec27b67d299a4a190a15715f96f852050";
 const IDEMPOTENCY_V2_PROFILE_DIGEST =
-  "17bf47915be39daf662b178794faa6315fa707cd92c70bbca6919699d13721a7";
+  "ec74e42e4d06ce1c11ea2f5b5d4cf2b0556696b8bb05f2086424e47640aa54dc";
 
 function evaluateFixture(fixture) {
-  return evaluateVerificationProfileV034({
+  return evaluateStableProofPackFixtureV1({
     contract: fixture.contract,
     profile: fixture.profile,
     evaluation_input: fixture.input

@@ -1,5 +1,5 @@
 import { PROOF_PACK_ADEQUACY_RUN_VERSION } from "../support/proof-pack-adequacy-constants.mjs";
-import { evaluateVerificationProfileV034 } from "../../lib/verification-profile-v034.mjs";
+import { evaluateStableProofPackFixtureV1 } from "../support/stable-v1-proof-pack-runtime.mjs";
 import {
   buildWriteConfinementFixture,
   findClaim,
@@ -13,7 +13,7 @@ import {
 } from "./write-confinement-v1-harness.mjs";
 
 const WRITE_CONFINEMENT_V1_PROFILE_DIGEST =
-  "907b7802d28b7798efc2b2826ac2886ad46983a714ad577434e0a9655b9229a1";
+  "08d1458f24afc9b2d66fb8d69ad6e2a9b6d5a89011835e295a0ddec90a7ae813";
 const WRITE_CONFINEMENT_V1_GUARANTEE_DIGEST =
   "d9c43a7ea270def76b5255705d0dbf7285b0a93343fdfa5e80c8cb0ebfb07134";
 
@@ -21,7 +21,7 @@ const targetReferenceId = (target) =>
   `ref-${target.replaceAll(/[^a-zA-Z0-9-]/gu, "-")}`;
 
 function evaluateFixture({ contract, input, evaluation_input: evaluationInput, profile }) {
-  return evaluateVerificationProfileV034({
+  return evaluateStableProofPackFixtureV1({
     contract,
     profile,
     evaluation_input: evaluationInput ?? input

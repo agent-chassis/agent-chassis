@@ -11,130 +11,14 @@ const _ADOPTION_SEED_SOURCE = JSON.parse(
   readFileSync(path.join(_TEMPLATES_DIR, "IN-0001.adoption-seed.json"), "utf8")
 );
 
-const _ADOPTION_WORK_RECORD_TEMPLATE_CACHE = new Map();
-
-function loadAdoptionWorkRecordTemplate(filename) {
-
-  const safeName = path.basename(String(filename));
-  if (!_ADOPTION_WORK_RECORD_TEMPLATE_CACHE.has(safeName)) {
-    const parsed = JSON.parse(
-      readFileSync(path.join(_TEMPLATES_DIR, safeName), "utf8")
-    );
-    _ADOPTION_WORK_RECORD_TEMPLATE_CACHE.set(safeName, parsed);
-  }
-  return JSON.parse(JSON.stringify(_ADOPTION_WORK_RECORD_TEMPLATE_CACHE.get(safeName)));
-}
-
-function renderBulletList(items) {
-  return items.map((item) => `- ${item}`).join("\n");
-}
-
 export function getStaticIn0001AdoptionSeed() {
   return JSON.parse(JSON.stringify(_ADOPTION_SEED_SOURCE));
-}
-
-export function getStaticIn0001AdoptionSeedWorkRecords(
-  seed = getStaticIn0001AdoptionSeed()
-) {
-  if (Array.isArray(seed.seed_work_record_templates) && seed.seed_work_record_templates.length > 0) {
-    return seed.seed_work_record_templates.map((filename) =>
-      loadAdoptionWorkRecordTemplate(filename)
-    );
-  }
-  const records = Array.isArray(seed.seed_work_records)
-    ? seed.seed_work_records
-    : [];
-  return JSON.parse(JSON.stringify(records));
-}
-
-function renderSeedWorkRecords(records) {
-  if (!records.length) {
-    return "_No executable work-record seed is bundled with this adoption seed._";
-  }
-  return records
-    .map((record) => {
-      const recordKind = [record.work_kind, record.record_kind]
-        .filter(Boolean)
-        .join(" ");
-      const header = recordKind
-        ? `- \`${record.id}\` (${recordKind}): ${record.title}`
-        : `- \`${record.id}\`: ${record.title}`;
-      const slices = Array.isArray(record.slices) ? record.slices : [];
-      if (!slices.length) {
-        return header;
-      }
-      const sliceLines = slices
-        .map((slice) => {
-          const sliceKind = slice.work_kind ? ` (${slice.work_kind})` : "";
-          return `  - \`${record.id}#${slice.id}\`${sliceKind}: ${slice.title}`;
-        })
-        .join("\n");
-      return `${header}\n${sliceLines}`;
-    })
-    .join("\n");
 }
 
 export function renderStaticIn0001AdoptionSeedMarkdown(
   seed = getStaticIn0001AdoptionSeed()
 ) {
-  const targetSurfaces = seed.target_surfaces
-    .map(
-      (surface) =>
-        `- \`${surface.path}\` (${surface.write_mode}): ${surface.purpose}`
-    )
-    .join("\n");
-  const seedWorkRecords = renderSeedWorkRecords(
-    getStaticIn0001AdoptionSeedWorkRecords(seed)
-  );
-
-  const hasOwnedWork = seed.owned_work.length > 0;
-  const executableWorkRecordsCaveat = hasOwnedWork
-    ? `The dispatchable adoption contract is the seeded canonical work record(s) below.
-Use these records — not the Owned Work summary — as the executable units a worker
-is assigned and that dispatch readiness validates against.`
-    : `The dispatchable adoption contract is the seeded canonical work record(s) below.
-Use these records as the executable units a worker is assigned and that dispatch
-readiness validates against.`;
-  const ownedWorkSection = hasOwnedWork
-    ? `
-## Owned Work
-
-The Owned Work list is a human-readable summary of the adoption backlog. It is
-not dispatchable by itself; see Executable Work Records above for the canonical
-records that own each surface and readiness check.
-
-${seed.owned_work.map((work) => `- ${work.title}: ${work.description}`).join("\n")}
-`
-    : "";
-
-  return `# ${seed.title}
-
-${seed.summary}
-
-## Target Surfaces
-
-${targetSurfaces}
-
-## Executable Work Records
-
-${executableWorkRecordsCaveat}
-
-${seedWorkRecords}
-${ownedWorkSection}
-## Required Checks
-
-${renderBulletList(seed.required_checks)}
-
-## Non-Goals
-
-${renderBulletList(seed.non_goals)}
-
-## Idempotency
-
-- Preserve existing canonical records and repo-specific edits.
-- Create missing bootstrap surfaces only.
-- Rerun safely without duplicating seeded content.
-`;
+  return `# ${seed.title}\n\n${seed.summary}\n`;
 }
 
 export { getContractDir, loadManifest, readContractFile } from "./lib/contract.mjs";
@@ -255,12 +139,15 @@ export {
   SIDECAR_FORBIDDEN_PATH_PATTERNS,
   SIDECAR_INVALID_PATH_FIXTURES,
   SIDECAR_SOURCE_PATH_FIXTURES,
+  SIDECAR_UNINDEXED_SOURCE_PATTERNS,
   SidecarPathValidationError,
   filterSidecarSourcePaths,
   getForbiddenSidecarPathMatch,
   getSidecarDirtyIgnoredPathMatch,
+  getUnindexedSidecarSourceMatch,
   isForbiddenSidecarSourcePath,
   isSidecarDirtyIgnoredPath,
+  isUnindexedSidecarSourcePath,
   matchSidecarPathPattern,
   normalizeSidecarRepoPath,
   parseSidecarPatch,
@@ -325,6 +212,7 @@ export {
   computeWorkRecordSourceDigest,
   projectWorkRecordSourceContract,
   projectWorkRecordReviewReceiptContract,
+  projectWorkRecordPrivateScopePolicyFacts,
   projectSliceReviewReceiptContracts,
   createWorkRecordDiagnostic,
   createWorkRecordValidationResult,
@@ -361,11 +249,6 @@ export {
   loadWorkRecordByPath
 } from "./lib/work-record-store.mjs";
 export { bootstrapRepo } from "./operations/bootstrap.mjs";
-export {
-  ADOPTION_VERIFY_SCHEMA_VERSION,
-  ADOPTION_VERIFY_REQUIRED_CHECK_IDS,
-  runAdoptionVerify
-} from "./operations/adoption-verify.mjs";
 export { checkContractSync, syncContract } from "./operations/sync-contract.mjs";
 export { allocateId } from "./operations/allocate-id.mjs";
 export { createWikiRecord } from "./operations/create.mjs";
@@ -442,8 +325,49 @@ export {
   normalizeControlledContractIdentity,
   readControlledContractAssessmentArtifactFile,
   readControlledContractCarrierFile,
+  readControlledContractGeneration,
+  queryControlledContractTestProofBindings,
+  resolveControlledContractTestProofRuntimeBindings,
   writeControlledContractCarrierFile
 } from "./lib/controlled-contract-tools.mjs";
+export {
+  deriveWorkRecordTestProofBindingFacts,
+  projectWorkRecordTestProofValidation,
+  resolveAuthorizedDeclaredTestTarget,
+  validateWorkRecordTestProofBindings
+} from "./lib/work-record-test-proof-bindings.mjs";
+export {
+  CONTROLLED_CONTRACT_CARRIER_SET_ARTIFACT_ROLES,
+  CONTROLLED_CONTRACT_CARRIER_SET_MANIFEST_CODES,
+  CONTROLLED_CONTRACT_CARRIER_SET_MANIFEST_SCHEMA_VERSION,
+  ControlledContractCarrierSetManifestError,
+  canonicalControlledContractCarrierSetManifestBytes,
+  computeControlledContractCarrierSetManifestDigest,
+  constructControlledContractCarrierSetManifest,
+  controlledContractCarrierSetArtifactFilename,
+  parseControlledContractCarrierSetManifest
+} from "./lib/controlled-contract-carrier-set-manifest.mjs";
+export {
+  COMMON_PROOF_CAPTURE_CURRENTNESS_RESULTS,
+  COMMON_PROOF_CAPTURE_FAMILIES,
+  COMMON_PROOF_CAPTURE_FAMILY_IDS,
+  COMMON_PROOF_CAPTURE_LAUNCHER_FAMILY_IDS,
+  COMMON_PROOF_CAPTURE_LAUNCHER_READ_ONLY_REASON,
+  COMMON_PROOF_CAPTURE_LIFECYCLE_STATES,
+  COMMON_PROOF_CAPTURE_REPOSITORY_FAMILY_IDS,
+  COMMON_PROOF_CAPTURE_OBSERVATION_SCHEMA_VERSION,
+  COMMON_PROOF_CAPTURE_RECEIPT_IDENTITY_SCHEMA_VERSION,
+  COMMON_PROOF_CAPTURE_REFUSAL_CODES,
+  COMMON_PROOF_CAPTURE_SCHEMA_VERSION,
+  COMMON_PROOF_CAPTURE_SELECTION_SCHEMA_VERSION,
+  COMMON_PROOF_CAPTURE_STORES,
+  commonProofCaptureObservation
+} from "./lib/common-proof-capture-tools.mjs";
+export {
+  COMMON_PROOF_CAPTURE_REQUEST_KEYS,
+  commonProofCaptureOperation,
+  createCommonProofCaptureOperation
+} from "./operations/common-proof-capture.mjs";
 export {
   assessControlledContractOperation,
   buildProofPlanOperation,
@@ -451,11 +375,37 @@ export {
   describeProofPackOperation,
   discoverControlledProofIntentsOperation,
   inspectProofPackBindingsOperation,
+  projectProofPackSelectionTaskContext,
+  projectProofPackSelectionSummary,
   queryControlledVocabularyOperation,
+  rebaseControlledContractAcceptanceCoverageOperation,
+  rebaseControlledContractObligationCoverageOperation,
   readControlledContractAssessmentArtifactOperation,
   readControlledContractCarrierOperation,
   selectProofPacksOperation,
   writeControlledContractCarrierOperation
+} from "./operations/controlled-contract.mjs";
+export {
+  CONTROLLED_CONTRACT_PRIVATE_PATH_MATCH_KINDS,
+  CONTROLLED_CONTRACT_PRIVATE_PATH_ROOT,
+  CONTROLLED_CONTRACT_PRIVATE_SCOPE_FIELDS,
+  classifyControlledContractPrivatePathEntry,
+  collectControlledContractPrivateScopeIntersections,
+  collectWorkRecordControlledContractPrivateScopeFacts,
+  excludeControlledContractPrivatePaths
+} from "./lib/controlled-contract-private-path-policy.mjs";
+export { queryControlledContractPrivateScopeCensusOperation } from
+  "./operations/controlled-contract.mjs";
+export {
+  CONTROLLED_CONTRACT_AGENT_PROJECTION_BOUNDS,
+  assertControlledContractSemanticProjectionBound,
+  consumeControlledContractAssessmentSnapshot,
+  consumeControlledContractIntegrationAssessmentSnapshot,
+  controlledContractPrettyJsonBytes,
+  projectControlledContractIntegrationAssessmentPage,
+  projectControlledContractIntegrationAssessmentSummary,
+  projectControlledContractProofAssessmentPage,
+  projectControlledContractProofAssessmentSummary
 } from "./operations/controlled-contract.mjs";
 export {
   AGENT_FAQ_SCHEMA_VERSION,
@@ -468,3 +418,29 @@ export {
   filterAgentFaqEntriesByRelatedCode,
   getAgentFaq
 } from "./operations/agent-faq.mjs";
+export {
+  CRASH_DURABLE_STATE_SCHEMA_VERSION,
+  CRASH_DURABLE_FAULTS,
+  CRASH_DURABLE_EFFECTS,
+  CRASH_DURABLE_RESULTS,
+  CRASH_DURABLE_LOCK_STATES,
+  CRASH_DURABLE_LIVENESS,
+  OWNER_ENTRY_FILE,
+  CrashDurableFaultError,
+  planReplacement,
+  planLogicalAppend,
+  planLockAcquisition,
+  planRetirementClaim,
+  planTombstoneCleanup,
+  compensationFor,
+  classifyRun,
+  classifyLockState,
+  decideRelease,
+  decideRetirement,
+  runCrashDurablePlanSync,
+  runCrashDurablePlanAsync,
+  createSyncEffects,
+  createAsyncEffects,
+  inspectLockPathSync,
+  inspectLockPathAsync
+} from "./lib/crash-durable-state.mjs";

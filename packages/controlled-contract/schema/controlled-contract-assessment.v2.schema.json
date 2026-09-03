@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-chassis.invalid/controlled-contract-assessment.v2.schema.json",
+  "title": "controlled-contract-assessment.v2",
+  "type": "object",
+  "required": ["schema_version", "assessment_identity", "axis", "authority", "runtime_truth", "semantic_judgment", "result_count", "results", "compact_index", "lossless_artifact"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "controlled-contract-assessment.v2"},
+    "assessment_identity": {"$ref": "#/$defs/sha256"},
+    "axis": {"const": "test_proof"},
+    "authority": {"const": "non_authoritative"},
+    "runtime_truth": {"const": "not_assessed"},
+    "semantic_judgment": {"const": "not_performed_coordinator_owned"},
+    "result_count": {"type": "integer", "minimum": 0},
+    "results": {"type": "array", "items": {"$ref": "#/$defs/result"}},
+    "compact_index": {
+      "type": "object",
+      "required": ["schema_version", "axis", "status", "result_count", "returned_count", "omitted_count", "results", "artifact", "byte_length"],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {"const": "controlled-contract-test-proof-assessment-index.v1"},
+        "axis": {"const": "test_proof"},
+        "status": {"enum": ["proven", "not_proven", "migration_required", "not_applicable"]},
+        "result_count": {"type": "integer", "minimum": 0},
+        "returned_count": {"type": "integer", "minimum": 0},
+        "omitted_count": {"type": "integer", "minimum": 0},
+        "results": {"type": "array", "items": {"$ref": "#/$defs/index_result"}},
+        "artifact": {"type": "string", "pattern": "^controlled-contract-test-proof-assessment://sha256/[a-f0-9]{64}$"},
+        "byte_length": {"type": "integer", "minimum": 1, "maximum": 4096}
+      }
+    },
+    "lossless_artifact": {
+      "type": "object",
+      "required": ["content_reference", "content_digest", "detail_count", "details"],
+      "additionalProperties": false,
+      "properties": {
+        "content_reference": {"type": "string", "pattern": "^controlled-contract-test-proof-assessment://sha256/[a-f0-9]{64}$"},
+        "content_digest": {"$ref": "#/$defs/sha256"},
+        "detail_count": {"type": "integer", "minimum": 0},
+        "details": {"type": "array", "items": {"$ref": "#/$defs/result"}}
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "diagnostic": {
+      "type": "object",
+      "required": ["code", "field"],
+      "additionalProperties": true,
+      "properties": {
+        "code": {"type": "string", "pattern": "^test_proof_[a-z0-9_]+$"},
+        "field": {"type": "string", "pattern": "^/"}
+      }
+    },
+    "result": {
+      "type": "object",
+      "required": ["verification_id", "status", "test_proof_id", "diagnostics", "semantic_judgment"],
+      "additionalProperties": false,
+      "properties": {
+        "verification_id": {"type": "string", "minLength": 1},
+        "status": {"enum": ["valid", "invalid", "missing_binding", "ambiguous_binding"]},
+        "test_proof_id": {"type": ["string", "null"]},
+        "diagnostics": {"type": "array", "items": {"$ref": "#/$defs/diagnostic"}},
+        "semantic_judgment": {"const": "not_performed_coordinator_owned"}
+      }
+    },
+    "index_result": {
+      "type": "object",
+      "required": ["verification_id", "status", "diagnostic_count"],
+      "additionalProperties": false,
+      "properties": {
+        "verification_id": {"type": "string", "minLength": 1},
+        "status": {"enum": ["valid", "invalid", "missing_binding", "ambiguous_binding"]},
+        "diagnostic_count": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

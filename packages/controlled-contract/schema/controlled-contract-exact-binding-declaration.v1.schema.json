@@ -10,9 +10,20 @@
     "profile_version":{"type":"string","pattern":"^[0-9]+\\.[0-9]+\\.[0-9]+$"},
     "profile_digest":{"$ref":"#/$defs/sha256"},
     "requirements":{"type":"array","minItems":1,"uniqueItems":true,"items":{"$ref":"#/$defs/requirement"}},
-    "relations":{"type":"array","uniqueItems":true,"items":{"$ref":"#/$defs/relation"}}
+    "relations":{"type":"array","uniqueItems":true,"items":{"$ref":"#/$defs/relation"}},
+    "projected_evaluation_binding":{"$ref":"#/$defs/projected_evaluation_binding"}
   },
   "$defs":{
+    "projected_evaluation_binding":{
+      "description":"Optional versioned opt-in. When present, every captured-contract claim, relation, and collection the profile evaluation actually selects must be an exact node of the named deterministic projected contract graph. Absence keeps the unchanged exact-binding v1 meaning.",
+      "type":"object","additionalProperties":false,
+      "required":["binding_version","result_requirement_id","graph_projection_id"],
+      "properties":{
+        "binding_version":{"const":"controlled-contract-projected-evaluation-binding.v1"},
+        "result_requirement_id":{"$ref":"#/$defs/id"},
+        "graph_projection_id":{"$ref":"#/$defs/id"}
+      }
+    },
     "sha256":{"type":"string","pattern":"^[0-9a-f]{64}$"},
     "id":{"type":"string","pattern":"^[a-z0-9]+(?:[a-z0-9._-]*[a-z0-9])?$"},
     "coverage":{
@@ -21,8 +32,9 @@
       "properties":{
         "role":{"$ref":"#/$defs/id"},
         "coverage":{"const":"exact"},
-        "projection":{"enum":["artifact_subject","snapshot_subject","snapshot_population","projection_result_population"]},
-        "population_id":{"$ref":"#/$defs/id"}
+        "projection":{"enum":["artifact_subject","snapshot_subject","snapshot_population","projection_result_population","projection_result_reference"]},
+        "population_id":{"$ref":"#/$defs/id"},
+        "projection_id":{"$ref":"#/$defs/id"}
       }
     },
     "requirement":{
@@ -41,7 +53,7 @@
       "required":["relation_id","operator","requirement_ids"],
       "properties":{
         "relation_id":{"$ref":"#/$defs/id"},
-        "operator":{"enum":["same_content_sha256","distinct_capture_id","distinct_source_descriptor"]},
+        "operator":{"enum":["same_content_sha256","distinct_content_sha256","distinct_capture_id","distinct_source_descriptor"]},
         "requirement_ids":{"type":"array","minItems":2,"uniqueItems":true,"items":{"$ref":"#/$defs/id"}}
       }
     },

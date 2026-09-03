@@ -36,7 +36,14 @@ export {
   resolveCanonicalSliceReviewUnit,
   resolveCanonicalSliceIntegrationUnit,
   resolveFrozenSliceReviewReceiptContract,
-  verifyFrozenReceiptObjectsAgainstObjectStore
+  verifyFrozenReceiptObjectsAgainstObjectStore,
+
+  SliceReviewAuthorityError,
+  SLICE_REVIEW_AUTHORITY_CODES,
+  SLICE_REVIEW_AUTHORITY_CODE_GROUPS,
+  SLICE_REVIEW_AUTHORITY_DETAIL_KEYS,
+  SLICE_REVIEW_AUTHORITY_GROUPS,
+  SLICE_REVIEW_AUTHORITY_REASONS
 } from "./backend-slice-review-authority.mjs";
 
 export {

@@ -1,18 +1,18 @@
 import { PROOF_PACK_ADEQUACY_RUN_VERSION } from "../support/proof-pack-adequacy-constants.mjs";
-import { evaluateVerificationProfileV034 } from "../../lib/verification-profile-v034.mjs";
+import { evaluateStableProofPackFixtureV1 } from "../support/stable-v1-proof-pack-runtime.mjs";
 import { buildBoundedIntervalNonmutationFixture, findClaim, findProposition, ref }
   from "./bounded-interval-nonmutation-v1-fixture.mjs";
 import { DOMAINS, MUTATIONS, executeBoundedIntervalNonmutation,
   boundedIntervalNonmutationGuaranteeSatisfied } from "./bounded-interval-nonmutation-v1-harness.mjs";
 const BOUNDED_INTERVAL_NONMUTATION_V1_PROFILE_DIGEST =
-  "2e6bf0d0f1c6235e3fa4b82d4999125fc8d7f55450f5c94d18a2eb6e7a9b40fc";
+  "8c6a652caed365b0e92292de52fa932fc6cd52b2d7de03c8c15758f616d8689b";
 const BOUNDED_INTERVAL_NONMUTATION_V1_GUARANTEE_DIGEST =
   "939c6810e54a1ca2b6174e13bdd12bebec13f923159f57cd7ee6c752b4e42fee";
 const EXCLUSIONS = ["actions-outside-the-declared-interval", "delete-or-create-unless-represented-as-write-or-mutation",
   "dishonest-identities-populations-intervals-or-grounding", "real-time-clock-trace-or-evidence-truth",
   "trace-omissions-or-unreported-transient-activity", "undiscovered-actors-or-protected-resources"];
 const evaluateFixture = ({ contract, input, evaluation_input, profile }) =>
-  evaluateVerificationProfileV034({ contract, profile, evaluation_input: evaluation_input ?? input }).satisfaction;
+  evaluateStableProofPackFixtureV1({ contract, profile, evaluation_input: evaluation_input ?? input }).satisfaction;
 const baselineFixture = (profile, options = {}) => buildBoundedIntervalNonmutationFixture({ profile, ...options });
 
 function positiveControls(profile) { return Object.keys(DOMAINS).map((domain) => {

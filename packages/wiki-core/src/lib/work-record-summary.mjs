@@ -4,6 +4,17 @@ import {
   calculateSliceAgentNotesBytes,
   shouldSuppressTrackerSliceDetail
 } from "./work-record-projection-helpers.mjs";
+import {
+  projectSelectedWorkRecordUnit,
+  selectedUnitProjectionProbe
+} from "./work-record-selected-unit-projection.mjs";
+import {
+  evaluateWorkRecordParentLifecycleContract
+} from "./work-record-parent-lifecycle-contract.mjs";
+import {
+  projectWorkRecordTestProofValidation,
+  renderWorkRecordValidationEntry
+} from "./work-record-test-proof-bindings.mjs";
 
 export const WORK_RECORD_SUMMARY_SCHEMA_VERSION = "work-record-summary.v1";
 
@@ -19,7 +30,7 @@ function cloneJson(value) {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 }
 
-function normalizeStringList(value) {
+export function normalizeStringList(value) {
   return Array.isArray(value)
     ? value
         .filter((entry) => typeof entry === "string" && entry.trim().length > 0)
@@ -31,9 +42,14 @@ function summarizeAcceptance(acceptance) {
   if (!isObject(acceptance)) {
     return { criteria: [], validation: [] };
   }
+  const validationProjection = projectWorkRecordTestProofValidation({
+    selectedUnit: { acceptance }
+  });
   return {
     criteria: normalizeStringList(acceptance.criteria),
-    validation: normalizeStringList(acceptance.validation)
+    validation: validationProjection.status === "valid"
+      ? cloneJson(validationProjection.validation_entries)
+      : []
   };
 }
 
@@ -49,6 +65,23 @@ function summarizeDispatchIntent(dispatchIntent) {
 
 function sliceAgentNotes(slice) {
   return cloneJson(slice?.sections?.agent_notes ?? null);
+}
+
+const REVIEW_PURPOSE_PROBE_FIELDS = Object.freeze(["work_kind", "review_purpose"]);
+
+function sliceReviewPurpose(slice) {
+  const projected = projectSelectedWorkRecordUnit(
+    selectedUnitProjectionProbe(slice, REVIEW_PURPOSE_PROBE_FIELDS)
+  );
+  return projected && Object.hasOwn(projected, "review_purpose")
+    ? projected.review_purpose
+    : null;
+}
+
+function assignForwardedUnitFields(summary, slice) {
+  const reviewPurpose = sliceReviewPurpose(slice);
+  if (reviewPurpose !== null) summary.review_purpose = reviewPurpose;
+  return summary;
 }
 
 function summarizeSlice(slice, { includeAgentNotes = false } = {}) {
@@ -68,6 +101,7 @@ function summarizeSlice(slice, { includeAgentNotes = false } = {}) {
     acceptance: summarizeAcceptance(slice.acceptance),
     dispatch_intent: summarizeDispatchIntent(slice.dispatch_intent)
   };
+  assignForwardedUnitFields(summary, slice);
   if (includeAgentNotes) {
     summary.agent_notes = sliceAgentNotes(slice);
   }
@@ -77,7 +111,7 @@ function summarizeSlice(slice, { includeAgentNotes = false } = {}) {
 function summarizeSliceCompact(slice, record, dependencyResolver) {
   if (!isObject(slice)) return null;
   const blockers = collectSliceBlockers(record, slice, dependencyResolver);
-  return {
+  return assignForwardedUnitFields({
     id: slice.id ?? null,
     status: slice.status ?? null,
     work_kind: slice.work_kind ?? null,
@@ -91,7 +125,7 @@ function summarizeSliceCompact(slice, record, dependencyResolver) {
       workKind: slice.work_kind ?? null,
       unit: { kind: "slice" }
     })
-  };
+  }, slice);
 }
 
 function isClosedStatus(status) {
@@ -112,14 +146,35 @@ function pickReviewState(record, sliceSummaries) {
   const anyOpen = reviewSlices.some((entry) => entry.status && !isClosedStatus(entry.status));
   return {
     required: true,
-    review_slices: reviewSlices.map((entry) => ({
-      id: entry.id,
-      status: entry.status,
-      owner: entry.owner
-    })),
+    review_slices: reviewSlices.map((entry) => {
+      const row = { id: entry.id, status: entry.status, owner: entry.owner };
+
+      if (Object.hasOwn(entry, "review_purpose")) row.review_purpose = entry.review_purpose;
+      return row;
+    }),
     status: allDone ? "complete" : anyOpen ? "open" : "unknown",
     blocked: !allDone
   };
+}
+
+function hasImplementationWork(record) {
+  if (record.work_kind === "implementation") return true;
+  return Array.isArray(record.slices) &&
+    record.slices.some((slice) => isObject(slice) && slice.work_kind === "implementation");
+}
+
+export function summarizeTerminalReviewDesignation(record) {
+  const { terminal_review_designation: designation } =
+    evaluateWorkRecordParentLifecycleContract(record);
+  const eligible_count = designation.eligible_count;
+
+  if (!isObject(record) || isClosedStatus(record.status) || !hasImplementationWork(record)) {
+    return { state: "not_applicable", eligible_count };
+  }
+  if (eligible_count === 1) {
+    return { state: "designated", eligible_count, unit_id: designation.unit.id ?? null };
+  }
+  return { state: eligible_count === 0 ? "missing" : "ambiguous", eligible_count };
 }
 
 function boundedStringList(value, limit = COMPACT_COLLECTION_LIMIT) {
@@ -398,6 +453,7 @@ function buildFullSummary(
     validation: summarizeAcceptance(record.acceptance).validation,
     owners: collectOwners(record, sliceSummaries),
     review_state: pickReviewState(record, sliceSummaries),
+    terminal_review_designation: summarizeTerminalReviewDesignation(record),
     blockers: collectBlockers(record, { dependencyResolver }),
     closure: cloneJson(record.sections?.closure ?? null)
   };
@@ -433,6 +489,253 @@ function summarizeSliceStatusCounts(sliceSummaries) {
   return counts;
 }
 
+export const WORK_RECORD_READ_TOOLS = Object.freeze({
+  SUMMARY: "workspace_work_record_summary",
+  GET_RECORD: "workspace_get_record",
+  READ_PAGE: "workspace_read_page"
+});
+
+export const WORK_RECORD_DETAIL_ROUTES = Object.freeze({
+  UNIT: "unit",
+  UNIT_AGENT_NOTES: "unit_agent_notes",
+  SELECTED_SLICE: "selected_slice",
+  SELECTED_RECORD: "selected_record",
+  SLICE_ENUMERATION: "slice_enumeration"
+});
+
+const DETAIL_ROUTE_ORDER = Object.freeze([
+  WORK_RECORD_DETAIL_ROUTES.UNIT,
+  WORK_RECORD_DETAIL_ROUTES.UNIT_AGENT_NOTES,
+  WORK_RECORD_DETAIL_ROUTES.SELECTED_SLICE,
+  WORK_RECORD_DETAIL_ROUTES.SELECTED_RECORD,
+  WORK_RECORD_DETAIL_ROUTES.SLICE_ENUMERATION
+]);
+
+const SLICE_ENUMERATION_SELECTOR_ARGUMENTS = Object.freeze([
+  "slice_offset",
+  "slice_limit",
+  "slice_status",
+  "expected_source_digest"
+]);
+
+export const WORK_RECORD_COMPACT_SMALL_RESPONSE_MAX_BYTES = 8192;
+export const WORK_RECORD_SLICE_PAGE_DEFAULT_LIMIT = 25;
+export const WORK_RECORD_SLICE_PAGE_MAX_LIMIT = 50;
+
+const DETAIL_ROUTE_SUPPORT = Object.freeze({
+  [WORK_RECORD_READ_TOOLS.SUMMARY]: Object.freeze({
+    [WORK_RECORD_DETAIL_ROUTES.UNIT]: Object.freeze({
+      resource_kinds: ["work_record"],
+      reaches: "slices",
+      selector_arguments: ["unit"],
+      primary_selector: true
+    }),
+
+    [WORK_RECORD_DETAIL_ROUTES.UNIT_AGENT_NOTES]: Object.freeze({
+      resource_kinds: ["work_record"],
+      reaches: "agent_notes",
+      selector_arguments: ["unit"],
+      primary_selector: true
+    }),
+    [WORK_RECORD_DETAIL_ROUTES.SELECTED_RECORD]: Object.freeze({
+      resource_kinds: ["work_record"],
+      reaches: "record_fields",
+      selector_arguments: ["selected_record"],
+      primary_selector: false
+    }),
+    [WORK_RECORD_DETAIL_ROUTES.SLICE_ENUMERATION]: Object.freeze({
+      resource_kinds: ["work_record"],
+      reaches: "slices",
+      selector_arguments: SLICE_ENUMERATION_SELECTOR_ARGUMENTS,
+      primary_selector: false
+    })
+  }),
+  [WORK_RECORD_READ_TOOLS.GET_RECORD]: Object.freeze({
+    [WORK_RECORD_DETAIL_ROUTES.SELECTED_SLICE]: Object.freeze({
+      resource_kinds: ["work_record"],
+      reaches: "slices",
+      selector_arguments: ["selected_slice"],
+      primary_selector: false
+    }),
+    [WORK_RECORD_DETAIL_ROUTES.SLICE_ENUMERATION]: Object.freeze({
+      resource_kinds: ["work_record"],
+      reaches: "slices",
+      selector_arguments: SLICE_ENUMERATION_SELECTOR_ARGUMENTS,
+      primary_selector: false
+    })
+  }),
+  [WORK_RECORD_READ_TOOLS.READ_PAGE]: Object.freeze({
+    [WORK_RECORD_DETAIL_ROUTES.SELECTED_SLICE]: Object.freeze({
+      resource_kinds: ["work_record", "graph_evidence"],
+      reaches: "slices",
+      selector_arguments: ["selected_slice"],
+      primary_selector: false
+    }),
+
+    [WORK_RECORD_DETAIL_ROUTES.SELECTED_RECORD]: Object.freeze({
+      resource_kinds: ["graph_evidence"],
+      reaches: "record_entry",
+      selector_arguments: ["selected_record"],
+      primary_selector: false
+    })
+  })
+});
+
+export function workRecordDetailRouteSupported(tool, route) {
+  return Boolean(DETAIL_ROUTE_SUPPORT[tool]?.[route]);
+}
+
+export function workRecordDetailSelectorSupported(tool, selectorArgument) {
+  return Object.values(DETAIL_ROUTE_SUPPORT[tool] ?? {}).some((entry) =>
+    entry.selector_arguments.includes(selectorArgument));
+}
+
+export function workRecordDetailSelectorArguments(tool) {
+  const args = [];
+  for (const route of DETAIL_ROUTE_ORDER) {
+    const entry = DETAIL_ROUTE_SUPPORT[tool]?.[route];
+    if (!entry || entry.primary_selector) continue;
+    for (const argument of entry.selector_arguments) {
+      if (!args.includes(argument)) args.push(argument);
+    }
+  }
+  return args;
+}
+
+export function workRecordDetailRouteIsValid({ tool, route, resource } = {}) {
+  const entry = DETAIL_ROUTE_SUPPORT[tool]?.[route];
+  if (!entry) return false;
+  const kind = resource?.kind ?? "work_record";
+  if (!entry.resource_kinds.includes(kind)) return false;
+  const withheld = resource?.withheld ?? {};
+  const reachable = withheld[entry.reaches];
+  return Number.isInteger(reachable) && reachable > 0;
+}
+
+export function workRecordDetailRoutesFor({ tool, resource } = {}) {
+  return DETAIL_ROUTE_ORDER.filter((route) =>
+    workRecordDetailRouteIsValid({ tool, route, resource }));
+}
+
+export const WORK_RECORD_COMPACT_READ_OMISSIONS_SCHEMA_VERSION =
+  "work-record-compact-read-omissions.v1";
+
+export const WORK_RECORD_LEVEL_CONTRACT_FIELDS = Object.freeze([
+  Object.freeze({
+    name: "write_scope",
+    bucket: "write_scope",
+    disclosure: "write_scope",
+    authored: (record) => normalizeStringList(record?.write_scope)
+  }),
+  Object.freeze({
+    name: "acceptance",
+    bucket: "criteria",
+    disclosure: "acceptance_criteria",
+    authored: (record) => normalizeStringList(record?.acceptance?.criteria)
+  }),
+  Object.freeze({
+    name: "validation",
+    bucket: "validation",
+    disclosure: "validation",
+    authored: (record) => summarizeAcceptance(record?.acceptance).validation
+  })
+]);
+
+export function workRecordLevelContractFieldsPresent(record) {
+  if (!isObject(record)) return [...WORK_RECORD_LEVEL_CONTRACT_FIELDS];
+  return WORK_RECORD_LEVEL_CONTRACT_FIELDS.filter(
+    (field) => field.authored(record).length > 0
+  );
+}
+
+function omissionFromSlices(slices, returnedIds) {
+  const omitted = slices.filter(
+    (slice) => !(typeof slice.id === "string" && returnedIds.has(slice.id))
+  );
+  return {
+    total: slices.length,
+    returned: slices.length - omitted.length,
+    omitted_count: omitted.length,
+    omitted: omitted.map((slice) => ({
+      id: slice.id ?? null,
+      status: slice.status ?? null,
+      work_kind: slice.work_kind ?? null
+    })),
+    by_status: summarizeSliceStatusCounts(omitted)
+  };
+}
+
+function omissionFromObservedCounts(observedTotal, returnedCount) {
+  const total = Number.isInteger(observedTotal) && observedTotal >= 0
+    ? observedTotal
+    : returnedCount;
+  return {
+    total,
+    returned: Math.min(returnedCount, total),
+    omitted_count: Math.max(0, total - returnedCount),
+    omitted: [],
+    by_status: summarizeSliceStatusCounts([])
+  };
+}
+
+export function projectWorkRecordCompactOmissions({
+  record = null,
+  returnedSliceIds = [],
+  returnedReviewSliceIds = [],
+  returnedSliceRows = [],
+  returnedRecordFields = [],
+  observedSliceTotal = null,
+  observedReviewSliceTotal = null
+} = {}) {
+  const recordSlices = isObject(record) && Array.isArray(record.slices)
+    ? record.slices.filter((entry) => isObject(entry))
+    : null;
+  const identitiesAvailable = recordSlices !== null;
+
+  const returnedSlices = new Set(normalizeStringList(returnedSliceIds));
+  const returnedReviewSlices = new Set(normalizeStringList(returnedReviewSliceIds));
+
+  const slices = identitiesAvailable
+    ? omissionFromSlices(recordSlices, returnedSlices)
+    : omissionFromObservedCounts(observedSliceTotal, returnedSlices.size);
+  const reviewSlices = identitiesAvailable
+    ? omissionFromSlices(
+        recordSlices.filter((slice) => slice.work_kind === "review"),
+        returnedReviewSlices
+      )
+    : omissionFromObservedCounts(observedReviewSliceTotal, returnedReviewSlices.size);
+
+  const rows = (Array.isArray(returnedSliceRows) ? returnedSliceRows : []).filter(isObject);
+  const withheldNotes = rows.filter(
+    (row) => Number(row.agent_notes_bytes ?? 0) > 0 && !Object.hasOwn(row, "agent_notes")
+  );
+
+  const returnedFieldNames = new Set(normalizeStringList(returnedRecordFields));
+  const recordFields = workRecordLevelContractFieldsPresent(record);
+  const omittedRecordFields = recordFields
+    .filter((field) => !returnedFieldNames.has(field.name))
+    .map((field) => field.name);
+
+  return {
+    schema_version: WORK_RECORD_COMPACT_READ_OMISSIONS_SCHEMA_VERSION,
+    identities_available: identitiesAvailable,
+    slices,
+    review_slices: reviewSlices,
+    agent_notes: {
+      omitted_count: withheldNotes.length,
+      omitted: withheldNotes
+        .map((row) => (typeof row.id === "string" ? row.id : null))
+        .filter((id) => id !== null)
+    },
+    record_fields: {
+      total: recordFields.length,
+      returned: recordFields.length - omittedRecordFields.length,
+      omitted_count: omittedRecordFields.length,
+      omitted: omittedRecordFields
+    }
+  };
+}
+
 function buildCompactSliceProjection(record, slices, dependencyResolver) {
   const isTracker = record.work_kind === "tracker";
   const includedSlices = isTracker
@@ -450,16 +753,33 @@ function buildCompactSliceProjection(record, slices, dependencyResolver) {
   };
 
   if (isTracker) {
-    const omittedSlices = slices.filter((slice) => !returnedSlices.includes(slice));
+
+    const omissions = projectWorkRecordCompactOmissions({
+      record: { slices },
+      returnedSliceIds: returnedSlices.map((slice) => slice.id)
+    });
     projection.slice_detail_omissions = {
       policy: "tracker_wk_level_compact_default",
       reason: includedSlices.length > returnedSlices.length
         ? "suppressed_by_status_or_limit"
         : "suppressed_by_status",
       statuses: [...TRACKER_SLICE_DETAIL_SUPPRESSED_STATUSES],
-      count: omittedSlices.length,
-      by_status: summarizeSliceStatusCounts(omittedSlices),
-      detail_available_via: ["selected_slice", "include_full_summary"]
+      count: omissions.slices.omitted_count,
+      by_status: omissions.slices.by_status,
+
+      detail_available_via: workRecordDetailRoutesFor({
+        tool: WORK_RECORD_READ_TOOLS.SUMMARY,
+        resource: {
+          kind: "work_record",
+          withheld: {
+            slices: omissions.slices.omitted_count,
+            review_slices: 0,
+            agent_notes: 0,
+            record_fields: 0,
+            record_entry: 0
+          }
+        }
+      })
     };
   }
 
@@ -497,14 +817,18 @@ function buildCompactSummary(
   const slice = unit?.kind === "slice" ? findSliceById(record, unit.slice_id) : null;
   const reviewStateFull = pickReviewState(record, sliceSummaries);
   const blockersFull = collectBlockers(record, { dependencyResolver });
-  const validation = normalizeStringList(slice?.acceptance?.validation ?? record.acceptance?.validation);
+  const validation = summarizeAcceptance(
+    slice?.acceptance ?? record.acceptance
+  ).validation;
+  const validationInstructions = validation.map((entry) =>
+    renderWorkRecordValidationEntry(entry));
   const nextActionBlockers = slice
     ? collectSliceBlockers(record, slice, dependencyResolver)
     : blockersFull;
   const nextAction = summarizeNextAction({
     blockers: nextActionBlockers,
     reviewState: reviewStateFull,
-    validation,
+    validation: validationInstructions,
     status: slice?.status ?? record.status ?? null,
     workKind: slice?.work_kind ?? record.work_kind ?? null,
     unit
@@ -527,6 +851,7 @@ function buildCompactSummary(
     slices_returned: compactSliceProjection.returned,
     slices_truncated: compactSliceProjection.truncated,
     review_state: reviewState,
+    terminal_review_designation: summarizeTerminalReviewDesignation(record),
     blockers,
     blockers_total: blockersFull.length,
     blockers_returned: blockers.length,
@@ -545,7 +870,7 @@ function buildCompactSummary(
       return summary;
     }
     if (unit.kind === "slice" && slice) {
-      summary.selected_unit_summary = {
+      summary.selected_unit_summary = assignForwardedUnitFields({
         id: slice.id ?? null,
         title: slice.title ?? null,
         work_kind: slice.work_kind ?? null,
@@ -560,7 +885,7 @@ function buildCompactSummary(
         validation,
         validation_count: validation.length,
         next_action: nextAction
-      };
+      }, slice);
     } else {
       summary.selected_unit_summary = {
         validation_count: validation.length,

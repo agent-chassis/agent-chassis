@@ -1,250 +1,281 @@
 # AgentChassis
 
-Coding agents rely on private, ephemeral context. As sessions grow, that
-context shifts, compresses, and degrades.
+**AgentChassis wraps an engineering process around the coding agents you already
+use.** You keep Codex or Claude. What changes is everything around them: each
+unit of work is written down as a contract *before* an agent implements it —
+what the work is, which files it may read, which files it may change, what
+success means, and how to check it — and a separate agent reviews the result
+against that same contract.
 
-The code survives.
+Those contracts, the review findings, and the record of what actually ran stay
+in your repository after the agent sessions end. Work that spans hours, many
+files, or several agents no longer depends on one chat session remembering the
+plan.
 
-The reasoning does not.
+AgentChassis is not a coding agent and ships no model of its own.
 
-AgentChassis starts with one rule:
+## Who it's for
+
+Engineers and teams already using Codex or Claude for nontrivial repository
+work, who have hit the point where longer-running, multi-step, or parallel agent
+work needs more coordination than a prompt and an unrestricted checkout.
+
+It is deliberately not aimed at the five-minute, single-file, closely watched
+edit. A single-shot coding assistant handles that fine, and AgentChassis would
+only add setup. It earns that setup when work runs long, touches many files,
+runs unattended, or runs several agents at once.
+
+## What changes compared with using Codex or Claude directly
+
+Four things move out of the model session and into the repository: **intent**
+becomes durable, **scope** becomes declared, **implementation and review**
+become separate roles, and **coordination evidence** is retained.
+
+| Using a coding agent directly | With AgentChassis |
+| --- | --- |
+| Intent lives in the prompt and the evolving chat context | Intent is written into a repository-local contract before implementation |
+| One session plans, implements, and decides it is done | Defining, implementing, and reviewing are separate roles with different authority |
+| The agent works with whatever repository access its client gives it | Each unit declares what it may read and change; managed runs can be confined to that on a supported backend |
+| A reviewer has to reconstruct what was meant | Review compares the exact change against the contract that predates it |
+| Resuming means rebuilding lost context | The contract, findings, and run record outlive the session |
+| Parallel work is coordinated informally | Declared scopes divide the files up front, and launcher-managed runs on a supported backend hold agents to that division |
+
+Declared write scopes are how concurrent work is divided: each unit states which
+files it owns before anything runs. On its own that is coordination, and it
+binds only agents that respect it. It becomes enforcement on a
+launcher-dispatched managed run with a supported containment backend, where an
+agent cannot write outside its declared scope at all. Neither the coordination
+nor the enforcement makes two independent changes semantically compatible with
+each other — that is still a design and review question.
+
+## Example: one bounded change
+
+> **Illustrative only.** The walkthrough below is written by hand to show the
+> shape of the workflow. No demo repository, fixture, or recording ships with
+> AgentChassis today.
+
+Say the request is:
+
+> Add request-body validation to `POST /users`, with tests, without touching the
+> other routes.
+
+**1. The request becomes a written contract.** Before any implementation agent
+starts, the work is written down. In plain terms:
+
+```text
+Work        Add request-body validation to POST /users
+
+May read    src/users/**
+            tests/users/**
+
+May change  src/users/validation.ts
+            tests/users/validation.test.ts
+
+Success     - a request with an invalid email returns 400
+            - requests that were valid before still succeed
+            - no route other than POST /users changes behavior
+
+Validate    run the declared user-route test target
+```
+
+That is a readable rendering. On disk the unit is a structured record with a
+schema, an allocated identifier, and machine-checkable fields; see
+[docs/work-record-ontology.md](docs/work-record-ontology.md) for the real shape.
+
+**2. A readiness check runs before any model does.** AgentChassis checks the
+unit structurally and against configured policy: is there a declared write
+scope, are there acceptance criteria, is there something to validate against. A
+malformed unit is refused deterministically, before an implementation model is
+launched. This establishes structural and policy readiness only — it is not a
+judgment that the task is correct, safe, complete, or permitted to land.
+
+**3. A separate agent implements it.** The unit is the implementation agent's
+contract; alongside it the agent receives its role instructions and the
+repository context the unit declares. It does not inherit the conversation that
+produced the unit, and it is given no repository context the unit did not
+declare. On a launcher-dispatched managed run with a supported
+containment backend active — Linux `bwrap` today — its repository visibility is
+exactly the declared read and write paths, and it can write only the declared
+write scope. Where no supported backend is in use, the run is recorded as
+unenforced rather than represented as confined.
+
+**4. A separate agent reviews the exact result.** The reviewer inspects the
+committed change against that same contract and returns findings, ordered by
+severity. It is a findings-only role: it does not edit the change and it does
+not approve it. Findings are advisory evidence. Integrating the change,
+admission through the hosted control plane, and publishing a pull request are
+separate authorities, decided outside the review.
+
+**5. The evidence stays in the repository.** The contract, its closure record,
+the review findings, and the provenance of what ran — including whether the run
+was enforced and on which backend — remain after every agent session has ended.
+
+## The rule underneath it
 
 **The agent that defines the work cannot implement it.**
 
-What this rule forces:
+Once the loop above is clear, so is the reason for the rule. If one agent may
+define the work, do the work, and decide the work is finished, then scope,
+success, and completion are all just that agent's opinion at the end of a long
+session. Splitting those authorities is what makes the contract worth writing
+and the review worth reading.
 
-```mermaid
-flowchart TD
-    A["Plans become durable contracts"]
-    B["Scope becomes explicit"]
-    C["Success is defined before implementation"]
-    D["Parallel execution becomes a graph problem"]
-    E["Review measures code against intent"]
-    F["Decisions, provenance, and history accumulate by default"]
-    A --> B --> C --> D --> E --> F
-```
+## Current status
 
-**AgentChassis turns agentic coding into agentic engineering.**
+AgentChassis is on the 0.6.x line and its interfaces are still moving.
 
-## What it is
+- **License:** source-available under the Elastic License 2.0 — see
+  [LICENSE](LICENSE).
+- **Distribution:** the `@agent-chassis/*` packages are published to the public
+  npm registry and install with a plain `npm install` — no `.npmrc`, scope
+  mapping, or authentication.
+- **Runtime:** Node.js 22 or newer.
+- **Agent families:** Codex and Claude are the documented supported launcher
+  families.
+- **Filesystem containment:** Linux `bwrap` is the current backend, and
+  containment applies to launcher-dispatched managed worker, reviewer, and
+  redteam runs. Other execution is recorded as unenforced, never as confined.
+- **Hosted governance:** the Chassis Control Engine is in private beta. Local
+  use never requires it.
+- **Migration tooling:** contract versioning is defined, but explicit migration
+  commands are not implemented yet — see
+  [docs/versioning.md](docs/versioning.md).
 
-AgentChassis is a system you install into your own repository. It splits agent
-coding work into three roles that are not allowed to overlap:
+## Install
 
-- an **orchestrator** plans the work and breaks it into small, scoped tasks, but
-  never writes product code itself;
-- **workers** each implement one task, confined to the files that task is
-  allowed to change;
-- **reviewers** check each change against what its task said it should do.
-
-Every task is a written **work record** — its contract. The record states the
-scope, the acceptance criteria, and how to validate the result, all before any
-code is written. Nothing reaches your codebase without one.
-
-Because implementation has to pass through this loop, your repository builds up
-an engineering record — what was planned, why, who did it, and whether it
-passed — as an ordinary byproduct of getting work done. That constraint is the
-product: it forces work to become explicit before it runs, reviewable before it
-closes, and durable after the session ends.
-
-## Why this exists
-
-Long-running AI coding agents drift away from declared scope on multi-file work
-([Evaluating Goal Drift in Language Model Agents, 2025](https://arxiv.org/abs/2505.02709)),
-degrade as context grows
-([Coding Agents are Effective Long-Context Processors, 2026](https://arxiv.org/abs/2603.20432)),
-and still resolve fewer than half of long-horizon software-engineering tasks
-([SWE-Bench Pro, 2025](https://arxiv.org/abs/2509.16941)).
-
-Better prompts do not close that gap. Agent execution is non-deterministic and
-path-dependent, so what an agent actually does at runtime cannot be fully
-governed at design time by prompts or static access controls. Runtime-governance
-research points to the same answer: enforce constraints on the execution path
-itself, with pre-action gates and runtime monitors, rather than relying on
-instructions or after-the-fact checks
-([Runtime Governance for AI Agents: Policies on Paths, 2026](https://arxiv.org/abs/2603.16586);
-[MI9: Runtime Governance for Agentic AI, 2025](https://arxiv.org/abs/2508.03858);
-[SARC: Governance-by-Architecture, 2026](https://arxiv.org/abs/2605.07728)).
-
-AgentChassis applies that principle to coding work: every task has a written,
-canonical contract; execution is contained to the declared scope; and the result
-is reviewed against the contract. If a task has no well-formed contract, it is
-rejected before any code is written. Unsupervised execution needs a boundary
-regardless of how capable the model is.
-
-## What it gives you
-
-- **Interrupted work resumes cleanly.** A stalled or failed task carries its full
-  definition in its record, so another agent — or you — can pick it up later
-  without rebuilding lost context from a chat log.
-- **Parallel agents don't collide.** Because every task declares which files it
-  may touch, several agents can work at once on non-overlapping parts of the
-  codebase.
-- **Reviews are grounded, not guesswork.** A reviewer checks the change against
-  the task's written acceptance criteria instead of inferring what was intended.
-- **Malformed work is refused early.** A task missing scope, acceptance, or
-  validation is rejected before any model runs — a fast, deterministic check, not
-  a judgment call.
-- **It isn't tied to one AI vendor.** The same setup drives multiple agent tools
-  (Codex, Claude, and more), so you're not locked to a single model or provider.
-- **Agents get a structured interface.** They work through typed tools — an MCP
-  server with built-in discovery — rather than guessing at your files and
-  conventions. The command line is an operator fallback, not the primary path.
-
-## Free and hosted tiers
-
-**Free, local, and complete.** The source-available tier runs entirely on your
-machine — no account, API key, or network service. You get the full working
-system: the work-record contracts, the check that rejects a malformed task
-before any model runs, local sandbox enforcement of each task's file scope (on
-Linux, via `bwrap`), review records tied to the exact change they reviewed, a
-graph of your code for impact analysis, an MCP server your agents call directly,
-and a launcher for orchestrators. Install one public npm package (no `.npmrc` or
-auth required), run setup, build the code index, and point an orchestrator at
-your repo.
-
-**Hosted governance (private beta).** The **Chassis Control Engine (CCE)** adds
-org-level policy that lives outside any single repo: it decides whether a given
-piece of agent work is allowed to run at all, and returns a signed attestation
-when it is. Teams that need central admission and audit across many repos use it;
-solo and local use never require it. Request access:
-https://forms.gle/YBJc1TnxoEPea3kx6
-
-## Enforcement posture
-
-"Enforced" means AgentChassis actively contained a run to its declared file
-scope, rather than merely asking the agent to stay inside it. Whether that
-happens depends on two separate questions:
-
-- **Can it enforce?** Backend availability decides whether AgentChassis can
-  enforce scope locally. When a supported isolation backend (Linux `bwrap`
-  today) is active, worker, reviewer, and redteam runs are contained to their
-  declared write scope and recorded as `enforced=true`.
-- **Must it enforce?** A configured Chassis Control Engine (CCE) key decides
-  whether AgentChassis is allowed to continue when enforcement is unavailable.
-  The CCE key does not add sandboxing capability — it selects the governed
-  posture. Local/free use never requires a CCE key.
-
-| Mode | No usable backend | Backend available |
-| --- | --- | --- |
-| **No CCE key** | Best-effort local execution: dispatch may run **unenforced**, recorded loudly as `enforced=false`, `isolation_backend=none`. | Enforced; `enforced=true`. |
-| **CCE key configured** | Enforcement is required, so dispatch **refuses** unless the operator sets the explicit unsandboxed opt-out; either way provenance records `enforced=false`. | Enforced; `enforced=true`. |
-
-Every run records whether it was enforced and which backend, if any, was used.
-Free/local mode never claims containment it does not have, and a CCE-key run
-never silently degrades to unenforced. This is structured admissibility and
-honest provenance, not a guarantee that a hostile or compromised agent is
-harmless — see [docs/enforcement-model.md](docs/enforcement-model.md) for the
-threat-model limits.
-
-## Install and set up
-
-First-time setup starts with the package install, then follows the detected
-setup option printed by npm. For command details, see
-[docs/quickstart.md](docs/quickstart.md).
-
-### 1. Install AgentChassis
-
-From your repo root:
-
-Installed `@agent-chassis/*` package usage supports Node.js 22 or newer. Run the
-install, bootstrap, wiki MCP, and agent-launch commands with a Node 22+ runtime.
+You need a Git repository, Node.js 22 or newer, and a local Codex or Claude
+install. This fresh-install path assumes the repository has no existing root
+agent guidance or AgentChassis adoption state; existing-repository adoption is
+separate. From your repo root:
 
 ```bash
 npm install --save-dev @agent-chassis/core
+npx agent-chassis setup
 ```
 
 `@agent-chassis/core` is the normal public install package. It provides the
 `wiki` binary for bootstrap, validation, lint, generated views, and the code
-index; the `wiki-mcp` stdio MCP server agents call for structured repo/wiki
-operations; and the `agent-launch` human/operator entrypoint.
+index; the `wiki-mcp` stdio MCP server that agents call for structured
+repository and coordination operations; and the `agent-launch` operator
+entrypoint.
 
-The package postinstall hook performs best-effort detection for supported local
-agent CLIs (`claude` and `codex`) and prints only the matching setup choices. It
-is guidance only: it does not run bootstrap, copy templates, create or modify
-`AGENTS.md` or `agent-launch.toml`, initialize launcher config, build the code
-index, launch an orchestrator, alter repo or client configuration, or fail
-installation when detection fails.
-
-### 2. Run first-time setup
-
-Run the setup command from your repo root:
+The package install only detects supported local agent CLIs and prints guidance;
+it does not mutate repository or client configuration. `setup` runs bootstrap,
+asks for or detects the local agent family, copies a launcher config template
+when none is present, initializes launcher config, and prints the remaining
+commands. It does not launch anything or create, read, modify, or delete root
+`AGENTS.md` or `CLAUDE.md`. Run its two operator-owned guidance commands before
+staging:
 
 ```sh
-npx agent-chassis setup
+cat wiki/templates/AGENTS.md.boilerplate.md >> AGENTS.md
+printf '@AGENTS.md\n' > CLAUDE.md
 ```
 
-The setup command runs bootstrap, asks for or detects the local agent family,
-copies the matching launcher template when `agent-launch.toml` is absent, runs
-`agent-launch init-config`, and prints the next code-index and orchestrator
-commands. It does not copy `AGENTS.md`; review
-`wiki/templates/AGENTS.md.boilerplate.md` and adapt it into this repo's root
-operating contract before committing setup.
+Fresh bootstrap seeds the wiki contract surfaces, an in-progress `IN-0001`
+placeholder for the repository's first real work, local caches, the workspace
+declaration, and the initial lexical search index. It creates no `WK-0001`; that
+identifier remains available for the first allocator-backed work record. The
+fresh path has no adoption-verification gate, AGENTS-authoring worker,
+customization review, or other adoption lifecycle.
 
-Bootstrap seeds the local wiki contract surfaces, the owned `IN-0001` adoption
-initiative, the `WK-0001` adoption tracker, local cache directories, `.gitignore`
-entries, the gitignored `wiki/.wiki-mcp.json` workspace declaration, and the
-initial lexical search index. It creates no adoption guide: the adoption guide is
-the single package-owned [docs/adoption.md](docs/adoption.md) shipped with
-`@agent-chassis/core`, and repository-specific adoption state lives in `IN-0001`
-and `WK-0001`. It is idempotent: rerunning preserves your edits and only fills in
-missing surfaces. Bootstrap and postinstall do not execute
-the setup commands: the operator creates or adapts `AGENTS.md`, copies or
-reviews `agent-launch.toml`, and runs `agent-launch init-config` before the
-first orchestrator launch. `agent-launch init-config` provisions the launcher
-registry and role-guard secret that role dispatch requires.
+The code index is required for normal operation. Build it after committing the
+bootstrap output and both operator-created guidance files. The first
+orchestrator launch omits `--app`; family selection comes from
+`agent-launch.toml` unless an operator explicitly overrides it.
 
-The code index is required for normal operation. Normal readiness, dispatch
-review, graph-impact, and review tooling depend on it. Build it after reviewing
-and committing the bootstrap output. Root `AGENTS.md` and `agent-launch.toml`
-are operator first-run prerequisites for `agent-launch orchestrator IN-0001`;
-they are not worker-owned `WK-0001` setup slices. The first orchestrator launch
-omits `--app`; family selection comes from the copied `agent-launch.toml` role
-model unless an operator explicitly overrides it outside this setup flow. For
-enforced Linux dispatch, put `bwrap` on your PATH. Whether a run without a usable
-backend proceeds unenforced or refuses depends on whether a CCE key is configured
-— see [Enforcement posture](#enforcement-posture),
-[docs/quickstart.md](docs/quickstart.md), and
-[docs/enforcement-model.md](docs/enforcement-model.md).
+The full first-run path — bootstrap detail, the required code index, MCP client
+wiring, role model configuration, and the sandbox prerequisite — is in
+[docs/quickstart.md](docs/quickstart.md).
 
-## Day-to-day operator commands
+## Running work
 
-Run these from your repo root after installing `@agent-chassis/core`. These are
-human/operator entrypoints — agents do not launch orchestrators. Orchestrator
-commands are **interactive** and stay attached to your terminal until you end the
-session — they are not background jobs. Attached does not mean hands-on: once
-launched, an orchestrator routinely runs on its own for hours, and the attached
-session is there so you can watch progress and step in, not because it needs
-constant input.
+Orchestrator sessions are human/operator entrypoints; agents do not launch or
+resume them. They are interactive and stay attached to your terminal, though
+attached does not mean hands-on — an orchestrator routinely runs on its own for
+hours, and the session is there so you can watch and step in.
 
 ```bash
-# Start an initiative orchestrator (interactive; stays attached).
-npx agent-launch orchestrator IN-0001 --model gpt-5.5
 npx agent-launch orchestrator IN-0001 --model opus
-
-# Resume an existing orchestrator session (interactive; stays attached).
-npx agent-launch resume IN-0001 --model gpt-5.5
-npx agent-launch resume IN-0001 --model opus
-
-# List orchestrator runtime records.
-npx agent-launch orchestrator list --json
 ```
 
-## What your repo keeps
+Model and effort selection, resume, run listing, and the rest of the launcher
+surface are in
+[docs/agent-launch-operator-entrypoints.md](docs/agent-launch-operator-entrypoints.md).
 
-- product source code
-- repo-specific docs
-- local `wiki/` work records, initiatives, decisions, and sources
-- local schema extensions and repo policy
+## Enforcement posture
+
+Whether a managed run is actually contained turns on two separate questions.
+
+- **Can it enforce?** When a supported isolation backend is active for the
+  launch — Linux `bwrap` today — a launcher-dispatched worker, reviewer, or
+  redteam run is contained to its declared scope and recorded as enforced.
+- **Must it enforce?** A configured Chassis Control Engine key selects the
+  enforcement-required posture. Without one, local use may proceed unenforced
+  when no backend is usable. With one, dispatch refuses unless the operator sets
+  an explicit opt-out. The key adds no sandboxing capability; it selects the
+  posture.
+
+Every run records whether it was enforced and which backend, if any, was used. A
+run that was not enforced is recorded loudly as unenforced and is never
+presented, labelled, or attested as confined.
+
+This is contract enforcement and honest provenance, not a security guarantee.
+The threat model is explicitly not hostile-agent security: the local mechanisms
+keep an *honest* agent inside the lane its contract declared, and someone who
+already holds your shell, filesystem, and credentials can defeat all of them.
+[docs/enforcement-model.md](docs/enforcement-model.md) states the boundaries and
+their limits.
+
+## Local and hosted governance
+
+Everything above is AgentChassis's local coordination and enforcement layer: it
+runs on your machine and needs no AgentChassis account, API key, or hosted
+service. The coding agents it drives are unchanged — Codex and Claude keep
+whatever provider account and network access they already require.
+
+The hosted **Chassis Control Engine** is a separate, private-beta layer for
+teams that need central admission and audit across many repositories: it decides
+whether a given piece of agent work may run at all, and returns a signed
+attestation when it grants one. Signed attestation belongs to that hosted layer
+alone — the local tier records enforcement state honestly but mints no signed
+claim of its own. Request access: https://forms.gle/YBJc1TnxoEPea3kx6
+
+## What stays in your repository
+
+- product source code and repo-specific docs
+- work records, initiatives, decisions, and sources under `wiki/`
+- local schema extensions and repository policy
 - package installation and MCP client configuration
 
-## Distribution
+## Why this exists
 
-AgentChassis is a public, source-available project (Elastic License 2.0).
-The `@agent-chassis/*` packages are published to the public npm registry under
-the `@agent-chassis` scope and install with a plain `npm install` (no `.npmrc`
-or auth required). Package-specific README roadmaps are generated from canonical
-work records and remain the active per-package roadmap source of truth.
+Long-horizon agent work is still hard, and not for the reason people usually
+reach for. Evaluated language-model agents drift from the objective they were
+assigned when they run long under competing pressures
+([Evaluating Goal Drift in Language Model Agents, 2025](https://arxiv.org/abs/2505.02709)),
+and on SWE-Bench Pro's long-horizon software-engineering tasks the evaluated
+models stayed below 45% Pass@1
+([SWE-Bench Pro, 2025](https://arxiv.org/abs/2509.16941)). Raw context length is
+not the whole story: coding agents can mitigate ordinary long-context
+limitations through tools and filesystem interaction
+([Coding Agents are Effective Long-Context Processors, 2026](https://arxiv.org/abs/2603.20432)).
+Holding an agent to a stated objective over a long run is the part that does not
+come for free.
+
+Better prompts do not close that gap. Agent execution is non-deterministic and
+path-dependent, so what an agent does at runtime cannot be fully governed at
+design time by instructions or static access controls. Runtime-governance
+research points at the same answer: constrain the execution path itself, with
+checks before the action and monitors during it, rather than relying on
+after-the-fact review
+([Runtime Governance for AI Agents: Policies on Paths, 2026](https://arxiv.org/abs/2603.16586);
+[MI9: Runtime Governance for Agentic AI, 2025](https://arxiv.org/abs/2508.03858);
+[SARC: Governance-by-Architecture, 2026](https://arxiv.org/abs/2605.07728)).
+
+AgentChassis applies that to coding work: every unit has a written contract,
+managed execution is contained to the scope that contract declared where a
+supported backend allows it, and the result is reviewed against the contract.
 
 ## License
 
@@ -252,60 +283,24 @@ Source-available under the Elastic License 2.0 — see [LICENSE](LICENSE).
 
 ## Documentation
 
-Canonical, durable documentation lives under [`docs/`](docs/); per-package
-roadmaps are generated into each package README.
+Canonical documentation lives in [`docs/`](docs/), indexed by
+[docs/index.md](docs/index.md).
 
-### Getting started
+- **Set up:** [docs/quickstart.md](docs/quickstart.md) ·
+  [docs/package-install.md](docs/package-install.md) ·
+  [docs/adoption.md](docs/adoption.md)
+- **Understand the model:**
+  [docs/operating-model.md](docs/operating-model.md) ·
+  [docs/enforcement-model.md](docs/enforcement-model.md) ·
+  [docs/work-record-ontology.md](docs/work-record-ontology.md)
+- **Operate:**
+  [docs/agent-launch-quickstart.md](docs/agent-launch-quickstart.md) ·
+  [docs/agent-launch-operator-entrypoints.md](docs/agent-launch-operator-entrypoints.md)
+- **Agent interface:** [docs/mcp-integration.md](docs/mcp-integration.md) ·
+  [docs/tool-discovery.md](docs/tool-discovery.md) ·
+  [docs/mcp-operation-reference.md](docs/mcp-operation-reference.md)
+- **Stability:** [docs/versioning.md](docs/versioning.md)
 
-- [docs/quickstart.md](docs/quickstart.md) — first setup walkthrough and the
-  role-dispatch enforcement and opt-in posture.
-- [docs/package-install.md](docs/package-install.md) — package roles and install detail
-- [docs/local-package-install.md](docs/local-package-install.md) — installing
-  the packages from a local build.
-- [docs/adoption.md](docs/adoption.md) — the single package-owned guide to
-  adopting the contract in a new or existing repo. It is repo-neutral and is
-  never copied into a consuming repository.
-
-### Operating and enforcement model
-
-- [docs/operating-model.md](docs/operating-model.md) — the shared-substrate vs.
-  local-repo boundary, and why this repo exists.
-- [docs/enforcement-model.md](docs/enforcement-model.md) — the two-product
-  enforcement posture, backend-enforced vs. unenforced run provenance, and the
-  rationale behind it.
-- [docs/versioning.md](docs/versioning.md) — the version stability contract.
-
-### Agent interface
-
-- [docs/mcp-integration.md](docs/mcp-integration.md) — wiring an MCP client over
-  stdio.
-- [docs/mcp-operation-reference.md](docs/mcp-operation-reference.md) — reference
-  for the MCP operations agents call.
-- [docs/tool-discovery.md](docs/tool-discovery.md) — how agents discover tools
-  and the tool-authority vocabulary.
-
-### Launcher and dispatch
-
-- [docs/agent-launch-quickstart.md](docs/agent-launch-quickstart.md) — launcher
-  and role-dispatch reference.
-- [docs/agent-launch-operator-entrypoints.md](docs/agent-launch-operator-entrypoints.md)
-  — operator entrypoints, with migration notes for retired wrapper scripts.
-
-### Records and coordination reference
-
-- [docs/work-record-ontology.md](docs/work-record-ontology.md) — work-record
-  schema and field semantics.
-- [docs/initiative-status.md](docs/initiative-status.md) — the coordinator
-  triage lens over initiatives.
-- [docs/areas.md](docs/areas.md) — area-based wiki structure.
-- [docs/consumer-owned-docs.md](docs/consumer-owned-docs.md) — docs owned by the
-  consuming repo.
-- [docs/wiki-contract-metadata.md](docs/wiki-contract-metadata.md) — the
-  `wiki/.wiki-contract.json` schema.
-
-**Agents / agentic tools:** start at [docs/README-agents.md](docs/README-agents.md) for the retrieval order, rationale, and live per-package roadmaps.
-
-## Further reading
-
-- **Drift, context, and long-horizon limits:** [Evaluating Goal Drift in Language Model Agents, 2025](https://arxiv.org/abs/2505.02709), [Coding Agents are Effective Long-Context Processors, 2026](https://arxiv.org/abs/2603.20432), [SWE-Bench Pro, 2025](https://arxiv.org/abs/2509.16941)
-- **Runtime governance:** [Runtime Governance for AI Agents: Policies on Paths, 2026](https://arxiv.org/abs/2603.16586), [MI9: Runtime Governance for Agentic AI, 2025](https://arxiv.org/abs/2508.03858), [SARC: Governance-by-Architecture, 2026](https://arxiv.org/abs/2605.07728)
+Agents and agentic tools start at
+[docs/README-agents.md](docs/README-agents.md) for the retrieval order, repo
+map, and live per-package roadmaps.

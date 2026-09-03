@@ -1,0 +1,823 @@
+{
+  "schema_version": "crash-durable-state-writer-census.v1",
+  "wk": "WK-2357#SLICE-012",
+  "captured_against": "pre_migration",
+  "summary": "Deny-by-default census of every production path constructor and filesystem writer beneath .agent-launch, plus the repository-wide canonical work-record store and its write lock. Each entry is keyed by an exact source identity (<repo-relative module>#<symbol>) and carries exactly one classification. Unknown or unlisted writers are denied by identity, never by directory or package allowlisting. This slice changes no production implementation.",
+  "classifications": [
+    "durable_authoritative",
+    "non_authoritative_runtime_or_config",
+    "unresolved_authoritative_writer"
+  ],
+  "artifact_classes": [
+    "durable_root",
+    "authoritative_payload",
+    "lock_artifact"
+  ],
+  "compatibility_limbs": [
+    "authoritative_payload_path_and_bytes_preserved",
+    "token_owned_directory_lock_migration_authorized"
+  ],
+  "scanned_scope": {
+    "packages": [
+      "packages/agent-launch-core/src/lib",
+      "packages/agent-launch-cli/src/lib",
+      "packages/wiki-core/src/operations/work-records-store-io.mjs",
+      "packages/wiki-mcp/src"
+    ],
+    "roots_in_scope": [
+      "<workspace>/.agent-launch",
+      "<store dir>/wiki/work-records",
+      "<store dir>/wiki/.work-record-write.lock"
+    ],
+    "mutation_apis_swept": [
+      "writeFile",
+      "writeFileSync",
+      "writeSync",
+      "appendFile",
+      "appendFileSync",
+      "rename",
+      "renameSync",
+      "unlink",
+      "unlinkSync",
+      "rm",
+      "rmSync",
+      "rmdir",
+      "rmdirSync",
+      "mkdir",
+      "mkdirSync",
+      "open(wx|w|O_CREAT|O_EXCL|O_APPEND)",
+      "openSync",
+      "copyFile",
+      "chmod",
+      "truncate"
+    ],
+    "test_and_case_files_excluded": true
+  },
+  "path_constructors": [
+    {
+      "source_identity": "packages/agent-launch-core/src/lib/config.mjs#getLauncherConfigDir",
+      "root": ".agent-launch"
+    },
+    {
+      "source_identity": "packages/agent-launch-core/src/lib/config.mjs#getLauncherRegistryPath",
+      "root": ".agent-launch/launchers.v1.json"
+    },
+    {
+      "source_identity": "packages/agent-launch-core/src/lib/config.mjs#getTokenKeyPath",
+      "root": ".agent-launch/token.key"
+    },
+    {
+      "source_identity": "packages/agent-launch-core/src/lib/durable-runtime-state.mjs#resolveLauncherOwnedWorkspaceDurableStateRoot",
+      "root": ".agent-launch/durable-state/v1"
+    },
+    {
+      "source_identity": "packages/agent-launch-core/src/lib/launcher-context-mint.mjs#getLauncherRoleGuardSecretPath",
+      "root": ".agent-launch/role-guard-secret.key"
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/managed-run-process-identity-store.mjs#managedRunProcessIdentityStoreDir",
+      "root": ".agent-launch/managed-run-identity"
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/managed-run-process-identity-store.mjs#managedRunProcessIdentityFilePath",
+      "root": ".agent-launch/managed-run-identity"
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/managed-run-subject-reservation.mjs#managedRunSubjectReservationFilePath",
+      "root": ".agent-launch/managed-run-identity"
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/managed-run-subject-reservation.mjs#managedRunSubjectSuccessorGuardFilePath",
+      "root": ".agent-launch/managed-run-identity"
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/worktree-substrate-primitives.mjs#worktreeIdentityDir",
+      "root": ".agent-launch/worktree-identity"
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/worktree-substrate-identity.mjs#bindingFilePath",
+      "root": ".agent-launch/worktree-identity"
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/worktree-reaper.mjs#worktreeReaperAuditDir",
+      "root": ".agent-launch/worktree-reaper-audit"
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/worktree-reaper-wk-terminal-proof.mjs#wkTerminalDispositionProofPath",
+      "root": ".agent-launch/wk-terminal-disposition"
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/trusted-slice-integration.mjs#chainStatePath",
+      "root": ".agent-launch/durable-state/v1/corrective-integration-chains"
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store.mjs#receiptStoreRoot",
+      "root": ".agent-launch/durable-state/v1/exact-slice-review-receipts"
+    }
+  ],
+  "writers": [
+    {
+      "source_identity": "packages/agent-launch-core/src/lib/durable-runtime-state.mjs#ensureLauncherOwnedWorkspaceDurableStateRoot",
+      "classification": "durable_authoritative",
+      "store_id": "launcher-durable-state-root",
+      "artifact_class": "durable_root",
+      "compatibility": "authoritative_payload_path_and_bytes_preserved",
+      "target": ".agent-launch/durable-state/v1",
+      "operations": [
+        "mkdir",
+        "open_exclusive_probe",
+        "rm_probe"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store-io.mjs#writeAtomicPublished",
+      "classification": "durable_authoritative",
+      "store_id": "exact-slice-review-receipt-journal",
+      "artifact_class": "authoritative_payload",
+      "compatibility": "authoritative_payload_path_and_bytes_preserved",
+      "target": ".agent-launch/durable-state/v1/exact-slice-review-receipts",
+      "operations": [
+        "open_exclusive",
+        "write",
+        "fsync",
+        "rename",
+        "dir_fsync"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store-io.mjs#syncDirectory",
+      "classification": "durable_authoritative",
+      "store_id": "exact-slice-review-receipt-journal",
+      "artifact_class": "authoritative_payload",
+      "compatibility": "authoritative_payload_path_and_bytes_preserved",
+      "target": ".agent-launch/durable-state/v1/exact-slice-review-receipts",
+      "operations": [
+        "dir_fsync"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store-io.mjs#acquireStoreLock",
+      "classification": "durable_authoritative",
+      "store_id": "exact-slice-review-receipt-store-lock",
+      "artifact_class": "lock_artifact",
+      "compatibility": "token_owned_directory_lock_migration_authorized",
+      "target": ".agent-launch/durable-state/v1/exact-slice-review-receipts",
+      "operations": [
+        "mkdir",
+        "open_exclusive",
+        "write",
+        "rename",
+        "rm"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/managed-run-process-identity-store.mjs#writeExclusive",
+      "classification": "durable_authoritative",
+      "store_id": "managed-run-process-identity",
+      "artifact_class": "authoritative_payload",
+      "compatibility": "authoritative_payload_path_and_bytes_preserved",
+      "target": ".agent-launch/managed-run-identity",
+      "operations": [
+        "mkdir",
+        "open_exclusive",
+        "write",
+        "unlink_on_failure"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/managed-run-process-identity-store.mjs#replaceAtomically",
+      "classification": "durable_authoritative",
+      "store_id": "managed-run-process-identity",
+      "artifact_class": "authoritative_payload",
+      "compatibility": "authoritative_payload_path_and_bytes_preserved",
+      "target": ".agent-launch/managed-run-identity",
+      "operations": [
+        "open_truncate",
+        "write",
+        "rename",
+        "unlink_temp"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/managed-run-process-identity-store.mjs#discardManagedRunProcessIdentity",
+      "classification": "durable_authoritative",
+      "store_id": "managed-run-process-identity",
+      "artifact_class": "authoritative_payload",
+      "compatibility": "authoritative_payload_path_and_bytes_preserved",
+      "target": ".agent-launch/managed-run-identity",
+      "operations": [
+        "unlink"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/managed-run-subject-reservation.mjs#acquireManagedRunSubjectReservation",
+      "classification": "durable_authoritative",
+      "store_id": "managed-run-subject-reservation",
+      "artifact_class": "authoritative_payload",
+      "compatibility": "authoritative_payload_path_and_bytes_preserved",
+      "target": ".agent-launch/managed-run-identity",
+      "operations": [
+        "unlink",
+        "delegated_publish"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/managed-run-subject-reservation.mjs#releaseManagedRunSubjectReservation",
+      "classification": "durable_authoritative",
+      "store_id": "managed-run-subject-reservation",
+      "artifact_class": "authoritative_payload",
+      "compatibility": "authoritative_payload_path_and_bytes_preserved",
+      "target": ".agent-launch/managed-run-identity",
+      "operations": [
+        "unlink"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/managed-run-subject-reservation.mjs#releaseSuccessorGuard",
+      "classification": "durable_authoritative",
+      "store_id": "managed-run-subject-reservation",
+      "artifact_class": "authoritative_payload",
+      "compatibility": "authoritative_payload_path_and_bytes_preserved",
+      "target": ".agent-launch/managed-run-identity",
+      "operations": [
+        "unlink"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/managed-run-subject-reservation.mjs#reserveSuccessorForProvenDeadNoDeliverySet",
+      "classification": "durable_authoritative",
+      "store_id": "managed-run-subject-reservation",
+      "artifact_class": "authoritative_payload",
+      "compatibility": "authoritative_payload_path_and_bytes_preserved",
+      "target": ".agent-launch/managed-run-identity",
+      "operations": [
+        "unlink",
+        "delegated_publish"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/worktree-substrate-identity.mjs#defaultWriteBindingFile",
+      "classification": "durable_authoritative",
+      "store_id": "worktree-identity-binding",
+      "artifact_class": "authoritative_payload",
+      "compatibility": "authoritative_payload_path_and_bytes_preserved",
+      "target": ".agent-launch/worktree-identity",
+      "operations": [
+        "mkdir",
+        "open_exclusive",
+        "write"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/worktree-provisioning-dispatch-managed.mjs#removeBindingFile",
+      "classification": "durable_authoritative",
+      "store_id": "worktree-identity-binding",
+      "artifact_class": "authoritative_payload",
+      "compatibility": "authoritative_payload_path_and_bytes_preserved",
+      "target": ".agent-launch/worktree-identity",
+      "operations": [
+        "unlink"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/worktree-provisioning-dispatch-managed.mjs#rebindWkTip",
+      "classification": "durable_authoritative",
+      "store_id": "worktree-identity-binding",
+      "artifact_class": "authoritative_payload",
+      "compatibility": "authoritative_payload_path_and_bytes_preserved",
+      "target": ".agent-launch/worktree-identity",
+      "operations": [
+        "unlink_temp",
+        "rename"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/worktree-provisioning-dispatch-managed.mjs#defaultAcquireWkProvisioningLock",
+      "classification": "durable_authoritative",
+      "store_id": "worktree-provision-lock",
+      "artifact_class": "lock_artifact",
+      "compatibility": "token_owned_directory_lock_migration_authorized",
+      "target": ".agent-launch/worktree-provision-locks",
+      "operations": [
+        "mkdir",
+        "mkdir_exclusive",
+        "rmdir"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/worktree-reaper.mjs#defaultWriteAudit",
+      "classification": "durable_authoritative",
+      "store_id": "worktree-reaper-audit",
+      "artifact_class": "authoritative_payload",
+      "compatibility": "authoritative_payload_path_and_bytes_preserved",
+      "target": ".agent-launch/worktree-reaper-audit/reaper-audit.jsonl",
+      "operations": [
+        "mkdir",
+        "open_append",
+        "write"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/trusted-slice-integration.mjs#persistCorrectiveIntegrationState",
+      "classification": "durable_authoritative",
+      "store_id": "corrective-integration-chain",
+      "artifact_class": "authoritative_payload",
+      "compatibility": "authoritative_payload_path_and_bytes_preserved",
+      "target": ".agent-launch/durable-state/v1/corrective-integration-chains",
+      "operations": [
+        "mkdir",
+        "write_temp",
+        "rename"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/wiki-core/src/operations/work-records-store-io.mjs#writeJsonFileToTemp",
+      "classification": "durable_authoritative",
+      "store_id": "canonical-work-record",
+      "artifact_class": "authoritative_payload",
+      "compatibility": "authoritative_payload_path_and_bytes_preserved",
+      "target": "wiki/work-records",
+      "operations": [
+        "write_temp"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/wiki-core/src/operations/work-records-store-io.mjs#writeValidatedWorkRecord",
+      "classification": "durable_authoritative",
+      "store_id": "canonical-work-record",
+      "artifact_class": "authoritative_payload",
+      "compatibility": "authoritative_payload_path_and_bytes_preserved",
+      "target": "wiki/work-records",
+      "operations": [
+        "rename",
+        "rm_temp"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/wiki-core/src/operations/work-records-store-io.mjs#writeValidatedWorkRecordWithAdmissionSidecars",
+      "classification": "durable_authoritative",
+      "store_id": "canonical-work-record",
+      "artifact_class": "authoritative_payload",
+      "compatibility": "authoritative_payload_path_and_bytes_preserved",
+      "target": "wiki/work-records",
+      "operations": [
+        "rm_sidecar_on_failure",
+        "rm_temp"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/wiki-core/src/operations/work-records-store-io.mjs#cleanupRecordOwnedAdmissionArtifacts",
+      "classification": "durable_authoritative",
+      "store_id": "canonical-work-record",
+      "artifact_class": "authoritative_payload",
+      "compatibility": "authoritative_payload_path_and_bytes_preserved",
+      "target": "wiki/work-records",
+      "operations": [
+        "rm"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/wiki-core/src/operations/work-records-store-io.mjs#withWorkRecordWriteLock",
+      "classification": "durable_authoritative",
+      "store_id": "canonical-work-record-write-lock",
+      "artifact_class": "lock_artifact",
+      "compatibility": "token_owned_directory_lock_migration_authorized",
+      "target": "wiki/.work-record-write.lock",
+      "operations": [
+        "open_exclusive",
+        "write",
+        "rm"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/wiki-core/src/operations/work-records-store-io.mjs#breakStaleWorkRecordWriteLock",
+      "classification": "durable_authoritative",
+      "store_id": "canonical-work-record-write-lock",
+      "artifact_class": "lock_artifact",
+      "compatibility": "token_owned_directory_lock_migration_authorized",
+      "target": "wiki/.work-record-write.lock",
+      "operations": [
+        "rename",
+        "rm"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/worktree-reaper-wk-terminal-proof.mjs#wkTerminalDispositionProofPath",
+      "classification": "unresolved_authoritative_writer",
+      "store_id": "wk-terminal-disposition-proof",
+      "artifact_class": "authoritative_payload",
+      "compatibility": "authoritative_payload_path_and_bytes_preserved",
+      "target": ".agent-launch/wk-terminal-disposition",
+      "operations": [
+        "path_construction_only"
+      ],
+      "unresolved_blocker": "SLICE-005 must resolve the producer of this authoritative payload before routing it through the retained publication primitive: the store is read and validated in-tree (defaultResolveWkTerminalDispositionProof) but no in-tree production writer creates it, so its publication boundary is unowned and cannot be migrated blind. Never reclassify as non-authoritative."
+    },
+    {
+      "source_identity": "packages/agent-launch-core/src/lib/config.mjs#ensureLauncherConfigDir",
+      "classification": "non_authoritative_runtime_or_config",
+      "store_id": null,
+      "artifact_class": null,
+      "compatibility": null,
+      "target": ".agent-launch",
+      "operations": [
+        "mkdir"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-core/src/lib/config.mjs#ensureTokenKey",
+      "classification": "non_authoritative_runtime_or_config",
+      "store_id": null,
+      "artifact_class": null,
+      "compatibility": null,
+      "target": ".agent-launch/token.key",
+      "operations": [
+        "write"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-core/src/lib/registry.mjs#initializeDefaultRegistry",
+      "classification": "non_authoritative_runtime_or_config",
+      "store_id": null,
+      "artifact_class": null,
+      "compatibility": null,
+      "target": ".agent-launch/launchers.v1.json",
+      "operations": [
+        "mkdir",
+        "write_atomic"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-core/src/lib/launcher-context-mint.mjs#ensureLauncherRoleGuardSecret",
+      "classification": "non_authoritative_runtime_or_config",
+      "store_id": null,
+      "artifact_class": null,
+      "compatibility": null,
+      "target": ".agent-launch/role-guard-secret.key",
+      "operations": [
+        "open_exclusive",
+        "write",
+        "chmod"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-core/src/lib/launcher-context-mint.mjs#ensureWorkerFamilyTrustedLauncherRoleGuardSecret",
+      "classification": "non_authoritative_runtime_or_config",
+      "store_id": null,
+      "artifact_class": null,
+      "compatibility": null,
+      "target": ".agent-launch/role-guard-secret.key",
+      "operations": [
+        "mkdir",
+        "open_exclusive",
+        "write",
+        "chmod"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-core/src/lib/filesystem.mjs#writeAtomic",
+      "classification": "non_authoritative_runtime_or_config",
+      "store_id": null,
+      "artifact_class": null,
+      "compatibility": null,
+      "target": ".agent-launch/launchers.v1.json",
+      "operations": [
+        "open",
+        "write",
+        "rename"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-selector-journal.mjs#appendSelectorIndexEntries",
+      "classification": "durable_authoritative",
+      "store_id": "exact-slice-review-receipt-journal",
+      "artifact_class": "authoritative_payload",
+      "compatibility": "authoritative_payload_path_and_bytes_preserved",
+      "target": ".agent-launch/durable-state/v1/exact-slice-review-receipts/selector-index.jsonl",
+      "operations": [
+        "open_append",
+        "write"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-selector-journal.mjs#ensurePartitionDirectory",
+      "classification": "durable_authoritative",
+      "store_id": "exact-slice-review-receipt-journal",
+      "artifact_class": "authoritative_payload",
+      "compatibility": "authoritative_payload_path_and_bytes_preserved",
+      "target": ".agent-launch/durable-state/v1/exact-slice-review-receipts/partitions",
+      "operations": [
+        "mkdir"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store.mjs#receiptDirectory",
+      "classification": "durable_authoritative",
+      "store_id": "exact-slice-review-receipt-journal",
+      "artifact_class": "authoritative_payload",
+      "compatibility": "authoritative_payload_path_and_bytes_preserved",
+      "target": ".agent-launch/durable-state/v1/exact-slice-review-receipts",
+      "operations": [
+        "mkdir"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store.mjs#ensureEvidenceDirectory",
+      "classification": "durable_authoritative",
+      "store_id": "exact-slice-review-receipt-journal",
+      "artifact_class": "authoritative_payload",
+      "compatibility": "authoritative_payload_path_and_bytes_preserved",
+      "target": ".agent-launch/durable-state/v1/exact-slice-review-receipts",
+      "operations": [
+        "mkdir",
+        "dir_fsync"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store.mjs#withAttemptLaunchExclusion",
+      "classification": "durable_authoritative",
+      "store_id": "exact-slice-review-receipt-journal",
+      "artifact_class": "authoritative_payload",
+      "compatibility": "authoritative_payload_path_and_bytes_preserved",
+      "target": ".agent-launch/durable-state/v1/exact-slice-review-receipts",
+      "operations": [
+        "mkdir",
+        "dir_fsync"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/managed-run-process-identity-store.mjs#publishAttemptJournalEvents",
+      "classification": "durable_authoritative",
+      "store_id": "managed-worker-attempt-journal",
+      "artifact_class": "authoritative_payload",
+      "compatibility": "authoritative_payload_path_and_bytes_preserved",
+      "target": ".agent-launch/managed-worker-attempts/v1-<sha256>/journal.jsonl",
+      "operations": [
+        "delegated_publish"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/managed-run-process-identity-store.mjs#withAttemptPartitionLock",
+      "classification": "durable_authoritative",
+      "store_id": "managed-worker-attempt-partition-lock",
+      "artifact_class": "lock_artifact",
+      "compatibility": "token_owned_directory_lock_migration_authorized",
+      "target": ".agent-launch/managed-worker-attempts/v1-<sha256>/lock",
+      "operations": [
+        "delegated_lock_acquire",
+        "rm"
+      ],
+      "unresolved_blocker": null
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/managed-run-attempt-supervisor.mjs#publishSupervisorTermination",
+      "classification": "durable_authoritative",
+      "store_id": "launcher-supervisor-termination",
+      "artifact_class": "authoritative_payload",
+      "compatibility": "authoritative_payload_path_and_bytes_preserved",
+      "target": ".agent-launch/managed-worker-attempts/v1-<sha256>/supervisor-<sha256>.json",
+      "operations": [
+        "delegated_publish"
+      ],
+      "unresolved_blocker": null
+    }
+  ],
+  "examined_and_excluded": [
+    {
+      "source_identity": "packages/agent-launch-core/src/lib/config.mjs#ensureTokenStateDirs",
+      "reason": "writes the review-token state tree under the launcher runtime-state dir (os.tmpdir-based), never beneath .agent-launch"
+    },
+    {
+      "source_identity": "packages/agent-launch-core/src/lib/launcher-context-mint.mjs#createLauncherContextNonceStore",
+      "reason": "the nonce store is mutable runtime state resolved through getLauncherRuntimeNonceDir under the runtime-state dir, explicitly not the workspace-local config dir"
+    },
+    {
+      "source_identity": "packages/agent-launch-core/src/lib/launcher-context-mint.mjs#gcExpiredNonces",
+      "reason": "unlinks nonce files in the same runtime-state dir, outside .agent-launch"
+    },
+    {
+      "source_identity": "packages/wiki-mcp/src/lib/mcp-response.mjs#persistSpilledPayload",
+      "reason": "response-spill payloads resolve to os.tmpdir()/agent-chassis/wiki-mcp/response-spill or WIKI_MCP_RESPONSE_STATE_DIR, outside .agent-launch"
+    },
+    {
+      "source_identity": "packages/wiki-mcp/src/server.mjs#startWikiMcpServer",
+      "reason": "writes a readiness event to an inherited file descriptor, not to any .agent-launch path"
+    },
+    {
+      "source_identity": "packages/wiki-mcp/src/lib/controlled-contract-runtime-proof-tool.mjs#runControlledContractRuntimeProof",
+      "reason": "removes only a runtime proof root it created outside .agent-launch"
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/worktree-provisioning-dispatch-managed.mjs#establishManagedWkLifecycleLocked",
+      "reason": "creates managed worktree roots outside .agent-launch; the durable binding it depends on is published by defaultWriteBindingFile, which is censused"
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/worktree-provisioning-dispatch-managed.mjs#compensateManagedAllocation",
+      "reason": "removes managed worktree roots outside .agent-launch"
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/worktree-provisioning-dispatch-managed.mjs#commitCurrentWorkRecordToWkBranch",
+      "reason": "removes an inert temporary git index directory outside .agent-launch"
+    },
+    {
+      "source_identity": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store-io.mjs#writeAtomicImmutable",
+      "reason": "delegates entirely to writeAtomicPublished and performs no direct filesystem mutation of its own; the censused primitive owns the publication boundary"
+    }
+  ],
+  "routing_owners": {
+    "publication_helper": "packages/wiki-core/src/lib/crash-durable-state.mjs",
+    "liveness_oracle": "packages/agent-launch-cli/src/lib/worktree-lease.mjs",
+    "liveness_mechanism": "packages/wiki-core/src/lib/process-identity.mjs"
+  },
+  "routing_modes": [
+    "crash_durable_publication_helper",
+    "crash_durable_token_lock",
+    "store_owned_exclusive_create",
+    "store_owned_directory_anchor",
+    "unresolved_authoritative_writer"
+  ],
+  "routing": {
+    "packages/agent-launch-core/src/lib/durable-runtime-state.mjs#ensureLauncherOwnedWorkspaceDurableStateRoot": {
+      "routes_through": "store_owned_directory_anchor",
+      "evidence": "creates the launcher-owned root anchor itself and publishes no payload; it is the directory every routed store layers beneath"
+    },
+    "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store-io.mjs#writeAtomicPublished": {
+      "routes_through": "crash_durable_publication_helper",
+      "evidence": "the receipt store's own create-private/write/fsync/rename/dir-fsync publication primitive; every receipt payload routes through it"
+    },
+    "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store-io.mjs#syncDirectory": {
+      "routes_through": "crash_durable_publication_helper",
+      "evidence": "the directory durability boundary of that same publication primitive"
+    },
+    "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store-io.mjs#acquireStoreLock": {
+      "routes_through": "crash_durable_token_lock",
+      "evidence": "token-owned directory with a persisted non-reusable claimant identity; reclamation requires an authoritative dead verdict from the retained oracle (WK-2357#SLICE-008)"
+    },
+    "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-selector-journal.mjs#appendSelectorIndexEntries": {
+      "routes_through": "crash_durable_publication_helper",
+      "evidence": "selector-index append serialized under the store lock; the index is rebuilt from the authoritative partitions, which publish through writeAtomicPublished"
+    },
+    "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-selector-journal.mjs#ensurePartitionDirectory": {
+      "routes_through": "store_owned_directory_anchor",
+      "evidence": "creates the partition directory the authoritative events publish into; it writes no payload"
+    },
+    "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store.mjs#receiptDirectory": {
+      "routes_through": "store_owned_directory_anchor",
+      "evidence": "creates the receipt store directory beneath the launcher-owned durable root; it writes no payload"
+    },
+    "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store.mjs#ensureEvidenceDirectory": {
+      "routes_through": "store_owned_directory_anchor",
+      "evidence": "creates and fsyncs an evidence parent directory; the evidence itself publishes through writeAtomicPublished"
+    },
+    "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store.mjs#withAttemptLaunchExclusion": {
+      "routes_through": "store_owned_directory_anchor",
+      "evidence": "creates and fsyncs the attempt-launch exclusion directories; it writes no payload"
+    },
+    "packages/agent-launch-cli/src/lib/managed-run-process-identity-store.mjs#writeExclusive": {
+      "routes_through": "store_owned_exclusive_create",
+      "evidence": "its contract is an exclusive create AT the canonical path so a duplicate tuple raises STORE_COLLISION; publishing by rename would silently overwrite instead of colliding (asserted in tests/integration/crash-durable-state-managed-run.test.mjs)"
+    },
+    "packages/agent-launch-cli/src/lib/managed-run-process-identity-store.mjs#replaceAtomically": {
+      "routes_through": "crash_durable_publication_helper",
+      "evidence": "routed through the shared synchronous interpreter by WK-2357#SLICE-008; schema, filename, bytes, and 0o600 mode unchanged"
+    },
+    "packages/agent-launch-cli/src/lib/managed-run-process-identity-store.mjs#discardManagedRunProcessIdentity": {
+      "routes_through": "store_owned_exclusive_create",
+      "evidence": "removes only this store's own record at its canonical path under the store's own retirement semantics; it publishes nothing"
+    },
+    "packages/agent-launch-cli/src/lib/managed-run-subject-reservation.mjs#acquireManagedRunSubjectReservation": {
+      "routes_through": "crash_durable_publication_helper",
+      "evidence": "publishes through the identity store's replaceAtomically, which is routed"
+    },
+    "packages/agent-launch-cli/src/lib/managed-run-subject-reservation.mjs#releaseManagedRunSubjectReservation": {
+      "routes_through": "store_owned_exclusive_create",
+      "evidence": "releases only its own reservation file after an exact-owner check; it publishes nothing"
+    },
+    "packages/agent-launch-cli/src/lib/managed-run-subject-reservation.mjs#releaseSuccessorGuard": {
+      "routes_through": "store_owned_exclusive_create",
+      "evidence": "releases only its own successor guard after an exact guard-id check; it publishes nothing"
+    },
+    "packages/agent-launch-cli/src/lib/managed-run-subject-reservation.mjs#reserveSuccessorForProvenDeadNoDeliverySet": {
+      "routes_through": "crash_durable_publication_helper",
+      "evidence": "publishes the successor reservation through the identity store's replaceAtomically after a proven-dead verdict from the retained oracle"
+    },
+    "packages/agent-launch-cli/src/lib/worktree-substrate-identity.mjs#defaultWriteBindingFile": {
+      "routes_through": "store_owned_exclusive_create",
+      "evidence": "the binding is created exclusively at its canonical path so a duplicate tuple collides rather than being overwritten; publishing by rename would destroy that guarantee"
+    },
+    "packages/agent-launch-cli/src/lib/worktree-provisioning-dispatch-managed.mjs#removeBindingFile": {
+      "routes_through": "store_owned_exclusive_create",
+      "evidence": "removes only the binding this attempt created, under the substrate's own rollback semantics"
+    },
+    "packages/agent-launch-cli/src/lib/worktree-provisioning-dispatch-managed.mjs#rebindWkTip": {
+      "routes_through": "crash_durable_publication_helper",
+      "evidence": "replaces the WK tip binding by same-directory atomic rename after discarding only its own temp"
+    },
+    "packages/agent-launch-cli/src/lib/worktree-provisioning-dispatch-managed.mjs#defaultAcquireWkProvisioningLock": {
+      "routes_through": "crash_durable_token_lock",
+      "evidence": "token-owned directory with a persisted non-reusable claimant identity; reclamation requires an authoritative dead verdict, and legacy ownerless state fails closed (WK-2357#SLICE-009)"
+    },
+    "packages/agent-launch-cli/src/lib/worktree-reaper.mjs#defaultWriteAudit": {
+      "routes_through": "crash_durable_publication_helper",
+      "evidence": "each logical append is a serialized copy-on-write full-image publication through the shared interpreter, bounded by the 16 MiB envelope with truncation and rotation forbidden (WK-2357#SLICE-009)"
+    },
+    "packages/agent-launch-cli/src/lib/trusted-slice-integration.mjs#persistCorrectiveIntegrationState": {
+      "routes_through": "crash_durable_publication_helper",
+      "evidence": "routed through the shared synchronous interpreter by WK-2357#SLICE-009; path, mode, and byte serialization unchanged"
+    },
+    "packages/wiki-core/src/operations/work-records-store-io.mjs#writeJsonFileToTemp": {
+      "routes_through": "store_owned_exclusive_create",
+      "evidence": "non-authoritative staging only; the canonical publication is performed separately by the routed publisher"
+    },
+    "packages/wiki-core/src/operations/work-records-store-io.mjs#writeValidatedWorkRecord": {
+      "routes_through": "crash_durable_publication_helper",
+      "evidence": "routed through the shared asynchronous interpreter by WK-2357#SLICE-006; bytes, path, umask-derived mode, and digest-CAS unchanged"
+    },
+    "packages/wiki-core/src/operations/work-records-store-io.mjs#writeValidatedWorkRecordWithAdmissionSidecars": {
+      "routes_through": "crash_durable_publication_helper",
+      "evidence": "routed through the same publisher, with canonicalReplace delegated to from inside the interpreter so its fault-injection seam is preserved"
+    },
+    "packages/wiki-core/src/operations/work-records-store-io.mjs#cleanupRecordOwnedAdmissionArtifacts": {
+      "routes_through": "store_owned_exclusive_create",
+      "evidence": "removes only record-owned admission sidecars, never a successor's canonical record"
+    },
+    "packages/wiki-core/src/operations/work-records-store-io.mjs#withWorkRecordWriteLock": {
+      "routes_through": "crash_durable_token_lock",
+      "evidence": "token-owned directory at the established lock path; retirement requires an authoritative dead verdict over the persisted non-reusable (pid, starttime, boot_id) owner identity via the shared wiki-core process-identity mechanism, and every live, indeterminate, legacy, ownerless, and malformed state still fails closed (WK-2357#SLICE-006 as repaired)"
+    },
+    "packages/wiki-core/src/operations/work-records-store-io.mjs#breakStaleWorkRecordWriteLock": {
+      "routes_through": "crash_durable_token_lock",
+      "evidence": "retired with the legacy reclaimer; the symbol no longer performs bare-PID or wall-clock recovery"
+    },
+    "packages/agent-launch-cli/src/lib/worktree-reaper-wk-terminal-proof.mjs#wkTerminalDispositionProofPath": {
+      "routes_through": "unresolved_authoritative_writer",
+      "evidence": "path construction only; no in-tree production writer creates this authoritative payload, recorded as a SLICE-005 blocker"
+    },
+    "packages/agent-launch-cli/src/lib/managed-run-process-identity-store.mjs#publishAttemptJournalEvents": {
+      "routes_through": "crash_durable_publication_helper",
+      "evidence": "publishes the complete reducer-admitted event sequence through planReplacement + runCrashDurablePlanSync; it chooses bytes and path only"
+    },
+    "packages/agent-launch-cli/src/lib/managed-run-process-identity-store.mjs#withAttemptPartitionLock": {
+      "routes_through": "crash_durable_token_lock",
+      "evidence": "acquires the per-subject partition lock through planLockAcquisition and releases only the canonical path it won; a contender is refused, never queued or stolen"
+    },
+    "packages/agent-launch-cli/src/lib/managed-run-attempt-supervisor.mjs#publishSupervisorTermination": {
+      "routes_through": "crash_durable_publication_helper",
+      "evidence": "publishes the closed launcher-supervisor-termination.v1 record through planReplacement + runCrashDurablePlanSync from the attempt-scoped supervisor process"
+    }
+  },
+  "abandonment_judgments": {
+    "owner": "packages/agent-launch-cli/src/lib/worktree-lease.mjs",
+    "routed": [
+      "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store-io.mjs#acquireStoreLock",
+      "packages/agent-launch-cli/src/lib/worktree-provisioning-dispatch-managed.mjs#defaultAcquireWkProvisioningLock",
+      "packages/agent-launch-cli/src/lib/managed-run-process-identity-assessment.mjs#assessManagedRunProcessIdentityRecord",
+      "packages/agent-launch-cli/src/lib/managed-run-process-identity-retirement.mjs#retireManagedRunProcessIdentity",
+      "packages/wiki-core/src/operations/work-records-store-io.mjs#withWorkRecordWriteLock"
+    ],
+    "never_reclaims": [
+      {
+        "source_identity": "packages/agent-launch-cli/src/lib/managed-run-process-identity-store.mjs#withAttemptPartitionLock",
+        "reason": "the partition lock never reclaims a held lock: a contender receives a typed contended result and re-reads, and reclamation of an abandoned ATTEMPT is a separate reducer decision that routes through the worktree-lease oracle"
+      }
+    ]
+  },
+  "accepted_limitations": [
+    "Whole-checkout deletion is OUT OF SCOPE and unproven: no in-tree mechanism claims to survive or detect `git clean -xd`, deletion of the primary checkout, or loss of its filesystem. No claim of whole-checkout-deletion survival or detection is made anywhere in this WK."
+  ]
+}

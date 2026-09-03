@@ -207,6 +207,17 @@ function addBind(binds, seenBinds, source) {
   binds.push(Object.freeze({ src: source, dst: source }));
 }
 
+function addNamespaceDirectory(directories, seenDirectories, directory) {
+  if (seenDirectories.has(directory)) return;
+  seenDirectories.add(directory);
+  directories.push(directory);
+}
+
+function inspectOptionalExactPath(lexical, kind, label) {
+  if (maybeLstat(lexical, label) === null) return null;
+  return inspectExactPath(lexical, kind, label);
+}
+
 function parseAlternates(text, objectDirectory, label) {
   const out = [];
   for (const rawLine of text.split("\n")) {
@@ -226,9 +237,7 @@ export function normalizeFindingsGitMetadataRole(role) {
   return null;
 }
 
-export function resolveFindingsRoleGitMetadata({ repoReal, role } = {}) {
-  const normalizedRole = normalizeFindingsGitMetadataRole(role);
-  if (normalizedRole === null) return null;
+function resolveRepositoryGitMetadataProjectionImpl({ repoReal, normalizedRole }) {
   const checkout = assertAbsoluteSafePath(repoReal, "findingsGitMetadata.repoReal");
   const gitPointerFile = path.join(checkout, ".git");
   const gitEntry = maybeLstat(gitPointerFile, "findings checkout .git");
@@ -246,6 +255,8 @@ export function resolveFindingsRoleGitMetadata({ repoReal, role } = {}) {
   const seenPins = new Set();
   const binds = [];
   const seenBinds = new Set();
+  const namespaceDirectories = [];
+  const seenNamespaceDirectories = new Set();
   const pointer = readPinnedTextFile(gitPointerFile, "findings checkout .git pointer");
   addPin(pins, seenPins, pointer.pin);
   const worktreeGitDirPath = resolveReference(
@@ -337,7 +348,31 @@ export function resolveFindingsRoleGitMetadata({ repoReal, role } = {}) {
     "findings checkout primary object directory"
   );
 
-  addBind(binds, seenBinds, commonGitDir.path);
+  addNamespaceDirectory(namespaceDirectories, seenNamespaceDirectories, commonGitDir.path);
+  if (commonGitDir.path !== worktreeGitDir.path) {
+    addNamespaceDirectory(
+      namespaceDirectories,
+      seenNamespaceDirectories,
+      path.dirname(worktreeGitDir.path)
+    );
+  }
+
+  for (const [basename, kind, required] of [
+    ["HEAD", "file", true],
+    ["config", "file", false],
+    ["packed-refs", "file", false],
+    ["shallow", "file", false],
+    ["refs", "directory", true]
+  ]) {
+    const candidatePath = path.join(commonGitDir.path, basename);
+    const candidate = required
+      ? inspectExactPath(candidatePath, kind, `findings checkout common Git ${basename}`)
+      : inspectOptionalExactPath(candidatePath, kind, `findings checkout common Git ${basename}`);
+    if (candidate === null) continue;
+    addPin(pins, seenPins, candidate);
+    addBind(binds, seenBinds, candidate.path);
+  }
+  addBind(binds, seenBinds, objectDirectories[0]);
   addBind(binds, seenBinds, worktreeGitDir.path);
   addBind(binds, seenBinds, gitPointerFile);
   for (const objectDirectory of objectDirectories) {
@@ -360,9 +395,23 @@ export function resolveFindingsRoleGitMetadata({ repoReal, role } = {}) {
     commonGitDir: commonGitDir.path,
     primaryObjectDirectory: objectDirectories[0],
     objectDirectories: Object.freeze([...objectDirectories]),
+    namespaceDirectories: Object.freeze(namespaceDirectories),
     readOnlyBinds: Object.freeze(binds),
     pinnedPaths: Object.freeze(pins)
   });
+}
+
+export function resolveRepositoryGitMetadataProjection({ repoReal } = {}) {
+  return resolveRepositoryGitMetadataProjectionImpl({
+    repoReal,
+    normalizedRole: null
+  });
+}
+
+export function resolveFindingsRoleGitMetadata({ repoReal, role } = {}) {
+  const normalizedRole = normalizeFindingsGitMetadataRole(role);
+  if (normalizedRole === null) return null;
+  return resolveRepositoryGitMetadataProjectionImpl({ repoReal, normalizedRole });
 }
 
 export function assertFindingsRoleGitMetadataUnchanged(metadata) {

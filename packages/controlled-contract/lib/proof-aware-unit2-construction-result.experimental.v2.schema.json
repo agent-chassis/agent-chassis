@@ -1,0 +1,242 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-chassis.invalid/controlled-contract-proof-aware-unit2-construction-result.experimental.v2.schema.json",
+  "title": "controlled-contract-proof-aware-unit2-construction-result.experimental.v2",
+  "oneOf": [{ "$ref": "#/$defs/success" }, { "$ref": "#/$defs/failure" }],
+  "$defs": {
+    "sha": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "id": { "type": "string", "minLength": 1, "maxLength": 512 },
+    "state": { "enum": ["established", "proven", "satisfied", "inactive", "not_proven", "not_assessed", "not_applicable", "ambiguous", "excluded", "residue", "missing", "invalid"] },
+    "facet": { "enum": ["behavior_cohesion", "proof_atomicity", "exact_capture_atomicity", "implementation_ownership", "verification_ownership", "evidence_acquisition", "authority_boundary"] },
+    "effect": { "enum": ["behavior_cohesion", "proof_atomicity", "capture_atomicity", "directed_cut", "merge_signal", "hard_contraction", "separation_signal", "overlay_only", "diagnostic_only", "never_group", "unresolved_constraint"] },
+    "rule": { "enum": ["structural_behavior_cohesion", "structural_directed_cut", "structural_overlay", "verification_overlay", "proof_pattern_overlay", "proven_proof_atomicity", "proven_capture_atomicity", "explicit_separation", "explicit_non_join", "declared_alternative", "inclusive_alternative_overlay", "exclusion_diagnostic", "unresolved_diagnostic", "resource_affinity"] },
+    "exclusions": {
+      "type": "object",
+      "required": ["proof_applicability", "optimality", "correct_ownership", "runtime_truth", "evidence_authority", "cce_consequences", "readiness", "status_transition_authority", "dispatch_authority", "mutation_or_publication_permission"],
+      "additionalProperties": false,
+      "properties": {
+        "proof_applicability": { "const": false }, "optimality": { "const": false },
+        "correct_ownership": { "const": false }, "runtime_truth": { "const": false },
+        "evidence_authority": { "const": false }, "cce_consequences": { "const": false },
+        "readiness": { "const": false }, "status_transition_authority": { "const": false },
+        "dispatch_authority": { "const": false },
+        "mutation_or_publication_permission": { "const": false }
+      }
+    },
+    "result_authority": {
+      "type": "object", "required": ["kind", "authoritative", "mandatory_exclusions"],
+      "additionalProperties": false,
+      "properties": { "kind": { "const": "non_authoritative_unit2_construction_result" }, "authoritative": { "const": false }, "mandatory_exclusions": { "$ref": "#/$defs/exclusions" } }
+    },
+    "anonymous_authority": {
+      "type": "object", "required": ["kind", "authoritative", "mandatory_exclusions"],
+      "additionalProperties": false,
+      "properties": { "kind": { "const": "non_authoritative_anonymous_planning_handoff" }, "authoritative": { "const": false }, "mandatory_exclusions": { "$ref": "#/$defs/exclusions" } }
+    },
+    "orbit_authority": {
+      "type": "object", "required": ["kind", "authoritative", "mandatory_exclusions"],
+      "additionalProperties": false,
+      "properties": { "kind": { "const": "non_authoritative_unit3_refinement_input" }, "authoritative": { "const": false }, "mandatory_exclusions": { "$ref": "#/$defs/exclusions" } }
+    },
+    "success": {
+      "type": "object",
+      "required": ["result_version", "status", "authority", "input_binding", "resolved_carrier", "anonymous_carrier", "orbit_input", "resource_accounting", "diagnostics"],
+      "additionalProperties": false,
+      "properties": {
+        "result_version": { "const": "controlled-contract-proof-aware-unit2-construction-result.experimental.v2" },
+        "status": { "const": "success" }, "authority": { "$ref": "#/$defs/result_authority" },
+        "input_binding": { "$ref": "#/$defs/success_input_binding" },
+        "resolved_carrier": { "$ref": "https://agent-chassis.invalid/controlled-contract-proof-aware-resolved-carrier.experimental.v2.schema.json" },
+        "anonymous_carrier": { "$ref": "#/$defs/anonymous_carrier" },
+        "orbit_input": { "$ref": "#/$defs/orbit_input" },
+        "resource_accounting": { "$ref": "#/$defs/success_resources" },
+        "diagnostics": { "type": "array", "maxItems": 0 }
+      }
+    },
+    "success_input_binding": {
+      "type": "object",
+      "required": ["validated_unit1_cycle_digest", "planning_policy_digest", "planning_implementation_digest", "construction_cycle_digest", "resolved_carrier_digest", "anonymous_candidate_digest"],
+      "additionalProperties": false,
+      "properties": {
+        "validated_unit1_cycle_digest": { "$ref": "#/$defs/sha" },
+        "planning_policy_digest": { "$ref": "#/$defs/sha" },
+        "planning_implementation_digest": { "$ref": "#/$defs/sha" },
+        "construction_cycle_digest": { "$ref": "#/$defs/sha" },
+        "resolved_carrier_digest": { "$ref": "#/$defs/sha" },
+        "anonymous_candidate_digest": { "$ref": "#/$defs/sha" }
+      }
+    },
+    "weight": {
+      "type": "object", "required": ["behavior", "verification", "capture", "serialization"],
+      "additionalProperties": false,
+      "properties": { "behavior": { "type": "integer", "minimum": 0, "maximum": 4294967295 }, "verification": { "type": "integer", "minimum": 0, "maximum": 4294967295 }, "capture": { "type": "integer", "minimum": 0, "maximum": 4294967295 }, "serialization": { "type": "integer", "minimum": 0, "maximum": 4294967295 } }
+    },
+    "anonymous_counts": {
+      "type": "object", "required": ["nodes", "binary_edges", "incidence_participants", "constraints", "unresolved_facts", "refinement_color_classes"],
+      "additionalProperties": false,
+      "properties": { "nodes": { "type": "integer", "minimum": 0, "maximum": 200000 }, "binary_edges": { "type": "integer", "minimum": 0, "maximum": 1000000 }, "incidence_participants": { "type": "integer", "minimum": 0, "maximum": 2000000 }, "constraints": { "type": "integer", "minimum": 0 }, "unresolved_facts": { "type": "integer", "minimum": 0 }, "refinement_color_classes": { "type": "integer", "minimum": 0, "maximum": 200000 } }
+    },
+    "node_kind": { "enum": ["authored_behavior_component", "obligation", "falsifier", "profile_pattern", "logic_gate", "relation_instance", "collection_instance", "population", "iterated_occurrence", "proof_pack", "assessment_state", "exact_binding_requirement", "capture_source_set", "deterministic_transform", "projected_selection", "planning_boundary", "resource"] },
+    "node_subtype": { "enum": ["behavior_claim", "structural_subject", "structural_operand", "mandatory_behavior", "forbidden_behavior", "advisory_behavior", "verification", "evidence", "proposition", "falsifying_proposition", "binding_constraint", "reference_binding", "claim", "relation", "collection", "resolver_fact", "all_of", "any_of", "exactly_one", "satisfies", "verifies", "derives_from", "refines", "traces", "replaces", "depends_on", "precedes", "closed_set", "ordered_sequence", "bound_population", "universal", "universal_member", "assessed_pack", "pack_result", "profile_result", "exact_binding_result", "source", "result", "exact_source_set", "projection", "selected", "inactive_branch", "not_satisfied", "ambiguous", "not_applicable", "uncovered", "excluded", "non_join", "residue", "missing", "invalid", "branch_scope", "implementation", "test", "capture", "acquisition", "role_binding"] },
+    "anonymous_node": {
+      "type": "object", "required": ["anonymous_node_id", "node_kind", "subtype", "state", "facets", "weight", "initial_color", "refined_color"],
+      "additionalProperties": false,
+      "properties": { "anonymous_node_id": { "$ref": "#/$defs/id" }, "node_kind": { "$ref": "#/$defs/node_kind" }, "subtype": { "$ref": "#/$defs/node_subtype" }, "state": { "$ref": "#/$defs/state" }, "facets": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/facet" } }, "weight": { "$ref": "#/$defs/weight" }, "initial_color": { "$ref": "#/$defs/sha" }, "refined_color": { "$ref": "#/$defs/sha" } }
+    },
+    "anonymous_edge": {
+      "type": "object", "required": ["edge_kind", "source_anonymous_node_id", "target_anonymous_node_id", "state", "effect", "facet", "derivation_class"],
+      "additionalProperties": false,
+      "properties": { "edge_kind": { "enum": ["depends_on", "precedes", "verified_by", "falsified_by", "satisfies_pattern", "bound_to_projected_node", "captured_with", "derived_by", "shares_resource", "must_preserve_identity", "must_co_locate", "may_separate", "must_not_infer_join", "alternative_to", "outside_guarantee"] }, "source_anonymous_node_id": { "$ref": "#/$defs/id" }, "target_anonymous_node_id": { "$ref": "#/$defs/id" }, "state": { "$ref": "#/$defs/state" }, "effect": { "$ref": "#/$defs/effect" }, "facet": { "$ref": "#/$defs/facet" }, "derivation_class": { "$ref": "#/$defs/rule" } }
+    },
+    "participant_attributes": {
+      "type": "object",
+      "required": ["access_mode", "join_kind", "cardinality", "endpoint_role", "branch_state", "operand_kind", "scope_role", "member_role", "associated_role", "proposition_position_kind", "participation_role", "occurrence_role", "association_status"],
+      "additionalProperties": false,
+      "properties": {
+        "access_mode": { "enum": [null, "read", "write", "read_write", "execute", "observe"] },
+        "join_kind": { "enum": [null, "same_value", "same_occurrence", "same_attempt", "association"] },
+        "cardinality": { "enum": [null, "exactly_one", "zero_or_one", "one_or_more", "zero_or_more"] },
+        "endpoint_role": { "enum": [null, "source", "target", "qualifier", "member", "owner"] },
+        "branch_state": { "enum": [null, "active", "inactive", "unresolved"] },
+        "operand_kind": { "enum": [null, "literal", "reference", "claim", "collection", "relation"] },
+        "scope_role": { "enum": [null, "subject", "operand", "endpoint", "member", "branch", "source", "result"] },
+        "member_role": { "enum": [null, "subject", "reference_operand", "applicability_operand"] },
+        "associated_role": { "enum": [null, "subject", "reference_operand", "relation_endpoint", "collection_member"] },
+        "proposition_position_kind": { "enum": [null, "subject", "operand", "applicability_operand"] },
+        "participation_role": { "enum": [null, "implementation", "test", "evidence", "capture_source", "capture_result", "transform_input", "transform_output", "occurrence"] },
+        "occurrence_role": { "enum": [null, "behavior_target", "verification", "falsifier", "capture", "transform", "projection", "selected_result", "universal_member"] },
+        "association_status": { "enum": [null, "satisfied", "unsatisfied", "indeterminate"] }
+      }
+    },
+    "anonymous_participant": {
+      "type": "object", "required": ["role", "anonymous_node_id", "position_path", "multiplicity", "attributes"],
+      "additionalProperties": false,
+      "properties": { "role": { "enum": ["proposition", "subject", "operand", "applicability_owner", "applicability_operand", "relation", "endpoint", "collection", "member", "logic_gate", "branch_scope", "branch_member", "pattern", "population", "iteration_member", "iteration_member_role", "association", "association_member_role", "association_associated_role", "target", "verification", "falsifier", "occurrence_participant", "source_requirement", "captured_source", "source_set", "transform", "result_requirement", "result_projection", "pack_scope", "selection", "projected_graph", "selected_node", "resource", "resource_participant", "occurrence", "boundary", "left_side", "right_side"] }, "anonymous_node_id": { "$ref": "#/$defs/id" }, "position_path": { "type": "array", "minItems": 1, "maxItems": 4, "items": { "type": "integer", "minimum": 0 } }, "multiplicity": { "type": "integer", "minimum": 1 }, "attributes": { "$ref": "#/$defs/participant_attributes" } }
+    },
+    "typed_attributes": {
+      "oneOf": [
+        { "type": "object", "maxProperties": 0, "additionalProperties": false },
+        { "type": "object", "required": ["scope"], "additionalProperties": false, "properties": { "scope": { "enum": ["unconditional", "if", "unless", "when", "while", "where", "before", "after", "during", "until", "frozen_base", "counterfactual"] } } },
+        { "type": "object", "required": ["ordered"], "additionalProperties": false, "properties": { "ordered": { "type": "boolean" } } },
+        { "type": "object", "required": ["operator"], "additionalProperties": false, "properties": { "operator": { "enum": ["all_of", "any_of", "exactly_one"] } } },
+        { "type": "object", "required": ["quantifier", "vacuous"], "additionalProperties": false, "properties": { "quantifier": { "enum": ["bound_population", "universal"] }, "vacuous": { "type": "boolean" } } },
+        { "type": "object", "required": ["reason"], "additionalProperties": false, "properties": { "reason": { "enum": ["independent_pack_context", "explicit_identity_exclusion", "authority_boundary"] } } }
+      ]
+    },
+    "anonymous_incidence": {
+      "type": "object", "required": ["incidence_kind", "state", "effect", "facet", "derivation_class", "typed_attributes", "participants"],
+      "additionalProperties": false,
+      "properties": { "incidence_kind": { "enum": ["proposition_structure", "applicability_scope", "relation_endpoints", "collection_membership", "logic_gate_branches", "iteration_association", "falsifier_occurrence", "exact_binding_source_result", "projected_selection_ownership", "resource_participation", "occurrence_participation", "non_join_boundary"] }, "state": { "$ref": "#/$defs/state" }, "effect": { "$ref": "#/$defs/effect" }, "facet": { "$ref": "#/$defs/facet" }, "derivation_class": { "$ref": "#/$defs/rule" }, "typed_attributes": { "$ref": "#/$defs/typed_attributes" }, "participants": { "type": "array", "maxItems": 2000000, "items": { "$ref": "#/$defs/anonymous_participant" } } }
+    },
+    "anonymous_constraint": {
+      "type": "object", "required": ["constraint_kind", "facet", "state", "effect", "derivation_class", "incidence_indices"],
+      "additionalProperties": false,
+      "properties": { "constraint_kind": { "enum": ["must_co_locate", "must_preserve_identity", "must_not_infer_join", "ordered_sequence", "alternative_group", "universal_association", "exact_capture_occurrence", "deterministic_projection_source_set"] }, "facet": { "$ref": "#/$defs/facet" }, "state": { "$ref": "#/$defs/state" }, "effect": { "$ref": "#/$defs/effect" }, "derivation_class": { "$ref": "#/$defs/rule" }, "incidence_indices": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "integer", "minimum": 0 } } }
+    },
+    "anonymous_unresolved": {
+      "type": "object", "required": ["state", "classification", "subject_anonymous_node_ids", "blocks", "only_permitted_effects"],
+      "additionalProperties": false,
+      "properties": { "state": { "enum": ["not_proven", "not_assessed", "not_applicable", "ambiguous", "excluded", "residue", "missing", "invalid"] }, "classification": { "enum": ["unresolved_constraint", "hard_invalidity", "review_required_boundary", "diagnostic_boundary"] }, "subject_anonymous_node_ids": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/id" } }, "blocks": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": ["resolved_graph", "anonymization", "candidate_generation", "comparison", "affected_comparison_field"] } }, "only_permitted_effects": { "const": ["diagnostic_only", "unresolved_constraint"] } }
+    },
+    "anonymous_carrier": {
+      "type": "object",
+      "required": ["carrier_version", "identifier_renaming_invariant", "canonical_order", "stripped_fields", "authority", "counts", "nodes", "binary_edges", "typed_incidences", "constraints", "unresolved_facts", "candidate_digest"],
+      "additionalProperties": false,
+      "properties": {
+        "carrier_version": { "const": "controlled-contract-proof-aware-anonymous-planning-input.experimental.v2" },
+        "identifier_renaming_invariant": { "const": true },
+        "canonical_order": { "const": "exact_typed_graph_form_without_lexical_source_ids.v1" },
+        "stripped_fields": { "const": ["prose", "paths", "symbols", "domain_labels", "source_names", "contract_identifiers", "pack_profile_guarantee_intent_names", "caller_identifiers", "lexical_source_identifiers"] },
+        "authority": { "$ref": "#/$defs/anonymous_authority" }, "counts": { "$ref": "#/$defs/anonymous_counts" },
+        "nodes": { "type": "array", "maxItems": 200000, "items": { "$ref": "#/$defs/anonymous_node" } },
+        "binary_edges": { "type": "array", "maxItems": 1000000, "items": { "$ref": "#/$defs/anonymous_edge" } },
+        "typed_incidences": { "type": "array", "items": { "$ref": "#/$defs/anonymous_incidence" } },
+        "constraints": { "type": "array", "items": { "$ref": "#/$defs/anonymous_constraint" } },
+        "unresolved_facts": { "type": "array", "items": { "$ref": "#/$defs/anonymous_unresolved" } },
+        "candidate_digest": { "$ref": "#/$defs/sha" }
+      }
+    },
+    "color_class": {
+      "type": "object", "required": ["color_class_index", "initial_or_refined_color", "anonymous_node_ids", "unresolved_symmetry"],
+      "additionalProperties": false,
+      "properties": { "color_class_index": { "type": "integer", "minimum": 0 }, "initial_or_refined_color": { "$ref": "#/$defs/sha" }, "anonymous_node_ids": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/id" } }, "unresolved_symmetry": { "type": "boolean" } }
+    },
+    "orbit_node": {
+      "type": "object", "required": ["anonymous_node_id", "initial_color", "refined_color"],
+      "additionalProperties": false,
+      "properties": { "anonymous_node_id": { "$ref": "#/$defs/id" }, "initial_color": { "$ref": "#/$defs/sha" }, "refined_color": { "$ref": "#/$defs/sha" } }
+    },
+    "orbit_input": {
+      "type": "object",
+      "required": ["orbit_input_version", "anonymous_candidate_digest", "refinement_rounds", "canonical_label_search_performed", "canonical_label_search_states", "partition_selected", "lexical_source_ids_used", "color_classes", "nodes", "binary_edges", "typed_incidences", "constraints", "authority"],
+      "additionalProperties": false,
+      "properties": {
+        "orbit_input_version": { "const": "controlled-contract-proof-aware-orbit-refinement-input.experimental.v2" },
+        "anonymous_candidate_digest": { "$ref": "#/$defs/sha" },
+        "refinement_rounds": { "type": "integer", "minimum": 0 },
+        "canonical_label_search_performed": { "const": true },
+        "canonical_label_search_states": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+        "partition_selected": { "const": false }, "lexical_source_ids_used": { "const": false },
+        "color_classes": { "type": "array", "maxItems": 200000, "items": { "$ref": "#/$defs/color_class" } },
+        "nodes": { "type": "array", "maxItems": 200000, "items": { "$ref": "#/$defs/orbit_node" } },
+        "binary_edges": { "type": "array", "maxItems": 1000000, "items": { "$ref": "#/$defs/anonymous_edge" } },
+        "typed_incidences": { "type": "array", "items": { "$ref": "#/$defs/anonymous_incidence" } },
+        "constraints": { "type": "array", "items": { "$ref": "#/$defs/anonymous_constraint" } },
+        "authority": { "$ref": "#/$defs/orbit_authority" }
+      }
+    },
+    "success_resources": {
+      "type": "object",
+      "required": ["verified_input_bytes", "node_count", "binary_edge_count", "typed_incidence_participant_count", "universal_occurrence_count", "selected_pack_count", "successful_output_bytes"],
+      "additionalProperties": false,
+      "properties": { "verified_input_bytes": { "type": "integer", "minimum": 0, "maximum": 67108864 }, "node_count": { "type": "integer", "minimum": 0, "maximum": 200000 }, "binary_edge_count": { "type": "integer", "minimum": 0, "maximum": 1000000 }, "typed_incidence_participant_count": { "type": "integer", "minimum": 0, "maximum": 2000000 }, "universal_occurrence_count": { "type": "integer", "minimum": 0, "maximum": 1000000 }, "selected_pack_count": { "type": "integer", "minimum": 0, "maximum": 1024 }, "successful_output_bytes": { "type": "integer", "minimum": 0, "maximum": 67108864 } }
+    },
+    "failure": {
+      "oneOf": [
+        { "allOf": [{ "$ref": "#/$defs/failure_envelope" }, { "type": "object", "required": ["status"], "properties": { "status": { "const": "refused" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/failure_envelope" }, { "type": "object", "required": ["status"], "properties": { "status": { "const": "resource_limit" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/failure_envelope" }, { "type": "object", "required": ["status"], "properties": { "status": { "const": "unsupported_input" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/failure_envelope" }, { "type": "object", "required": ["status"], "properties": { "status": { "const": "missing_lossless_fact" } } }] }
+      ]
+    },
+    "failure_envelope": {
+      "type": "object", "required": ["result_version", "status", "authority", "input_binding", "failure", "diagnostics"],
+      "additionalProperties": false,
+      "properties": {
+        "result_version": { "const": "controlled-contract-proof-aware-unit2-construction-result.experimental.v2" },
+        "status": { "enum": ["refused", "resource_limit", "unsupported_input", "missing_lossless_fact"] },
+        "authority": { "$ref": "#/$defs/result_authority" },
+        "input_binding": { "$ref": "#/$defs/failure_input_binding" },
+        "failure": { "$ref": "#/$defs/failure_detail" },
+        "diagnostics": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/failure_diagnostic" } }
+      }
+    },
+    "failure_input_binding": {
+      "type": "object", "required": ["validation_stage", "expected_unit1_cycle_digest", "available_commitments"],
+      "additionalProperties": false,
+      "properties": { "validation_stage": { "enum": ["input_census", "input_validation", "graph_construction", "anonymization", "serialization"] }, "expected_unit1_cycle_digest": { "oneOf": [{ "$ref": "#/$defs/sha" }, { "type": "null" }] }, "available_commitments": { "type": "array", "items": { "$ref": "#/$defs/observed_commitment" } } }
+    },
+    "observed_commitment": {
+      "type": "object", "required": ["artifact_kind", "digest"], "additionalProperties": false,
+      "properties": { "artifact_kind": { "enum": ["contract", "compiled_proof_plan", "assessment_manifest", "planning_policy", "planning_implementation", "per_pack_assessment", "projected_graph"] }, "digest": { "$ref": "#/$defs/sha" } }
+    },
+    "failure_detail": {
+      "type": "object", "required": ["code", "blocked_stage", "partial_result_released"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string", "pattern": "^PA_[A-Z0-9_]+$" },
+        "blocked_stage": { "enum": ["input_census", "input_validation", "graph_construction", "anonymization", "serialization"] },
+        "partial_result_released": { "const": false }, "input_version": { "type": "string" },
+        "artifact_kind": { "type": "string", "minLength": 1 }, "ordinal": { "type": "integer", "minimum": 0 },
+        "supplement_status": { "type": "string", "minLength": 1 }, "unit": { "type": "string", "minLength": 1 },
+        "measured": { "type": "integer", "minimum": 0 }, "limit": { "type": "integer", "minimum": 1 },
+        "count_point": { "type": "string", "minLength": 1 }
+      }
+    },
+    "failure_diagnostic": {
+      "type": "object", "required": ["code", "classification", "subject_digests"],
+      "additionalProperties": false,
+      "properties": { "code": { "type": "string", "pattern": "^PA_[A-Z0-9_]+$" }, "classification": { "enum": ["refused", "resource_limit", "unsupported_input", "missing_lossless_fact"] }, "subject_digests": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/sha" } } }
+    }
+  }
+}

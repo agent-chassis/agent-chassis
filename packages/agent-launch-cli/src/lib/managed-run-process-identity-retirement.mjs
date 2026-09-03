@@ -26,7 +26,7 @@ function retirementRefusal(state, reason, extra = null) {
   return Object.freeze({ retired: false, verdict: state, reason, ...(extra ?? {}) });
 }
 
-function validateRetirementEvidence({ reason, evidence, record }) {
+export function validateManagedRunRetirementEvidence({ reason, evidence, record }) {
   if (reason === MANAGED_RUN_PROCESS_IDENTITY_RETIREMENT_REASONS.FINALIZED_INTEGRATION) {
 
     if (typeof evidence?.slice_ref !== "string" || typeof evidence?.integrated_sha !== "string") {
@@ -50,7 +50,8 @@ function validateRetirementEvidence({ reason, evidence, record }) {
 
     const requiredEvidenceFields = [
       "source_worker_run_id", "source_worker_monitor_handle", "subject", "slice_ref",
-      "frozen_base_sha", "delivered_tip_sha", "commit_chain", "committed_target_digest"
+      "frozen_base_sha", "delivered_tip_sha", "commit_chain", "committed_target_digest",
+      "current_authority"
     ];
     if (!hasExactKeys(evidence, requiredEvidenceFields) ||
         evidence.source_worker_run_id !== record.tuple.run_id ||
@@ -62,8 +63,30 @@ function validateRetirementEvidence({ reason, evidence, record }) {
     const expectedRefSuffix = subjectMatch === null
       ? null
       : `/${subjectMatch[1]}/${subjectMatch[2]}`;
+    const sliceRefMatch = typeof evidence?.slice_ref === "string"
+      ? evidence.slice_ref.match(/^refs\/heads\/slice\/(IN-\d{4})\/(WK-\d{4})\/(SLICE-\d{3})$/u)
+      : null;
+    const expectedWkRef = sliceRefMatch === null
+      ? null
+      : `refs/heads/wk/${sliceRefMatch[1]}/${sliceRefMatch[2]}`;
     const oid = (value) => typeof value === "string" &&
       /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(value) && !/^0+$/u.test(value);
+    const currentAuthority = evidence?.current_authority;
+    const presentContractGeneration =
+      /^sha256:[0-9a-f]{64}$/u.test(currentAuthority?.controlled_contract_generation) &&
+      /^sha256:[0-9a-f]{64}$/u.test(currentAuthority?.controlled_contract_manifest_digest);
+    const absentContractGeneration =
+      currentAuthority?.controlled_contract_generation ===
+        "controlled-contract-generation:none" &&
+      currentAuthority?.controlled_contract_manifest_digest === null;
+    const currentAuthorityValid = hasExactKeys(currentAuthority, [
+      "schema_version", "controlled_contract_generation",
+      "controlled_contract_manifest_digest", "wk_ref", "wk_tip_sha"
+    ]) && currentAuthority.schema_version ===
+      "workspace-agent-corrective-current-authority.v1" &&
+      (presentContractGeneration || absentContractGeneration) &&
+      currentAuthority.wk_ref === expectedWkRef &&
+      oid(currentAuthority.wk_tip_sha);
     if (evidence?.subject !== subject || expectedRefSuffix === null ||
         typeof evidence?.slice_ref !== "string" ||
         !evidence.slice_ref.startsWith("refs/heads/slice/IN-") ||
@@ -73,7 +96,8 @@ function validateRetirementEvidence({ reason, evidence, record }) {
         evidence.commit_chain.some((commit) => !oid(commit)) ||
         evidence.commit_chain.at(-1) !== evidence.delivered_tip_sha ||
         typeof evidence?.committed_target_digest !== "string" ||
-        !/^sha256:[0-9a-f]{64}$/u.test(evidence.committed_target_digest)) {
+        !/^sha256:[0-9a-f]{64}$/u.test(evidence.committed_target_digest) ||
+        !currentAuthorityValid) {
       return "corrective_supersession retirement requires exact authenticated delivery identity";
     }
     return null;
@@ -115,7 +139,7 @@ export function retireManagedRunProcessIdentity({
       { detail: assessed.reason, liveness: assessed.liveness ?? null, tuple: normalized }
     );
   }
-  const evidenceRefusal = validateRetirementEvidence({ reason, evidence, record });
+  const evidenceRefusal = validateManagedRunRetirementEvidence({ reason, evidence, record });
   if (evidenceRefusal !== null) {
     fail(MANAGED_RUN_PROCESS_IDENTITY_CODES.RETIREMENT_REFUSED, evidenceRefusal, {
       retirement_reason: reason

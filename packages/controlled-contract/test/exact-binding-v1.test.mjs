@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import {
+  appendFile,
   mkdir,
   mkdtemp,
+  open,
   readFile,
   rename,
   rm,
   symlink,
+  truncate,
   writeFile
 } from "node:fs/promises";
 import os from "node:os";
@@ -24,6 +27,7 @@ import {
 } from "../lib/exact-binding-admission.mjs";
 import { assessExactBindingFilesV1 } from "../lib/exact-binding-assessment.mjs";
 import {
+  MAX_ARTIFACT_BYTES,
   PinnedCaptureRoot,
   assertDescriptorCapturePlatform,
   captureAndEvaluateExactBindingsV1,
@@ -295,6 +299,43 @@ test("distinct-source relation compares captured source descriptors, not require
   ));
 });
 
+test("distinct-content relation requires pairwise-distinct captured content digests", () => {
+  const value = structuredClone(declaration);
+  value.relations = [{
+    relation_id: "captured-version-content-distinct",
+    operator: "distinct_content_sha256",
+    requirement_ids: ["baseline-artifact", "candidate-artifact"]
+  }];
+  const left = {
+    ...binding("baseline-artifact", "baseline_artifact", "ref-baseline", d("a")),
+    source_descriptor_sha256: d("1")
+  };
+  const right = {
+    ...binding("candidate-artifact", "candidate_artifact", "ref-candidate", d("b")),
+    source_descriptor_sha256: d("2")
+  };
+  const satisfied = direct([left, right], { declaration: value });
+  assert.equal(satisfied.satisfaction, "satisfied");
+  assert.deepEqual(satisfied.relation_results[0], {
+    relation_id: "captured-version-content-distinct",
+    operator: "distinct_content_sha256",
+    requirement_ids: ["baseline-artifact", "candidate-artifact"],
+    status: "satisfied",
+    observed_content_sha256: [d("a"), d("b")]
+  });
+  const reused = direct([
+    left,
+    {
+      ...right,
+      content_sha256: left.content_sha256,
+      capture_id: "capture-still-distinct",
+      source_descriptor_sha256: d("3")
+    }
+  ], { declaration: value });
+  assert.equal(reused.satisfaction, "unsatisfied");
+  assert.equal(reused.relation_results[0].status, "unsatisfied");
+});
+
 test("EBPR-001 relation-id-duplicate", () => {
   const value = structuredClone(declaration);
   value.relations[1].relation_id = value.relations[0].relation_id;
@@ -303,6 +344,7 @@ test("EBPR-001 relation-id-duplicate", () => {
 });
 for (const [name, operator, requirementId] of [
   ["same-content-repeated-requirement", "same_content_sha256", "baseline-artifact"],
+  ["distinct-content-repeated-requirement", "distinct_content_sha256", "baseline-artifact"],
   ["distinct-capture-repeated-requirement", "distinct_capture_id", "candidate-artifact"]
 ]) test(`EBPR-001 ${name}`, () => {
   const value = structuredClone(declaration);
@@ -370,6 +412,159 @@ test("EBPR-002 descriptor-relative-intermediate-swap", async () => {
 test("EBPR-002 capture-primitive-unavailable", () => {
   assert.throws(() => assertDescriptorCapturePlatform("unsupported"), {
     code: "descriptor_capture_primitive_unavailable"
+  });
+});
+test("EBPR-002 capture-enforces-the-per-source-byte-bound", async (t) => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "eb-source-bound-"));
+  const root = path.join(parent, "root");
+  await mkdir(root);
+  const artifact = path.join(root, "artifact.bin");
+  await writeFile(artifact, Buffer.alloc(MAX_ARTIFACT_BYTES, 0x5a));
+  const pinned = await PinnedCaptureRoot.open(root);
+  const captured = await pinned.captureArtifact("artifact.bin");
+  assert.equal(captured.byteLength, MAX_ARTIFACT_BYTES);
+  assert.equal(captured[0], 0x5a);
+  await pinned.close();
+
+  await writeFile(artifact, Buffer.alloc(MAX_ARTIFACT_BYTES + 1, 0x5a));
+  const sample = await open(artifact, "r");
+  const fileHandlePrototype = Object.getPrototypeOf(sample);
+  await sample.close();
+  let oversizedReadCount = 0;
+  const originalRead = fileHandlePrototype.read;
+  t.mock.method(fileHandlePrototype, "read", async function (...args) {
+    oversizedReadCount += 1;
+    return Reflect.apply(originalRead, this, args);
+  });
+  const oversized = await PinnedCaptureRoot.open(root);
+  await assert.rejects(oversized.captureArtifact("artifact.bin"), {
+    code: "artifact_capture_source_too_large"
+  });
+  await oversized.close();
+  assert.equal(oversizedReadCount, 0);
+});
+test("EBPR-002 capture-accepts-stable-under-bound-content", async () => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "eb-source-stable-"));
+  const root = path.join(parent, "root");
+  await mkdir(root);
+  await writeFile(path.join(root, "artifact.bin"), Buffer.from([0x5a]));
+  const pinned = await PinnedCaptureRoot.open(root);
+  assert.deepEqual(await pinned.captureArtifact("artifact.bin"), Buffer.from([0x5a]));
+  await pinned.close();
+});
+test("EBPR-002 capture-classifies-under-bound-growth-as-change", async (t) => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "eb-source-small-growth-"));
+  const root = path.join(parent, "root");
+  await mkdir(root);
+  const artifact = path.join(root, "artifact.bin");
+  await writeFile(artifact, Buffer.from([0x5a]));
+  const sample = await open(artifact, "r");
+  const fileHandlePrototype = Object.getPrototypeOf(sample);
+  await sample.close();
+  const originalRead = fileHandlePrototype.read;
+  const readRequests = [];
+  let appended = false;
+  t.mock.method(fileHandlePrototype, "read", async function (...args) {
+    const [, offset, length, position] = args;
+    readRequests.push({ offset, length, position });
+    if (!appended) {
+      appended = true;
+      await appendFile(artifact, Buffer.from([0x59]));
+    }
+    return Reflect.apply(originalRead, this, args);
+  });
+  const pinned = await PinnedCaptureRoot.open(root);
+  await assert.rejects(pinned.captureArtifact("artifact.bin"), {
+    code: "artifact_capture_changed_during_read"
+  });
+  await pinned.close();
+  assert.deepEqual(readRequests, [
+    { offset: 0, length: 1, position: 0 },
+    { offset: 0, length: 1, position: 1 }
+  ]);
+});
+test("EBPR-002 capture-classifies-under-bound-shrinkage-as-change", async (t) => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "eb-source-shrink-"));
+  const root = path.join(parent, "root");
+  await mkdir(root);
+  const artifact = path.join(root, "artifact.bin");
+  await writeFile(artifact, Buffer.from([0x5a, 0x59]));
+  const sample = await open(artifact, "r");
+  const fileHandlePrototype = Object.getPrototypeOf(sample);
+  await sample.close();
+  const originalRead = fileHandlePrototype.read;
+  let shrunk = false;
+  t.mock.method(fileHandlePrototype, "read", async function (...args) {
+    if (!shrunk) {
+      shrunk = true;
+      await truncate(artifact, 1);
+    }
+    return Reflect.apply(originalRead, this, args);
+  });
+  const pinned = await PinnedCaptureRoot.open(root);
+  await assert.rejects(pinned.captureArtifact("artifact.bin"), {
+    code: "artifact_capture_changed_during_read"
+  });
+  await pinned.close();
+});
+test("EBPR-002 capture-classifies-under-bound-replacement-as-change", async (t) => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "eb-source-replace-"));
+  const root = path.join(parent, "root");
+  await mkdir(root);
+  const artifact = path.join(root, "artifact.bin");
+  const displaced = path.join(root, "displaced.bin");
+  await writeFile(artifact, Buffer.from([0x5a]));
+  const sample = await open(artifact, "r");
+  const fileHandlePrototype = Object.getPrototypeOf(sample);
+  await sample.close();
+  const originalRead = fileHandlePrototype.read;
+  let replaced = false;
+  t.mock.method(fileHandlePrototype, "read", async function (...args) {
+    if (!replaced) {
+      replaced = true;
+      await rename(artifact, displaced);
+      await writeFile(artifact, Buffer.from([0x59]));
+    }
+    return Reflect.apply(originalRead, this, args);
+  });
+  const pinned = await PinnedCaptureRoot.open(root);
+  await assert.rejects(pinned.captureArtifact("artifact.bin"), {
+    code: "artifact_capture_changed_during_read"
+  });
+  await pinned.close();
+});
+test("EBPR-002 capture-detects-growth-before-exposing-oversized-content", async (t) => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "eb-source-growth-"));
+  const root = path.join(parent, "root");
+  await mkdir(root);
+  const artifact = path.join(root, "artifact.bin");
+  await writeFile(artifact, Buffer.alloc(MAX_ARTIFACT_BYTES, 0x5a));
+
+  const sample = await open(artifact, "r");
+  const fileHandlePrototype = Object.getPrototypeOf(sample);
+  await sample.close();
+  const originalRead = fileHandlePrototype.read;
+  const readRequests = [];
+  let appended = false;
+  t.mock.method(fileHandlePrototype, "read", async function (...args) {
+    const [, offset, length, position] = args;
+    readRequests.push({ offset, length, position });
+    if (!appended) {
+      appended = true;
+      await appendFile(artifact, Buffer.from([0x59]));
+    }
+    return Reflect.apply(originalRead, this, args);
+  });
+
+  const pinned = await PinnedCaptureRoot.open(root);
+  await assert.rejects(pinned.captureArtifact("artifact.bin"), {
+    code: "artifact_capture_source_too_large"
+  });
+  await pinned.close();
+  assert.equal(appended, true);
+  assert.ok(readRequests.every(({ length }) => length <= MAX_ARTIFACT_BYTES));
+  assert.deepEqual(readRequests.at(-1), {
+    offset: 0, length: 1, position: MAX_ARTIFACT_BYTES
   });
 });
 
@@ -635,6 +830,32 @@ test("atomic loader returns the exact frozen certification object it digested", 
   assert.equal(loaded.exact_binding_certification_digest, sha256(raw));
   assert.equal(Object.isFrozen(loaded.certification), true);
   assert.deepEqual(assertCanonicalCertificationFile(raw), loaded.certification);
+});
+
+test("v2 admissions distinguish semantic controls from legacy generated corpora", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "eb-admission-method-"));
+  try {
+    const { admission } = await createAdmissionPack(directory);
+    const validate = validators[
+      "controlled-contract-admitted-proof-pack.v2.schema.json"
+    ];
+    const semantic = structuredClone(admission);
+    semantic.certification.method = "executable_semantic_adequacy";
+    semantic.certification.negative_fixture_count = 0;
+    semantic.certification.coverage_witness_count = 0;
+    assert.equal(validate(semantic), true);
+
+    semantic.certification.negative_fixture_count = 1;
+    assert.equal(validate(semantic), false);
+
+    const legacy = structuredClone(admission);
+    legacy.certification.method = "executable_adequacy_full_negative_corpus";
+    legacy.certification.negative_fixture_count = 0;
+    legacy.certification.coverage_witness_count = 0;
+    assert.equal(validate(legacy), false);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test("separate assessment entrypoint snapshots once and captures internally", async () => {

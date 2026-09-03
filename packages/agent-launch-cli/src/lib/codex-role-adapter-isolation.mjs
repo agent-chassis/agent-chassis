@@ -187,11 +187,8 @@ export function buildCodexRoleBubblewrapPlan(plan, {
     ?? plan.provisioned_worktree_git_identity
     ?? plan.provisioned_worktree_git_binding
     ?? null;
-  const findingsRole = plan.role === "review" || plan.role === "reviewer"
-    ? "reviewer"
-    : plan.role === "redteam"
-      ? "redteam"
-      : null;
+  const protectGitMetadata = plan.advisory_review_input !== null &&
+    plan.advisory_review_input !== undefined;
   return buildBubblewrapLaunchPlan({
     repo: plan.repo,
     command: childCommand,
@@ -203,7 +200,7 @@ export function buildCodexRoleBubblewrapPlan(plan, {
       ? [...plan.isolation.writable_files]
       : [],
     runtimeRoots: [...plan.isolation.runtime_roots],
-    findingsRole,
+    protectGitMetadata,
     readOnlyRoots: Array.isArray(plan.isolation.read_only_roots)
       ? [
           ...plan.isolation.read_only_roots,

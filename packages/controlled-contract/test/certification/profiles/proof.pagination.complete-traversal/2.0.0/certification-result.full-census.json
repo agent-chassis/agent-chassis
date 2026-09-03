@@ -1,0 +1,490 @@
+{
+  "tool_version": "controlled-contract-proof-pack-adequacy-check.experimental.v0.1",
+  "authority": {
+    "kind": "experimental_local",
+    "authoritative": false
+  },
+  "pack": {
+    "profile_id": "proof.pagination.complete-traversal",
+    "profile_version": "2.0.0",
+    "profile_digest": "4b8c3738b3b35c31f4a9d5c09aff3ecd12557d5c30f8bc0f972084351abab54f",
+    "guarantee_digest": "c5ad980aa18bc912f1364789e814675e45343e85f3ebf56702f932b357323414",
+    "adequacy_digest": "a3c3a4ecc996a80c98c33ab7e4ea36b15b2f4212d4a27a82cdaec8d357d9dd3d"
+  },
+  "passed": true,
+  "control_count": 49,
+  "negative_fixture_count": 0,
+  "coverage_witness_count": 33,
+  "diagnostics": [],
+  "observations": {
+    "schema_version": "controlled-contract-proof-pack-adequacy-run.experimental.v0.1",
+    "profile_id": "proof.pagination.complete-traversal",
+    "profile_version": "2.0.0",
+    "profile_digest": "4b8c3738b3b35c31f4a9d5c09aff3ecd12557d5c30f8bc0f972084351abab54f",
+    "guarantee_digest": "c5ad980aa18bc912f1364789e814675e45343e85f3ebf56702f932b357323414",
+    "controls": [
+      {
+        "control_id": "empty-traversal",
+        "category": "positive",
+        "implementation_outcome": "passed",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "singleton-traversal",
+        "category": "positive",
+        "implementation_outcome": "passed",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "page-size-one",
+        "category": "positive",
+        "implementation_outcome": "passed",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "exact-page-multiple",
+        "category": "positive",
+        "implementation_outcome": "passed",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "partial-final-page",
+        "category": "positive",
+        "implementation_outcome": "passed",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "multi-page-shape-a",
+        "category": "positive",
+        "implementation_outcome": "passed",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "multi-page-shape-b",
+        "category": "positive",
+        "implementation_outcome": "passed",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "multi-page-shape-c",
+        "category": "positive",
+        "implementation_outcome": "passed",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "aggregate-input-limit-plus-one",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "not_evaluated"
+      },
+      {
+        "control_id": "authenticated-population-omission",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "not_evaluated"
+      },
+      {
+        "control_id": "authenticated-population-substitution",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "not_evaluated"
+      },
+      {
+        "control_id": "authentication-capture-substitution",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "not_evaluated"
+      },
+      {
+        "control_id": "canonical-result-limit-plus-one",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "not_evaluated"
+      },
+      {
+        "control_id": "cross-page-reorder",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "not_evaluated"
+      },
+      {
+        "control_id": "cursor-dangling",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "not_evaluated"
+      },
+      {
+        "control_id": "cursor-fork",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "not_evaluated"
+      },
+      {
+        "control_id": "cursor-replay",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "not_evaluated"
+      },
+      {
+        "control_id": "cursor-skip",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "not_evaluated"
+      },
+      {
+        "control_id": "cursor-substitution",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "not_evaluated"
+      },
+      {
+        "control_id": "early-terminal",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "not_evaluated"
+      },
+      {
+        "control_id": "equality-normalized-duplicate",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "not_evaluated"
+      },
+      {
+        "control_id": "identifier-renaming-dependence",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "not_evaluated"
+      },
+      {
+        "control_id": "post-terminal-request",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "not_evaluated"
+      },
+      {
+        "control_id": "snapshot-drift",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "not_evaluated"
+      },
+      {
+        "control_id": "traversal-extra-member",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "not_evaluated"
+      },
+      {
+        "control_id": "traversal-occurrence-duplication",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "not_evaluated"
+      },
+      {
+        "control_id": "traversal-occurrence-omission",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "not_evaluated"
+      },
+      {
+        "control_id": "unknown-cursor",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "not_evaluated"
+      },
+      {
+        "control_id": "unknown-occurrence-identity",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "not_evaluated"
+      },
+      {
+        "control_id": "version-drift",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "not_evaluated"
+      },
+      {
+        "control_id": "within-page-reorder",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "not_evaluated"
+      },
+      {
+        "control_id": "work-limit-plus-one",
+        "category": "mutant",
+        "implementation_outcome": "killed",
+        "profile_satisfaction": "not_evaluated"
+      },
+      {
+        "control_id": "missing-source-authentication-witness-binding",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "missing-source-of-record-witness-binding",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "missing-authoritative-population-binding",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "missing-linear-cursor-chain",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "missing-exact-order-equality",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "missing-terminal-uniqueness",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "missing-duplicate-refusal",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "missing-snapshot-version-preservation",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "missing-resource-refusal-binding",
+        "category": "profile_rejection",
+        "implementation_outcome": "not_applicable",
+        "profile_satisfaction": "invalid"
+      },
+      {
+        "control_id": "caller-declared-population-completeness",
+        "category": "exclusion",
+        "implementation_outcome": "boundary_demonstrated",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "cas-linearizability",
+        "category": "exclusion",
+        "implementation_outcome": "boundary_demonstrated",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "cross-contract-result-join",
+        "category": "exclusion",
+        "implementation_outcome": "boundary_demonstrated",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "cross-pack-result-join",
+        "category": "exclusion",
+        "implementation_outcome": "boundary_demonstrated",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "runtime-truth",
+        "category": "exclusion",
+        "implementation_outcome": "boundary_demonstrated",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "snapshot-acquisition-atomicity",
+        "category": "exclusion",
+        "implementation_outcome": "boundary_demonstrated",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "traversal-liveness",
+        "category": "exclusion",
+        "implementation_outcome": "boundary_demonstrated",
+        "profile_satisfaction": "satisfied"
+      },
+      {
+        "control_id": "unrepresented-concurrency",
+        "category": "exclusion",
+        "implementation_outcome": "boundary_demonstrated",
+        "profile_satisfaction": "satisfied"
+      }
+    ]
+  },
+  "negative_fixture_results": [],
+  "coverage_witness_results": [
+    {
+      "fixture_id": "aggregate-input-limit-plus-one",
+      "witness_id": "witness-aggregate-input-limit-plus-one",
+      "outcome": "passed"
+    },
+    {
+      "fixture_id": "authenticated-population-omission",
+      "witness_id": "witness-authenticated-population-omission",
+      "outcome": "passed"
+    },
+    {
+      "fixture_id": "authenticated-population-substitution",
+      "witness_id": "witness-authenticated-population-substitution",
+      "outcome": "passed"
+    },
+    {
+      "fixture_id": "authentication-capture-substitution",
+      "witness_id": "witness-authentication-capture-substitution",
+      "outcome": "passed"
+    },
+    {
+      "fixture_id": "canonical-result-limit-plus-one",
+      "witness_id": "witness-canonical-result-limit-plus-one",
+      "outcome": "passed"
+    },
+    {
+      "fixture_id": "cross-page-reorder",
+      "witness_id": "witness-cross-page-reorder",
+      "outcome": "passed"
+    },
+    {
+      "fixture_id": "cursor-dangling",
+      "witness_id": "witness-cursor-dangling",
+      "outcome": "passed"
+    },
+    {
+      "fixture_id": "cursor-fork",
+      "witness_id": "witness-cursor-fork",
+      "outcome": "passed"
+    },
+    {
+      "fixture_id": "cursor-replay",
+      "witness_id": "witness-cursor-replay",
+      "outcome": "passed"
+    },
+    {
+      "fixture_id": "cursor-skip",
+      "witness_id": "witness-cursor-skip",
+      "outcome": "passed"
+    },
+    {
+      "fixture_id": "cursor-substitution",
+      "witness_id": "witness-cursor-substitution",
+      "outcome": "passed"
+    },
+    {
+      "fixture_id": "early-terminal",
+      "witness_id": "witness-early-terminal",
+      "outcome": "passed"
+    },
+    {
+      "fixture_id": "equality-normalized-duplicate",
+      "witness_id": "witness-equality-normalized-duplicate",
+      "outcome": "passed"
+    },
+    {
+      "fixture_id": "identifier-renaming-dependence",
+      "witness_id": "witness-identifier-renaming-dependence",
+      "outcome": "passed"
+    },
+    {
+      "fixture_id": "post-terminal-request",
+      "witness_id": "witness-post-terminal-request",
+      "outcome": "passed"
+    },
+    {
+      "fixture_id": "snapshot-drift",
+      "witness_id": "witness-snapshot-drift",
+      "outcome": "passed"
+    },
+    {
+      "fixture_id": "traversal-extra-member",
+      "witness_id": "witness-traversal-extra-member",
+      "outcome": "passed"
+    },
+    {
+      "fixture_id": "traversal-occurrence-duplication",
+      "witness_id": "witness-traversal-occurrence-duplication",
+      "outcome": "passed"
+    },
+    {
+      "fixture_id": "traversal-occurrence-omission",
+      "witness_id": "witness-traversal-occurrence-omission",
+      "outcome": "passed"
+    },
+    {
+      "fixture_id": "unknown-cursor",
+      "witness_id": "witness-unknown-cursor",
+      "outcome": "passed"
+    },
+    {
+      "fixture_id": "unknown-occurrence-identity",
+      "witness_id": "witness-unknown-occurrence-identity",
+      "outcome": "passed"
+    },
+    {
+      "fixture_id": "version-drift",
+      "witness_id": "witness-version-drift",
+      "outcome": "passed"
+    },
+    {
+      "fixture_id": "within-page-reorder",
+      "witness_id": "witness-within-page-reorder",
+      "outcome": "passed"
+    },
+    {
+      "fixture_id": "work-limit-plus-one",
+      "witness_id": "witness-work-limit-plus-one",
+      "outcome": "passed"
+    },
+    {
+      "fixture_id": "missing-source-authentication-witness-binding",
+      "witness_id": "witness-missing-source-authentication-witness-binding",
+      "outcome": "passed"
+    },
+    {
+      "fixture_id": "missing-source-of-record-witness-binding",
+      "witness_id": "witness-missing-source-of-record-witness-binding",
+      "outcome": "passed"
+    },
+    {
+      "fixture_id": "missing-authoritative-population-binding",
+      "witness_id": "witness-missing-authoritative-population-binding",
+      "outcome": "passed"
+    },
+    {
+      "fixture_id": "missing-linear-cursor-chain",
+      "witness_id": "witness-missing-linear-cursor-chain",
+      "outcome": "passed"
+    },
+    {
+      "fixture_id": "missing-exact-order-equality",
+      "witness_id": "witness-missing-exact-order-equality",
+      "outcome": "passed"
+    },
+    {
+      "fixture_id": "missing-terminal-uniqueness",
+      "witness_id": "witness-missing-terminal-uniqueness",
+      "outcome": "passed"
+    },
+    {
+      "fixture_id": "missing-duplicate-refusal",
+      "witness_id": "witness-missing-duplicate-refusal",
+      "outcome": "passed"
+    },
+    {
+      "fixture_id": "missing-snapshot-version-preservation",
+      "witness_id": "witness-missing-snapshot-version-preservation",
+      "outcome": "passed"
+    },
+    {
+      "fixture_id": "missing-resource-refusal-binding",
+      "witness_id": "witness-missing-resource-refusal-binding",
+      "outcome": "passed"
+    }
+  ]
+}

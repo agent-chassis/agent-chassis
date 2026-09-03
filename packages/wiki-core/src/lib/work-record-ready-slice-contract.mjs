@@ -1,6 +1,17 @@
 
 
+import {
+  isRepositoryRelativePath,
+  normalizeRepositoryRelativePath
+} from "./work-record-repository-path.mjs";
 import { canonicalizeWorkRecordReadScope } from "./work-record-schema.mjs";
+import {
+  collectControlledContractPrivateScopeIntersections
+} from "./controlled-contract-private-path-policy.mjs";
+import {
+  WORK_RECORD_FINDINGS_TECHNICAL_ROLE_BY_WORK_KIND,
+  analyzeWorkRecordFindingsUnit
+} from "./work-record-findings-semantics.mjs";
 import {
   SHA256_PATTERN,
   WORK_RECORD_COMPLETION_POLICY_VALUES,
@@ -35,7 +46,7 @@ import {
 const READY_SLICE_DIFF_PATH_LIMIT = 64;
 
 const READY_SLICE_CONTROL_FIELDS = Object.freeze([
-  "unit", "slice_id", "expected_source_digest", "shaping_mode", "attestation_action", "verbose",
+  "unit", "slice_id", "expected_source_digest", "shaping_mode", "verbose",
   "completion_policy"
 ]);
 const READY_SLICE_PAYLOAD_FIELDS = Object.freeze([
@@ -48,13 +59,26 @@ export const WORK_RECORD_READY_SLICE_FIELDS = Object.freeze([
   ...READY_SLICE_PAYLOAD_FIELDS
 ]);
 const READY_SLICE_FIELD_SET = new Set(WORK_RECORD_READY_SLICE_FIELDS);
+
 const READY_SHAPES = Object.freeze({
   implementation: { work_kind: "implementation", role: "worker" },
-  reviewer: { work_kind: "review", role: "reviewer" },
-  redteam: { work_kind: "redteam", role: "redteam" }
+  reviewer: {
+    work_kind: "review",
+    role: WORK_RECORD_FINDINGS_TECHNICAL_ROLE_BY_WORK_KIND.review
+  },
+  redteam: {
+    work_kind: "redteam",
+    role: WORK_RECORD_FINDINGS_TECHNICAL_ROLE_BY_WORK_KIND.redteam
+  }
+});
+
+const READY_SLICE_FINDINGS_DIAGNOSTIC_CODES = Object.freeze({
+  findings_ready_review_purpose_required: "ready_slice_missing_required_field",
+  findings_review_purpose_incompatible: "ready_slice_review_purpose_incompatible",
+  findings_review_purpose_invalid_value: "ready_slice_review_purpose_incompatible",
+  findings_role_conflict: "ready_slice_shaping_conflict"
 });
 const READY_PRIORITIES = new Set(["low", "medium", "high", "critical"]);
-const READY_ATTESTATION_ACTIONS = new Set(["preserve_or_refuse", "invalidate_for_review"]);
 
 const READY_COMPLETION_POLICIES = new Set(WORK_RECORD_COMPLETION_POLICY_VALUES);
 const READY_PROVENANCE = new Set(WORK_UNIT_FACET_PROVENANCE_VALUES);
@@ -64,6 +88,61 @@ const READY_TARGET_PROVENANCE_FIELDS = new Set([
 const READY_ACCEPTANCE_PROVENANCE_FIELDS = new Set([
   "text", "verification_method", "evidence_target"
 ]);
+
+const READY_TARGET_COARSE_ACTIVITY_KIND = "implementation";
+const READY_TARGET_COARSE_ACTIVITY_BY_OPERATION = Object.freeze({
+  create: "implementation_new",
+  modify: "implementation_modify",
+  delete: "implementation_remove"
+});
+const READY_TARGET_COARSE_ARTIFACT_KIND = "source";
+const READY_TARGET_COARSE_ARTIFACT_BY_TARGET_KIND = Object.freeze({
+  module: "production_code_module",
+  export: "production_code_export"
+});
+export const READY_TARGET_COARSE_FACET_VALUES = Object.freeze({
+  activity_kind: READY_TARGET_COARSE_ACTIVITY_KIND,
+  artifact_kind: READY_TARGET_COARSE_ARTIFACT_KIND
+});
+
+function normalizeCoarseTargetFacet({ field, value, target, shapingMode, path }) {
+  if (!isString(value) || value.trim() !== READY_TARGET_COARSE_FACET_VALUES[field]) {
+    return undefined;
+  }
+  const fieldPath = `${path}.${field}`;
+  const coarse = value.trim();
+
+  if (shapingMode !== null && shapingMode !== "implementation") {
+    readyInputError(
+      "ready_slice_unsupported_coarse_facet",
+      `${fieldPath} coarse value '${coarse}' is supported only for shaping_mode 'implementation'; omit ` +
+        `${field} or supply one canonical value`,
+      fieldPath
+    );
+  }
+  if (field === "activity_kind") {
+    const canonical = READY_TARGET_COARSE_ACTIVITY_BY_OPERATION[target.operation];
+    if (!canonical) {
+      readyInputError(
+        "ready_slice_unsupported_coarse_facet",
+        `${fieldPath} coarse value '${coarse}' has no canonical activity for operation '${target.operation}'; ` +
+          `omit ${field} or supply one canonical value`,
+        fieldPath
+      );
+    }
+    return canonical;
+  }
+  const canonical = READY_TARGET_COARSE_ARTIFACT_BY_TARGET_KIND[target.kind];
+  if (!canonical) {
+    readyInputError(
+      "ready_slice_unsupported_coarse_facet",
+      `${fieldPath} coarse value '${coarse}' is ambiguous for target kind '${target.kind}'; omit ${field} or ` +
+        "supply one canonical value",
+      fieldPath
+    );
+  }
+  return canonical;
+}
 
 class ReadySliceInputError extends Error {
   constructor(code, message, path) {
@@ -87,18 +166,13 @@ function nonemptyString(value, path) {
   }
   return value.trim();
 }
+
 function repoPath(value, path) {
-  let normalized = nonemptyString(value, path);
-  if (normalized.startsWith("./")) normalized = normalized.slice(2);
-  const segments = normalized.split("/");
-  if (
-    !normalized || normalized.startsWith("/") || normalized.startsWith("~") ||
-    /^[A-Za-z]:/u.test(normalized) || normalized.includes("\\") || normalized.includes("\0") ||
-    segments.some((entry) => !entry || entry === "." || entry === "..")
-  ) {
+  const trimmed = nonemptyString(value, path);
+  if (!isRepositoryRelativePath(trimmed)) {
     readyInputError("ready_slice_invalid_path", `${path} must be a canonical repository-relative POSIX path`, path);
   }
-  return normalized;
+  return normalizeRepositoryRelativePath(trimmed);
 }
 function stringList(value, path, { paths = false } = {}) {
   if (!Array.isArray(value)) {
@@ -164,9 +238,10 @@ function normalizeAcceptance(value) {
     }
     return result;
   });
-  return { criteria, validation: stringList(value.validation, "acceptance.validation") };
+
+  return { criteria, validation: cloneJson(value.validation) };
 }
-function normalizeTargets(value) {
+function normalizeTargets(value, { shapingMode = null } = {}) {
   if (!Array.isArray(value)) readyInputError("ready_slice_invalid_targets", "expected_edit_targets must be an array", "expected_edit_targets");
   return value.map((entry, index) => {
     const path = `expected_edit_targets[${index}]`;
@@ -186,8 +261,23 @@ function normalizeTargets(value) {
       ["artifact_kind", WORK_UNIT_FEATURE_VECTOR_ARTIFACT_KIND_VALUES],
       ["granularity", WORK_UNIT_FEATURE_VECTOR_GRANULARITY_VALUES]
     ];
+
+    const derivedFacets = [];
     for (const [field, values] of optionalEnums) {
-      if (hasOwn(entry, field)) result[field] = controlled(entry[field], new Set(values), `${path}.${field}`, { nullable: true });
+      if (!hasOwn(entry, field)) continue;
+      const derived = normalizeCoarseTargetFacet({
+        field,
+        value: entry[field],
+        target: result,
+        shapingMode,
+        path
+      });
+      if (derived !== undefined) {
+        result[field] = derived;
+        derivedFacets.push(field);
+        continue;
+      }
+      result[field] = controlled(entry[field], new Set(values), `${path}.${field}`, { nullable: true });
     }
     if (hasOwn(entry, "optional")) {
       if (typeof entry.optional !== "boolean") readyInputError("ready_slice_invalid_targets", `${path}.optional must be boolean`, `${path}.optional`);
@@ -195,6 +285,12 @@ function normalizeTargets(value) {
     }
     if (hasOwn(entry, "facet_provenance")) {
       result.facet_provenance = strictProvenance(entry.facet_provenance, READY_TARGET_PROVENANCE_FIELDS, `${path}.facet_provenance`);
+    }
+    if (derivedFacets.length > 0) {
+      result.facet_provenance = { ...(result.facet_provenance ?? {}) };
+      for (const field of derivedFacets) {
+        result.facet_provenance[field] = "derived_normalizer";
+      }
     }
     return result;
   });
@@ -243,7 +339,6 @@ export function validateWorkRecordReadySliceRequest(request) {
     if (hasOwn(request, "slice_id") && (!isString(request.slice_id) || !ORDINAL_SLICE_ID_PATTERN.test(request.slice_id))) readyInputError("invalid_slice_id", "slice_id must be SLICE-###", "slice_id");
     if (hasOwn(request, "expected_source_digest") && (!isString(request.expected_source_digest) || !SHA256_PATTERN.test(request.expected_source_digest))) readyInputError("invalid_expected_source_digest", "expected_source_digest must be sha256:<64 lowercase hex>", "expected_source_digest");
     if (hasOwn(request, "shaping_mode")) controlled(request.shaping_mode, new Set(Object.keys(READY_SHAPES)), "shaping_mode");
-    if (hasOwn(request, "attestation_action")) controlled(request.attestation_action, READY_ATTESTATION_ACTIONS, "attestation_action");
     if (hasOwn(request, "verbose") && typeof request.verbose !== "boolean") readyInputError("ready_slice_invalid_field", "verbose must be boolean", "verbose");
     if (hasOwn(request, "title")) nonemptyString(request.title, "title");
     if (hasOwn(request, "status")) controlled(request.status, new Set(WORK_RECORD_STATUS_VALUES), "status");
@@ -254,7 +349,14 @@ export function validateWorkRecordReadySliceRequest(request) {
     if (hasOwn(request, "repo_paths")) stringList(request.repo_paths, "repo_paths", { paths: true });
     if (hasOwn(request, "write_scope")) stringList(request.write_scope, "write_scope", { paths: true });
     if (hasOwn(request, "acceptance")) normalizeAcceptance(request.acceptance);
-    if (hasOwn(request, "expected_edit_targets")) normalizeTargets(request.expected_edit_targets);
+
+    if (hasOwn(request, "expected_edit_targets")) {
+      normalizeTargets(request.expected_edit_targets, {
+        shapingMode: hasOwn(request, "shaping_mode") && isString(request.shaping_mode)
+          ? request.shaping_mode.trim()
+          : (hasOwn(request, "slice_id") ? null : "implementation")
+      });
+    }
     if (hasOwn(request, "dispatch_intent")) normalizeReadyDispatchIntent(request.dispatch_intent);
     if (hasOwn(request, "agent_notes")) normalizeAgentNotes(request.agent_notes);
     if (
@@ -264,6 +366,21 @@ export function validateWorkRecordReadySliceRequest(request) {
     ) readyInputError("ready_slice_invalid_field", "expected_changed_line_budget must be a non-negative integer or null", "expected_changed_line_budget");
     if (hasOwn(request, "work_kind")) controlled(request.work_kind, new Set(["implementation", "review", "redteam"]), "work_kind");
     if (hasOwn(request, "review_purpose")) controlled(request.review_purpose, new Set(["standalone", "terminal_whole_wk"]), "review_purpose");
+
+    if (
+      hasOwn(request, "slice_id") &&
+      hasOwn(request, "shaping_mode") &&
+      isString(request.shaping_mode) &&
+      request.shaping_mode.trim() === "redteam" &&
+      !hasOwn(request, "review_purpose")
+    ) {
+      readyInputError(
+        "ready_slice_missing_required_field",
+        "review_purpose must be explicitly authored as \"standalone\" for redteam findings work; " +
+          "retry the same authoring call with that value",
+        "review_purpose"
+      );
+    }
     if (hasOwn(request, "completion_policy")) controlled(request.completion_policy, READY_COMPLETION_POLICIES, "completion_policy");
     return { ok: true, diagnostics: [] };
   } catch (error) {
@@ -307,9 +424,6 @@ export function planWorkRecordReadySlice(record, request = {}) {
     const mode = requestedMode ?? (create ? "implementation" : effectiveShapeForUpdate(existing));
     if (!mode) readyInputError("ready_slice_unsupported_effective_shape", "existing slice requires explicit implementation, reviewer, or redteam shaping", "shaping_mode");
     const shape = READY_SHAPES[mode];
-    const action = hasOwn(request, "attestation_action") ? request.attestation_action.trim() : "preserve_or_refuse";
-    if (create && action === "invalidate_for_review") readyInputError("ready_slice_invalid_attestation_action", "creation cannot invalidate an attestation", "attestation_action");
-
     const supplied = {};
     if (hasOwn(request, "title")) supplied.title = nonemptyString(request.title, "title");
     if (hasOwn(request, "status")) supplied.status = controlled(request.status, new Set(WORK_RECORD_STATUS_VALUES), "status");
@@ -320,7 +434,7 @@ export function planWorkRecordReadySlice(record, request = {}) {
     if (hasOwn(request, "repo_paths")) supplied.repo_paths = stringList(request.repo_paths, "repo_paths", { paths: true });
     if (hasOwn(request, "write_scope")) supplied.write_scope = stringList(request.write_scope, "write_scope", { paths: true });
     if (hasOwn(request, "acceptance")) supplied.acceptance = normalizeAcceptance(request.acceptance);
-    if (hasOwn(request, "expected_edit_targets")) supplied.expected_edit_targets = normalizeTargets(request.expected_edit_targets);
+    if (hasOwn(request, "expected_edit_targets")) supplied.expected_edit_targets = normalizeTargets(request.expected_edit_targets, { shapingMode: mode });
     if (hasOwn(request, "expected_changed_line_budget")) {
       if (request.expected_changed_line_budget !== null && (!Number.isInteger(request.expected_changed_line_budget) || request.expected_changed_line_budget < 0)) readyInputError("ready_slice_invalid_field", "expected_changed_line_budget must be a non-negative integer or null", "expected_changed_line_budget");
       supplied.expected_changed_line_budget = request.expected_changed_line_budget;
@@ -364,6 +478,20 @@ export function planWorkRecordReadySlice(record, request = {}) {
     next.work_kind = shape.work_kind;
     if (mode === "reviewer") {
       next.review_purpose = supplied.review_purpose ?? next.review_purpose ?? "standalone";
+    } else if (mode === "redteam") {
+      if (supplied.review_purpose === "terminal_whole_wk") {
+        readyInputError(
+          "ready_slice_review_purpose_incompatible",
+          "terminal_whole_wk review_purpose is valid only for reviewer shaping",
+          "review_purpose"
+        );
+      }
+
+      if (supplied.review_purpose === "standalone") {
+        next.review_purpose = "standalone";
+      } else if (!hasOwn(existing ?? {}, "review_purpose")) {
+        delete next.review_purpose;
+      }
     } else {
       if (hasOwn(request, "review_purpose")) readyInputError("ready_slice_review_purpose_incompatible", "review_purpose is valid only for reviewer shaping", "review_purpose");
       delete next.review_purpose;
@@ -401,6 +529,21 @@ export function planWorkRecordReadySlice(record, request = {}) {
     if (mode === "implementation" && (!Array.isArray(next.write_scope) || next.write_scope.length === 0)) readyInputError("ready_slice_implementation_write_scope_empty", "implementation write_scope must be non-empty", "write_scope");
     if (mode === "implementation" && (!Array.isArray(next.expected_edit_targets) || next.expected_edit_targets.length === 0)) readyInputError("ready_slice_implementation_targets_empty", "implementation expected_edit_targets must be non-empty", "expected_edit_targets");
 
+    const findingsAnalysis = analyzeWorkRecordFindingsUnit(next, {
+      requireExplicitRedteamPurpose: true
+    });
+    const findingsRefusal = findingsAnalysis.diagnostics.find(
+      (entry) => entry.severity === "error"
+    );
+    if (findingsRefusal) {
+      readyInputError(
+        READY_SLICE_FINDINGS_DIAGNOSTIC_CODES[findingsRefusal.code] ??
+          "ready_slice_incomplete_contract",
+        findingsRefusal.message,
+        findingsRefusal.path
+      );
+    }
+
     const clone = cloneJson(record);
     const policyChanged = Boolean(completionPolicy) && clone.completion_policy !== completionPolicy;
     if (policyChanged) clone.completion_policy = completionPolicy;
@@ -437,8 +580,11 @@ export function planWorkRecordReadySlice(record, request = {}) {
       changedPaths: boundedPaths,
       allowedPersistedPrefixes: allowedPrefixes,
       shapingMode: mode,
-      attestationAction: action,
-      create
+      create,
+      policyFacts: collectControlledContractPrivateScopeIntersections(next, {
+        unitAddress: `${record.id}#${sliceId}`,
+        status: next.status
+      })
     };
   } catch (error) {
     if (!(error instanceof ReadySliceInputError)) throw error;

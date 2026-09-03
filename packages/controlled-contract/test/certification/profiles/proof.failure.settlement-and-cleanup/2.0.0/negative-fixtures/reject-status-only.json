@@ -1,0 +1,878 @@
+{
+  "schema_version": "controlled-contract-proof-pack-negative-fixture.experimental.v0.1",
+  "fixture_id": "reject-status-only",
+  "covers": [
+    {
+      "surface_id": "claim-patterns",
+      "weakening_class": "deletion"
+    },
+    {
+      "surface_id": "satisfaction-expression",
+      "weakening_class": "satisfaction_branch_broadening"
+    }
+  ],
+  "contract": {
+    "schema_version": "controlled-acceptance-contract.v1",
+    "vocabulary_version": "controlled-contract-vocabulary.v1",
+    "profile_id": "acceptance-contract.standard.v1",
+    "references": [
+      {
+        "reference_id": "ref-operation",
+        "type_term": "cc:operation",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "file_upload",
+          "value": "operation"
+        }
+      },
+      {
+        "reference_id": "ref-operation-attempt",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "file_upload",
+          "value": "operation_attempt"
+        }
+      },
+      {
+        "reference_id": "ref-failure-injection",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "file_upload",
+          "value": "failure_injection"
+        }
+      },
+      {
+        "reference_id": "ref-injected-failure",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "file_upload",
+          "value": "injected_failure"
+        }
+      },
+      {
+        "reference_id": "ref-failure-cause",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "file_upload",
+          "value": "failure_cause"
+        }
+      },
+      {
+        "reference_id": "ref-original-cause-state",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "file_upload",
+          "value": "original_cause_state"
+        }
+      },
+      {
+        "reference_id": "ref-settled-cause-state",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "file_upload",
+          "value": "settled_cause_state"
+        }
+      },
+      {
+        "reference_id": "ref-cause-observation-at-failure",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "file_upload",
+          "value": "cause_observation_at_failure"
+        }
+      },
+      {
+        "reference_id": "ref-cause-observation-at-settlement",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "file_upload",
+          "value": "cause_observation_at_settlement"
+        }
+      },
+      {
+        "reference_id": "ref-cleanup-event",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "file_upload",
+          "value": "cleanup_event"
+        }
+      },
+      {
+        "reference_id": "ref-settlement-event",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "file_upload",
+          "value": "settlement_event"
+        }
+      },
+      {
+        "reference_id": "ref-residue-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "file_upload",
+          "value": "residue_population"
+        }
+      },
+      {
+        "reference_id": "ref-residue-observation",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "file_upload",
+          "value": "residue_observation"
+        }
+      },
+      {
+        "reference_id": "ref-settled-failure-record",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "file_upload",
+          "value": "settled_failure_record"
+        }
+      },
+      {
+        "reference_id": "ref-cleanup-verification",
+        "type_term": "cc:process",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "file_upload",
+          "value": "cleanup_verification"
+        }
+      },
+      {
+        "reference_id": "ref-cause-verification",
+        "type_term": "cc:process",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "file_upload",
+          "value": "cause_verification"
+        }
+      },
+      {
+        "reference_id": "ref-cleanup-failure-condition",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "profile_term",
+          "term": "file_upload:cleanup_failure_condition"
+        }
+      },
+      {
+        "reference_id": "ref-cause-loss-condition",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "profile_term",
+          "term": "file_upload:cause_loss_condition"
+        }
+      }
+    ],
+    "propositions": [
+      {
+        "proposition_id": "prop-failure-injection-precedes-failure",
+        "subject_reference_id": "ref-failure-injection",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "during",
+          "operand_reference_ids": [
+            "ref-operation-attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-injected-failure"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-injected-failure-targets-operation",
+        "subject_reference_id": "ref-injected-failure",
+        "operator": "reference:targets",
+        "applicability_context": {
+          "mode": "during",
+          "operand_reference_ids": [
+            "ref-operation-attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-operation"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-injected-failure-carries-cause",
+        "subject_reference_id": "ref-injected-failure",
+        "operator": "reference:has_property",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-failure-cause"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-original-failure-cause-state",
+        "subject_reference_id": "ref-failure-cause",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-injected-failure"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-original-cause-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-failure-cause-observation-records-original",
+        "subject_reference_id": "ref-cause-observation-at-failure",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-injected-failure"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-original-cause-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-cleanup-follows-injected-failure",
+        "subject_reference_id": "ref-cleanup-event",
+        "operator": "reference:follows",
+        "applicability_context": {
+          "mode": "during",
+          "operand_reference_ids": [
+            "ref-operation-attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-injected-failure"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-cleanup-targets-residue-population",
+        "subject_reference_id": "ref-cleanup-event",
+        "operator": "reference:targets",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-injected-failure"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-residue-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-settlement-follows-cleanup",
+        "subject_reference_id": "ref-settlement-event",
+        "operator": "reference:follows",
+        "applicability_context": {
+          "mode": "during",
+          "operand_reference_ids": [
+            "ref-operation-attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-cleanup-event"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-settlement-follows-injected-failure",
+        "subject_reference_id": "ref-settlement-event",
+        "operator": "reference:follows",
+        "applicability_context": {
+          "mode": "during",
+          "operand_reference_ids": [
+            "ref-operation-attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-injected-failure"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-settled-residue-population-cardinality",
+        "subject_reference_id": "ref-residue-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-settlement-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 0
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-residue-observation-records-population",
+        "subject_reference_id": "ref-residue-observation",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-settlement-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-residue-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-settled-failure-record-preserves-cause",
+        "subject_reference_id": "ref-settled-failure-record",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-settlement-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-failure-cause"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-settled-failure-cause-state",
+        "subject_reference_id": "ref-failure-cause",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-settlement-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-settled-cause-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-settled-cause-observation-records-state",
+        "subject_reference_id": "ref-cause-observation-at-settlement",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-settlement-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-settled-cause-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-cleanup-verification-reads-settlement",
+        "subject_reference_id": "ref-cleanup-verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-settlement-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-residue-observation"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-settlement-event"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-residue-population-empty-after-settlement",
+        "subject_reference_id": "ref-residue-population",
+        "operator": "number:equals",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-settlement-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 0
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-cleanup-verification",
+        "subject_reference_id": "ref-cleanup-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-residue-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-cleanup-verification",
+        "subject_reference_id": "ref-residue-population",
+        "operator": "number:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-cleanup-failure-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 0
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-cause-verification-reads-observations",
+        "subject_reference_id": "ref-cause-verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-settlement-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-cause-observation-at-failure"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-cause-observation-at-settlement"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-settled-failure-record"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-original-failure-cause-preserved",
+        "subject_reference_id": "ref-settled-cause-state",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-settlement-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-original-cause-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-cause-preservation-verification",
+        "subject_reference_id": "ref-cause-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-failure-cause"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-cause-preservation-verification",
+        "subject_reference_id": "ref-settled-cause-state",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-cause-loss-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-original-cause-state"
+          }
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "claim_id": "claim-failure-injection-precedes-failure",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-failure-injection-precedes-failure"
+      },
+      {
+        "claim_id": "claim-injected-failure-targets-operation",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-injected-failure-targets-operation"
+      },
+      {
+        "claim_id": "claim-injected-failure-carries-cause",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-injected-failure-carries-cause"
+      },
+      {
+        "claim_id": "claim-original-failure-cause-state",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-original-failure-cause-state"
+      },
+      {
+        "claim_id": "claim-failure-cause-observation-records-original",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-failure-cause-observation-records-original"
+      },
+      {
+        "claim_id": "claim-cleanup-follows-injected-failure",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-cleanup-follows-injected-failure"
+      },
+      {
+        "claim_id": "claim-cleanup-targets-residue-population",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-cleanup-targets-residue-population"
+      },
+      {
+        "claim_id": "claim-settlement-follows-cleanup",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-settlement-follows-cleanup"
+      },
+      {
+        "claim_id": "claim-settlement-follows-injected-failure",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-settlement-follows-injected-failure"
+      },
+      {
+        "claim_id": "claim-settled-residue-population-cardinality",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-settled-residue-population-cardinality"
+      },
+      {
+        "claim_id": "claim-residue-observation-records-population",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-residue-observation-records-population"
+      },
+      {
+        "claim_id": "claim-settled-failure-record-preserves-cause",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-settled-failure-record-preserves-cause"
+      },
+      {
+        "claim_id": "claim-settled-failure-cause-state",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-settled-failure-cause-state"
+      },
+      {
+        "claim_id": "claim-settled-cause-observation-records-state",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-settled-cause-observation-records-state"
+      },
+      {
+        "claim_id": "claim-cleanup-verification-reads-settlement",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-cleanup-verification-reads-settlement"
+      },
+      {
+        "claim_id": "claim-residue-population-empty-after-settlement",
+        "kind": "behavior",
+        "modality": "MUST",
+        "proposition_id": "prop-residue-population-empty-after-settlement"
+      },
+      {
+        "claim_id": "claim-cleanup-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-cleanup-verification",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-cleanup-verification"
+      },
+      {
+        "claim_id": "claim-cause-verification-reads-observations",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-cause-verification-reads-observations"
+      },
+      {
+        "claim_id": "claim-original-failure-cause-preserved",
+        "kind": "behavior",
+        "modality": "MUST",
+        "proposition_id": "prop-original-failure-cause-preserved"
+      },
+      {
+        "claim_id": "claim-cause-preservation-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-cause-preservation-verification",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-cause-preservation-verification"
+      }
+    ],
+    "relations": [
+      {
+        "relation_id": "rel-cleanup-verifies-empty-residue",
+        "role": "verifies",
+        "source_claim_id": "claim-cleanup-verification",
+        "target_claim_id": "claim-residue-population-empty-after-settlement"
+      },
+      {
+        "relation_id": "rel-cause-verifies-preservation",
+        "role": "verifies",
+        "source_claim_id": "claim-cause-preservation-verification",
+        "target_claim_id": "claim-original-failure-cause-preserved"
+      }
+    ],
+    "collections": [
+      {
+        "collection_id": "set-proof-sequence",
+        "collection_kind": "ordered_sequence",
+        "purpose": "proof_failure_settlement_cleanup_sequence",
+        "member_claim_ids": [
+          "claim-failure-injection-precedes-failure",
+          "claim-injected-failure-carries-cause",
+          "claim-original-failure-cause-state",
+          "claim-cleanup-follows-injected-failure",
+          "claim-cleanup-targets-residue-population",
+          "claim-settlement-follows-cleanup",
+          "claim-settled-residue-population-cardinality",
+          "claim-residue-population-empty-after-settlement",
+          "claim-settled-failure-record-preserves-cause",
+          "claim-settled-failure-cause-state",
+          "claim-original-failure-cause-preserved"
+        ]
+      },
+      {
+        "collection_id": "set-proof-population",
+        "collection_kind": "closed_set",
+        "purpose": "proof_failure_settlement_cleanup_population",
+        "member_claim_ids": [
+          "claim-failure-injection-precedes-failure",
+          "claim-injected-failure-targets-operation",
+          "claim-injected-failure-carries-cause",
+          "claim-original-failure-cause-state",
+          "claim-failure-cause-observation-records-original",
+          "claim-cleanup-follows-injected-failure",
+          "claim-cleanup-targets-residue-population",
+          "claim-settlement-follows-cleanup",
+          "claim-settlement-follows-injected-failure",
+          "claim-settled-residue-population-cardinality",
+          "claim-residue-observation-records-population",
+          "claim-settled-failure-record-preserves-cause",
+          "claim-settled-failure-cause-state",
+          "claim-settled-cause-observation-records-state",
+          "claim-cleanup-verification-reads-settlement",
+          "claim-residue-population-empty-after-settlement",
+          "claim-cleanup-verification",
+          "claim-cause-verification-reads-observations",
+          "claim-original-failure-cause-preserved",
+          "claim-cause-preservation-verification"
+        ]
+      }
+    ],
+    "residue": [],
+    "annotations": [],
+    "test_proof_version": "controlled-contract-test-proof.v1",
+    "test_proofs": []
+  },
+  "evaluation_input": {
+    "input_version": "controlled-contract-verification-profile-input.v1",
+    "evaluation_stage": "pre_dispatch",
+    "reference_bindings": [
+      {
+        "role": "operation",
+        "reference_ids": [
+          "ref-operation"
+        ]
+      },
+      {
+        "role": "operation_attempt",
+        "reference_ids": [
+          "ref-operation-attempt"
+        ]
+      },
+      {
+        "role": "failure_injection",
+        "reference_ids": [
+          "ref-failure-injection"
+        ]
+      },
+      {
+        "role": "injected_failure",
+        "reference_ids": [
+          "ref-injected-failure"
+        ]
+      },
+      {
+        "role": "failure_cause",
+        "reference_ids": [
+          "ref-failure-cause"
+        ]
+      },
+      {
+        "role": "original_cause_state",
+        "reference_ids": [
+          "ref-original-cause-state"
+        ]
+      },
+      {
+        "role": "settled_cause_state",
+        "reference_ids": [
+          "ref-settled-cause-state"
+        ]
+      },
+      {
+        "role": "cause_observation_at_failure",
+        "reference_ids": [
+          "ref-cause-observation-at-failure"
+        ]
+      },
+      {
+        "role": "cause_observation_at_settlement",
+        "reference_ids": [
+          "ref-cause-observation-at-settlement"
+        ]
+      },
+      {
+        "role": "cleanup_event",
+        "reference_ids": [
+          "ref-cleanup-event"
+        ]
+      },
+      {
+        "role": "settlement_event",
+        "reference_ids": [
+          "ref-settlement-event"
+        ]
+      },
+      {
+        "role": "residue_population",
+        "reference_ids": [
+          "ref-residue-population"
+        ]
+      },
+      {
+        "role": "residue_observation",
+        "reference_ids": [
+          "ref-residue-observation"
+        ]
+      },
+      {
+        "role": "settled_failure_record",
+        "reference_ids": [
+          "ref-settled-failure-record"
+        ]
+      },
+      {
+        "role": "cleanup_verification",
+        "reference_ids": [
+          "ref-cleanup-verification"
+        ]
+      },
+      {
+        "role": "cause_verification",
+        "reference_ids": [
+          "ref-cause-verification"
+        ]
+      },
+      {
+        "role": "cleanup_failure_condition",
+        "reference_ids": [
+          "ref-cleanup-failure-condition"
+        ]
+      },
+      {
+        "role": "cause_loss_condition",
+        "reference_ids": [
+          "ref-cause-loss-condition"
+        ]
+      }
+    ],
+    "number_bindings": [
+      {
+        "role": "residue_count",
+        "value": 0
+      }
+    ],
+    "claim_pattern_bindings": [],
+    "resolver_facts": [],
+    "delivered_evidence": [],
+    "stable_evaluation": {}
+  }
+}

@@ -1,6 +1,12 @@
 
 
 import path from "node:path";
+import {
+  CRASH_DURABLE_RESULTS,
+  createSyncEffects,
+  planLogicalAppend,
+  runCrashDurablePlanSync
+} from "@agent-chassis/wiki-core/src/lib/crash-durable-state.mjs";
 import { spawn } from "node:child_process";
 import {
   closeSync,
@@ -13,7 +19,7 @@ import {
   writeSync
 } from "node:fs";
 
-import { defaultRunGit, resolveWorktreeBinding } from "./worktree-substrate.mjs";
+import { defaultRunGit, defaultRunGitAsync, resolveWorktreeBinding } from "./worktree-substrate.mjs";
 import { confirmedDead } from "./worktree-lease.mjs";
 import { digestTrustedExactReviewEvidence } from "./workspace-agent-dispatch-run-receipt.mjs";
 import { WORKTREE_REAPER_DIAGNOSTIC_CODES, WorktreeReaperError, assertAbsolutePath, fail } from "./worktree-reaper-diagnostics.mjs";
@@ -46,6 +52,7 @@ export const RETAINED_SLICE_CLEANUP_DISPOSITIONS = Object.freeze([
 
 const PER_WK_BRANCH_RE = /^wk\/IN-\d{4}\/WK-\d{4}$/;
 const PER_WK_WORKTREE_DIR_RE = /^wk-IN-\d{4}-WK-\d{4}$/;
+const LEGACY_INTEGRATION_BRANCH_RE = /^integration\/IN-\d{4}$/;
 const OID_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 const SHA256_DIGEST_RE = /^sha256:[0-9a-f]{64}$/u;
 const SLICE_BRANCH_RE = /^slice\/IN-\d{4}\/WK-\d{4}\/SLICE-\d{3}$/;
@@ -81,12 +88,19 @@ function pathWithin(inner, outer) {
 }
 
 function assertRemovableTarget(mainRepo, branch, worktreePath) {
+  if (typeof branch === "string" && LEGACY_INTEGRATION_BRANCH_RE.test(branch)) {
+    fail(
+      WORKTREE_REAPER_DIAGNOSTIC_CODES.BINDING_INVALID,
+      `binding output_branch names a retired DEC-0170 integration ref: ${JSON.stringify(branch)}`,
+      { branch }
+    );
+  }
   if (typeof branch !== "string" || !PER_WK_BRANCH_RE.test(branch)) {
     fail(
       WORKTREE_REAPER_DIAGNOSTIC_CODES.PROTECTED_REF,
       `refusing to remove a non per-WK branch: ${JSON.stringify(branch)} ` +
-        "(only ephemeral wk/IN-XXXX/WK-YYYY refs are removable; integration/IN-*, " +
-        "refs/agent-launch/lease/*, and main are protected)",
+        "(only ephemeral wk/IN-XXXX/WK-YYYY refs are removable; " +
+        "refs/agent-launch/lease/* and main are protected)",
       { branch }
     );
   }
@@ -102,8 +116,7 @@ function assertRemovableTarget(mainRepo, branch, worktreePath) {
     fail(
       WORKTREE_REAPER_DIAGNOSTIC_CODES.PROTECTED_WORKTREE,
       `refusing to remove a non per-WK worktree dir: ${JSON.stringify(base)} ` +
-        "(only ephemeral wk-IN-XXXX-WK-YYYY dirs are removable; the integration-IN-* " +
-        "worktree persists, §8.3)",
+        "(only ephemeral wk-IN-XXXX-WK-YYYY dirs are removable)",
       { worktreePath, base }
     );
   }
@@ -119,6 +132,8 @@ function assertRemovableTarget(mainRepo, branch, worktreePath) {
   }
 }
 
+export const WORKTREE_REAPER_AUDIT_MAX_IMAGE_BYTES = 16 * 1024 * 1024;
+
 export function worktreeReaperAuditDir(mainRepo) {
   const repo = assertAbsolutePath(mainRepo, "mainRepo");
   return path.join(repo, ".agent-launch", "worktree-reaper-audit");
@@ -127,29 +142,53 @@ export function worktreeReaperAuditDir(mainRepo) {
 export function defaultWriteAudit({ auditDir, line }) {
   mkdirSync(auditDir, { recursive: true });
   const filePath = path.join(auditDir, "reaper-audit.jsonl");
-  let fd;
+
+  let priorBytes = "";
   try {
-    fd = openSync(filePath, fsConstants.O_CREAT | fsConstants.O_WRONLY | fsConstants.O_APPEND, 0o600);
+    priorBytes = readFileSync(filePath, "utf8");
   } catch (err) {
+    if (err?.code !== "ENOENT") {
+      fail(
+        WORKTREE_REAPER_DIAGNOSTIC_CODES.AUDIT_WRITE_FAILED,
+        `failed to read the reaper audit image: ${filePath}`,
+        { errno: err?.code ?? null },
+        err
+      );
+    }
+  }
+
+  const nextByteLength = Buffer.byteLength(priorBytes, "utf8") + Buffer.byteLength(line, "utf8");
+  if (nextByteLength > WORKTREE_REAPER_AUDIT_MAX_IMAGE_BYTES) {
+
     fail(
       WORKTREE_REAPER_DIAGNOSTIC_CODES.AUDIT_WRITE_FAILED,
-      `failed to open reaper audit sink: ${filePath}`,
-      { errno: err?.code ?? null },
-      err
+      `reaper audit image would exceed the supported ${WORKTREE_REAPER_AUDIT_MAX_IMAGE_BYTES}-byte envelope: ${filePath}`,
+      {
+        issue: "reaper_audit_image_envelope_exceeded",
+        current_bytes: Buffer.byteLength(priorBytes, "utf8"),
+        appended_bytes: Buffer.byteLength(line, "utf8"),
+        max_bytes: WORKTREE_REAPER_AUDIT_MAX_IMAGE_BYTES
+      }
     );
   }
-  try {
-    writeSync(fd, line);
-  } catch (err) {
-    try { closeSync(fd); } catch {   }
+
+  const published = runCrashDurablePlanSync(
+    planLogicalAppend({
+      targetPath: filePath,
+      privatePath: `${filePath}.publish-${process.pid}.tmp`,
+      priorBytes,
+      appendedBytes: line
+    }),
+    createSyncEffects({ mode: 0o600 })
+  );
+  if (published.classification !== CRASH_DURABLE_RESULTS.PUBLISHED) {
     fail(
       WORKTREE_REAPER_DIAGNOSTIC_CODES.AUDIT_WRITE_FAILED,
-      `failed to append to reaper audit sink: ${filePath}`,
-      { errno: err?.code ?? null },
-      err
+      `failed to publish the reaper audit image: ${filePath}`,
+      { errno: published.error?.code ?? null },
+      published.error ?? undefined
     );
   }
-  try { closeSync(fd); } catch {   }
   return filePath;
 }
 
@@ -1144,7 +1183,7 @@ export async function releaseRetainedSlice({
   identity = null,
   deps = {}
 } = {}) {
-  const runGit = deps.runGit ?? defaultRunGit;
+  const runGit = deps.runGit ?? defaultRunGitAsync;
   const resolveBinding = deps.resolveBinding ?? resolveWorktreeBinding;
   const writeAudit = deps.writeAudit ?? defaultWriteAudit;
   const isConfirmedDead = deps.confirmedDead ?? confirmedDead;
@@ -1196,9 +1235,9 @@ export async function releaseRetainedSlice({
     fail(WORKTREE_REAPER_DIAGNOSTIC_CODES.PROTECTED_WORKTREE, "slice worktree overlaps the main checkout");
   }
 
-  const listed = gitResultOrRefusal(runGit, repo, ["worktree", "list", "--porcelain"]);
+  const listed = await gitResultOrRefusal(runGit, repo, ["worktree", "list", "--porcelain"]);
   const entry = parseWorktreePorcelain(listed.stdout).find((candidate) => realpathOrLexical(candidate.path) === worktreeReal);
-  const branchResult = runGit({ repo, args: ["rev-parse", "--verify", `refs/heads/${binding.output_branch}^{commit}`] });
+  const branchResult = await runGit({ repo, args: ["rev-parse", "--verify", `refs/heads/${binding.output_branch}^{commit}`] });
   const pathPresent = existsSync(binding.worktree_path);
   const branchPresent = Boolean(branchResult && branchResult.ok === true);
   const branchTip = branchPresent ? branchResult.stdout.trim() : null;
@@ -1222,7 +1261,7 @@ export async function releaseRetainedSlice({
 
   if (!pathPresent && !entry && branchPresent) {
     if (prior) {
-      return withPreparedExactRefLock({
+      return await withPreparedExactRefLock({
         repo,
         ref: `refs/heads/${binding.output_branch}`,
         expectedSha: expectedTip,
@@ -1235,7 +1274,7 @@ export async function releaseRetainedSlice({
       }));
     }
     if (priorAttempt) {
-      return withPreparedExactRefLock({
+      return await withPreparedExactRefLock({
         repo,
         ref: `refs/heads/${binding.output_branch}`,
         expectedSha: expectedTip,
@@ -1259,7 +1298,7 @@ export async function releaseRetainedSlice({
     fail(WORKTREE_REAPER_DIAGNOSTIC_CODES.MISSING_OR_MISMATCHED_BINDING, "slice worktree/ref/binding association is missing or mismatched");
   }
   if (disposition !== "successful-integration") {
-    const dirty = gitResultOrRefusal(runGit, binding.worktree_path, ["status", "--porcelain=v1", "--untracked-files=all"]);
+    const dirty = await gitResultOrRefusal(runGit, binding.worktree_path, ["status", "--porcelain=v1", "--untracked-files=all"]);
     if (dirty.stdout.length > 0) {
       fail(WORKTREE_REAPER_DIAGNOSTIC_CODES.DIRTY_WORKTREE, "refusing to remove a dirty retained slice", { status: dirty.stdout });
     }
@@ -1287,13 +1326,13 @@ export async function releaseRetainedSlice({
     ref: `refs/heads/${binding.output_branch}`,
     expectedSha: expectedTip,
     deps
-  }, () => {
+  }, async () => {
     const removeArgs = disposition === "successful-integration"
       ? ["worktree", "remove", "--force", binding.worktree_path]
       : ["worktree", "remove", binding.worktree_path];
-    const remove = runGit({ repo, args: removeArgs });
+    const remove = await runGit({ repo, args: removeArgs });
     const preserved = remove?.ok === true
-      ? runGit({ repo, args: ["rev-parse", "--verify", `refs/heads/${binding.output_branch}^{commit}`] })
+      ? await runGit({ repo, args: ["rev-parse", "--verify", `refs/heads/${binding.output_branch}^{commit}`] })
       : null;
     const preservedTip = preserved?.ok === true ? preserved.stdout.trim() : null;
     if (!remove || remove.ok !== true || preservedTip !== expectedTip) {
@@ -1310,8 +1349,8 @@ export async function releaseRetainedSlice({
   return Object.freeze({ reaped: true, idempotent: false, ...auditRecord, audit_dir: auditDir });
 }
 
-function gitResultOrRefusal(runGit, repo, args) {
-  const result = runGit({ repo, args });
+async function gitResultOrRefusal(runGit, repo, args) {
+  const result = await runGit({ repo, args });
   if (!result || result.ok !== true) {
     fail(WORKTREE_REAPER_DIAGNOSTIC_CODES.MISSING_OR_MISMATCHED_BINDING, "could not verify exact slice binding", {
       args,

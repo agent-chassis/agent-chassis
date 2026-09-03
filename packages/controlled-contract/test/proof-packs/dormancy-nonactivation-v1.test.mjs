@@ -18,7 +18,7 @@ const profileId = "proof.dormancy.nonactivation";
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const repositoryRoot = path.resolve(packageRoot, "../..");
 const certificationDirectory = path.join(packageRoot,
-  "test/certification/profiles/proof.dormancy.nonactivation/1.0.0");
+  "test/certification/profiles/proof.dormancy.nonactivation/2.0.0");
 
 async function subject() {
   const captureRoot = await mkdtemp(path.join(os.tmpdir(), "dormancy-exact-bound-"));

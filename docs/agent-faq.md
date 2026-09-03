@@ -49,6 +49,29 @@ resolved from the canonical CCE/Node Engine key posture, never from caller input
 The important rule is simple: if the advice for a recurring issue changes, the
 source of truth is the corpus data file, not this prose page.
 
+The `verify-proof-execution-not-executable` entry covers every stable
+`agent_launch.verify_proof.*` execution wrapper. It explains that a valid
+structured failing assertion is `unsatisfied`, while inability to obtain
+authenticated execution or receipt evidence is `not_executable` or refused.
+Callers query the entry by the returned stable reason code, inspect its minimal
+recovery facts, repair the named contract/test or launcher/runtime prerequisite,
+and only then retry the same `workspace_verify_proof` subject.
+The entry distinguishes ordinary head/tail diagnostic capture from lossless
+proof-reporter protocol capture. Its
+`test_proof_structured_events_oversized` guidance requires reducing the
+declared structured event population or repairing the reporter protocol owner;
+truncated protocol bytes are never accepted as JSON.
+The same entry covers `test_proof_selected_identity_not_observed`: compare its
+expected ID with the bounded target, file-wrapper status/error codes,
+observed/returned/omitted counts, and at most eight safe
+file/name/nesting/ID candidates, then repair test startup or reporter
+observation before retrying. `test_proof_bound_identity_mismatch` is reserved
+for a genuine declared-versus-authenticated identity disagreement. Neither
+route returns the event stream or a complete large inventory. Every public
+response is capped at 65,536 UTF-8 bytes and contains only the requested
+subject, one common subject-binding summary, aggregate counts/status, compact
+proof/verification rows, and reason/recovery facts when non-satisfied.
+
 ## Read-Only Surfaces
 
 The FAQ is surfaced through two equivalent read-only entrypoints:

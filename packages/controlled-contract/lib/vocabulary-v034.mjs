@@ -188,6 +188,20 @@ function validateVocabulary(vocabulary = CONTROLLED_VOCABULARY) {
         code: "operator_applicability_modes_invalid",
         term: entry.term
       });
+      const contextCardinality = entry.applicability.context_reference_cardinality;
+      const contextTypes = entry.applicability.context_reference_types;
+      if (contextCardinality !== undefined && !validCardinality(contextCardinality, {
+        permitUnbounded: true
+      })) diagnostics.push({
+        code: "operator_applicability_cardinality_invalid",
+        term: entry.term
+      });
+      if (contextTypes !== undefined &&
+          (contextTypes.kind !== "restricted" || !Array.isArray(contextTypes.terms) ||
+            contextTypes.terms.some((term) => !typeTerms.has(term)))) diagnostics.push({
+        code: "operator_applicability_context_types_invalid",
+        term: entry.term
+      });
     }
 
     const populationSemantics = entry.population_semantics;
@@ -250,14 +264,21 @@ function validateVocabulary(vocabulary = CONTROLLED_VOCABULARY) {
         complement_term: entry.controlled_complement.term
       });
       else if (entry.signature?.operand_kind !== complement.signature?.operand_kind ||
+          JSON.stringify(entry.signature?.subject_types) !==
+            JSON.stringify(complement.signature?.subject_types) ||
+          JSON.stringify(entry.signature?.operand_types) !==
+            JSON.stringify(complement.signature?.operand_types) ||
           JSON.stringify(entry.signature?.operand_cardinality) !==
             JSON.stringify(complement.signature?.operand_cardinality) ||
           JSON.stringify(entry.operand_semantics) !==
-            JSON.stringify(complement.operand_semantics)) diagnostics.push({
+            JSON.stringify(complement.operand_semantics) ||
+          JSON.stringify(entry.applicability) !== JSON.stringify(complement.applicability)) {
+        diagnostics.push({
         code: "operator_complement_signature_mismatch",
         term: entry.term,
         complement_term: entry.controlled_complement.term
-      });
+        });
+      }
     }
     if (entry.inverse?.kind === "operator") {
       const inverse = operatorByTerm.get(entry.inverse.term);
@@ -383,6 +404,10 @@ function deriveVocabularyIndexes(vocabulary = CONTROLLED_VOCABULARY) {
       entry.term,
       structuredClone(entry.operand_semantics)
     ])),
+    applicability_by_operator: Object.fromEntries(vocabulary.operators.map((entry) => [
+      entry.term,
+      structuredClone(entry.applicability)
+    ])),
     population_relation_by_operator: Object.fromEntries(vocabulary.operators
       .filter(({ population_semantics: semantics }) =>
         semantics?.kind === "closed_extensional_relation"
@@ -465,6 +490,9 @@ function deriveVocabularySchemaProjection(vocabulary = CONTROLLED_VOCABULARY) {
       term,
       structuredClone(signature)
     ])),
+    operator_applicability: Object.fromEntries(vocabulary.operators.map(({
+      term, applicability
+    }) => [term, structuredClone(applicability)])),
     cross_operator_constraints: structuredClone(vocabulary.cross_operator_constraints)
   };
 }

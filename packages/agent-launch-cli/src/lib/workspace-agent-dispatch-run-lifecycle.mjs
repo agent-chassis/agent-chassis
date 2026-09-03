@@ -6,7 +6,9 @@ import {
 } from "./workspace-agent-dispatch-run-lifecycle-launch.mjs";
 import { createPlanLaunch } from "./workspace-agent-dispatch-run-lifecycle-selection.mjs";
 import { createMonitor } from "./workspace-agent-dispatch-run-lifecycle-monitor.mjs";
+import { createAdvisoryProcessRunner } from "./workspace-agent-advisory-process.mjs";
 import {
+  listVisibleRuns,
   snapshotRuns as snapshotRunState,
   replaceReviewerLaunchIdentityForTest as replaceReviewerLaunchIdentityState
 } from "./workspace-agent-dispatch-run-lifecycle-state.mjs";
@@ -32,8 +34,8 @@ export function createDispatchRunLifecycle(ctx = {}) {
     deriveReviewerLaunchIdentity = null,
 
     proveAssignedSourceReadable = null,
-    captureSliceReviewTerminalResult = null
-    ,resolveCorrectiveFindingsContext = null,
+    captureSliceReviewTerminalResult = null,
+    settleFormalReviewAttestation = null,
 
     managedWorkerIdentityRequired = false,
     managedRunIdentityRootPresent = false,
@@ -43,10 +45,10 @@ export function createDispatchRunLifecycle(ctx = {}) {
 
     releaseManagedRunSubjectReservationForLaunch = null,
 
-    verifyTerminalReviewAttemptContractAtSpawn = null
+    resolveCanonicalAdmissionReviewRecord = null
   } = ctx;
 
-  const { startLaunch } = createLaunchFlow({
+  const { startLaunch, startReviewerReplacement } = createLaunchFlow({
     executors,
     executorRegistryEntries,
     familyAwareWiring,
@@ -60,14 +62,14 @@ export function createDispatchRunLifecycle(ctx = {}) {
     deriveReviewerLaunchIdentity,
     proveAssignedSourceReadable,
     captureSliceReviewTerminalResult,
-    resolveCorrectiveFindingsContext,
+    settleFormalReviewAttestation,
     managedWorkerIdentityRequired,
     managedRunIdentityRootPresent,
     checkPriorManagedAttempt,
     publishPendingManagedRunIdentity,
     bindManagedRunOuterIdentity,
     releaseManagedRunSubjectReservationForLaunch,
-    verifyTerminalReviewAttemptContractAtSpawn
+    resolveCanonicalAdmissionReviewRecord
   });
 
   const { getRunStatus, waitForRunStatus } = createMonitor({
@@ -75,13 +77,28 @@ export function createDispatchRunLifecycle(ctx = {}) {
     clock,
     sleep,
     monotonicNow,
-    captureSliceReviewTerminalResult
+    captureSliceReviewTerminalResult,
+    settleFormalReviewAttestation
+  });
+
+  const startAdvisoryProcess = createAdvisoryProcessRunner({
+    executors,
+    executorRegistryEntries,
+    familyAwareWiring,
+    runs,
+    clock,
+    runIdFactory,
+    monitorHandleFactory,
+    settleFormalReviewAttestation
   });
 
   const planLaunch = createPlanLaunch({ executors });
 
   return {
     startLaunch,
+    startAdvisoryProcess,
+    startReviewerReplacement,
+    listRuns: (input) => listVisibleRuns(runs, input),
     getRunStatus,
     waitForRunStatus,
     planLaunch,

@@ -19,6 +19,7 @@ import { parseArgs } from "../bin/discover-proof-intents.mjs";
 const execFileAsync = promisify(execFile);
 const packageRoot = new URL("../", import.meta.url);
 const exactIdPrefix = "controlled-proof-intent.";
+const intentCount = PROOF_INTENT_DISCOVERY_CATALOG.intents.length;
 
 function ids(result) {
   return result.intents.map(({ intent_id: intentId }) => intentId);
@@ -44,14 +45,14 @@ test("list mode returns every controlled intent exactly once", () => {
   const result = discoverProofIntents();
   assert.equal(validateProofIntentDiscoveryResult(result), true);
   assert.equal(result.mode, "list");
-  assert.equal(result.catalog_intent_count, 27);
-  assert.equal(result.evaluated_intent_count, 27);
-  assert.equal(result.total_match_count, 27);
-  assert.equal(result.returned_count, 27);
+  assert.equal(result.catalog_intent_count, intentCount);
+  assert.equal(result.evaluated_intent_count, intentCount);
+  assert.equal(result.total_match_count, intentCount);
+  assert.equal(result.returned_count, intentCount);
   assert.equal(result.omitted_count, 0);
   assert.equal(result.truncated, false);
   assert.equal(result.result_limit, null);
-  assert.equal(new Set(ids(result)).size, 27);
+  assert.equal(new Set(ids(result)).size, intentCount);
   assert.deepEqual(ids(result), [...ids(result)].sort());
   for (const intent of result.intents) {
     assert.match(intent.intent_id, /^controlled-proof-intent\./u);
@@ -64,6 +65,22 @@ test("list mode returns every controlled intent exactly once", () => {
     assert.deepEqual(intent.unmatched_terms, []);
     assert.deepEqual(intent.match_reasons, []);
   }
+});
+
+test("list mode applies an explicit positive limit with truthful complete-catalog facts", () => {
+  assert.ok(intentCount > 28, "the shipped catalog must discriminate the MCP maximum");
+  const result = discoverProofIntents({ limit: 28 });
+  assert.equal(validateProofIntentDiscoveryResult(result), true);
+  assert.equal(result.mode, "list");
+  assert.equal(result.query, null);
+  assert.equal(result.catalog_intent_count, intentCount);
+  assert.equal(result.evaluated_intent_count, intentCount);
+  assert.equal(result.total_match_count, intentCount);
+  assert.equal(result.returned_count, 28);
+  assert.equal(result.omitted_count, intentCount - 28);
+  assert.equal(result.truncated, true);
+  assert.equal(result.result_limit, 28);
+  assert.deepEqual(ids(result), ids(discoverProofIntents()).slice(0, 28));
 });
 
 test("every controlled intent is discoverable by its exact id", () => {
@@ -87,6 +104,7 @@ test("representative controlled terms find their exact expected intents", () => 
     ["baseline candidate behavior", "behavioral-preservation"],
     ["post-terminal interval", "bounded-terminal-stability"],
     ["consumed token replay", "single-use-replay-refusal"],
+    ["removed call not restored", "forbidden-operation-noninvocation"],
     ["all required branches", "integration-prefix-safety"]
   ]) {
     const result = discoverProofIntents({ query });
@@ -187,7 +205,7 @@ test("authored distinctions separate every required commonly confused pair", () 
 test("no-match is explicit and contains complete scan facts", () => {
   const result = discoverProofIntents({ query: "quasar marmalade 998877" });
   assert.equal(result.status, "no_match");
-  assert.equal(result.evaluated_intent_count, 27);
+  assert.equal(result.evaluated_intent_count, intentCount);
   assert.equal(result.total_match_count, 0);
   assert.equal(result.returned_count, 0);
   assert.equal(result.omitted_count, 0);
@@ -200,7 +218,7 @@ test("the complete catalog is evaluated before limiting and truncation facts are
   const complete = discoverProofIntents({ query: "failure" });
   assert.ok(complete.total_match_count > 1);
   const limited = discoverProofIntents({ query: "failure", limit: 1 });
-  assert.equal(limited.evaluated_intent_count, 27);
+  assert.equal(limited.evaluated_intent_count, intentCount);
   assert.equal(limited.total_match_count, complete.total_match_count);
   assert.equal(limited.returned_count, 1);
   assert.equal(limited.omitted_count, complete.total_match_count - 1);
@@ -281,10 +299,44 @@ test("results are caller-detached, deeply frozen, canonical, and bounded", () =>
 });
 
 test("oversized queries and all substrate or execution overrides fail closed", () => {
-  assert.throws(() => discoverProofIntents({
-    query: "x".repeat(MAX_DISCOVERY_QUERY_BYTES + 1)
-  }), (error) => error instanceof ProofIntentDiscoveryError &&
-    error.code === "proof_intent_discovery_query_too_large");
+  assert.doesNotThrow(() => discoverProofIntents({
+    query: "x".repeat(MAX_DISCOVERY_QUERY_BYTES)
+  }));
+  assert.doesNotThrow(() => discoverProofIntents({
+    query: "é".repeat(MAX_DISCOVERY_QUERY_BYTES / 2)
+  }));
+  for (const query of [
+    "x".repeat(MAX_DISCOVERY_QUERY_BYTES + 1),
+    `${"é".repeat(MAX_DISCOVERY_QUERY_BYTES / 2)}x`
+  ]) {
+    assert.throws(() => discoverProofIntents({ query, limit: 2 }), (error) => {
+      assert.ok(error instanceof ProofIntentDiscoveryError);
+      assert.equal(error.code, "proof_intent_discovery_query_too_large");
+      assert.deepEqual({
+        cause: error.details.cause,
+        measurement: error.details.measurement,
+        byte_length: error.details.byte_length,
+        maximum_bytes: error.details.maximum_bytes,
+        rejected_query: error.details.rejected_query
+      }, {
+        cause: "proof_intent_discovery_query_too_large",
+        measurement: "utf8_bytes",
+        byte_length: MAX_DISCOVERY_QUERY_BYTES + 1,
+        maximum_bytes: MAX_DISCOVERY_QUERY_BYTES,
+        rejected_query: "[bounded-oversized-query]"
+      });
+      assert.equal(error.details.replacement_call.tool,
+        "workspace_controlled_proof_intents_discover");
+      assert.equal(error.details.replacement_call.arguments.limit, 2);
+      assert.ok(Buffer.byteLength(
+        error.details.replacement_call.arguments.query, "utf8"
+      ) <= MAX_DISCOVERY_QUERY_BYTES);
+      assert.doesNotThrow(() => discoverProofIntents(
+        error.details.replacement_call.arguments
+      ));
+      return true;
+    });
+  }
   for (const key of [
     "path", "root", "catalog", "executable", "module", "environment"
   ]) assert.throws(() => discoverProofIntents({ query: "failure", [key]: "x" }),
@@ -292,8 +344,10 @@ test("oversized queries and all substrate or execution overrides fail closed", (
   assert.throws(() => discoverProofIntents({ query: "failure" }, {
     catalog: {}
   }), (error) => error.code === "proof_intent_discovery_arguments_invalid");
-  assert.throws(() => discoverProofIntents({ limit: 1 }),
-    (error) => error.code === "proof_intent_discovery_list_limit_unsupported");
+  for (const limit of [0, -1, 257, 1.5, "28"]) {
+    assert.throws(() => discoverProofIntents({ limit }),
+      (error) => error.code === "proof_intent_discovery_limit_invalid", String(limit));
+  }
   for (const flag of [
     "--path", "--root", "--catalog", "--executable", "--module", "--environment"
   ]) assert.throws(() => parseArgs([flag, "x"]), /unknown argument/u, flag);

@@ -38,7 +38,7 @@ export function callArguments(code, open) {
     } else if (c === "," && depth === 1) { args.push(current); current = ""; continue; }
     current += c;
   }
-  return args;
+  return null;
 }
 
 export function executableAssertOidLabels(source) {
@@ -47,6 +47,7 @@ export function executableAssertOidLabels(source) {
   for (const match of code.matchAll(/\bassertOid\s*\(/gu)) {
     if (code.slice(0, match.index).endsWith("function ")) continue;
     const args = callArguments(code, code.indexOf("(", match.index));
+    if (args === null) return { error: "assertOid call site has unbalanced arguments" };
     const token = /^\s*@(\d+)\s*$/u.exec(args[1] ?? "");
     if (token === null) return { error: "assertOid call site without a literal label" };
     const value = literals[Number(token[1])];
@@ -56,16 +57,56 @@ export function executableAssertOidLabels(source) {
   return { labels };
 }
 
-const REFUSAL_LITERAL_PATTERNS = Object.freeze([
-  /\bfail\(\s*[A-Za-z_.$0-9[\]"]+,\s*\n?\s*"((?:[^"\\]|\\.)*)"/gu,
-  /\brefuseIndexState\(\s*\n?\s*"((?:[^"\\]|\\.)*)"/gu,
-  /\bmessage:\s*"((?:[^"\\]|\\.)*)"/gu
-]);
-
 export function mintedRefusalLiterals(body) {
   const minted = new Set();
-  for (const pattern of REFUSAL_LITERAL_PATTERNS) {
-    for (const match of body.matchAll(pattern)) minted.add(match[1]);
+  const { code, literals } = lexModule(body);
+  const refusalCalls = [...code.matchAll(/\brefuseIndexState\s*\(/gu)]
+    .filter((match) => !code.slice(0, match.index).endsWith("function "));
+
+  if (refusalCalls.length === 0) {
+    throw new Error("no refuseIndexState extraction anchor");
+  }
+
+  for (const match of refusalCalls) {
+    const args = callArguments(code, code.indexOf("(", match.index));
+    if (args === null) {
+      throw new Error("refuseIndexState call site has unbalanced arguments");
+    }
+    const expression = (args[0] ?? "").trim();
+    const conditional = /^(.*?)\?(.*?):(.*)$/su.exec(expression);
+    const fixedBranch = (branch) => /^\(*\s*@\d+\s*\)*$/u.test(branch);
+    const isFixedExpression = conditional === null
+      ? fixedBranch(expression)
+      : fixedBranch(conditional[2]) && fixedBranch(conditional[3]);
+    if (!isFixedExpression) {
+      throw new Error("refuseIndexState refusal argument is not a fixed literal expression");
+    }
+    const tokens = [...(args[0] ?? "").matchAll(/@([0-9]+)/gu)];
+    if (tokens.length === 0) {
+      throw new Error("refuseIndexState call site without an executable literal refusal");
+    }
+    for (const token of tokens) {
+      const value = literals[Number(token[1])];
+      if (typeof value !== "string") {
+        throw new Error("refuseIndexState refusal is an interpolated template");
+      }
+      minted.add(value);
+    }
+  }
+
+  for (const match of code.matchAll(/\bfail\s*\(/gu)) {
+    const args = callArguments(code, code.indexOf("(", match.index));
+    if (args === null) throw new Error("fail call site has unbalanced arguments");
+    const token = /^\s*@([0-9]+)\s*$/u.exec(args[1] ?? "");
+    if (token !== null && typeof literals[Number(token[1])] === "string") {
+      minted.add(literals[Number(token[1])]);
+    }
+  }
+  for (const match of code.matchAll(/\bmessage\s*:\s*/gu)) {
+    const token = /^\s*@([0-9]+)\s*[,}]/u.exec(code.slice(match.index + match[0].length));
+    if (token !== null && typeof literals[Number(token[1])] === "string") {
+      minted.add(literals[Number(token[1])]);
+    }
   }
   return minted;
 }

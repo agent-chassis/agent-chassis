@@ -18,14 +18,14 @@ import {
   executeFailureSettlementScenario,
   failureSettlementImplementationPassed
 } from "./failure-settlement-cleanup-v1-harness.mjs";
-import { evaluateVerificationProfileV034 } from "../../lib/verification-profile-v034.mjs";
+import { evaluateStableProofPackFixtureV1 } from "../support/stable-v1-proof-pack-runtime.mjs";
 
 const controlledContractRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)), ".."
 );
 const packDirectory = path.join(
   controlledContractRoot,
-  "certification/profiles/proof.failure.settlement-and-cleanup/1.0.0"
+  "certification/profiles/proof.failure.settlement-and-cleanup/2.0.0"
 );
 async function readJson(relative) {
   return JSON.parse(await readFile(path.join(packDirectory, relative), "utf8"));
@@ -90,7 +90,7 @@ test("three unrelated domains produce truthful satisfying graphs", async () => {
   const profile = await readJson("profile.json");
   for (const domain of ["file_upload", "job_dispatch", "schema_migration"]) {
     const fixture = buildFailureSettlementCleanupFixture({ domain });
-    const result = evaluateVerificationProfileV034({
+    const result = evaluateStableProofPackFixtureV1({
       contract: fixture.contract, profile, evaluation_input: fixture.input
     });
     assert.equal(result.satisfaction, "satisfied", domain);
@@ -116,7 +116,7 @@ test("fixture construction and evaluation are deterministic", async () => {
   const first = buildFailureSettlementCleanupFixture({ domain: "schema_migration" });
   const second = buildFailureSettlementCleanupFixture({ domain: "schema_migration" });
   assert.equal(canonicalDigest(first), canonicalDigest(second));
-  const evaluate = (fixture) => evaluateVerificationProfileV034({
+  const evaluate = (fixture) => evaluateStableProofPackFixtureV1({
     contract: fixture.contract, profile, evaluation_input: fixture.input
   });
   assert.equal(canonicalDigest(evaluate(first)), canonicalDigest(evaluate(second)));

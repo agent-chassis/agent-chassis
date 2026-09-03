@@ -4,7 +4,7 @@ export const STDIO_MCP_CONDUIT_LIFECYCLE_DESCRIPTOR_SCHEMA_VERSION =
   "stdio-mcp-conduit-lifecycle-descriptor.v1";
 
 export const STDIO_MCP_CONDUIT_PRODUCER_PROTOCOL_GENERATION =
-  "stdio-mcp-conduit-lifecycle-vocabulary.v1";
+  "stdio-mcp-conduit-lifecycle-vocabulary.v2";
 
 const AUTHENTICATED_PRODUCER_DESCRIPTORS = new WeakSet();
 

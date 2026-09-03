@@ -1,8 +1,17 @@
 
 
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 
+import { runGitAsync } from "../../../agent-launch-core/src/lib/git.mjs";
+import {
+  PROCESS_IDENTITY_DIAGNOSTIC_CODES,
+  assessProcessLiveness,
+  captureProcessIdentity as captureNonReusableProcessIdentity,
+  defaultProcessIdentityProbes,
+  isProcessIdentity,
+  parseStarttimeFromStat
+} from "@agent-chassis/wiki-core/src/lib/process-identity.mjs";
 import { resolveWorktreePath } from "./worktree-substrate.mjs";
 
 export const WORKTREE_LEASE_SCHEMA_VERSION = "worktree-integration-lease.v1";
@@ -94,24 +103,43 @@ function gitOrThrow(runGit, repo, args, whatFailed, { input = null } = {}) {
   return res;
 }
 
+async function defaultRunGitAsync({ repo, args, input = null }) {
+  const result = await runGitAsync({
+    repo,
+    args,
+    input: input === null ? undefined : input,
+    quotePath: true,
+    stderrLimit: 2048
+  });
+  if (result.ok === true) return { ok: true, stdout: result.stdout };
+  if (result.error) return { ok: false, error: result.error };
+  return {
+    ok: false,
+    status: result.status ?? null,
+    signal: result.signal ?? null,
+    stdout: result.stdout ?? "",
+    stderr: result.stderr ?? null,
+    ...(result.error ? { error: result.error } : {}),
+    ...(result.overflow === true ? { overflow: true } : {})
+  };
+}
+
+async function gitOrThrowAsync(runGit, repo, args, whatFailed, { input = null } = {}) {
+  const res = await runGit({ repo, args, input });
+  if (!res || res.ok !== true) {
+    fail(
+      WORKTREE_LEASE_DIAGNOSTIC_CODES.GIT_FAILED,
+      `${whatFailed} (git ${args.join(" ")})`,
+      { status: res?.status ?? null, signal: res?.signal ?? null, error: res?.error ?? null, stderr: res?.stderr ?? null }
+    );
+  }
+  return res;
+}
+
 export const defaultLivenessDeps = Object.freeze({
-  procAvailable() {
-    return existsSync("/proc/self/stat");
-  },
-  readProcStat(pid) {
-    try {
-      return readFileSync(`/proc/${pid}/stat`, "utf8");
-    } catch {
-      return null;
-    }
-  },
-  readBootId() {
-    try {
-      return readFileSync("/proc/sys/kernel/random/boot_id", "utf8").trim();
-    } catch {
-      return null;
-    }
-  },
+  procAvailable: defaultProcessIdentityProbes.procAvailable,
+  readProcStat: defaultProcessIdentityProbes.readProcStat,
+  readBootId: defaultProcessIdentityProbes.readBootId,
   readUptime() {
     try {
       const first = readFileSync("/proc/uptime", "utf8").trim().split(/\s+/)[0];
@@ -126,52 +154,27 @@ export const defaultLivenessDeps = Object.freeze({
   }
 });
 
-export function parseStarttimeFromStat(statBody) {
-  if (typeof statBody !== "string") return null;
-  const rparen = statBody.lastIndexOf(")");
-  if (rparen === -1) return null;
-  const tail = statBody.slice(rparen + 1).trim();
-  if (tail.length === 0) return null;
-  const fields = tail.split(/\s+/);
-  const starttime = fields[19];
-  if (typeof starttime !== "string" || !/^\d+$/.test(starttime)) return null;
-  return starttime;
-}
+export { parseStarttimeFromStat };
+
+const IDENTITY_CODE_TO_LEASE_CODE = Object.freeze({
+  [PROCESS_IDENTITY_DIAGNOSTIC_CODES.INVALID_ARG]: WORKTREE_LEASE_DIAGNOSTIC_CODES.INVALID_ARG,
+  [PROCESS_IDENTITY_DIAGNOSTIC_CODES.UNAVAILABLE]: WORKTREE_LEASE_DIAGNOSTIC_CODES.NO_PROC_FAIL_CLOSED,
+  [PROCESS_IDENTITY_DIAGNOSTIC_CODES.PID_UNREADABLE]: WORKTREE_LEASE_DIAGNOSTIC_CODES.PROC_PID_UNREADABLE,
+  [PROCESS_IDENTITY_DIAGNOSTIC_CODES.STAT_UNPARSEABLE]: WORKTREE_LEASE_DIAGNOSTIC_CODES.STAT_UNPARSEABLE
+});
 
 export function captureProcessIdentity(pid, deps = defaultLivenessDeps) {
-  if (!Number.isInteger(pid) || pid <= 0) {
-    fail(WORKTREE_LEASE_DIAGNOSTIC_CODES.INVALID_ARG, `pid must be a positive integer, got: ${JSON.stringify(pid)}`);
+  try {
+    return captureNonReusableProcessIdentity(pid, deps);
+  } catch (error) {
+    const mapped = IDENTITY_CODE_TO_LEASE_CODE[error?.code];
+    if (mapped === undefined) throw error;
+    fail(mapped, error.message);
   }
-  if (!deps.procAvailable()) {
-    fail(
-      WORKTREE_LEASE_DIAGNOSTIC_CODES.NO_PROC_FAIL_CLOSED,
-      `refusing to capture process identity without /proc (fail closed): pid ${pid}`
-    );
-  }
-  const bootId = deps.readBootId();
-  if (typeof bootId !== "string" || bootId.length === 0) {
-    fail(WORKTREE_LEASE_DIAGNOSTIC_CODES.NO_PROC_FAIL_CLOSED, `boot_id unreadable; cannot capture identity for pid ${pid}`);
-  }
-  const stat = deps.readProcStat(pid);
-  if (stat === null) {
-    fail(WORKTREE_LEASE_DIAGNOSTIC_CODES.PROC_PID_UNREADABLE, `/proc/${pid}/stat not readable (pid not live?)`);
-  }
-  const starttime = parseStarttimeFromStat(stat);
-  if (starttime === null) {
-    fail(WORKTREE_LEASE_DIAGNOSTIC_CODES.STAT_UNPARSEABLE, `could not parse starttime (field 22) from /proc/${pid}/stat`);
-  }
-  return Object.freeze({ pid, starttime, boot_id: bootId });
 }
 
 function assertIdentityShape(identity) {
-  if (
-    !identity ||
-    typeof identity !== "object" ||
-    !Number.isInteger(identity.pid) ||
-    identity.pid <= 0 ||
-    typeof identity.starttime !== "string" ||
-    typeof identity.boot_id !== "string"
-  ) {
+  if (!isProcessIdentity(identity)) {
     fail(
       WORKTREE_LEASE_DIAGNOSTIC_CODES.INVALID_ARG,
       `identity must be { pid:int>0, starttime:string, boot_id:string }, got: ${JSON.stringify(identity)}`
@@ -181,30 +184,7 @@ function assertIdentityShape(identity) {
 
 export function assessLiveness(identity, deps = defaultLivenessDeps) {
   assertIdentityShape(identity);
-  if (!deps.procAvailable()) {
-    return { state: "indeterminate", reason: "no /proc (non-Linux/missing): cannot confirm death (fail closed)" };
-  }
-  const currentBootId = deps.readBootId();
-  if (typeof currentBootId !== "string" || currentBootId.length === 0) {
-    return { state: "indeterminate", reason: "boot_id unreadable: cannot confirm death (fail closed)" };
-  }
-
-  if (currentBootId !== identity.boot_id) {
-    return { state: "dead", reason: "boot_id changed (reboot): prior holder unconditionally dead" };
-  }
-  const stat = deps.readProcStat(identity.pid);
-  if (stat === null) {
-
-    return { state: "dead", reason: `/proc/${identity.pid} absent: process gone` };
-  }
-  const currentStart = parseStarttimeFromStat(stat);
-  if (currentStart === null) {
-    return { state: "indeterminate", reason: "unparseable stat: cannot confirm death (fail closed)" };
-  }
-  if (currentStart !== identity.starttime) {
-    return { state: "dead", reason: "starttime mismatch: pid recycled to a different process" };
-  }
-  return { state: "alive", reason: "pid + starttime + boot_id all match: process still live" };
+  return assessProcessLiveness(identity, deps);
 }
 
 export function confirmedDead(identity, deps = defaultLivenessDeps) {
@@ -252,7 +232,7 @@ function assertOid(oid, label) {
   return oid;
 }
 
-export function casPublishRef({ repo, ref, newOid, expectedOld, runGit = defaultRunGit }) {
+export async function casPublishRef({ repo, ref, newOid, expectedOld, runGit = defaultRunGitAsync }) {
   if (typeof repo !== "string" || repo.length === 0) {
     fail(WORKTREE_LEASE_DIAGNOSTIC_CODES.INVALID_ARG, "repo must be a non-empty string");
   }
@@ -261,7 +241,7 @@ export function casPublishRef({ repo, ref, newOid, expectedOld, runGit = default
   }
   assertOid(newOid, "newOid");
   assertOid(expectedOld, "expectedOld");
-  const res = runGit({ repo, args: ["update-ref", ref, newOid, expectedOld] });
+  const res = await runGit({ repo, args: ["update-ref", ref, newOid, expectedOld] });
   if (res && res.ok === true) {
     return { ok: true, ref, oldOid: expectedOld, newOid };
   }
@@ -275,13 +255,20 @@ export function readRefOid({ repo, ref, runGit = defaultRunGit }) {
   return OID_RE.test(oid) ? oid : ZERO_OID;
 }
 
-export function publishViaRefCas({
+async function readRefOidAsync({ repo, ref, runGit = defaultRunGitAsync }) {
+  const res = await runGit({ repo, args: ["rev-parse", "--verify", "--quiet", ref] });
+  if (!res || res.ok !== true) return ZERO_OID;
+  const oid = res.stdout.trim();
+  return OID_RE.test(oid) ? oid : ZERO_OID;
+}
+
+export async function publishViaRefCas({
   repo,
   ref,
   fetch = () => {},
   merge,
   validateLease,
-  runGit = defaultRunGit,
+  runGit = defaultRunGitAsync,
   maxAttempts = 3
 }) {
   if (typeof merge !== "function") {
@@ -293,18 +280,18 @@ export function publishViaRefCas({
   let lastRejection = null;
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
 
-    fetch();
-    if (!validateLease()) {
+    await fetch();
+    if (!await validateLease()) {
       fail(WORKTREE_LEASE_DIAGNOSTIC_CODES.LEASE_LOST, "lease no longer held before publish; aborting (no blind retry)");
     }
-    const expectedOld = readRefOid({ repo, ref, runGit });
-    const newOid = merge({ expectedOld, attempt });
+    const expectedOld = await readRefOidAsync({ repo, ref, runGit });
+    const newOid = await merge({ expectedOld, attempt });
     assertOid(newOid, "merge() result");
-    const result = casPublishRef({ repo, ref, newOid, expectedOld, runGit });
+    const result = await casPublishRef({ repo, ref, newOid, expectedOld, runGit });
     if (result.ok) return { ...result, attempts: attempt + 1 };
     lastRejection = result;
 
-    if (!validateLease()) {
+    if (!await validateLease()) {
       fail(WORKTREE_LEASE_DIAGNOSTIC_CODES.LEASE_LOST, "CAS rejected and lease no longer held; aborting (no blind retry)", { rejection: result });
     }
   }
@@ -339,9 +326,9 @@ function buildLeaseRecord({ initiative, runId, identity, killShape, heartbeat })
   };
 }
 
-function writeLeaseBlob({ repo, record, runGit }) {
+async function writeLeaseBlobAsync({ repo, record, runGit }) {
   const body = `${JSON.stringify(record, null, 2)}\n`;
-  const res = gitOrThrow(runGit, repo, ["hash-object", "-w", "--stdin"], "failed to write lease blob object", { input: body });
+  const res = await gitOrThrowAsync(runGit, repo, ["hash-object", "-w", "--stdin"], "failed to write lease blob object", { input: body });
   const oid = res.stdout.trim();
   return assertOid(oid, "lease blob oid");
 }
@@ -361,11 +348,11 @@ class LeaseHandle {
 }
 const LEASE_BRAND = Symbol("worktree-lease.LeaseHandle");
 
-export function acquireLease({ repo, initiative, runId, identity, killShape, heartbeat, runGit = defaultRunGit }) {
+export async function acquireLease({ repo, initiative, runId, identity, killShape, heartbeat, runGit = defaultRunGitAsync }) {
   const leaseRef = leaseRefFor(initiative);
   const record = buildLeaseRecord({ initiative, runId, identity, killShape, heartbeat });
-  const oid = writeLeaseBlob({ repo, record, runGit });
-  const result = casPublishRef({ repo, ref: leaseRef, newOid: oid, expectedOld: ZERO_OID, runGit });
+  const oid = await writeLeaseBlobAsync({ repo, record, runGit });
+  const result = await casPublishRef({ repo, ref: leaseRef, newOid: oid, expectedOld: ZERO_OID, runGit });
   if (!result.ok) {
     fail(WORKTREE_LEASE_DIAGNOSTIC_CODES.LEASE_ACQUIRE_FAILED, `lease already held for ${initiative}; acquire (create) CAS rejected`, { rejection: result });
   }
@@ -387,7 +374,7 @@ export function readLease({ repo, initiative, runGit = defaultRunGit }) {
   return { oid, record };
 }
 
-export function heartbeatLease(leaseHandle, { heartbeat, runGit = defaultRunGit } = {}) {
+export async function heartbeatLease(leaseHandle, { heartbeat, runGit = defaultRunGitAsync } = {}) {
   assertLeaseHandle(leaseHandle);
   const record = buildLeaseRecord({
     initiative: leaseHandle.initiative,
@@ -396,8 +383,8 @@ export function heartbeatLease(leaseHandle, { heartbeat, runGit = defaultRunGit 
     killShape: leaseHandle.record.kill_shape,
     heartbeat
   });
-  const oid = writeLeaseBlob({ repo: leaseHandle.repo, record, runGit });
-  const result = casPublishRef({ repo: leaseHandle.repo, ref: leaseHandle.leaseRef, newOid: oid, expectedOld: leaseHandle.oid, runGit });
+  const oid = await writeLeaseBlobAsync({ repo: leaseHandle.repo, record, runGit });
+  const result = await casPublishRef({ repo: leaseHandle.repo, ref: leaseHandle.leaseRef, newOid: oid, expectedOld: leaseHandle.oid, runGit });
   if (!result.ok) {
     fail(WORKTREE_LEASE_DIAGNOSTIC_CODES.LEASE_LOST, "heartbeat CAS rejected: lease was stolen/superseded; this holder has lost it", { rejection: result });
   }
@@ -513,22 +500,22 @@ export function cleanIntegrationWorktree(confirmedDeadToken, { integrationWorktr
   return new CleanupCompleteToken(TOKEN_BRAND, integrationWorktreePath);
 }
 
-export function stealLease(cleanupCompleteToken, { repo, initiative, runId, identity, killShape, heartbeat, runGit = defaultRunGit }) {
+export async function stealLease(cleanupCompleteToken, { repo, initiative, runId, identity, killShape, heartbeat, runGit = defaultRunGitAsync }) {
   assertToken(cleanupCompleteToken, CleanupCompleteToken, "stealLease");
   const leaseRef = leaseRefFor(initiative);
-  const expectedOld = readRefOid({ repo, ref: leaseRef, runGit });
+  const expectedOld = await readRefOidAsync({ repo, ref: leaseRef, runGit });
   const record = buildLeaseRecord({ initiative, runId, identity, killShape, heartbeat });
-  const oid = writeLeaseBlob({ repo, record, runGit });
-  const result = casPublishRef({ repo, ref: leaseRef, newOid: oid, expectedOld, runGit });
+  const oid = await writeLeaseBlobAsync({ repo, record, runGit });
+  const result = await casPublishRef({ repo, ref: leaseRef, newOid: oid, expectedOld, runGit });
   if (!result.ok) {
     fail(WORKTREE_LEASE_DIAGNOSTIC_CODES.LEASE_STEAL_LOST, `lease-steal CAS rejected: another taker won or the lease advanced (expected-old ${expectedOld})`, { rejection: result });
   }
   return new LeaseHandle(LEASE_BRAND, { repo, initiative, leaseRef, oid, record });
 }
 
-export function firstRefWriteUnderLease(leaseHandle, { repo, ref, newOid, expectedOld, runGit = defaultRunGit }) {
+export async function firstRefWriteUnderLease(leaseHandle, { repo, ref, newOid, expectedOld, runGit = defaultRunGitAsync }) {
   assertLeaseHandle(leaseHandle);
-  return casPublishRef({ repo, ref, newOid, expectedOld, runGit });
+  return await casPublishRef({ repo, ref, newOid, expectedOld, runGit });
 }
 
 export function resetWorktreeToIntegrationTip({
@@ -543,27 +530,37 @@ export function resetWorktreeToIntegrationTip({
 
   const resolved = resolveWorktreePath({ mainRepo, launchRef, runId, retryId });
   const worktreePath = resolved.worktree_path;
-  const integrationRef = resolved.base_ref;
+  const baseRef = resolved.base_ref;
+
+  if (typeof baseRef === "string" && /^integration\/IN-\d{4}$/.test(baseRef)) {
+    fail(
+      WORKTREE_LEASE_DIAGNOSTIC_CODES.RESET_REFUSED,
+      `refusing reset to retired integration ref ${baseRef}: DEC-0170 prohibits ` +
+        "initiative integration branches as lifecycle authority",
+      { worktreePath, baseRef }
+    );
+  }
 
   const verdict = assessLiveness(priorIdentity, deps);
   if (verdict.state !== "dead") {
     fail(
       WORKTREE_LEASE_DIAGNOSTIC_CODES.RESET_REFUSED,
       `refusing reset --hard: prior holder is ${verdict.state} (${verdict.reason}); reset is gated on a confirmed death (fail closed)`,
-      { worktreePath, integrationRef, liveness: verdict.state }
+      { worktreePath, baseRef, liveness: verdict.state }
     );
   }
 
   gitOrThrow(
     runGit,
     worktreePath,
-    ["reset", "--hard", integrationRef],
-    `failed to reset worktree ${worktreePath} to integration tip ${integrationRef}`
+    ["reset", "--hard", baseRef],
+    `failed to reset worktree ${worktreePath} to binding base ${baseRef}`
   );
   const tip = gitOrThrow(runGit, worktreePath, ["rev-parse", "HEAD"], "failed to read reset HEAD");
   return Object.freeze({
     worktree_path: worktreePath,
-    integration_ref: integrationRef,
+
+    integration_ref: baseRef,
     reset_to_sha: tip.stdout.trim(),
     liveness: verdict.state
   });

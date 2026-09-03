@@ -1,8 +1,8 @@
 {
   "contract": {
-    "schema_version": "controlled-acceptance-contract.experimental.v0.2",
-    "vocabulary_version": "cv.experimental.0.34",
-    "profile_id": "acceptance-contract.standard.experimental.v0.2",
+    "schema_version": "controlled-acceptance-contract.v1",
+    "vocabulary_version": "controlled-contract-vocabulary.v1",
+    "profile_id": "acceptance-contract.standard.v1",
     "references": [
       {
         "reference_id": "ref-observed-population",
@@ -156,15 +156,15 @@
     "annotations": []
   },
   "profile": {
-    "schema_version": "controlled-contract-verification-profile.experimental.v0.2",
+    "schema_version": "controlled-contract-verification-profile.v1",
     "profile_id": "prototype.p13.write-scope-confinement",
     "profile_version": "0.0.1",
-    "contract_schema_version": "controlled-acceptance-contract.experimental.v0.2",
-    "vocabulary_version": "cv.experimental.0.34",
-    "vocabulary_signature_digest": "5c5e34017a7e0defc5222b9e3fc7fcaec8ca12d70541e609ca29e49c279c5a7d",
-    "vocabulary_algebra_digest": "1f5b1b04df5ae806c68592e352cb2285cdaf10a7d7bb898818a2805d290a9b4f",
-    "vocabulary_definitions_digest": "203e07960ad043b5dc932b65adeb5378eadd9dd91babca03120f1b6fc0d96033",
-    "vocabulary_complete_digest": "65195755c4124bfc55fe88ba0e817478f0036cc10bff15a9a64884cfd1241341",
+    "contract_schema_version": "controlled-acceptance-contract.v1",
+    "vocabulary_version": "controlled-contract-vocabulary.v1",
+    "vocabulary_signature_digest": "596a4c44d98aed1d31dd9ab3842fc054be6f8ffa3d62a3867a3966e75ecab742",
+    "vocabulary_algebra_digest": "0fbea1e7377baeef1869cbc55dc588ef5509ed40c768ce2a3c4f58be1133cf9c",
+    "vocabulary_definitions_digest": "bb3d2a63cb6fc8c62b9bc36d29d07549dea6ad85e32badb0cbb3cacfd6ad4759",
+    "vocabulary_complete_digest": "45484504f06968c6b4ac812c24b9f1b6e47e1d34ba21fefebde8dd85d1290fa9",
     "evaluation_stages": [
       "post_delivery"
     ],
@@ -288,7 +288,7 @@
     }
   },
   "evaluation_input": {
-    "input_version": "controlled-contract-verification-profile-input.experimental.v0.2",
+    "input_version": "controlled-contract-verification-profile-input.v1",
     "evaluation_stage": "post_delivery",
     "reference_bindings": [
       {

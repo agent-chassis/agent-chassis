@@ -96,6 +96,14 @@ the separate `work-unit-feature-vector.v1` schema.
 | `derived_evidence_decision_kind` | dispatch-readiness evidence | derived (dispatch-readiness tooling) | ENFORCES on the evidence object |
 | `projection_kind` | canonical `projections[]` | config (renderer-chosen) | ENFORCES at the renderer boundary |
 
+## Allocation and post-design execution contracts
+
+A `WK-*` begins as an allocator-backed inbox record created through `workspace_create_record`. Allocation owns identity and the canonical template only. It does not accept or infer raw controlled-contract carriers, proofs, slices, proof posture, readiness, or lifecycle state.
+
+The execution contract is authored after design convergence and the required review dispositions. Semantic controlled-contract operations own claims and proof obligations; `workspace_work_record_ready_slice` owns atomic executable-unit shaping. The full order is the [design-first operating model](../AGENTS.md#wk-first-work). CCE remains the only action-sequencing and admissibility owner, so the local wiki layer neither reconstructs that sequence nor turns it into a refusal gate.
+
+This separation preserves the ontology: allocation facts, authored contract semantics, executable slices, advisory proof evidence, and lifecycle authority remain distinct owners rather than one combined birth payload.
+
 ## Rejected approach: collapse the ontology
 
 > "Keep only fields required for enforcement (subject, scope, role, validation,

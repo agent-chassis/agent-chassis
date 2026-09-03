@@ -1,46 +1,77 @@
-<!-- wiki: id=IN-0001 relation=tracks -->
 
 # Operating Model
 
 This repository exists to make a shared wiki operating model portable across many codebases without centralizing the actual content.
 
-## Security scope
+## Compatibility posture: current contracts only
 
-The local tooling in this repository is **correctness, provenance, and
-honest-agent workflow machinery — not same-user security infrastructure**. Read
-the rest of this document, and the enforcement model it feeds, through that
-scope. Its local mechanisms exist to:
+This repository does not provide legacy or backward-compatibility support by
+default. The supported product and repository contract is the current contract.
+Agents and maintainers must not add, preserve, or extend compatibility behavior
+merely because an older format, entrypoint, field, fixture, caller, or workflow
+exists.
 
-- **enforce product contracts** — `write_scope` confinement, dispatch-readiness
-  shape checks, and the launcher's controlled-execution boundary keep an honest
-  managed agent inside the lane its coordinator authored;
-- **detect accidental drift and corruption** — CAS/digest integrity, sidecar
-  fail-loud checks, declared-versus-landed verification, and freshness/expiry
-  checks catch an unintended, stale, or corrupted change, not a forged one;
-- **protect credentials from external disclosure** — the launcher masks its own
-  secrets off the worker mount and redacts private carriers so a credential is
-  not leaked outward through a run's inputs, outputs, or model egress;
-- **constrain confined managed execution** — a managed worker sees exactly its
-  `R ∪ W` namespace and mutates only `write_scope`, so its blast radius is
-  bounded to what it was dispatched to touch.
+Compatibility behavior includes aliases, shims, adapters, dual reads or writes,
+fallback parsing or lookup, deprecated entrypoints, legacy data migration,
+transition windows, and tests whose purpose is to keep an obsolete contract
+working. Existing implementation, tests, documentation, historical usage, or
+generated artifacts do not by themselves make such behavior supported.
 
-It does **not** claim security against a **malicious same-user actor or a
-compromised host process**. A party that already holds the operator's shell, host
-filesystem, and credentials can defeat every local mechanism here; containing
-that party is outside the mandate. The realistic baseline is *"the operator runs
-the agent with full host privileges and no tooling at all,"* and the job is to be
-honestly better than that baseline for an **honest** agent, not to make a hostile
-one harmless.
+An exception requires an accepted canonical `DEC-*` that identifies the exact
+compatibility surface and scope. The decision must state the consumers and old
+contract being supported, why current-contract migration is insufficient, the
+required tests, the owner, and the removal condition or review date. A proposed,
+rejected, superseded, or expired decision grants no compatibility authority.
 
-This framing weakens no real boundary. External service authentication, the
-Chassis Control Engine's signing authority as the sole minter of enforcement
-authorization, kernel write confinement, CAS/digest integrity, and the
-credential/private-carrier disclosure boundaries above all still hold exactly as
-before; they are simply described as contract-enforcement, provenance, and
-disclosure controls rather than as a same-user security guarantee. This mandate
-was established by the work record audit; work record first applied it, making
-target-resolution evidence advisory to dispatch rather than a file-type
-permission.
+Without that accepted decision, changes use the current contract directly,
+remove obsolete compatibility behavior when it is in scope, and update or
+delete expectations that require the old behavior. Historical records remain
+historical evidence; their existence does not create a runtime or tooling
+support obligation.
+
+## Scope doctrine: no additional security profile
+
+AgentChassis does not define an additional security profile for agents. It aims
+not to worsen the security characteristics of the equivalent unmanaged-agent
+setup. Confinement, role-scoped tools, session ownership, redaction, and bounded
+projections exist for scope adherence, mechanical validity, cross-session
+noninterference, and efficient routing—not confidentiality, least privilege,
+adversarial resistance, or harm prevention. Incidental security benefits are not
+product guarantees.
+
+Read the rest of this document and the [Enforcement Model](enforcement-model.md)
+through that doctrine:
+
+- `write_scope`, repository projection, and launcher confinement keep an agent
+  within the role and repository scope declared for the operation. They do not
+  judge whether the declared operation is prudent or safe.
+- role-scoped tool exposure tells each agent which operations belong to its role
+  and avoids irrelevant tool descriptions and tokens. It is a routing and scope
+  control, not a least-access or least-privilege design.
+- MCP session ownership prevents agents from crossing or overwriting one
+  another's active sessions and tool calls. It is not a claim about hostile
+  callers, principal authentication, or forgery resistance.
+- freshness, digest, CAS, schema, and fail-closed checks preserve mechanical or
+  policy validity. Here, "fail closed" means that an operation does not continue
+  without the facts it requires; it does not mean the result is security-safe.
+- response projections provide the task-relevant information needed to continue
+  work while avoiding duplication and transport waste. Information is not
+  omitted on need-to-know, minimum-disclosure, confidentiality, or
+  abundance-of-caution grounds.
+- agents receive the credentials and writable runtime state their CLIs require
+  to work consistently. AgentChassis defines no separate credential-handling or
+  credential-leak-prevention guarantee.
+
+Scope adherence does not make in-scope authority harmless. For example, an
+orchestrator can expose a production-database deletion function within an
+operation's write scope and a worker can invoke it. Confinement may keep that
+worker within the declared operation while doing nothing to make the operation
+itself safe.
+
+Exact mechanical descriptions remain important: documentation may say which
+paths are visible or writable, which values a response serializes, how external
+authentication works, or why a launch refuses. Those facts describe current
+operation, not an additional security posture.
 
 ## Model Boundary
 
@@ -165,37 +196,36 @@ Agents mutate these records through schema-aware structured routes, never by
 editing the Markdown or the JSON on disk directly. Direct filesystem edits to
 `wiki/initiatives/` and `wiki/decisions/` are not the agent authoring path.
 
+Reads follow the same authority boundary. A registered `IN-####` or `DEC-####`
+identity resolves through the kind-record store to its canonical JSON record,
+and a path read admits only the exact canonical JSON path classified by that
+store. Explicit Markdown reads remain available as projection reads, but an ID
+or canonical-path read never falls back to that projection. Missing, unreadable,
+invalid, or identity-mismatched canonical JSON is returned with the store's
+mechanical validity and diagnostic evidence instead of a successful projection.
+
 ### Decision Authority Lifecycle
 
-A decision carries a `status`, and its authority follows the two-state lifecycle
-fixed by `decision`:
+A decision carries a `status` with two authority states:
 
 - `proposed` — a non-binding draft. Consumers must not treat a `proposed`
   decision as authority.
-- `accepted` — binding. In this free/local tier `accepted` is binding **on
-  trust**: consumers accept it at face value.
+- `accepted` — a ratified, binding decision.
 
-The lifecycle is driven by a single agent-callable operation family, all
-ungated and fail-open in the free tier, each call stamping provenance (who/when):
+Agents own the proposed lane. The structured decision routes let an agent
+create a decision as `proposed`, amend a `proposed` decision, and reject a
+`proposed` decision. Those routes cannot set `status`, cannot move a decision
+into or out of `accepted`, and do not expose ratify or unratify operations for
+any MCP role.
 
-- `create` — mint a new decision as `proposed`.
-- `amend` — edit a `proposed` decision in place. Amending an `accepted`
-  decision is refused until it is returned to `proposed` via `unratify`.
-- `ratify` — the `proposed → accepted` transition, a trusted status flip
-  recorded honestly.
-- `unratify` — the `accepted → proposed` transition, reopening a decision for
-  amendment.
-
-The free tier is intentionally ungated: any agent may draft and ratify
-decisions, `ratify` is a trusted status flip, and there is no approver check.
-The enforcement boundary against self-authorization lives in the paid CCE ratification
-attestation (a signed approver-set predicate), which is out of scope here and
-tracked separately (node-engine + `initiative`). This model deliberately does
-**not** assert an operator-only ratification gate, a local approver check, or any
-filesystem/admission lockdown of `wiki/decisions/`: `decision` retires local
-lockdown, and neither the JSON record nor its projection encodes one. The JSON
-migration preserves exactly today's Markdown `accepted` semantics and broadens no
-authority.
+Ratification is a human operator action. The human `wiki decision ratify` CLI
+is the only surface for the `proposed → accepted` transition, and the human
+`wiki decision unratify` CLI is the only surface for reopening an accepted
+decision. Both transitions record operator-resolved identity and provenance.
+An accepted decision must be unratified by a human operator before agents can
+amend it through the proposed-only routes. This separation is an exposure and
+authority boundary; shared persistence primitives do not grant agents the
+human-only lifecycle transitions.
 
 ## Cross-Repo Referencing
 
@@ -308,6 +338,14 @@ launcher-created read-only sibling projection of the canonical repository
 `node_modules`, pinned to its exact source identity for the life of the mount.
 Dependencies are neither installed nor copied.
 
+After immutable terminal-result and receipt settlement, the single
+package-owned append operation records the completed terminal review in the
+canonical WK ledger against exact `C` and `B`. Receipt settlement remains the
+continuation authority; the ledger is audit evidence. Receipt-only partial
+publication is repaired by authenticated settled replay of only the absent
+byte-identical ledger effect. Candidate/base movement or conflicting identity
+refuses, and neither publication nor replay modifies `C`.
+
 Project dependencies and project-test execution are optional. Terminal review and
 exact-candidate forge handoff proceed independently of whether they are available:
 a candidate whose manifests, lockfile, or workspace manifest disagree with the
@@ -357,7 +395,8 @@ caller-supplied.
 
 Forge handoff publishes the reviewed terminal candidate `C` byte-for-byte as
 the proposed change head on the forge handoff branch. The forge-merge operation
-then appends the two WK-only commits there (the terminal review state and the
+then authenticates terminal provenance against the trusted receipt before
+appending the two WK-only commits there (decision's terminal review state and the
 completion state), and merges that exact pull-request head into the configured
 base branch. A remote conflict is a
 refusal: the helper does not rebase, squash, force-update, resolve with a broad
@@ -365,6 +404,25 @@ theirs strategy, or create a post-merge main commit. After confirmed merge it
 reconciles the local WK record. If merge succeeds but local reconciliation does
 not, the result is typed partial success and a retry is safe: retry authenticates
 the exact merged head before attempting only the remaining local reconciliation.
+
+This authentication does not transfer ownership. work record owns candidate and
+forge authority, work record owns landed-publication identity, work record owns recovery,
+and forge owns merge readiness. Completed-review evidence stays advisory under
+decision and decision and supplies no review-policy, findings-veto, completion,
+or merge authority.
+
+Forge merge enters the same durable exact-W controlled-generation exclusion as
+candidate construction and forge handoff before resolving candidate publication
+state. While holding that exclusion, it authenticates the complete current
+manifest-selected generation directly from exact W through the controlled-generation
+owner and compares that owner-minted identity exactly with the generation bound to
+the terminal candidate. The exclusion remains held continuously through handoff-
+branch publication or update and pull-request merge. A missing, malformed, stale,
+or mismatched generation identity refuses before either remote mutation; W equality,
+resolver metadata, caller values, digests, and manifest-identity projections are
+not generation authority. External publication or merge failure releases the
+exclusion, and a later invocation reauthenticates the current generation before
+performing supported retry or recovery.
 
 Before either closeout commit is created, forge-merge authenticates the exact
 terminal closeout projection from `C` to the live canonical WK. The parent may

@@ -54,7 +54,16 @@ export const CALLER_REVIEW_CONTEXT_CARRIERS = Object.freeze([
   "trusted_frozen_review_contract", "canonicalParentWkContract",
   "canonical_parent_wk_contract", "reviewUnitContract", "review_unit_contract",
   "reviewerLaunchIdentity", "reviewer_launch_identity",
-  "acceptanceCriteria", "acceptance_criteria", "acceptanceValidation", "acceptance_validation"
+  "acceptanceCriteria", "acceptance_criteria", "acceptanceValidation", "acceptance_validation",
+
+  "attemptLineageResolution", "attempt_lineage_resolution",
+  "reviewerAttemptLineage", "reviewer_attempt_lineage", "selectedLineage", "selected_lineage",
+  "receipt", "reviewReceipt", "review_receipt", "receiptDigest", "receipt_digest",
+  "runId", "run_id", "reviewRunId", "review_run_id", "monitorHandle", "monitor_handle",
+  "resultMode", "result_mode", "priorMode", "prior_mode", "attemptedMode", "attempted_mode",
+  "generation", "contractGeneration", "contract_generation", "tip", "wkTip", "wk_tip",
+  "accumulatedWkTip", "accumulated_wk_tip", "repairAuthority", "repair_authority",
+  "lineageAuthority", "lineage_authority"
 ]);
 export const CONFIG_ATTEMPT_STATE_CARRIERS = Object.freeze([
   "resolveAttemptState", "resolveProvisioningAttemptState", "getAttemptState",

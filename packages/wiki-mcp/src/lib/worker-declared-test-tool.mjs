@@ -2,6 +2,16 @@
 
 import path from "node:path";
 
+import { classifyStableTestProofRuntimeReadiness } from
+  "@agent-chassis/controlled-contract";
+
+import {
+  resolveAssignedUnit,
+  resolveLauncherRunCredential,
+  WIKI_MCP_COMMIT_LAUNCH_REF_ENV_VAR,
+  WIKI_MCP_COMMIT_RUN_ID_ENV_VAR
+} from "./launcher-run-credential.mjs";
+
 import {
   resolveWorktreeBinding
 } from "../../../agent-launch-cli/src/lib/worktree-substrate.mjs";
@@ -13,19 +23,28 @@ import {
   mintManagedWorkerTestRunAuthority
 } from "../../../agent-launch-cli/src/lib/managed-worker-test-run-authority.mjs";
 import {
-  runManagedWorkerDeclaredTest
+  authorizeValidationTarget,
+  runManagedWorkerDeclaredTest,
+  runWorkspaceAgentTestProofAttempt
 } from "../../../agent-launch-cli/src/lib/workspace-agent-validation-runner.mjs";
+import { extractTestProofRuntimeEvidenceReceipt } from
+  "../../../agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt.mjs";
 import {
-  collectAuthorizedNodeTestTargets,
+  mintLauncherTestProofAttemptContext,
+  mintManagedWorkerTestProofRuntimeAuthority
+} from "../../../agent-launch-cli/src/lib/workspace-agent-test-proof-runtime-identity.mjs";
+import {
   resolveNodeTestUnitSections
-} from "./work-record-read-tools.mjs";
-import { readWorkRecordById } from "@agent-chassis/wiki-core";
+} from "./work-record-node-test-validation.mjs";
+import {
+  projectWorkRecordTestProofValidation,
+  resolveControlledContractTestProofRuntimeBindings,
+  readWorkRecordById
+} from "@agent-chassis/wiki-core";
+import { executeVerifyProofReceiptPopulation } from
+  "../../../agent-launch-core/src/lib/workspace-agent-verify-proof-capability.mjs";
 
 export const WORKER_DECLARED_TEST_TOOL_NAME = "workspace_worker_run_declared_test";
-
-const WIKI_MCP_COMMIT_LAUNCH_REF_ENV_VAR = "WIKI_MCP_COMMIT_LAUNCH_REF";
-const WIKI_MCP_COMMIT_RUN_ID_ENV_VAR = "WIKI_MCP_COMMIT_RUN_ID";
-const WIKI_MCP_COMMIT_RETRY_ID_ENV_VAR = "WIKI_MCP_COMMIT_RETRY_ID";
 
 export const WORKER_DECLARED_TEST_REFUSAL_CODES = Object.freeze({
   MISSING_ASSIGNED_UNIT: "worker_run_declared_test.missing_assigned_unit.v1",
@@ -33,36 +52,9 @@ export const WORKER_DECLARED_TEST_REFUSAL_CODES = Object.freeze({
   CALLER_SUPPLIED_BINDING: "worker_run_declared_test.caller_supplied_binding.v1",
   BINDING_UNRESOLVED: "worker_run_declared_test.binding_unresolved.v1",
   UNIT_UNRESOLVED: "worker_run_declared_test.unit_unresolved.v1",
-  NO_DECLARED_TARGETS: "worker_run_declared_test.no_declared_targets.v1"
+  NO_DECLARED_TARGETS: "worker_run_declared_test.no_declared_targets.v1",
+  TEST_PROOF_RECEIPT_INCOMPLETE: "worker_run_declared_test.test_proof_receipt_incomplete.v1"
 });
-
-function trimmed(value) {
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
-}
-
-function parseNonNegativeIntegerString(value, label) {
-  const text = trimmed(value);
-  if (!text) return null;
-  if (!/^(0|[1-9]\d*)$/u.test(text)) {
-    throw new Error(`${label} must be a non-negative integer string`);
-  }
-  return Number.parseInt(text, 10);
-}
-
-function resolveRunCredentialFromEnv(env) {
-  const launchRef = trimmed(env[WIKI_MCP_COMMIT_LAUNCH_REF_ENV_VAR]);
-  const runId = trimmed(env[WIKI_MCP_COMMIT_RUN_ID_ENV_VAR]);
-  if (!launchRef || !runId) return null;
-  return Object.freeze({
-    launchRef,
-    runId,
-    retryId:
-      parseNonNegativeIntegerString(
-        env[WIKI_MCP_COMMIT_RETRY_ID_ENV_VAR],
-        WIKI_MCP_COMMIT_RETRY_ID_ENV_VAR
-      ) ?? 0
-  });
-}
 
 function createRefusal(decisionCode, reasons, extra = {}) {
   return {
@@ -79,6 +71,69 @@ function createRefusal(decisionCode, reasons, extra = {}) {
   };
 }
 
+export function projectWorkerProofExecutionReadiness({
+  selection, verificationIds, wkId
+}) {
+  const rows = verificationIds.map((verificationId) => {
+    const matches = selection?.bindings?.filter(
+      (binding) => binding?.verification_claim_id === verificationId
+    ) ?? [];
+    if (matches.length !== 1) return null;
+    const binding = matches[0];
+    const readiness = classifyStableTestProofRuntimeReadiness(binding);
+    const candidates = readiness.current_test_ids.slice(0, 16);
+    return Object.freeze({
+      verification_id: verificationId,
+      status: readiness.status,
+      reason: readiness.reason,
+      selected_test_id: readiness.selected_test_id,
+      candidate_test_ids: Object.freeze(candidates),
+      candidate_total: readiness.candidate_total,
+      candidate_test_ids_omitted: readiness.candidate_total - candidates.length,
+      complete_retrieval: Object.freeze({
+        tool: "workspace_controlled_test_proof_query",
+        arguments: Object.freeze({ wk_id: wkId, verification_ids: [verificationId] })
+      })
+    });
+  });
+  if (rows.some((row) => row === null)) return null;
+  const nonready = rows.filter(({ status }) => status !== "ready");
+  return Object.freeze({
+    status: nonready.length === 0 ? "ready" : "not_ready",
+    ...(nonready.length === 0 ? {} : { authority_limb: "mechanical_failure" }),
+    admissibility_effect: "none",
+    bindings: Object.freeze(rows)
+  });
+}
+
+export function buildWorkerDeclaredTestSuccess({
+  workspaceRepo,
+  assignedUnit,
+  authorizedTargets,
+  verificationIds,
+  proofExecutionReadiness = null,
+  testProofRuntimeEvidence = null,
+  result,
+  target = null
+}) {
+  const proofStarted = Array.isArray(testProofRuntimeEvidence);
+  if (proofExecutionReadiness?.status === "not_ready" && proofStarted) {
+    throw new TypeError("nonready pre-proof results cannot carry proof evidence");
+  }
+  return Object.freeze({
+    tool: WORKER_DECLARED_TEST_TOOL_NAME,
+    workspaceRepo,
+    assigned_unit: assignedUnit,
+    authorized_targets: authorizedTargets,
+    verification_ids: verificationIds,
+    ...(proofExecutionReadiness === null
+      ? {} : { proof_execution_readiness: proofExecutionReadiness }),
+    ...(proofStarted ? { test_proof_runtime_evidence: testProofRuntimeEvidence } : {}),
+    ...result,
+    ...(target === null ? {} : { target })
+  });
+}
+
 export function registerWorkerDeclaredTestTool({
   registerTool,
   workspaceRepos,
@@ -93,12 +148,22 @@ export function registerWorkerDeclaredTestTool({
   const verifyBinding = deps.verifyExactSliceCommitBinding ?? verifyExactSliceCommitBinding;
   const readRecord = deps.readWorkRecordById ?? readWorkRecordById;
   const runDeclaredTest = deps.runManagedWorkerDeclaredTest ?? runManagedWorkerDeclaredTest;
+  const queryProofBindings = deps.resolveControlledContractTestProofRuntimeBindings ??
+    resolveControlledContractTestProofRuntimeBindings;
+  const mintProofAuthority = deps.mintManagedWorkerTestProofRuntimeAuthority ??
+    mintManagedWorkerTestProofRuntimeAuthority;
+  const mintProofContext = deps.mintLauncherTestProofAttemptContext ??
+    mintLauncherTestProofAttemptContext;
+  const runProofAttempt = deps.runWorkspaceAgentTestProofAttempt ??
+    runWorkspaceAgentTestProofAttempt;
+  const extractProofReceipt = deps.extractTestProofRuntimeEvidenceReceipt ??
+    extractTestProofRuntimeEvidenceReceipt;
 
   registerTool(
     WORKER_DECLARED_TEST_TOOL_NAME,
     {
       description:
-        "Worker-only launcher-owned capability: run one of the launcher-assigned unit's DECLARED node tests and return its output, so a worker can check its own delivery before committing. Side effect: process_spawn. Caller input is exactly { target }. The unit and the worktree are bound from the dispatched run's launcher-minted identity binding and are never taken from caller input; a caller-supplied unit, record, repo, workspace, worktree, cwd, or target set is refused rather than overridden. The target is authorized solely from the BOUND unit's sections.structured_validation.allowed[] entries with command node_test; an undeclared target is refused, never widened. The test runs launcher-side in a separate bubblewrap-confined process against the run's own worktree, network-denied, with a launcher-minted clean env, the repository mounted READ-ONLY (so no test byproduct can reach the write scope or the delivery commit) and an ephemeral tmpfs as the only writable location. A launcher-owned read-only dependency mount makes bare-specifier workspace imports resolve; when it is unavailable, stale, or mismatched the run degrades and records advisory evidence rather than refusing. Node binary, argv, cwd, env, timeout, and output bounds are launcher facts and cannot be supplied or overridden. The result is advisory: it carries no admission, review, or closure authority, adds no admission metric, and does not satisfy the mandatory findings-only review.",
+        "Worker-only launcher capability that runs one declared node test for the assigned unit and returns its output. Side effect: process_spawn. Input is exactly { target }. Unit and worktree come from the launcher-minted run binding; caller unit, repo, workspace, worktree, cwd, or target-set fields are refused. Only acceptance.validation[] entries with operation node_test authorize targets. The launcher runs the test in a network-denied bubblewrap process with a clean environment, read-only repository and dependency mounts, and ephemeral writable tmpfs. Unavailable or mismatched dependency mounts produce advisory degraded evidence. Node, argv, cwd, environment, timeout, and output bounds are launcher-owned. Results grant no admission, review, or closure authority and add no admission metric.",
       inputSchema: z.object({ target: z.string() }).strict()
     },
     async (args) => {
@@ -116,7 +181,7 @@ export function registerWorkerDeclaredTestTool({
           );
         }
 
-        const assignedUnit = trimmed(env.WIKI_MCP_ASSIGNED_UNIT);
+        const assignedUnit = resolveAssignedUnit(env);
         if (!assignedUnit) {
           return jsonContent(
             createRefusal(WORKER_DECLARED_TEST_REFUSAL_CODES.MISSING_ASSIGNED_UNIT, [
@@ -125,7 +190,7 @@ export function registerWorkerDeclaredTestTool({
           );
         }
 
-        const credential = resolveRunCredentialFromEnv(env);
+        const credential = resolveLauncherRunCredential(env);
         if (!credential) {
           return jsonContent(
             createRefusal(WORKER_DECLARED_TEST_REFUSAL_CODES.MISSING_LAUNCHER_BINDING, [
@@ -163,37 +228,125 @@ export function registerWorkerDeclaredTestTool({
         }
 
         const loaded = await readRecord({ dir: mainRepo, id: authority.record_id });
-        const sections = loaded?.record
+        const selectedUnit = loaded?.record
           ? resolveNodeTestUnitSections(loaded.record, authority.slice_id)
           : null;
-        if (!sections) {
+        if (!selectedUnit) {
           return jsonContent(
             createRefusal(WORKER_DECLARED_TEST_REFUSAL_CODES.UNIT_UNRESOLVED, [
               `the launcher-bound unit could not be resolved from canonical work records: ${authority.unit_address}`
             ], { unit: authority.unit_address })
           );
         }
-        const authorizedTargets = [...collectAuthorizedNodeTestTargets(sections)].sort();
+        const projection = projectWorkRecordTestProofValidation({
+          selectedUnit
+        });
+        const authorizedTargets = projection.targets;
         if (authorizedTargets.length === 0) {
           return jsonContent(
             createRefusal(WORKER_DECLARED_TEST_REFUSAL_CODES.NO_DECLARED_TARGETS, [
-              `the launcher-bound unit declares no node_test targets; add one to sections.structured_validation.allowed[] with command node_test`
+              `the launcher-bound unit declares no node_test targets; add one to acceptance.validation[] with operation node_test`
             ], { unit: authority.unit_address, authorized_targets: [] })
           );
         }
 
-        const result = await runDeclaredTest({
-          authority,
+        const targetAuthorization = authorizeValidationTarget({
+          workspaceDir: authority.worktree_path,
           target: args.target,
           authorizedTargets
         });
-        return jsonContent({
-          tool: WORKER_DECLARED_TEST_TOOL_NAME,
-          workspaceRepo: workspace.repo,
-          assigned_unit: assignedUnit,
-          authorized_targets: authorizedTargets,
-          ...result
+        const canonicalTarget = targetAuthorization.ok === true
+          ? targetAuthorization.posixRelative
+          : args.target;
+        const result = await runDeclaredTest({
+          authority,
+          target: canonicalTarget,
+          authorizedTargets
         });
+        const verificationIds = targetAuthorization.ok === true
+          ? projection.validation_bindings[canonicalTarget] ?? Object.freeze([])
+          : Object.freeze([]);
+        let testProofRuntimeEvidence = [];
+        let proofExecutionReadiness = null;
+        if (verificationIds.length > 0) {
+          const proofAuthority = mintProofAuthority({ authority });
+          let resolvedSelection;
+          try {
+            resolvedSelection = await queryProofBindings({
+              repoRoot: proofAuthority.worktree_path,
+              wkId: proofAuthority.wk_id ?? proofAuthority.record_id,
+              verificationIds
+            });
+          } catch (error) {
+            return jsonContent(createRefusal(
+              WORKER_DECLARED_TEST_REFUSAL_CODES.TEST_PROOF_RECEIPT_INCOMPLETE,
+              ["the declared proof binding population could not be resolved",
+                error?.message ?? String(error)],
+              { unit: authority.unit_address, refusal_code: error?.code ?? null }
+            ));
+          }
+          proofExecutionReadiness = projectWorkerProofExecutionReadiness({
+            selection: resolvedSelection,
+            verificationIds,
+            wkId: authority.record_id
+          });
+          if (proofExecutionReadiness === null) return jsonContent(createRefusal(
+            WORKER_DECLARED_TEST_REFUSAL_CODES.TEST_PROOF_RECEIPT_INCOMPLETE,
+            "the declared proof binding population is missing or ambiguous",
+            { unit: authority.unit_address, verification_ids: verificationIds }
+          ));
+          if (proofExecutionReadiness.status === "not_ready") return jsonContent(
+            buildWorkerDeclaredTestSuccess({
+              workspaceRepo: workspace.repo,
+              assignedUnit,
+              authorizedTargets,
+              verificationIds,
+              proofExecutionReadiness,
+              result,
+              target: targetAuthorization.ok === true ? canonicalTarget : null
+            })
+          );
+          let executed;
+          try {
+            executed = await executeVerifyProofReceiptPopulation({
+              proofAuthority,
+              targets: [canonicalTarget],
+              validationBindings: { [canonicalTarget]: verificationIds },
+              resolveBindings: async () => resolvedSelection,
+              mintAttemptContext: mintProofContext,
+              runAttempt: runProofAttempt,
+              extractReceipt: extractProofReceipt
+            });
+          } catch (error) {
+            return jsonContent(createRefusal(
+              WORKER_DECLARED_TEST_REFUSAL_CODES.TEST_PROOF_RECEIPT_INCOMPLETE,
+              ["a declared verification completed without complete exact runtime evidence",
+                error?.message ?? String(error)],
+              { unit: authority.unit_address, refusal_code: error?.code ?? null }
+            ));
+          }
+          testProofRuntimeEvidence = [...executed.receipts_by_target[canonicalTarget]]
+            .sort((left, right) => left.evidence_identity.verification_id.localeCompare(
+              right.evidence_identity.verification_id));
+          if (testProofRuntimeEvidence.length !== verificationIds.length) {
+            return jsonContent(createRefusal(
+              WORKER_DECLARED_TEST_REFUSAL_CODES.TEST_PROOF_RECEIPT_INCOMPLETE,
+              "every declared verification requires one complete runtime-evidence receipt",
+              { unit: authority.unit_address, verification_ids: verificationIds }
+            ));
+          }
+        }
+        return jsonContent(buildWorkerDeclaredTestSuccess({
+          workspaceRepo: workspace.repo,
+          assignedUnit,
+          authorizedTargets,
+          verificationIds,
+          proofExecutionReadiness,
+          testProofRuntimeEvidence: verificationIds.length > 0
+            ? testProofRuntimeEvidence : null,
+          result,
+          target: targetAuthorization.ok === true ? canonicalTarget : null
+        }));
       } catch (error) {
         return errorContent(error);
       }

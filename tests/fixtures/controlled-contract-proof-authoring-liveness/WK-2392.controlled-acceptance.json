@@ -1,0 +1,190 @@
+{
+  "schema_version": "controlled-acceptance-contract.v1",
+  "vocabulary_version": "controlled-contract-vocabulary.v1",
+  "profile_id": "acceptance-contract.standard.v1",
+  "references": [
+    {
+      "reference_id": "ref-router",
+      "type_term": "cc:operation",
+      "identity": {
+        "kind": "code_symbol",
+        "repository": "agent-chassis/agent-chassis",
+        "path": "packages/agent-launch-cli/src/lib/workspace-agent-advisory-review-pipeline.mjs",
+        "symbol": "createWorkspaceAgentAdvisoryReviewPipeline"
+      }
+    },
+    {
+      "reference_id": "ref-review-path",
+      "type_term": "cc:artifact",
+      "identity": {
+        "kind": "profile_term",
+        "term": "shared-findings-launcher-pipeline-dec-0181-identities-dec-0128-cce-schema"
+      }
+    },
+    {
+      "reference_id": "ref-tests",
+      "type_term": "cc:test",
+      "identity": {
+        "kind": "profile_term",
+        "term": "workspace-agent-findings-routing-regression-suite"
+      }
+    },
+    {
+      "reference_id": "ref-component",
+      "type_term": "cc:runtime_component",
+      "identity": {
+        "kind": "profile_term",
+        "term": "workspace-agent-findings-routing-runtime"
+      }
+    }
+  ],
+  "propositions": [
+    {
+      "proposition_id": "prop-single-route",
+      "subject_reference_id": "ref-router",
+      "operator": "reference:routes_to",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-review-path"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-covered",
+      "subject_reference_id": "ref-tests",
+      "operator": "reference:covers",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-router"
+        }
+      ]
+    },
+    {
+      "proposition_id": "prop-omits",
+      "subject_reference_id": "ref-tests",
+      "operator": "reference:omits",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_reference_ids": []
+      },
+      "operands": [
+        {
+          "kind": "reference",
+          "reference_id": "ref-router"
+        }
+      ]
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "claim-single-review",
+      "kind": "behavior",
+      "modality": "MUST",
+      "proposition_id": "prop-single-route"
+    },
+    {
+      "claim_id": "claim-single-review-covered",
+      "kind": "verification",
+      "modality": "MUST",
+      "proposition_id": "prop-covered",
+      "verification_method": "test_execution",
+      "falsifying_proposition_id": "prop-omits"
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "rel-single-review-verification",
+      "role": "verifies",
+      "source_claim_id": "claim-single-review-covered",
+      "target_claim_id": "claim-single-review"
+    }
+  ],
+  "collections": [],
+  "residue": [],
+  "annotations": [
+    {
+      "annotation_id": "ann-conformed-design",
+      "kind": "rationale",
+      "text": "The shared pipeline preserves DEC-0181's distinct authenticated technical reviewer and standalone-redteam identities and fixed contracts. Review metadata does not otherwise select internal launcher branches or downstream authority. Non-CCE schemas are optional non-authorizing result-conformance inputs; exact CCE reviewer schemas remain mandatory and mechanically enforced under DEC-0128. Findings remain advisory, exact reviewed targets remain authenticated, DEC-0177 governs local refusals, WK-2386 owns the public envelope, and WK-2388 owns mechanical-versus-returned-policy classification."
+    }
+  ],
+  "test_proof_version": "controlled-contract-test-proof.v1",
+  "test_proofs": [
+    {
+      "test_proof_id": "test-proof-single-review",
+      "verification_claim_id": "claim-single-review-covered",
+      "system_under_test_boundary": {
+        "boundary_id": "sut-boundary-single-review-router",
+        "kind": "module",
+        "runtime_module_path": "packages/agent-launch-cli/src/lib/workspace-agent-advisory-review-pipeline.mjs",
+        "subject_reference_ids": [
+          "ref-router"
+        ]
+      },
+      "observable_result": {
+        "observable_id": "observable-single-review-route",
+        "kind": "return_value",
+        "proposition_id": "prop-covered"
+      },
+      "candidate_execution_provider": {
+        "provider_id": "launcher.node-test",
+        "provider_version": "1.0.0",
+        "capability": "candidate_execution"
+      },
+      "falsifiers": [
+        {
+          "falsifier_id": "falsifier-review-purpose-route",
+          "strategy": "dependency_failure",
+          "proposition_id": "prop-omits",
+          "expected_outcome": "verification_fails",
+          "mutation": {
+            "mutation_id": "mutation-review-purpose-route",
+            "mechanism": "module_substitution",
+            "target_kind": "module",
+            "module_path": "packages/agent-launch-cli/src/lib/workspace-agent-advisory-review-pipeline.mjs"
+          },
+          "execution_provider": {
+            "provider_id": "launcher.node-test-module-fault",
+            "provider_version": "1.0.0",
+            "capability": "falsifier_execution"
+          }
+        }
+      ],
+      "traversal_provider": {
+        "mode": "provider",
+        "provider_id": "launcher.node-test-v8-coverage",
+        "provider_version": "1.0.0",
+        "capability": "boundary_traversal",
+        "boundary_kind": "module",
+        "observation_mechanism": "node_test_v8_coverage",
+        "observation_seam": "node_test_structured_assertion",
+        "evidence_artifact_type": "boundary_trace"
+      },
+      "coverage_disposition": {
+        "baseline_id": "coverage-baseline-single-review",
+        "baseline_state": "complete_executed_inventory",
+        "items": [
+          {
+            "test_id": "test-workspace-agent-advisory-review-pipeline",
+            "disposition": "preserved"
+          }
+        ]
+      },
+      "prohibited_shortcuts": [
+        "source_text_inspection",
+        "test_count_only",
+        "unexecuted_assertion"
+      ]
+    }
+  ]
+}

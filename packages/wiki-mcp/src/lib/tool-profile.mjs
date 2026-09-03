@@ -5,8 +5,9 @@ import { readFileSync } from "node:fs";
 import { resolveClientConfig } from "@agent-chassis/wiki-core/src/lib/node-engine-api-client.mjs";
 import {
   SESSION_ROLE_TOOL_ACCESS_POLICY_PATH,
-  resolveRoleToolGrantsFromPolicy
-} from "@agent-chassis/wiki-core/src/lib/tool-discovery.mjs";
+  resolveRoleToolGrantsFromPolicy,
+  resolveToolDispositionsFromPolicy
+} from "@agent-chassis/wiki-core/src/lib/tool-discovery/gating.mjs";
 
 const TOOL_PROFILE_ORCHESTRATOR = "orchestrator";
 const TOOL_PROFILE_REVIEWER = "reviewer";
@@ -28,16 +29,23 @@ const TOOL_PROFILE_AGENT_SAFE = "agent-safe";
 export const REGISTERED_TIER_FREE_LOCAL = "free_local";
 export const REGISTERED_TIER_PAID_CCE = "paid_cce";
 
-let cachedRoleToolGrants = null;
+let cachedToolAccessPolicy = null;
 
-function loadRoleToolGrants() {
-  if (cachedRoleToolGrants) {
-    return cachedRoleToolGrants;
+function resolveToolAccessPolicy(policy) {
+  return Object.freeze({
+    roleToolGrants: resolveRoleToolGrantsFromPolicy(policy),
+    toolDispositions: resolveToolDispositionsFromPolicy(policy)
+  });
+}
+
+function loadToolAccessPolicy() {
+  if (cachedToolAccessPolicy) {
+    return cachedToolAccessPolicy;
   }
   const raw = readFileSync(SESSION_ROLE_TOOL_ACCESS_POLICY_PATH, "utf8");
   const policy = JSON.parse(raw);
-  cachedRoleToolGrants = resolveRoleToolGrantsFromPolicy(policy);
-  return cachedRoleToolGrants;
+  cachedToolAccessPolicy = resolveToolAccessPolicy(policy);
+  return cachedToolAccessPolicy;
 }
 
 export function parseToolProfile(env = process.env) {
@@ -64,18 +72,46 @@ export function parseToolProfile(env = process.env) {
   );
 }
 
-export function shouldExposeTool(toolProfile, name  ) {
-  if (toolProfile === TOOL_PROFILE_FULL || toolProfile === TOOL_PROFILE_OPERATOR) {
-    return true;
-  }
+export function shouldExposeToolFromPolicy(toolProfile, name, policy) {
+  const { roleToolGrants, toolDispositions } = resolveToolAccessPolicy(policy);
+  return shouldExposeToolFromResolvedPolicy(
+    toolProfile,
+    name,
+    roleToolGrants,
+    toolDispositions
+  );
+}
+
+function shouldExposeToolFromResolvedPolicy(
+  toolProfile,
+  name,
+  roleToolGrants,
+  toolDispositions
+) {
   const role =
-    toolProfile === TOOL_PROFILE_AGENT_SAFE ? TOOL_PROFILE_ORCHESTRATOR : toolProfile;
+    toolProfile === TOOL_PROFILE_AGENT_SAFE
+      ? TOOL_PROFILE_ORCHESTRATOR
+      : toolProfile === TOOL_PROFILE_FULL
+        ? TOOL_PROFILE_OPERATOR
+        : toolProfile;
   if (!SESSION_ROLE_VALUES.includes(role)) {
     return false;
   }
-  const grants = loadRoleToolGrants();
-  const roleTools = grants.get(role);
+  if (!(toolDispositions instanceof Map) || !toolDispositions.has(name)) {
+    return false;
+  }
+  const roleTools = roleToolGrants.get(role);
   return roleTools instanceof Set ? roleTools.has(name) : false;
+}
+
+export function shouldExposeTool(toolProfile, name  ) {
+  const { roleToolGrants, toolDispositions } = loadToolAccessPolicy();
+  return shouldExposeToolFromResolvedPolicy(
+    toolProfile,
+    name,
+    roleToolGrants,
+    toolDispositions
+  );
 }
 
 export function resolveRegisteredTier(env = process.env) {

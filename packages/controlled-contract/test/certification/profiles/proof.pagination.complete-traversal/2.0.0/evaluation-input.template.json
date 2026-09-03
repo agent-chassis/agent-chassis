@@ -1,0 +1,236 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.v1",
+  "evaluation_stage": "pre_dispatch",
+  "reference_bindings": [
+    {
+      "role": "mutation_trace",
+      "reference_ids": [
+        "ref-complete-mutation-trace"
+      ]
+    },
+    {
+      "role": "projection_result",
+      "reference_ids": [
+        "ref-complete-projection-result"
+      ]
+    },
+    {
+      "role": "authoritative_population",
+      "reference_ids": [
+        "ref-authoritative-population-artifact"
+      ]
+    },
+    {
+      "role": "authoritative_occurrence_population",
+      "reference_ids": [
+        "ref-pop-authoritative-occurrence-population-9db646b9e983d88076a20da4d3eecabb315713593c8438318a75e53a930bfec4"
+      ]
+    },
+    {
+      "role": "authoritative_occurrences",
+      "reference_ids": [
+        "ref-occ-0cc3f52d72633436ae011f5bfc7996d25950a9cdbc7303c7da4a96d8aeaf730c",
+        "ref-occ-11c2f4701a3cde461630e986abb6a5c4827de34cc369b864a74ca75f9cc13fd3",
+        "ref-occ-5828595eeebda54f2cc43d95b7745b6258cda41e285a6cbfea896e01a820de9e",
+        "ref-occ-5dc9052a79ebc1cca4bcbcbc83081112fcf4f5b2056bc8d6536cc603733b4c11",
+        "ref-occ-834fb25c3e3fa9679274f17123cb28d77381004407b1e5cf5072ba45d806a911"
+      ]
+    },
+    {
+      "role": "returned_occurrence_population",
+      "reference_ids": [
+        "ref-pop-returned-occurrence-population-9db646b9e983d88076a20da4d3eecabb315713593c8438318a75e53a930bfec4"
+      ]
+    },
+    {
+      "role": "returned_occurrences",
+      "reference_ids": [
+        "ref-occ-0cc3f52d72633436ae011f5bfc7996d25950a9cdbc7303c7da4a96d8aeaf730c",
+        "ref-occ-11c2f4701a3cde461630e986abb6a5c4827de34cc369b864a74ca75f9cc13fd3",
+        "ref-occ-5828595eeebda54f2cc43d95b7745b6258cda41e285a6cbfea896e01a820de9e",
+        "ref-occ-5dc9052a79ebc1cca4bcbcbc83081112fcf4f5b2056bc8d6536cc603733b4c11",
+        "ref-occ-834fb25c3e3fa9679274f17123cb28d77381004407b1e5cf5072ba45d806a911"
+      ]
+    },
+    {
+      "role": "returned_page_population",
+      "reference_ids": [
+        "ref-pop-returned-page-population-9db646b9e983d88076a20da4d3eecabb315713593c8438318a75e53a930bfec4"
+      ]
+    },
+    {
+      "role": "returned_pages",
+      "reference_ids": [
+        "ref-page-0",
+        "ref-page-1",
+        "ref-page-2"
+      ]
+    },
+    {
+      "role": "cursor_transition_population",
+      "reference_ids": [
+        "ref-pop-cursor-transition-population-9db646b9e983d88076a20da4d3eecabb315713593c8438318a75e53a930bfec4"
+      ]
+    },
+    {
+      "role": "cursor_transitions",
+      "reference_ids": [
+        "ref-transition-0",
+        "ref-transition-1"
+      ]
+    },
+    {
+      "role": "equality_normalized_member_population",
+      "reference_ids": [
+        "ref-pop-equality-normalized-member-population-9db646b9e983d88076a20da4d3eecabb315713593c8438318a75e53a930bfec4"
+      ]
+    },
+    {
+      "role": "equality_normalized_members",
+      "reference_ids": [
+        "ref-equality-052a7b9c61e80ed4ba002fa4cd798b9374a9d5deb8c6ce09386bc72faea66ef4",
+        "ref-equality-092d86673ef7eac6b42373bfaebfcc39b52d8b5ce4d8d2c740ccdebe080448f4",
+        "ref-equality-1730dfb05c2218effd4746ff3f911170571194f9239eed7251740c13ad500303",
+        "ref-equality-a2958b53f878c459e72ba9fca1a1252dac32529647540cba7666a11714e75164",
+        "ref-equality-f3c843cfe656ae23c6452f78d97181b290e00fc209ef3acb834946f00372a98f"
+      ]
+    },
+    {
+      "role": "authentication_evidence_occurrence",
+      "reference_ids": [
+        "ref-evidence-occurrence-f1ae1adb9cc770be9c547b33b3e250a37a58e3e40fcefa302d74e3101fae6848"
+      ]
+    },
+    {
+      "role": "authentication_observation_attempt",
+      "reference_ids": [
+        "ref-observation-attempt-complete-pagination"
+      ]
+    },
+    {
+      "role": "authenticated_source",
+      "reference_ids": [
+        "ref-provenance-source-complete-pagination"
+      ]
+    },
+    {
+      "role": "target_resolution_witness",
+      "reference_ids": [
+        "ref-target-resolution-witness"
+      ]
+    },
+    {
+      "role": "source_authentication_witness",
+      "reference_ids": [
+        "ref-source-authentication-witness"
+      ]
+    },
+    {
+      "role": "source_of_record_witness",
+      "reference_ids": [
+        "ref-source-of-record-witness"
+      ]
+    },
+    {
+      "role": "attempt_binding_witness",
+      "reference_ids": [
+        "ref-attempt-binding-witness"
+      ]
+    },
+    {
+      "role": "authentication_witness",
+      "reference_ids": [
+        "ref-authentication-witness"
+      ]
+    },
+    {
+      "role": "authentication_capture",
+      "reference_ids": [
+        "ref-authentication-capture"
+      ]
+    },
+    {
+      "role": "equality_policy",
+      "reference_ids": [
+        "ref-equality-policy"
+      ]
+    },
+    {
+      "role": "resource_policy",
+      "reference_ids": [
+        "ref-resource-policy"
+      ]
+    },
+    {
+      "role": "traversal",
+      "reference_ids": [
+        "ref-traversal-complete"
+      ]
+    },
+    {
+      "role": "snapshot",
+      "reference_ids": [
+        "ref-snapshot-complete"
+      ]
+    },
+    {
+      "role": "traversal_source_version",
+      "reference_ids": [
+        "ref-source-version-complete"
+      ]
+    },
+    {
+      "role": "terminal_page",
+      "reference_ids": [
+        "ref-page-2"
+      ]
+    },
+    {
+      "role": "exact_order_state",
+      "reference_ids": [
+        "ref-exact-order-state"
+      ]
+    },
+    {
+      "role": "exact_equality_state",
+      "reference_ids": [
+        "ref-exact-equality-state"
+      ]
+    },
+    {
+      "role": "aggregate_input_accounting",
+      "reference_ids": [
+        "ref-resource-aggregate-input-9db646b9e983d88076a20da4d3eecabb315713593c8438318a75e53a930bfec4"
+      ]
+    },
+    {
+      "role": "canonical_result_accounting",
+      "reference_ids": [
+        "ref-resource-canonical-result-9db646b9e983d88076a20da4d3eecabb315713593c8438318a75e53a930bfec4"
+      ]
+    },
+    {
+      "role": "work_accounting",
+      "reference_ids": [
+        "ref-resource-work-9db646b9e983d88076a20da4d3eecabb315713593c8438318a75e53a930bfec4"
+      ]
+    },
+    {
+      "role": "verification",
+      "reference_ids": [
+        "ref-complete-traversal-verification"
+      ]
+    },
+    {
+      "role": "traversal_failure_condition",
+      "reference_ids": [
+        "ref-complete-traversal-failure-condition"
+      ]
+    }
+  ],
+  "number_bindings": [],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": [],
+  "stable_evaluation": {}
+}

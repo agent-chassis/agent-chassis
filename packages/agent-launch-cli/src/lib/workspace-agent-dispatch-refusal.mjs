@@ -3,6 +3,9 @@
 import { randomBytes } from "node:crypto";
 
 import {
+  isRuntimeBlockerCode
+} from "@agent-chassis/wiki-core/src/lib/runtime-blocker-taxonomy.mjs";
+import {
   WORKSPACE_AGENT_DISPATCH_BACKEND_SCHEMA_VERSION,
   WORKSPACE_AGENT_DISPATCH_RUN_STATUS_SCHEMA_VERSION,
   BACKEND_RUN_STATUSES
@@ -20,6 +23,11 @@ export function defaultMonitorHandleFactory() {
 }
 
 export function buildRefusal(schema_version, code, reason, detail) {
+  if (!isRuntimeBlockerCode(code)) {
+    throw new TypeError(
+      `backend refusal requires a registered runtime blocker code; ${JSON.stringify(code)} is not in runtime-blocker-codes.v1.json`
+    );
+  }
   return {
     schema_version,
     accepted: false,

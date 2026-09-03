@@ -1,3 +1,4 @@
+
 # New-Directory Write Scopes and Launcher Isolation
 
 > Part of the [Agent Launch & Direct-Dispatch Reference](agent-launch-quickstart.md).
@@ -34,13 +35,19 @@ decision. When `bubblewrap` is unavailable or unsupported, an operator shell
 orchestrator launch may use an explicit direct mode only if the launcher emits a
 loud warning and dry-run JSON records that OS-level bwrap isolation is
 unavailable. Direct mode is not sandboxed write-scope enforcement: normal host
-OS permissions apply. Structured worker, reviewer, and redteam dispatch remains
-fail-closed unless a later decision explicitly changes that posture.
+OS permissions apply. For structured roles, a no-CCE-key local/free launch may
+use the documented unenforced plain-spawn path when no supported backend can be
+used. A CCE-key launch requires the backend unless the operator explicitly
+selects the recorded unenforced opt-out. These outcomes describe launcher
+mechanics and policy validity, not a security-safe default.
 
 Bubblewrap-isolated orchestrators receive one additional read-only repository-data
 mount: the launcher derives the owning repository's managed-worktree root as
-`<dirname(real repository)>/.agent-worktrees/<basename(real repository)>` and
-binds exactly that directory. The mount does not expose sibling repositories'
+`<effective-user-home>/.agent-worktrees/<repo-basename>` and binds exactly that
+directory. The effective home comes from the executing account's OS user record;
+caller-supplied `HOME`, `XDG_*`, prompts, requests, and dispatch arguments cannot
+redirect it. The launcher creates the per-repository root recursively with mode
+`0700` as the executing user. The mount does not expose sibling repositories'
 managed worktrees and does not grant mutation authority. It exists only so
 orchestrators can inspect their own managed worktrees and obtain truthful Git
 diagnostics; host lifecycle evidence remains authoritative for lifecycle and

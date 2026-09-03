@@ -14,13 +14,15 @@ import {
 } from "../lib/proof-intent-selection.mjs";
 import { buildRefusalBeforeEffectsFixture } from
   "./proof-packs/refusal-before-effects-fixture.mjs";
+import { buildStableTestProofPopulation } from
+  "./support/stable-v1-proof-pack-runtime.mjs";
 
 const packageRoot = path.resolve(import.meta.dirname, "..");
 const cli = path.join(packageRoot, "bin", "describe-proof-pack.mjs");
 const refusalIntent = "controlled-proof-intent.refusal-before-effects";
 const refusalPack = {
   profileId: "proof.authorization.refusal-before-effects",
-  profileVersion: "1.0.0",
+  profileVersion: "2.0.0",
   requestedIntents: [refusalIntent]
 };
 
@@ -45,14 +47,18 @@ test("every admitted pack has one bounded typed authoring projection", async () 
       projection.evaluation_input_skeleton.reference_bindings.length);
     assert.equal(projection.counts.number_roles,
       projection.evaluation_input_skeleton.number_bindings.length);
+    assert.equal(projection.counts.binding_constraint_patterns,
+      projection.role_constraints.binding_constraint_patterns.length);
     assert.equal(projection.counts.claim_patterns,
       projection.proof_obligations.claim_patterns.length);
+    assert.equal(projection.counts.falsifier_occurrence_bindings,
+      projection.proof_obligations.falsifier_occurrence_bindings.length);
     const serialized = JSON.stringify(projection);
     assert.doesNotMatch(serialized,
       /negative-fixtures|coverage_witness|adequacy\.json|executable_module/u);
     assert.equal(serialized.includes(`${packageRoot}/`), false);
   }
-  assert.equal(catalog.packs.length, 26);
+  assert.equal(catalog.packs.length, 38);
   assert(largest.bytes > 0);
 });
 
@@ -82,7 +88,9 @@ test("the projection supplies the selected pack's authoring-critical meaning", (
 });
 
 test("selector summaries bind to the exact full authoring projection", () => {
-  const contract = buildRefusalBeforeEffectsFixture().contract;
+  const value = buildRefusalBeforeEffectsFixture();
+  value.contract.test_proofs = buildStableTestProofPopulation(value.contract);
+  const contract = value.contract;
   const selection = selectProofPacks({
     contract,
     requestedIntents: [refusalIntent]

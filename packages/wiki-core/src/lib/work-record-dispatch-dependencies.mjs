@@ -1,12 +1,13 @@
 
 
 import { isNonEmptyString, isObject } from "./work-record-dispatch-shared.mjs";
-import { SLICE_ID_PATTERN } from "./work-record-schema-constants.mjs";
+import {
+  SLICE_ID_PATTERN,
+  WORK_RECORD_WORK_KIND_VALUES
+} from "./work-record-schema-constants.mjs";
 
 const WORK_ITEM_ID_PATTERN = /^WK-[0-9]{4}$/;
 const REPO_QUALIFIED_PREFIX_PATTERN = /^[^:]+:.+$/;
-
-const SATISFIED_LOCAL_DEPENDENCY_STATUSES = new Set(["done"]);
 
 function normalizeAliasHints(options = null, recordRepo = null) {
   const aliases = new Set();
@@ -297,13 +298,25 @@ export function buildDependencyEvidenceEntry({
     slice_id: parsed.slice_id,
     external_repo: parsed.external_repo,
     selected_status: null,
+    target_work_kind: null,
+    target_identity: null,
+    target_status: null,
+    target_initiative: null,
+    supplied_status: supplied?.status ?? null,
+    supplied_reason: supplied?.reason ?? null,
     marker: "resolved",
     provenance: "none",
-    reason: supplied?.reason ?? null
+    reason: null
   };
 
   if (parsed.kind === "typoed") {
-    return { ...baseEntry, marker: "typoed" };
+    return {
+      ...baseEntry,
+      marker: "fact_resolution_failed",
+      failure_code: "malformed_dependency_address",
+      refusal_limb: "mechanical_failure",
+      reason: `Dependency ${address} could not be resolved from canonical facts`
+    };
   }
 
   if (parsed.kind === "external") {
@@ -312,7 +325,8 @@ export function buildDependencyEvidenceEntry({
         ...baseEntry,
         selected_status: supplied.status,
         marker: "external_supplied",
-        provenance: "supplied"
+        provenance: "supplied",
+        reason: supplied.reason ?? null
       };
     }
     return { ...baseEntry, marker: "external_without_supplied_status" };
@@ -323,58 +337,47 @@ export function buildDependencyEvidenceEntry({
     : additionalRecords?.get(parsed.record_id) ?? null;
 
   if (!targetRecord) {
-    if (supplied) {
-      return {
-        ...baseEntry,
-        selected_status: supplied.status,
-        marker: "resolved",
-        provenance: "supplied"
-      };
-    }
-    return { ...baseEntry, marker: "missing" };
-  }
-
-  if (parsed.slice_id) {
-    const slice = findSliceById(targetRecord, parsed.slice_id);
-    if (slice) {
-      if (supplied) {
-        return {
-          ...baseEntry,
-          selected_status: supplied.status,
-          marker: "resolved",
-          provenance: "supplied"
-        };
-      }
-      return {
-        ...baseEntry,
-        selected_status: isNonEmptyString(slice.status) ? slice.status : null,
-        marker: "resolved",
-        provenance: "canonical_wk_json"
-      };
-    }
-    if (supplied) {
-      return {
-        ...baseEntry,
-        selected_status: supplied.status,
-        marker: "resolved",
-        provenance: "supplied"
-      };
-    }
-    return { ...baseEntry, marker: "unresolved" };
-  }
-
-  if (supplied) {
     return {
       ...baseEntry,
-      selected_status: supplied.status,
-      marker: "resolved",
-      provenance: "supplied"
+      marker: "fact_resolution_failed",
+      failure_code: "missing_canonical_target",
+      refusal_limb: "mechanical_failure"
+    };
+  }
+
+  const target = parsed.slice_id ? findSliceById(targetRecord, parsed.slice_id) : targetRecord;
+  if (!target) {
+    return {
+      ...baseEntry,
+      marker: "fact_resolution_failed",
+      failure_code: "missing_canonical_target_slice",
+      refusal_limb: "mechanical_failure"
+    };
+  }
+
+  const targetWorkKind = isNonEmptyString(target.work_kind) ? target.work_kind : null;
+  const targetStatus = isNonEmptyString(target.status) ? target.status : null;
+  if (!targetWorkKind || !WORK_RECORD_WORK_KIND_VALUES.includes(targetWorkKind)) {
+    return {
+      ...baseEntry,
+      target_identity: parsed.slice_id ? `${targetRecord.id}#${parsed.slice_id}` : targetRecord.id,
+      target_status: targetStatus,
+      target_initiative: targetRecord.initiative ?? null,
+      selected_status: targetStatus,
+      marker: "fact_resolution_failed",
+      failure_code: targetWorkKind ? "unknown_target_work_kind" : "missing_target_work_kind",
+      refusal_limb: "mechanical_failure",
+      provenance: "canonical_wk_json"
     };
   }
 
   return {
     ...baseEntry,
-    selected_status: isNonEmptyString(targetRecord.status) ? targetRecord.status : null,
+    target_work_kind: targetWorkKind,
+    target_identity: parsed.slice_id ? `${targetRecord.id}#${parsed.slice_id}` : targetRecord.id,
+    target_status: targetStatus,
+    target_initiative: targetRecord.initiative ?? null,
+    selected_status: targetStatus,
     marker: "resolved",
     provenance: "canonical_wk_json"
   };
@@ -414,6 +417,18 @@ export function resolveDependencyEvidenceVector({
       sameRepoAliases,
       recordRepo: record?.repo ?? null
     });
+    if (parsed.kind === "typoed") {
+      evidence.push(buildDependencyEvidenceEntry({
+        address,
+        source: "supplied",
+        loadedRecord: record,
+        additionalRecords,
+        sameRepoAliases,
+        supplied: status
+      }));
+      continue;
+    }
+
     evidence.push({
       address,
       source: "supplied",
@@ -421,7 +436,9 @@ export function resolveDependencyEvidenceVector({
       slice_id: parsed.slice_id,
       external_repo: parsed.external_repo,
       selected_status: status.status,
-      marker: parsed.kind === "typoed" ? "typoed" : "supplied_only",
+      supplied_status: status.status,
+      supplied_reason: status.reason ?? null,
+      marker: "supplied_only",
       provenance: "supplied",
       reason: status.reason ?? null
     });
@@ -471,45 +488,20 @@ export async function loadAdditionalDependencyRecords({ record, selectedUnit, di
 }
 
 export function isSatisfiedLocalDependencyStatus(status) {
-  return typeof status === "string" && SATISFIED_LOCAL_DEPENDENCY_STATUSES.has(status);
+  return typeof status === "string" && status === "done";
 }
 
 export function collectDependencyBlockers(dependencyEvidence) {
   const blockers = [];
   for (const entry of Array.isArray(dependencyEvidence) ? dependencyEvidence : []) {
-    if (entry.selected_status === "blocked") {
+    if (entry.marker === "fact_resolution_failed") {
       blockers.push({
         code: "blocked_dependency",
-        reason: entry.reason || `Dependency ${entry.address} is blocked`
+        refusal_limb: entry.refusal_limb || "mechanical_failure",
+        reason_code: entry.failure_code || "dependency_fact_resolution_failed",
+        reason: entry.reason || `Dependency ${entry.address} could not be resolved from canonical facts`
       });
       continue;
-    }
-    if (entry.marker === "typoed") {
-      blockers.push({
-        code: "blocked_dependency",
-        reason: `Dependency address ${entry.address} is not a valid WK or repo-qualified id`
-      });
-      continue;
-    }
-    if (entry.marker === "unresolved" && entry.provenance !== "supplied") {
-      blockers.push({
-        code: "blocked_dependency",
-        reason: `Dependency slice ${entry.address} could not be resolved against canonical WK JSON`
-      });
-      continue;
-    }
-    if (
-      entry.marker === "resolved" &&
-      entry.provenance === "canonical_wk_json" &&
-      !isSatisfiedLocalDependencyStatus(entry.selected_status)
-    ) {
-      const statusLabel = isNonEmptyString(entry.selected_status)
-        ? entry.selected_status
-        : "unknown";
-      blockers.push({
-        code: "blocked_dependency",
-        reason: `Dependency ${entry.address} is ${statusLabel}; only status "done" satisfies a declared local dependency`
-      });
     }
   }
   return blockers;

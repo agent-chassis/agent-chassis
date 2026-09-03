@@ -1,0 +1,2261 @@
+{
+  "schema_version": "controlled-contract-proof-pack-negative-fixture.experimental.v0.1",
+  "fixture_id": "reject-role-successor-authority-types",
+  "covers": [
+    {
+      "surface_id": "role-successor-authority-types",
+      "weakening_class": "type_broadening"
+    }
+  ],
+  "contract": {
+    "schema_version": "controlled-acceptance-contract.v1",
+    "vocabulary_version": "controlled-contract-vocabulary.v1",
+    "profile_id": "acceptance-contract.standard.v1",
+    "references": [
+      {
+        "reference_id": "ref-resource",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:resource"
+        }
+      },
+      {
+        "reference_id": "ref-predecessor-authority",
+        "type_term": "cc:authority",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:predecessor-authority"
+        }
+      },
+      {
+        "reference_id": "ref-successor-authority",
+        "type_term": "cc:entity",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:successor-authority"
+        }
+      },
+      {
+        "reference_id": "ref-predecessor-epoch",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:predecessor-epoch"
+        }
+      },
+      {
+        "reference_id": "ref-successor-epoch",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:successor-epoch"
+        }
+      },
+      {
+        "reference_id": "ref-fence-event",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:fence-event"
+        }
+      },
+      {
+        "reference_id": "ref-successor-activation-event",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:successor-activation-event"
+        }
+      },
+      {
+        "reference_id": "ref-predecessor-pre-attempt-population",
+        "type_term": "cc:scope",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:predecessor-pre-attempt-population"
+        }
+      },
+      {
+        "reference_id": "ref-predecessor-pre-attempt-1",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:predecessor-pre-attempt-1"
+        }
+      },
+      {
+        "reference_id": "ref-predecessor-pre-attempt-2",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:predecessor-pre-attempt-2"
+        }
+      },
+      {
+        "reference_id": "ref-predecessor-post-attempt-population",
+        "type_term": "cc:scope",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:predecessor-post-attempt-population"
+        }
+      },
+      {
+        "reference_id": "ref-predecessor-post-attempt-1",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:predecessor-post-attempt-1"
+        }
+      },
+      {
+        "reference_id": "ref-predecessor-post-attempt-2",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:predecessor-post-attempt-2"
+        }
+      },
+      {
+        "reference_id": "ref-successor-post-attempt-population",
+        "type_term": "cc:scope",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:successor-post-attempt-population"
+        }
+      },
+      {
+        "reference_id": "ref-successor-post-attempt-1",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:successor-post-attempt-1"
+        }
+      },
+      {
+        "reference_id": "ref-successor-post-attempt-2",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:successor-post-attempt-2"
+        }
+      },
+      {
+        "reference_id": "ref-predecessor-effect-population",
+        "type_term": "cc:scope",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:predecessor-effect-population"
+        }
+      },
+      {
+        "reference_id": "ref-predecessor-effect-1",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:predecessor-effect-1"
+        }
+      },
+      {
+        "reference_id": "ref-predecessor-effect-2",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:predecessor-effect-2"
+        }
+      },
+      {
+        "reference_id": "ref-successor-effect-population",
+        "type_term": "cc:scope",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:successor-effect-population"
+        }
+      },
+      {
+        "reference_id": "ref-successor-effect-1",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:successor-effect-1"
+        }
+      },
+      {
+        "reference_id": "ref-successor-effect-2",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:successor-effect-2"
+        }
+      },
+      {
+        "reference_id": "ref-post-fence-predecessor-effect-population",
+        "type_term": "cc:scope",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:post-fence-predecessor-effect-population"
+        }
+      },
+      {
+        "reference_id": "ref-active-observation-population",
+        "type_term": "cc:scope",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:active-observation-population"
+        }
+      },
+      {
+        "reference_id": "ref-pre-fence-observation",
+        "type_term": "cc:evidence",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:pre-fence-observation"
+        }
+      },
+      {
+        "reference_id": "ref-post-fence-observation",
+        "type_term": "cc:evidence",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:post-fence-observation"
+        }
+      },
+      {
+        "reference_id": "ref-extra-observation",
+        "type_term": "cc:evidence",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:extra-observation"
+        }
+      },
+      {
+        "reference_id": "ref-dual-active-observation-population",
+        "type_term": "cc:scope",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:dual-active-observation-population"
+        }
+      },
+      {
+        "reference_id": "ref-refused-state",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:refused-state"
+        }
+      },
+      {
+        "reference_id": "ref-predecessor-effect-window-state",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:predecessor-effect-window-state"
+        }
+      },
+      {
+        "reference_id": "ref-before-fence-state",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:before-fence-state"
+        }
+      },
+      {
+        "reference_id": "ref-successor-effect-window-state",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:successor-effect-window-state"
+        }
+      },
+      {
+        "reference_id": "ref-after-fence-state",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:after-fence-state"
+        }
+      },
+      {
+        "reference_id": "ref-predecessor-order-verification",
+        "type_term": "cc:test",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:predecessor-order-verification"
+        }
+      },
+      {
+        "reference_id": "ref-successor-order-verification",
+        "type_term": "cc:test",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:successor-order-verification"
+        }
+      },
+      {
+        "reference_id": "ref-post-fence-refusal-verification",
+        "type_term": "cc:test",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:post-fence-refusal-verification"
+        }
+      },
+      {
+        "reference_id": "ref-dual-active-verification",
+        "type_term": "cc:test",
+        "identity": {
+          "kind": "profile_term",
+          "term": "database-primary-lease:dual-active-verification"
+        }
+      }
+    ],
+    "propositions": [
+      {
+        "proposition_id": "prop-complete-predecessor-pre-fence-attempt-population-count",
+        "subject_reference_id": "ref-predecessor-pre-attempt-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-predecessor-pre-fence-attempt-population-members",
+        "subject_reference_id": "ref-predecessor-pre-attempt-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-predecessor-pre-attempt-1"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-predecessor-pre-attempt-2"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-predecessor-post-fence-attempt-population-count",
+        "subject_reference_id": "ref-predecessor-post-attempt-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-predecessor-post-fence-attempt-population-members",
+        "subject_reference_id": "ref-predecessor-post-attempt-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-predecessor-post-attempt-1"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-predecessor-post-attempt-2"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-successor-post-fence-attempt-population-count",
+        "subject_reference_id": "ref-successor-post-attempt-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-successor-post-fence-attempt-population-members",
+        "subject_reference_id": "ref-successor-post-attempt-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-successor-post-attempt-1"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-successor-post-attempt-2"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-predecessor-effect-population-count",
+        "subject_reference_id": "ref-predecessor-effect-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-predecessor-effect-population-members",
+        "subject_reference_id": "ref-predecessor-effect-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-predecessor-effect-1"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-predecessor-effect-2"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-successor-effect-population-count",
+        "subject_reference_id": "ref-successor-effect-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-successor-effect-population-members",
+        "subject_reference_id": "ref-successor-effect-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-successor-effect-1"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-successor-effect-2"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-post-fence-predecessor-protected-effect-population-count",
+        "subject_reference_id": "ref-post-fence-predecessor-effect-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-fence-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 0
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-active-authority-observation-population-count",
+        "subject_reference_id": "ref-active-observation-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 3
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-active-authority-observation-population-members",
+        "subject_reference_id": "ref-active-observation-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-pre-fence-observation"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-post-fence-observation"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-extra-observation"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-dual-active-observation-population-count",
+        "subject_reference_id": "ref-dual-active-observation-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 0
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-predecessor-authority-epoch",
+        "subject_reference_id": "ref-predecessor-authority",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "before",
+          "operand_reference_ids": [
+            "ref-fence-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-predecessor-epoch"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-successor-authority-epoch",
+        "subject_reference_id": "ref-successor-authority",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-fence-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-successor-epoch"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-predecessor-authorizes-resource",
+        "subject_reference_id": "ref-predecessor-authority",
+        "operator": "reference:authorizes",
+        "applicability_context": {
+          "mode": "where",
+          "operand_reference_ids": [
+            "ref-predecessor-epoch"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-successor-authorizes-resource",
+        "subject_reference_id": "ref-successor-authority",
+        "operator": "reference:authorizes",
+        "applicability_context": {
+          "mode": "where",
+          "operand_reference_ids": [
+            "ref-successor-epoch"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-predecessor-pre-fence-attempt-before-fence-1",
+        "subject_reference_id": "ref-predecessor-pre-attempt-1",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-fence-event"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-predecessor-pre-fence-attempt-before-fence-2",
+        "subject_reference_id": "ref-predecessor-pre-attempt-2",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-fence-event"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-predecessor-pre-fence-attempt-uses-authority-and-epoch-1",
+        "subject_reference_id": "ref-predecessor-pre-attempt-1",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-predecessor-authority"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-predecessor-epoch"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-predecessor-pre-fence-attempt-uses-authority-and-epoch-2",
+        "subject_reference_id": "ref-predecessor-pre-attempt-2",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-predecessor-authority"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-predecessor-epoch"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-predecessor-post-fence-attempt-after-fence-1",
+        "subject_reference_id": "ref-fence-event",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-predecessor-post-attempt-1"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-predecessor-post-fence-attempt-after-fence-2",
+        "subject_reference_id": "ref-fence-event",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-predecessor-post-attempt-2"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-predecessor-post-fence-attempt-uses-authority-and-epoch-1",
+        "subject_reference_id": "ref-predecessor-post-attempt-1",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-predecessor-authority"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-predecessor-epoch"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-predecessor-post-fence-attempt-uses-authority-and-epoch-2",
+        "subject_reference_id": "ref-predecessor-post-attempt-2",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-predecessor-authority"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-predecessor-epoch"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-predecessor-post-fence-attempt-refused-1",
+        "subject_reference_id": "ref-predecessor-post-attempt-1",
+        "operator": "reference:has_status",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-fence-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-refused-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-predecessor-post-fence-attempt-refused-2",
+        "subject_reference_id": "ref-predecessor-post-attempt-2",
+        "operator": "reference:has_status",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-fence-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-refused-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-predecessor-post-fence-attempt-no-write-1",
+        "subject_reference_id": "ref-predecessor-post-attempt-1",
+        "operator": "reference:writes",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-fence-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-predecessor-post-fence-attempt-no-write-2",
+        "subject_reference_id": "ref-predecessor-post-attempt-2",
+        "operator": "reference:writes",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-fence-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-predecessor-post-fence-attempt-no-mutation-1",
+        "subject_reference_id": "ref-predecessor-post-attempt-1",
+        "operator": "reference:mutates",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-fence-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-predecessor-post-fence-attempt-no-mutation-2",
+        "subject_reference_id": "ref-predecessor-post-attempt-2",
+        "operator": "reference:mutates",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-fence-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-successor-post-fence-attempt-after-fence-1",
+        "subject_reference_id": "ref-fence-event",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-successor-post-attempt-1"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-successor-post-fence-attempt-after-fence-2",
+        "subject_reference_id": "ref-fence-event",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-successor-post-attempt-2"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-successor-post-fence-attempt-uses-authority-and-epoch-1",
+        "subject_reference_id": "ref-successor-post-attempt-1",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-successor-authority"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-successor-epoch"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-successor-post-fence-attempt-uses-authority-and-epoch-2",
+        "subject_reference_id": "ref-successor-post-attempt-2",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-successor-authority"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-successor-epoch"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-predecessor-effect-before-fence-1",
+        "subject_reference_id": "ref-predecessor-effect-1",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-fence-event"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-predecessor-effect-before-fence-2",
+        "subject_reference_id": "ref-predecessor-effect-2",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-fence-event"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-predecessor-effect-uses-authority-epoch-resource-1",
+        "subject_reference_id": "ref-predecessor-effect-1",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-predecessor-authority"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-predecessor-epoch"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-predecessor-effect-uses-authority-epoch-resource-2",
+        "subject_reference_id": "ref-predecessor-effect-2",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-predecessor-authority"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-predecessor-epoch"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-fence-precedes-successor-activation",
+        "subject_reference_id": "ref-fence-event",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-successor-activation-event"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-successor-activation-starts-authority",
+        "subject_reference_id": "ref-successor-activation-event",
+        "operator": "reference:starts",
+        "applicability_context": {
+          "mode": "where",
+          "operand_reference_ids": [
+            "ref-successor-epoch"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-successor-authority"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-successor-effect-after-fence-1",
+        "subject_reference_id": "ref-fence-event",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-successor-effect-1"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-successor-effect-after-fence-2",
+        "subject_reference_id": "ref-fence-event",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-successor-effect-2"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-successor-effect-uses-authority-epoch-resource-1",
+        "subject_reference_id": "ref-successor-effect-1",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-successor-authority"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-successor-epoch"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-successor-effect-uses-authority-epoch-resource-2",
+        "subject_reference_id": "ref-successor-effect-2",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-successor-authority"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-successor-epoch"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-post-fence-predecessor-effects-subset",
+        "subject_reference_id": "ref-post-fence-predecessor-effect-population",
+        "operator": "reference:subset_of",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-fence-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-predecessor-effect-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-pre-fence-observation-in-population",
+        "subject_reference_id": "ref-pre-fence-observation",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-active-observation-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-post-fence-observation-in-population",
+        "subject_reference_id": "ref-post-fence-observation",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-active-observation-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-pre-fence-observation-before-fence",
+        "subject_reference_id": "ref-pre-fence-observation",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-fence-event"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-post-fence-observation-after-fence",
+        "subject_reference_id": "ref-fence-event",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-post-fence-observation"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-pre-fence-observation-records-active-side",
+        "subject_reference_id": "ref-pre-fence-observation",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-predecessor-authority"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-predecessor-epoch"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-post-fence-observation-records-active-side",
+        "subject_reference_id": "ref-post-fence-observation",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-successor-authority"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-successor-epoch"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-observation-not-dual-active-1",
+        "subject_reference_id": "ref-pre-fence-observation",
+        "operator": "reference:not_member_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-dual-active-observation-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-observation-not-dual-active-2",
+        "subject_reference_id": "ref-post-fence-observation",
+        "operator": "reference:not_member_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-dual-active-observation-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-observation-not-dual-active-3",
+        "subject_reference_id": "ref-extra-observation",
+        "operator": "reference:not_member_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-dual-active-observation-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-predecessor-effects-before-fence",
+        "subject_reference_id": "ref-predecessor-effect-window-state",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "where",
+          "operand_reference_ids": [
+            "ref-resource",
+            "ref-predecessor-authority",
+            "ref-predecessor-epoch",
+            "ref-fence-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-before-fence-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-successor-activation-and-effects-after-fence",
+        "subject_reference_id": "ref-successor-effect-window-state",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "where",
+          "operand_reference_ids": [
+            "ref-resource",
+            "ref-successor-authority",
+            "ref-successor-epoch",
+            "ref-fence-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-after-fence-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-post-fence-predecessor-protected-effects-zero",
+        "subject_reference_id": "ref-post-fence-predecessor-effect-population",
+        "operator": "number:equals",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-fence-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 0
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-dual-active-observations-zero",
+        "subject_reference_id": "ref-dual-active-observation-population",
+        "operator": "number:equals",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 0
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-predecessor-order-verification",
+        "subject_reference_id": "ref-predecessor-effect-window-state",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "where",
+          "operand_reference_ids": [
+            "ref-resource",
+            "ref-predecessor-authority",
+            "ref-predecessor-epoch",
+            "ref-fence-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-before-fence-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-predecessor-order-verification",
+        "subject_reference_id": "ref-predecessor-order-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-predecessor-effect-population"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-predecessor-authority"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-predecessor-epoch"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-fence-event"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-successor-order-verification",
+        "subject_reference_id": "ref-successor-effect-window-state",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "where",
+          "operand_reference_ids": [
+            "ref-resource",
+            "ref-successor-authority",
+            "ref-successor-epoch",
+            "ref-fence-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-after-fence-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-successor-order-verification",
+        "subject_reference_id": "ref-successor-order-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-successor-activation-event"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-successor-effect-population"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-successor-authority"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-successor-epoch"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-fence-event"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-post-fence-refusal-verification",
+        "subject_reference_id": "ref-post-fence-predecessor-effect-population",
+        "operator": "number:not_equals",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-fence-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 0
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-post-fence-refusal-verification",
+        "subject_reference_id": "ref-post-fence-refusal-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-predecessor-post-attempt-population"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-post-fence-predecessor-effect-population"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-predecessor-authority"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-predecessor-epoch"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-fence-event"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-dual-active-verification",
+        "subject_reference_id": "ref-dual-active-observation-population",
+        "operator": "number:not_equals",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 0
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-dual-active-verification",
+        "subject_reference_id": "ref-dual-active-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-active-observation-population"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-dual-active-observation-population"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-predecessor-authority"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-successor-authority"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-fence-event"
+          }
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "claim_id": "claim-complete-predecessor-pre-fence-attempt-population-count",
+        "proposition_id": "prop-complete-predecessor-pre-fence-attempt-population-count",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-predecessor-pre-fence-attempt-population-members",
+        "proposition_id": "prop-complete-predecessor-pre-fence-attempt-population-members",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-predecessor-post-fence-attempt-population-count",
+        "proposition_id": "prop-complete-predecessor-post-fence-attempt-population-count",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-predecessor-post-fence-attempt-population-members",
+        "proposition_id": "prop-complete-predecessor-post-fence-attempt-population-members",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-successor-post-fence-attempt-population-count",
+        "proposition_id": "prop-complete-successor-post-fence-attempt-population-count",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-successor-post-fence-attempt-population-members",
+        "proposition_id": "prop-complete-successor-post-fence-attempt-population-members",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-predecessor-effect-population-count",
+        "proposition_id": "prop-complete-predecessor-effect-population-count",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-predecessor-effect-population-members",
+        "proposition_id": "prop-complete-predecessor-effect-population-members",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-successor-effect-population-count",
+        "proposition_id": "prop-complete-successor-effect-population-count",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-successor-effect-population-members",
+        "proposition_id": "prop-complete-successor-effect-population-members",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-post-fence-predecessor-protected-effect-population-count",
+        "proposition_id": "prop-complete-post-fence-predecessor-protected-effect-population-count",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-active-authority-observation-population-count",
+        "proposition_id": "prop-complete-active-authority-observation-population-count",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-active-authority-observation-population-members",
+        "proposition_id": "prop-complete-active-authority-observation-population-members",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-complete-dual-active-observation-population-count",
+        "proposition_id": "prop-complete-dual-active-observation-population-count",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-predecessor-authority-epoch",
+        "proposition_id": "prop-predecessor-authority-epoch",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-successor-authority-epoch",
+        "proposition_id": "prop-successor-authority-epoch",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-predecessor-authorizes-resource",
+        "proposition_id": "prop-predecessor-authorizes-resource",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-successor-authorizes-resource",
+        "proposition_id": "prop-successor-authorizes-resource",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-predecessor-pre-fence-attempt-before-fence-1",
+        "proposition_id": "prop-each-predecessor-pre-fence-attempt-before-fence-1",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-predecessor-pre-fence-attempt-before-fence-2",
+        "proposition_id": "prop-each-predecessor-pre-fence-attempt-before-fence-2",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-predecessor-pre-fence-attempt-uses-authority-and-epoch-1",
+        "proposition_id": "prop-each-predecessor-pre-fence-attempt-uses-authority-and-epoch-1",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-predecessor-pre-fence-attempt-uses-authority-and-epoch-2",
+        "proposition_id": "prop-each-predecessor-pre-fence-attempt-uses-authority-and-epoch-2",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-predecessor-post-fence-attempt-after-fence-1",
+        "proposition_id": "prop-each-predecessor-post-fence-attempt-after-fence-1",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-predecessor-post-fence-attempt-after-fence-2",
+        "proposition_id": "prop-each-predecessor-post-fence-attempt-after-fence-2",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-predecessor-post-fence-attempt-uses-authority-and-epoch-1",
+        "proposition_id": "prop-each-predecessor-post-fence-attempt-uses-authority-and-epoch-1",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-predecessor-post-fence-attempt-uses-authority-and-epoch-2",
+        "proposition_id": "prop-each-predecessor-post-fence-attempt-uses-authority-and-epoch-2",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-predecessor-post-fence-attempt-refused-1",
+        "proposition_id": "prop-each-predecessor-post-fence-attempt-refused-1",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-predecessor-post-fence-attempt-refused-2",
+        "proposition_id": "prop-each-predecessor-post-fence-attempt-refused-2",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-predecessor-post-fence-attempt-no-write-1",
+        "proposition_id": "prop-each-predecessor-post-fence-attempt-no-write-1",
+        "kind": "evidence",
+        "modality": "MUST_NOT"
+      },
+      {
+        "claim_id": "claim-each-predecessor-post-fence-attempt-no-write-2",
+        "proposition_id": "prop-each-predecessor-post-fence-attempt-no-write-2",
+        "kind": "evidence",
+        "modality": "MUST_NOT"
+      },
+      {
+        "claim_id": "claim-each-predecessor-post-fence-attempt-no-mutation-1",
+        "proposition_id": "prop-each-predecessor-post-fence-attempt-no-mutation-1",
+        "kind": "evidence",
+        "modality": "MUST_NOT"
+      },
+      {
+        "claim_id": "claim-each-predecessor-post-fence-attempt-no-mutation-2",
+        "proposition_id": "prop-each-predecessor-post-fence-attempt-no-mutation-2",
+        "kind": "evidence",
+        "modality": "MUST_NOT"
+      },
+      {
+        "claim_id": "claim-each-successor-post-fence-attempt-after-fence-1",
+        "proposition_id": "prop-each-successor-post-fence-attempt-after-fence-1",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-successor-post-fence-attempt-after-fence-2",
+        "proposition_id": "prop-each-successor-post-fence-attempt-after-fence-2",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-successor-post-fence-attempt-uses-authority-and-epoch-1",
+        "proposition_id": "prop-each-successor-post-fence-attempt-uses-authority-and-epoch-1",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-successor-post-fence-attempt-uses-authority-and-epoch-2",
+        "proposition_id": "prop-each-successor-post-fence-attempt-uses-authority-and-epoch-2",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-predecessor-effect-before-fence-1",
+        "proposition_id": "prop-each-predecessor-effect-before-fence-1",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-predecessor-effect-before-fence-2",
+        "proposition_id": "prop-each-predecessor-effect-before-fence-2",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-predecessor-effect-uses-authority-epoch-resource-1",
+        "proposition_id": "prop-each-predecessor-effect-uses-authority-epoch-resource-1",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-predecessor-effect-uses-authority-epoch-resource-2",
+        "proposition_id": "prop-each-predecessor-effect-uses-authority-epoch-resource-2",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-fence-precedes-successor-activation",
+        "proposition_id": "prop-fence-precedes-successor-activation",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-successor-activation-starts-authority",
+        "proposition_id": "prop-successor-activation-starts-authority",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-successor-effect-after-fence-1",
+        "proposition_id": "prop-each-successor-effect-after-fence-1",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-successor-effect-after-fence-2",
+        "proposition_id": "prop-each-successor-effect-after-fence-2",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-successor-effect-uses-authority-epoch-resource-1",
+        "proposition_id": "prop-each-successor-effect-uses-authority-epoch-resource-1",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-successor-effect-uses-authority-epoch-resource-2",
+        "proposition_id": "prop-each-successor-effect-uses-authority-epoch-resource-2",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-post-fence-predecessor-effects-subset",
+        "proposition_id": "prop-post-fence-predecessor-effects-subset",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-pre-fence-observation-in-population",
+        "proposition_id": "prop-pre-fence-observation-in-population",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-post-fence-observation-in-population",
+        "proposition_id": "prop-post-fence-observation-in-population",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-pre-fence-observation-before-fence",
+        "proposition_id": "prop-pre-fence-observation-before-fence",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-post-fence-observation-after-fence",
+        "proposition_id": "prop-post-fence-observation-after-fence",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-pre-fence-observation-records-active-side",
+        "proposition_id": "prop-pre-fence-observation-records-active-side",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-post-fence-observation-records-active-side",
+        "proposition_id": "prop-post-fence-observation-records-active-side",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-observation-not-dual-active-1",
+        "proposition_id": "prop-each-observation-not-dual-active-1",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-observation-not-dual-active-2",
+        "proposition_id": "prop-each-observation-not-dual-active-2",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-each-observation-not-dual-active-3",
+        "proposition_id": "prop-each-observation-not-dual-active-3",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-predecessor-effects-before-fence",
+        "proposition_id": "prop-predecessor-effects-before-fence",
+        "kind": "behavior",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-successor-activation-and-effects-after-fence",
+        "proposition_id": "prop-successor-activation-and-effects-after-fence",
+        "kind": "behavior",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-post-fence-predecessor-protected-effects-zero",
+        "proposition_id": "prop-post-fence-predecessor-protected-effects-zero",
+        "kind": "behavior",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-dual-active-observations-zero",
+        "proposition_id": "prop-dual-active-observations-zero",
+        "kind": "behavior",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-predecessor-order-verification",
+        "proposition_id": "prop-predecessor-order-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "verification_method": "analysis",
+        "falsifying_proposition_id": "prop-falsifier-predecessor-order-verification"
+      },
+      {
+        "claim_id": "claim-successor-order-verification",
+        "proposition_id": "prop-successor-order-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "verification_method": "analysis",
+        "falsifying_proposition_id": "prop-falsifier-successor-order-verification"
+      },
+      {
+        "claim_id": "claim-post-fence-refusal-verification",
+        "proposition_id": "prop-post-fence-refusal-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "verification_method": "analysis",
+        "falsifying_proposition_id": "prop-falsifier-post-fence-refusal-verification"
+      },
+      {
+        "claim_id": "claim-dual-active-verification",
+        "proposition_id": "prop-dual-active-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "verification_method": "analysis",
+        "falsifying_proposition_id": "prop-falsifier-dual-active-verification"
+      }
+    ],
+    "relations": [
+      {
+        "relation_id": "rel-predecessor-order-verification-target",
+        "role": "verifies",
+        "source_claim_id": "claim-predecessor-order-verification",
+        "target_claim_id": "claim-predecessor-effects-before-fence"
+      },
+      {
+        "relation_id": "rel-successor-order-verification-target",
+        "role": "verifies",
+        "source_claim_id": "claim-successor-order-verification",
+        "target_claim_id": "claim-successor-activation-and-effects-after-fence"
+      },
+      {
+        "relation_id": "rel-post-fence-refusal-verification-target",
+        "role": "verifies",
+        "source_claim_id": "claim-post-fence-refusal-verification",
+        "target_claim_id": "claim-post-fence-predecessor-protected-effects-zero"
+      },
+      {
+        "relation_id": "rel-dual-active-verification-target",
+        "role": "verifies",
+        "source_claim_id": "claim-dual-active-verification",
+        "target_claim_id": "claim-dual-active-observations-zero"
+      }
+    ],
+    "collections": [],
+    "residue": [],
+    "annotations": [],
+    "test_proof_version": "controlled-contract-test-proof.v1",
+    "test_proofs": []
+  },
+  "evaluation_input": {
+    "input_version": "controlled-contract-verification-profile-input.v1",
+    "evaluation_stage": "pre_dispatch",
+    "reference_bindings": [
+      {
+        "role": "resource",
+        "reference_ids": [
+          "ref-resource"
+        ]
+      },
+      {
+        "role": "predecessor_authority",
+        "reference_ids": [
+          "ref-predecessor-authority"
+        ]
+      },
+      {
+        "role": "successor_authority",
+        "reference_ids": [
+          "ref-successor-authority"
+        ]
+      },
+      {
+        "role": "predecessor_epoch",
+        "reference_ids": [
+          "ref-predecessor-epoch"
+        ]
+      },
+      {
+        "role": "successor_epoch",
+        "reference_ids": [
+          "ref-successor-epoch"
+        ]
+      },
+      {
+        "role": "fence_event",
+        "reference_ids": [
+          "ref-fence-event"
+        ]
+      },
+      {
+        "role": "successor_activation_event",
+        "reference_ids": [
+          "ref-successor-activation-event"
+        ]
+      },
+      {
+        "role": "predecessor_pre_fence_attempt_population",
+        "reference_ids": [
+          "ref-predecessor-pre-attempt-population"
+        ]
+      },
+      {
+        "role": "predecessor_pre_fence_attempts",
+        "reference_ids": [
+          "ref-predecessor-pre-attempt-1",
+          "ref-predecessor-pre-attempt-2"
+        ]
+      },
+      {
+        "role": "predecessor_post_fence_attempt_population",
+        "reference_ids": [
+          "ref-predecessor-post-attempt-population"
+        ]
+      },
+      {
+        "role": "predecessor_post_fence_attempts",
+        "reference_ids": [
+          "ref-predecessor-post-attempt-1",
+          "ref-predecessor-post-attempt-2"
+        ]
+      },
+      {
+        "role": "successor_post_fence_attempt_population",
+        "reference_ids": [
+          "ref-successor-post-attempt-population"
+        ]
+      },
+      {
+        "role": "successor_post_fence_attempts",
+        "reference_ids": [
+          "ref-successor-post-attempt-1",
+          "ref-successor-post-attempt-2"
+        ]
+      },
+      {
+        "role": "predecessor_effect_population",
+        "reference_ids": [
+          "ref-predecessor-effect-population"
+        ]
+      },
+      {
+        "role": "predecessor_effects",
+        "reference_ids": [
+          "ref-predecessor-effect-1",
+          "ref-predecessor-effect-2"
+        ]
+      },
+      {
+        "role": "successor_effect_population",
+        "reference_ids": [
+          "ref-successor-effect-population"
+        ]
+      },
+      {
+        "role": "successor_effects",
+        "reference_ids": [
+          "ref-successor-effect-1",
+          "ref-successor-effect-2"
+        ]
+      },
+      {
+        "role": "post_fence_predecessor_protected_effect_population",
+        "reference_ids": [
+          "ref-post-fence-predecessor-effect-population"
+        ]
+      },
+      {
+        "role": "post_fence_predecessor_protected_effects",
+        "reference_ids": []
+      },
+      {
+        "role": "active_authority_observation_population",
+        "reference_ids": [
+          "ref-active-observation-population"
+        ]
+      },
+      {
+        "role": "active_authority_observations",
+        "reference_ids": [
+          "ref-pre-fence-observation",
+          "ref-post-fence-observation",
+          "ref-extra-observation"
+        ]
+      },
+      {
+        "role": "dual_active_observation_population",
+        "reference_ids": [
+          "ref-dual-active-observation-population"
+        ]
+      },
+      {
+        "role": "dual_active_observations",
+        "reference_ids": []
+      },
+      {
+        "role": "pre_fence_observation",
+        "reference_ids": [
+          "ref-pre-fence-observation"
+        ]
+      },
+      {
+        "role": "post_fence_observation",
+        "reference_ids": [
+          "ref-post-fence-observation"
+        ]
+      },
+      {
+        "role": "refused_state",
+        "reference_ids": [
+          "ref-refused-state"
+        ]
+      },
+      {
+        "role": "predecessor_effect_window_state",
+        "reference_ids": [
+          "ref-predecessor-effect-window-state"
+        ]
+      },
+      {
+        "role": "before_fence_state",
+        "reference_ids": [
+          "ref-before-fence-state"
+        ]
+      },
+      {
+        "role": "successor_effect_window_state",
+        "reference_ids": [
+          "ref-successor-effect-window-state"
+        ]
+      },
+      {
+        "role": "after_fence_state",
+        "reference_ids": [
+          "ref-after-fence-state"
+        ]
+      },
+      {
+        "role": "predecessor_order_verification",
+        "reference_ids": [
+          "ref-predecessor-order-verification"
+        ]
+      },
+      {
+        "role": "successor_order_verification",
+        "reference_ids": [
+          "ref-successor-order-verification"
+        ]
+      },
+      {
+        "role": "post_fence_refusal_verification",
+        "reference_ids": [
+          "ref-post-fence-refusal-verification"
+        ]
+      },
+      {
+        "role": "dual_active_verification",
+        "reference_ids": [
+          "ref-dual-active-verification"
+        ]
+      }
+    ],
+    "number_bindings": [
+      {
+        "role": "predecessor_pre_fence_attempt_count",
+        "value": 2
+      },
+      {
+        "role": "predecessor_post_fence_attempt_count",
+        "value": 2
+      },
+      {
+        "role": "successor_post_fence_attempt_count",
+        "value": 2
+      },
+      {
+        "role": "predecessor_effect_count",
+        "value": 2
+      },
+      {
+        "role": "successor_effect_count",
+        "value": 2
+      },
+      {
+        "role": "post_fence_predecessor_protected_effect_count",
+        "value": 0
+      },
+      {
+        "role": "active_authority_observation_count",
+        "value": 3
+      },
+      {
+        "role": "dual_active_observation_count",
+        "value": 0
+      }
+    ],
+    "claim_pattern_bindings": [],
+    "resolver_facts": [],
+    "delivered_evidence": [],
+    "stable_evaluation": {}
+  }
+}

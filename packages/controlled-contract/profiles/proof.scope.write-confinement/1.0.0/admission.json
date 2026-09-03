@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-admitted-proof-pack.v1",
   "profile_id": "proof.scope.write-confinement",
   "profile_version": "1.0.0",
-  "profile_digest": "907b7802d28b7798efc2b2826ac2886ad46983a714ad577434e0a9655b9229a1",
+  "profile_digest": "583b48c3a073573be5b4fcdc70e45addb3d68437375254dec55401d1b24ed3f8",
   "guarantee": "For one declared execution, every member of the caller-declared observed mutation population belongs to the caller-declared authorized target population; both populations are bound as complete with respect to those caller declarations, the execution is linked to the observed population, and one verification reads the execution and both populations, verifies the subset behavior, and carries the controlled not-subset falsifier.",
   "guarantee_digest": "d9c43a7ea270def76b5255705d0dbf7285b0a93343fdfa5e80c8cb0ebfb07134",
   "explicit_exclusions": [
@@ -17,8 +17,8 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "a16d67c542678ccffc4bc4e5ba33e25f50ecc1949493f86c508e3166806c0ebf",
-    "adequacy_result_digest": "f8e67b5804b3ef204f4d5845d3c6155208f1ed0e0dc61396a4a1ca030778801a",
+    "adequacy_declaration_digest": "dc2ab1fde0280ca8f1d51e56c0b2ff05357d78095b03d29e3b49ddcd6290874e",
+    "adequacy_result_digest": "89b69eef989b0f3904262776049389cfb7a927be324c9fd79e3b30b8e8a1f836",
     "executable_control_count": 38,
     "negative_fixture_count": 3,
     "coverage_witness_count": 36

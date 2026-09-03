@@ -6,6 +6,10 @@ import {
   validateWorkRecordDispatchById,
   validateWorkRecordDispatchReportById
 } from "../lib/work-record-dispatch.mjs";
+import {
+  buildTerminalReadiness,
+  createDefaultReadinessState
+} from "../lib/work-record-dispatch-readiness-shape.mjs";
 import { loadWorkRecordById } from "../lib/work-record-store.mjs";
 
 const DISPATCH_READINESS_AXIS_AMBIGUOUS = "dispatch_readiness_axis_ambiguous";
@@ -52,13 +56,17 @@ function axisRefusal({ value, reason, unitAddress = null }) {
     : reason === "derived_read_only_implementation_guard"
       ? "a derived read_only axis is contradictory for an implementation unit; supply an explicit dispatch_role."
       : `the observed dispatch_intent.intended_agent_role value ${JSON.stringify(observedValue)} does not map to an implementation or read_only readiness axis.`;
+  const readiness = buildTerminalReadiness({
+    recordId: unitRecordId(unitAddress),
+    unit: unitAddress || null,
+    state: createDefaultReadinessState(null),
+    decisionCode: DISPATCH_READINESS_AXIS_AMBIGUOUS,
+    reason: reasonText,
+    dispatchRole: "implementation"
+  });
   return {
-    schema_version: "dispatch-readiness.v1",
-    ...(unitAddress ? { unit: unitAddress } : {}),
-    decision_code: DISPATCH_READINESS_AXIS_AMBIGUOUS,
-    dispatchable: false,
+    ...readiness,
     dispatch_role: null,
-    reasons: [reasonText],
     axis_refusal: {
       reason,
       observed_field: "dispatch_intent.intended_agent_role",

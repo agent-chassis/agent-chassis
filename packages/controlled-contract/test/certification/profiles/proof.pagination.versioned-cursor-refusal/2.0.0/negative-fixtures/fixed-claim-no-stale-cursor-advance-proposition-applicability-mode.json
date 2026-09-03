@@ -1,0 +1,2197 @@
+{
+  "schema_version": "controlled-contract-proof-pack-negative-fixture.experimental.v0.1",
+  "fixture_id": "fixed-claim-no-stale-cursor-advance-proposition-applicability-mode",
+  "covers": [
+    {
+      "surface_id": "claim-no-stale-cursor-advance-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening"
+    }
+  ],
+  "contract": {
+    "schema_version": "controlled-acceptance-contract.v1",
+    "vocabulary_version": "controlled-contract-vocabulary.v1",
+    "profile_id": "acceptance-contract.standard.v1",
+    "references": [
+      {
+        "reference_id": "ref-a-trace",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-a-trace"
+        }
+      },
+      {
+        "reference_id": "ref-f-projection",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-f-projection"
+        }
+      },
+      {
+        "reference_id": "ref-b-primary-before",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-b-primary-before"
+        }
+      },
+      {
+        "reference_id": "ref-c-primary-after",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-c-primary-after"
+        }
+      },
+      {
+        "reference_id": "ref-d-control-before",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-d-control-before"
+        }
+      },
+      {
+        "reference_id": "ref-e-control-after",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-e-control-after"
+        }
+      },
+      {
+        "reference_id": "ref-traversal-stale",
+        "type_term": "cc:process",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-traversal-stale"
+        }
+      },
+      {
+        "reference_id": "ref-traversal-control",
+        "type_term": "cc:process",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-traversal-control"
+        }
+      },
+      {
+        "reference_id": "ref-live-source-primary",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-live-source-primary"
+        }
+      },
+      {
+        "reference_id": "ref-live-source-control",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-live-source-control"
+        }
+      },
+      {
+        "reference_id": "ref-live-source-unrelated",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-live-source-unrelated"
+        }
+      },
+      {
+        "reference_id": "ref-source-version-stale",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-source-version-stale"
+        }
+      },
+      {
+        "reference_id": "ref-source-version-current",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-source-version-current"
+        }
+      },
+      {
+        "reference_id": "ref-source-version-control",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-source-version-control"
+        }
+      },
+      {
+        "reference_id": "ref-pop-primary-cursor-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-pop-primary-cursor-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0"
+        }
+      },
+      {
+        "reference_id": "ref-cursor-stale",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-cursor-stale"
+        }
+      },
+      {
+        "reference_id": "ref-pop-control-cursor-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-pop-control-cursor-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0"
+        }
+      },
+      {
+        "reference_id": "ref-cursor-control",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-cursor-control"
+        }
+      },
+      {
+        "reference_id": "ref-pop-page-attempt-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-pop-page-attempt-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0"
+        }
+      },
+      {
+        "reference_id": "ref-occ-5583e46718997c6b1950525c9765f89b8bfdd2b407977fd93ac8ca6eb804893f",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-occ-5583e46718997c6b1950525c9765f89b8bfdd2b407977fd93ac8ca6eb804893f"
+        }
+      },
+      {
+        "reference_id": "ref-occ-8f4f621accf90a2a29a71aa32733cfa6709a40c10c047bfb93fba172d4ebb317",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-occ-8f4f621accf90a2a29a71aa32733cfa6709a40c10c047bfb93fba172d4ebb317"
+        }
+      },
+      {
+        "reference_id": "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c"
+        }
+      },
+      {
+        "reference_id": "ref-pop-primary-returned-page-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-pop-primary-returned-page-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0"
+        }
+      },
+      {
+        "reference_id": "ref-occ-0ee408d1eecb2f45d6b29c1825c98d96ce3a0f8a795264f82196def2ceebe0e0",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-occ-0ee408d1eecb2f45d6b29c1825c98d96ce3a0f8a795264f82196def2ceebe0e0"
+        }
+      },
+      {
+        "reference_id": "ref-pop-control-returned-page-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-pop-control-returned-page-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0"
+        }
+      },
+      {
+        "reference_id": "ref-occ-fcb18425d88ed3c9337dc66c50763c92c3dc96e56bf217e46e13d7dedbc6e6bf",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-occ-fcb18425d88ed3c9337dc66c50763c92c3dc96e56bf217e46e13d7dedbc6e6bf"
+        }
+      },
+      {
+        "reference_id": "ref-pop-mutation-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-pop-mutation-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0"
+        }
+      },
+      {
+        "reference_id": "ref-occ-6861dc03b299f0d32bfabecafd1d1aacb8cd6431477d049b091832701461895b",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-occ-6861dc03b299f0d32bfabecafd1d1aacb8cd6431477d049b091832701461895b"
+        }
+      },
+      {
+        "reference_id": "ref-occ-9c7151655884c26ce51a5ee44be2e3c4782ef8434c92a3f314c5478c46e5306e",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-occ-9c7151655884c26ce51a5ee44be2e3c4782ef8434c92a3f314c5478c46e5306e"
+        }
+      },
+      {
+        "reference_id": "ref-pop-return-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-pop-return-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0"
+        }
+      },
+      {
+        "reference_id": "ref-occ-433fb768ef0b9bcfcf8bd935599ec5c2484fb33fec53be7d1636be06ff48a8f8",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-occ-433fb768ef0b9bcfcf8bd935599ec5c2484fb33fec53be7d1636be06ff48a8f8"
+        }
+      },
+      {
+        "reference_id": "ref-occ-4a6da9946b3e2f668b6a39d5a99484113086abda39e6382b4a47b49b957cd99c",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-occ-4a6da9946b3e2f668b6a39d5a99484113086abda39e6382b4a47b49b957cd99c"
+        }
+      },
+      {
+        "reference_id": "ref-pop-advancement-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-pop-advancement-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0"
+        }
+      },
+      {
+        "reference_id": "ref-occ-74d1078c3adfa25a41efe4893dce8b5007d709fbf6c80fe956d5f44f18266abc",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-occ-74d1078c3adfa25a41efe4893dce8b5007d709fbf6c80fe956d5f44f18266abc"
+        }
+      },
+      {
+        "reference_id": "ref-pop-effect-occurrence-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-pop-effect-occurrence-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0"
+        }
+      },
+      {
+        "reference_id": "ref-pop-protected-effect-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-pop-protected-effect-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0"
+        }
+      },
+      {
+        "reference_id": "ref-cursor-state",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-cursor-state"
+        }
+      },
+      {
+        "reference_id": "ref-extra-protected-effect",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-extra-protected-effect"
+        }
+      },
+      {
+        "reference_id": "ref-page-result-artifact",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-page-result-artifact"
+        }
+      },
+      {
+        "reference_id": "ref-traversal-state",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-traversal-state"
+        }
+      },
+      {
+        "reference_id": "ref-occ-a40ea7ded4d5b67cce9f36fd897ccc252cec374fd1449bce8cd7938e7b762d5d",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-occ-a40ea7ded4d5b67cce9f36fd897ccc252cec374fd1449bce8cd7938e7b762d5d"
+        }
+      },
+      {
+        "reference_id": "ref-page-return-event",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-page-return-event"
+        }
+      },
+      {
+        "reference_id": "ref-cursor-advance-event",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-cursor-advance-event"
+        }
+      },
+      {
+        "reference_id": "ref-versioned-cursor-verification",
+        "type_term": "cc:test",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-versioned-cursor-verification"
+        }
+      },
+      {
+        "reference_id": "ref-return-failure-condition",
+        "type_term": "cc:criterion",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-return-failure-condition"
+        }
+      },
+      {
+        "reference_id": "ref-emission-failure-condition",
+        "type_term": "cc:criterion",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-emission-failure-condition"
+        }
+      },
+      {
+        "reference_id": "ref-advancement-failure-condition",
+        "type_term": "cc:criterion",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-advancement-failure-condition"
+        }
+      },
+      {
+        "reference_id": "ref-write-failure-condition",
+        "type_term": "cc:criterion",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-write-failure-condition"
+        }
+      },
+      {
+        "reference_id": "ref-mutation-failure-condition",
+        "type_term": "cc:criterion",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-mutation-failure-condition"
+        }
+      },
+      {
+        "reference_id": "ref-false-refusal-condition",
+        "type_term": "cc:criterion",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-false-refusal-condition"
+        }
+      }
+    ],
+    "propositions": [
+      {
+        "proposition_id": "prop-complete-primary-cursor-population-members",
+        "subject_reference_id": "ref-pop-primary-cursor-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-cursor-stale"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-primary-cursor-population-count",
+        "subject_reference_id": "ref-pop-primary-cursor-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 1
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-control-cursor-population-members",
+        "subject_reference_id": "ref-pop-control-cursor-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-cursor-control"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-control-cursor-population-count",
+        "subject_reference_id": "ref-pop-control-cursor-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 1
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-page-attempt-population-members",
+        "subject_reference_id": "ref-pop-page-attempt-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-5583e46718997c6b1950525c9765f89b8bfdd2b407977fd93ac8ca6eb804893f"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-8f4f621accf90a2a29a71aa32733cfa6709a40c10c047bfb93fba172d4ebb317"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-page-attempt-population-count",
+        "subject_reference_id": "ref-pop-page-attempt-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 3
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-primary-returned-page-population-members",
+        "subject_reference_id": "ref-pop-primary-returned-page-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-0ee408d1eecb2f45d6b29c1825c98d96ce3a0f8a795264f82196def2ceebe0e0"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-primary-returned-page-population-count",
+        "subject_reference_id": "ref-pop-primary-returned-page-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 1
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-control-returned-page-population-members",
+        "subject_reference_id": "ref-pop-control-returned-page-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-fcb18425d88ed3c9337dc66c50763c92c3dc96e56bf217e46e13d7dedbc6e6bf"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-control-returned-page-population-count",
+        "subject_reference_id": "ref-pop-control-returned-page-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 1
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-mutation-population-members",
+        "subject_reference_id": "ref-pop-mutation-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-6861dc03b299f0d32bfabecafd1d1aacb8cd6431477d049b091832701461895b"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-9c7151655884c26ce51a5ee44be2e3c4782ef8434c92a3f314c5478c46e5306e"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-mutation-population-count",
+        "subject_reference_id": "ref-pop-mutation-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-return-population-members",
+        "subject_reference_id": "ref-pop-return-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-433fb768ef0b9bcfcf8bd935599ec5c2484fb33fec53be7d1636be06ff48a8f8"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-4a6da9946b3e2f668b6a39d5a99484113086abda39e6382b4a47b49b957cd99c"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-return-population-count",
+        "subject_reference_id": "ref-pop-return-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-advancement-population-members",
+        "subject_reference_id": "ref-pop-advancement-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-74d1078c3adfa25a41efe4893dce8b5007d709fbf6c80fe956d5f44f18266abc"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-advancement-population-count",
+        "subject_reference_id": "ref-pop-advancement-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 1
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-effect-occurrence-population-count",
+        "subject_reference_id": "ref-pop-effect-occurrence-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 0
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-protected-effect-population-members",
+        "subject_reference_id": "ref-pop-protected-effect-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-cursor-state"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-extra-protected-effect"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-page-result-artifact"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-traversal-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-protected-effect-population-count",
+        "subject_reference_id": "ref-pop-protected-effect-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 4
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-primary-cursor-resolves-traversal-version-001",
+        "subject_reference_id": "ref-cursor-stale",
+        "operator": "reference:resolves_to",
+        "applicability_context": {
+          "mode": "where",
+          "operand_reference_ids": [
+            "ref-traversal-stale"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-version-stale"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-control-cursor-resolves-control-version-001",
+        "subject_reference_id": "ref-cursor-control",
+        "operator": "reference:resolves_to",
+        "applicability_context": {
+          "mode": "where",
+          "operand_reference_ids": [
+            "ref-traversal-control"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-version-control"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-primary-page-resolves-traversal-version-001",
+        "subject_reference_id": "ref-occ-0ee408d1eecb2f45d6b29c1825c98d96ce3a0f8a795264f82196def2ceebe0e0",
+        "operator": "reference:resolves_to",
+        "applicability_context": {
+          "mode": "where",
+          "operand_reference_ids": [
+            "ref-traversal-stale"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-version-stale"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-control-page-resolves-control-version-001",
+        "subject_reference_id": "ref-occ-fcb18425d88ed3c9337dc66c50763c92c3dc96e56bf217e46e13d7dedbc6e6bf",
+        "operator": "reference:resolves_to",
+        "applicability_context": {
+          "mode": "where",
+          "operand_reference_ids": [
+            "ref-traversal-control"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-version-control"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-relevant-mutation-mutates-live-source",
+        "subject_reference_id": "ref-occ-6861dc03b299f0d32bfabecafd1d1aacb8cd6431477d049b091832701461895b",
+        "operator": "reference:mutates",
+        "applicability_context": {
+          "mode": "where",
+          "operand_reference_ids": [
+            "ref-traversal-stale"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-live-source-primary"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-prior-attempt-precedes-relevant-mutation",
+        "subject_reference_id": "ref-occ-8f4f621accf90a2a29a71aa32733cfa6709a40c10c047bfb93fba172d4ebb317",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-6861dc03b299f0d32bfabecafd1d1aacb8cd6431477d049b091832701461895b"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-relevant-mutation-precedes-stale-attempt",
+        "subject_reference_id": "ref-occ-6861dc03b299f0d32bfabecafd1d1aacb8cd6431477d049b091832701461895b",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-live-source-current-at-stale-attempt",
+        "subject_reference_id": "ref-live-source-primary",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "where",
+          "operand_reference_ids": [
+            "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-version-current"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-stale-attempt-uses-exact-cursor",
+        "subject_reference_id": "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "where",
+          "operand_reference_ids": [
+            "ref-traversal-stale"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-cursor-stale"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-refusal-rejects-stale-attempt",
+        "subject_reference_id": "ref-occ-a40ea7ded4d5b67cce9f36fd897ccc252cec374fd1449bce8cd7938e7b762d5d",
+        "operator": "reference:rejects",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-stale-attempt-precedes-refusal",
+        "subject_reference_id": "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-a40ea7ded4d5b67cce9f36fd897ccc252cec374fd1449bce8cd7938e7b762d5d"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-no-stale-page-return",
+        "subject_reference_id": "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c",
+        "operator": "reference:returns",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c",
+            "ref-return-failure-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-page-result-artifact"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-no-stale-page-return-event",
+        "subject_reference_id": "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c",
+        "operator": "reference:emits",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c",
+            "ref-emission-failure-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-page-return-event"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-no-stale-cursor-advance",
+        "subject_reference_id": "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c",
+        "operator": "reference:emits",
+        "applicability_context": {
+          "mode": "if",
+          "operand_reference_ids": [
+            "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c",
+            "ref-advancement-failure-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-cursor-advance-event"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-no-stale-protected-write",
+        "subject_reference_id": "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c",
+        "operator": "reference:writes",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c",
+            "ref-write-failure-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-cursor-state"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-extra-protected-effect"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-page-result-artifact"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-traversal-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-no-stale-protected-mutation",
+        "subject_reference_id": "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c",
+        "operator": "reference:mutates",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c",
+            "ref-mutation-failure-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-cursor-state"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-extra-protected-effect"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-page-result-artifact"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-traversal-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-unrelated-mutation-mutates-unrelated-source",
+        "subject_reference_id": "ref-occ-9c7151655884c26ce51a5ee44be2e3c4782ef8434c92a3f314c5478c46e5306e",
+        "operator": "reference:mutates",
+        "applicability_context": {
+          "mode": "where",
+          "operand_reference_ids": [
+            "ref-traversal-control"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-live-source-unrelated"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-unrelated-mutation-precedes-control-attempt",
+        "subject_reference_id": "ref-occ-9c7151655884c26ce51a5ee44be2e3c4782ef8434c92a3f314c5478c46e5306e",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-5583e46718997c6b1950525c9765f89b8bfdd2b407977fd93ac8ca6eb804893f"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-control-attempt-returns-page",
+        "subject_reference_id": "ref-occ-5583e46718997c6b1950525c9765f89b8bfdd2b407977fd93ac8ca6eb804893f",
+        "operator": "reference:returns",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-fcb18425d88ed3c9337dc66c50763c92c3dc96e56bf217e46e13d7dedbc6e6bf"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-control-attempt-emits-advancement",
+        "subject_reference_id": "ref-occ-5583e46718997c6b1950525c9765f89b8bfdd2b407977fd93ac8ca6eb804893f",
+        "operator": "reference:emits",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-74d1078c3adfa25a41efe4893dce8b5007d709fbf6c80fe956d5f44f18266abc"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-no-unrelated-mutation-false-refusal",
+        "subject_reference_id": "ref-occ-a40ea7ded4d5b67cce9f36fd897ccc252cec374fd1449bce8cd7938e7b762d5d",
+        "operator": "reference:rejects",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-occ-9c7151655884c26ce51a5ee44be2e3c4782ef8434c92a3f314c5478c46e5306e",
+            "ref-false-refusal-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-5583e46718997c6b1950525c9765f89b8bfdd2b407977fd93ac8ca6eb804893f"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-verification-reads-exact-versioned-cursor-captures",
+        "subject_reference_id": "ref-versioned-cursor-verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-a-trace"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-b-primary-before"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-c-primary-after"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-d-control-before"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-e-control-after"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-f-projection"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-traversal-stale"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-traversal-control"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-cursor-stale"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-cursor-control"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-5583e46718997c6b1950525c9765f89b8bfdd2b407977fd93ac8ca6eb804893f"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-8f4f621accf90a2a29a71aa32733cfa6709a40c10c047bfb93fba172d4ebb317"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-0ee408d1eecb2f45d6b29c1825c98d96ce3a0f8a795264f82196def2ceebe0e0"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-fcb18425d88ed3c9337dc66c50763c92c3dc96e56bf217e46e13d7dedbc6e6bf"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-6861dc03b299f0d32bfabecafd1d1aacb8cd6431477d049b091832701461895b"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-9c7151655884c26ce51a5ee44be2e3c4782ef8434c92a3f314c5478c46e5306e"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-433fb768ef0b9bcfcf8bd935599ec5c2484fb33fec53be7d1636be06ff48a8f8"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-4a6da9946b3e2f668b6a39d5a99484113086abda39e6382b4a47b49b957cd99c"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-74d1078c3adfa25a41efe4893dce8b5007d709fbf6c80fe956d5f44f18266abc"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-cursor-state"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-extra-protected-effect"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-page-result-artifact"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-traversal-state"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-cursor-stale"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-a40ea7ded4d5b67cce9f36fd897ccc252cec374fd1449bce8cd7938e7b762d5d"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-5583e46718997c6b1950525c9765f89b8bfdd2b407977fd93ac8ca6eb804893f"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-verify-no-stale-page-return",
+        "subject_reference_id": "ref-versioned-cursor-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-verify-no-stale-page-return",
+        "subject_reference_id": "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c",
+        "operator": "reference:returns",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c",
+            "ref-return-failure-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-page-result-artifact"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-verify-no-stale-page-return-event",
+        "subject_reference_id": "ref-versioned-cursor-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-verify-no-stale-page-return-event",
+        "subject_reference_id": "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c",
+        "operator": "reference:emits",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c",
+            "ref-emission-failure-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-page-return-event"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-verify-no-stale-cursor-advance",
+        "subject_reference_id": "ref-versioned-cursor-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-verify-no-stale-cursor-advance",
+        "subject_reference_id": "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c",
+        "operator": "reference:emits",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c",
+            "ref-advancement-failure-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-cursor-advance-event"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-verify-no-stale-protected-write",
+        "subject_reference_id": "ref-versioned-cursor-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-verify-no-stale-protected-write",
+        "subject_reference_id": "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c",
+        "operator": "reference:writes",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c",
+            "ref-write-failure-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-cursor-state"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-extra-protected-effect"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-page-result-artifact"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-traversal-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-verify-no-stale-protected-mutation",
+        "subject_reference_id": "ref-versioned-cursor-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-verify-no-stale-protected-mutation",
+        "subject_reference_id": "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c",
+        "operator": "reference:mutates",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c",
+            "ref-mutation-failure-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-cursor-state"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-extra-protected-effect"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-page-result-artifact"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-traversal-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-verify-no-unrelated-mutation-false-refusal",
+        "subject_reference_id": "ref-versioned-cursor-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-a40ea7ded4d5b67cce9f36fd897ccc252cec374fd1449bce8cd7938e7b762d5d"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-verify-no-unrelated-mutation-false-refusal",
+        "subject_reference_id": "ref-occ-a40ea7ded4d5b67cce9f36fd897ccc252cec374fd1449bce8cd7938e7b762d5d",
+        "operator": "reference:rejects",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-occ-9c7151655884c26ce51a5ee44be2e3c4782ef8434c92a3f314c5478c46e5306e",
+            "ref-false-refusal-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-5583e46718997c6b1950525c9765f89b8bfdd2b407977fd93ac8ca6eb804893f"
+          }
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "claim_id": "claim-complete-primary-cursor-population-members",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-complete-primary-cursor-population-members"
+      },
+      {
+        "claim_id": "claim-complete-primary-cursor-population-count",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-complete-primary-cursor-population-count"
+      },
+      {
+        "claim_id": "claim-complete-control-cursor-population-members",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-complete-control-cursor-population-members"
+      },
+      {
+        "claim_id": "claim-complete-control-cursor-population-count",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-complete-control-cursor-population-count"
+      },
+      {
+        "claim_id": "claim-complete-page-attempt-population-members",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-complete-page-attempt-population-members"
+      },
+      {
+        "claim_id": "claim-complete-page-attempt-population-count",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-complete-page-attempt-population-count"
+      },
+      {
+        "claim_id": "claim-complete-primary-returned-page-population-members",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-complete-primary-returned-page-population-members"
+      },
+      {
+        "claim_id": "claim-complete-primary-returned-page-population-count",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-complete-primary-returned-page-population-count"
+      },
+      {
+        "claim_id": "claim-complete-control-returned-page-population-members",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-complete-control-returned-page-population-members"
+      },
+      {
+        "claim_id": "claim-complete-control-returned-page-population-count",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-complete-control-returned-page-population-count"
+      },
+      {
+        "claim_id": "claim-complete-mutation-population-members",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-complete-mutation-population-members"
+      },
+      {
+        "claim_id": "claim-complete-mutation-population-count",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-complete-mutation-population-count"
+      },
+      {
+        "claim_id": "claim-complete-return-population-members",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-complete-return-population-members"
+      },
+      {
+        "claim_id": "claim-complete-return-population-count",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-complete-return-population-count"
+      },
+      {
+        "claim_id": "claim-complete-advancement-population-members",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-complete-advancement-population-members"
+      },
+      {
+        "claim_id": "claim-complete-advancement-population-count",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-complete-advancement-population-count"
+      },
+      {
+        "claim_id": "claim-complete-effect-occurrence-population-count",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-complete-effect-occurrence-population-count"
+      },
+      {
+        "claim_id": "claim-complete-protected-effect-population-members",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-complete-protected-effect-population-members"
+      },
+      {
+        "claim_id": "claim-complete-protected-effect-population-count",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-complete-protected-effect-population-count"
+      },
+      {
+        "claim_id": "claim-each-primary-cursor-resolves-traversal-version-001",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-each-primary-cursor-resolves-traversal-version-001"
+      },
+      {
+        "claim_id": "claim-each-control-cursor-resolves-control-version-001",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-each-control-cursor-resolves-control-version-001"
+      },
+      {
+        "claim_id": "claim-each-primary-page-resolves-traversal-version-001",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-each-primary-page-resolves-traversal-version-001"
+      },
+      {
+        "claim_id": "claim-each-control-page-resolves-control-version-001",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-each-control-page-resolves-control-version-001"
+      },
+      {
+        "claim_id": "claim-relevant-mutation-mutates-live-source",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-relevant-mutation-mutates-live-source"
+      },
+      {
+        "claim_id": "claim-prior-attempt-precedes-relevant-mutation",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-prior-attempt-precedes-relevant-mutation"
+      },
+      {
+        "claim_id": "claim-relevant-mutation-precedes-stale-attempt",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-relevant-mutation-precedes-stale-attempt"
+      },
+      {
+        "claim_id": "claim-live-source-current-at-stale-attempt",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-live-source-current-at-stale-attempt"
+      },
+      {
+        "claim_id": "claim-stale-attempt-uses-exact-cursor",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-stale-attempt-uses-exact-cursor"
+      },
+      {
+        "claim_id": "claim-refusal-rejects-stale-attempt",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-refusal-rejects-stale-attempt"
+      },
+      {
+        "claim_id": "claim-stale-attempt-precedes-refusal",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-stale-attempt-precedes-refusal"
+      },
+      {
+        "claim_id": "claim-no-stale-page-return",
+        "kind": "behavior",
+        "modality": "MUST_NOT",
+        "proposition_id": "prop-no-stale-page-return"
+      },
+      {
+        "claim_id": "claim-no-stale-page-return-event",
+        "kind": "behavior",
+        "modality": "MUST_NOT",
+        "proposition_id": "prop-no-stale-page-return-event"
+      },
+      {
+        "claim_id": "claim-no-stale-cursor-advance",
+        "kind": "behavior",
+        "modality": "MUST_NOT",
+        "proposition_id": "prop-no-stale-cursor-advance"
+      },
+      {
+        "claim_id": "claim-no-stale-protected-write",
+        "kind": "behavior",
+        "modality": "MUST_NOT",
+        "proposition_id": "prop-no-stale-protected-write"
+      },
+      {
+        "claim_id": "claim-no-stale-protected-mutation",
+        "kind": "behavior",
+        "modality": "MUST_NOT",
+        "proposition_id": "prop-no-stale-protected-mutation"
+      },
+      {
+        "claim_id": "claim-unrelated-mutation-mutates-unrelated-source",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-unrelated-mutation-mutates-unrelated-source"
+      },
+      {
+        "claim_id": "claim-unrelated-mutation-precedes-control-attempt",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-unrelated-mutation-precedes-control-attempt"
+      },
+      {
+        "claim_id": "claim-control-attempt-returns-page",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-control-attempt-returns-page"
+      },
+      {
+        "claim_id": "claim-control-attempt-emits-advancement",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-control-attempt-emits-advancement"
+      },
+      {
+        "claim_id": "claim-no-unrelated-mutation-false-refusal",
+        "kind": "behavior",
+        "modality": "MUST_NOT",
+        "proposition_id": "prop-no-unrelated-mutation-false-refusal"
+      },
+      {
+        "claim_id": "claim-verification-reads-exact-versioned-cursor-captures",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-verification-reads-exact-versioned-cursor-captures"
+      },
+      {
+        "claim_id": "claim-verify-no-stale-page-return",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-verify-no-stale-page-return",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-verify-no-stale-page-return"
+      },
+      {
+        "claim_id": "claim-verify-no-stale-page-return-event",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-verify-no-stale-page-return-event",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-verify-no-stale-page-return-event"
+      },
+      {
+        "claim_id": "claim-verify-no-stale-cursor-advance",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-verify-no-stale-cursor-advance",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-verify-no-stale-cursor-advance"
+      },
+      {
+        "claim_id": "claim-verify-no-stale-protected-write",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-verify-no-stale-protected-write",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-verify-no-stale-protected-write"
+      },
+      {
+        "claim_id": "claim-verify-no-stale-protected-mutation",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-verify-no-stale-protected-mutation",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-verify-no-stale-protected-mutation"
+      },
+      {
+        "claim_id": "claim-verify-no-unrelated-mutation-false-refusal",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-verify-no-unrelated-mutation-false-refusal",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-verify-no-unrelated-mutation-false-refusal"
+      }
+    ],
+    "relations": [
+      {
+        "relation_id": "rel-relation-verify-no-stale-page-return",
+        "role": "verifies",
+        "source_claim_id": "claim-verify-no-stale-page-return",
+        "target_claim_id": "claim-no-stale-page-return"
+      },
+      {
+        "relation_id": "rel-relation-verify-no-stale-page-return-event",
+        "role": "verifies",
+        "source_claim_id": "claim-verify-no-stale-page-return-event",
+        "target_claim_id": "claim-no-stale-page-return-event"
+      },
+      {
+        "relation_id": "rel-relation-verify-no-stale-cursor-advance",
+        "role": "verifies",
+        "source_claim_id": "claim-verify-no-stale-cursor-advance",
+        "target_claim_id": "claim-no-stale-cursor-advance"
+      },
+      {
+        "relation_id": "rel-relation-verify-no-stale-protected-write",
+        "role": "verifies",
+        "source_claim_id": "claim-verify-no-stale-protected-write",
+        "target_claim_id": "claim-no-stale-protected-write"
+      },
+      {
+        "relation_id": "rel-relation-verify-no-stale-protected-mutation",
+        "role": "verifies",
+        "source_claim_id": "claim-verify-no-stale-protected-mutation",
+        "target_claim_id": "claim-no-stale-protected-mutation"
+      },
+      {
+        "relation_id": "rel-relation-verify-no-unrelated-mutation-false-refusal",
+        "role": "verifies",
+        "source_claim_id": "claim-verify-no-unrelated-mutation-false-refusal",
+        "target_claim_id": "claim-no-unrelated-mutation-false-refusal"
+      }
+    ],
+    "collections": [],
+    "residue": [],
+    "annotations": [],
+    "test_proof_version": "controlled-contract-test-proof.v1",
+    "test_proofs": []
+  },
+  "evaluation_input": {
+    "input_version": "controlled-contract-verification-profile-input.v1",
+    "evaluation_stage": "pre_dispatch",
+    "reference_bindings": [
+      {
+        "role": "mutation_trace",
+        "reference_ids": [
+          "ref-a-trace"
+        ]
+      },
+      {
+        "role": "projection_result",
+        "reference_ids": [
+          "ref-f-projection"
+        ]
+      },
+      {
+        "role": "primary_before_capture",
+        "reference_ids": [
+          "ref-b-primary-before"
+        ]
+      },
+      {
+        "role": "primary_after_capture",
+        "reference_ids": [
+          "ref-c-primary-after"
+        ]
+      },
+      {
+        "role": "control_before_capture",
+        "reference_ids": [
+          "ref-d-control-before"
+        ]
+      },
+      {
+        "role": "control_after_capture",
+        "reference_ids": [
+          "ref-e-control-after"
+        ]
+      },
+      {
+        "role": "traversal",
+        "reference_ids": [
+          "ref-traversal-stale"
+        ]
+      },
+      {
+        "role": "control_traversal",
+        "reference_ids": [
+          "ref-traversal-control"
+        ]
+      },
+      {
+        "role": "live_source",
+        "reference_ids": [
+          "ref-live-source-primary"
+        ]
+      },
+      {
+        "role": "control_source",
+        "reference_ids": [
+          "ref-live-source-control"
+        ]
+      },
+      {
+        "role": "unrelated_source",
+        "reference_ids": [
+          "ref-live-source-unrelated"
+        ]
+      },
+      {
+        "role": "traversal_source_version",
+        "reference_ids": [
+          "ref-source-version-stale"
+        ]
+      },
+      {
+        "role": "current_source_version",
+        "reference_ids": [
+          "ref-source-version-current"
+        ]
+      },
+      {
+        "role": "control_source_version",
+        "reference_ids": [
+          "ref-source-version-control"
+        ]
+      },
+      {
+        "role": "primary_cursor_population",
+        "reference_ids": [
+          "ref-pop-primary-cursor-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0"
+        ]
+      },
+      {
+        "role": "primary_cursors",
+        "reference_ids": [
+          "ref-cursor-stale"
+        ]
+      },
+      {
+        "role": "control_cursor_population",
+        "reference_ids": [
+          "ref-pop-control-cursor-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0"
+        ]
+      },
+      {
+        "role": "control_cursors",
+        "reference_ids": [
+          "ref-cursor-control"
+        ]
+      },
+      {
+        "role": "stale_cursor",
+        "reference_ids": [
+          "ref-cursor-stale"
+        ]
+      },
+      {
+        "role": "control_cursor",
+        "reference_ids": [
+          "ref-cursor-control"
+        ]
+      },
+      {
+        "role": "page_attempt_population",
+        "reference_ids": [
+          "ref-pop-page-attempt-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0"
+        ]
+      },
+      {
+        "role": "page_attempts",
+        "reference_ids": [
+          "ref-occ-5583e46718997c6b1950525c9765f89b8bfdd2b407977fd93ac8ca6eb804893f",
+          "ref-occ-8f4f621accf90a2a29a71aa32733cfa6709a40c10c047bfb93fba172d4ebb317",
+          "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c"
+        ]
+      },
+      {
+        "role": "primary_returned_page_population",
+        "reference_ids": [
+          "ref-pop-primary-returned-page-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0"
+        ]
+      },
+      {
+        "role": "primary_returned_pages",
+        "reference_ids": [
+          "ref-occ-0ee408d1eecb2f45d6b29c1825c98d96ce3a0f8a795264f82196def2ceebe0e0"
+        ]
+      },
+      {
+        "role": "control_returned_page_population",
+        "reference_ids": [
+          "ref-pop-control-returned-page-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0"
+        ]
+      },
+      {
+        "role": "control_returned_pages",
+        "reference_ids": [
+          "ref-occ-fcb18425d88ed3c9337dc66c50763c92c3dc96e56bf217e46e13d7dedbc6e6bf"
+        ]
+      },
+      {
+        "role": "mutation_population",
+        "reference_ids": [
+          "ref-pop-mutation-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0"
+        ]
+      },
+      {
+        "role": "mutations",
+        "reference_ids": [
+          "ref-occ-6861dc03b299f0d32bfabecafd1d1aacb8cd6431477d049b091832701461895b",
+          "ref-occ-9c7151655884c26ce51a5ee44be2e3c4782ef8434c92a3f314c5478c46e5306e"
+        ]
+      },
+      {
+        "role": "return_population",
+        "reference_ids": [
+          "ref-pop-return-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0"
+        ]
+      },
+      {
+        "role": "returns",
+        "reference_ids": [
+          "ref-occ-433fb768ef0b9bcfcf8bd935599ec5c2484fb33fec53be7d1636be06ff48a8f8",
+          "ref-occ-4a6da9946b3e2f668b6a39d5a99484113086abda39e6382b4a47b49b957cd99c"
+        ]
+      },
+      {
+        "role": "advancement_population",
+        "reference_ids": [
+          "ref-pop-advancement-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0"
+        ]
+      },
+      {
+        "role": "advancements",
+        "reference_ids": [
+          "ref-occ-74d1078c3adfa25a41efe4893dce8b5007d709fbf6c80fe956d5f44f18266abc"
+        ]
+      },
+      {
+        "role": "effect_occurrence_population",
+        "reference_ids": [
+          "ref-pop-effect-occurrence-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0"
+        ]
+      },
+      {
+        "role": "effect_occurrences",
+        "reference_ids": []
+      },
+      {
+        "role": "protected_effect_population",
+        "reference_ids": [
+          "ref-pop-protected-effect-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0"
+        ]
+      },
+      {
+        "role": "protected_effects",
+        "reference_ids": [
+          "ref-cursor-state",
+          "ref-extra-protected-effect",
+          "ref-page-result-artifact",
+          "ref-traversal-state"
+        ]
+      },
+      {
+        "role": "prior_page_attempt",
+        "reference_ids": [
+          "ref-occ-8f4f621accf90a2a29a71aa32733cfa6709a40c10c047bfb93fba172d4ebb317"
+        ]
+      },
+      {
+        "role": "stale_attempt",
+        "reference_ids": [
+          "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c"
+        ]
+      },
+      {
+        "role": "control_attempt",
+        "reference_ids": [
+          "ref-occ-5583e46718997c6b1950525c9765f89b8bfdd2b407977fd93ac8ca6eb804893f"
+        ]
+      },
+      {
+        "role": "relevant_mutation",
+        "reference_ids": [
+          "ref-occ-6861dc03b299f0d32bfabecafd1d1aacb8cd6431477d049b091832701461895b"
+        ]
+      },
+      {
+        "role": "unrelated_mutation",
+        "reference_ids": [
+          "ref-occ-9c7151655884c26ce51a5ee44be2e3c4782ef8434c92a3f314c5478c46e5306e"
+        ]
+      },
+      {
+        "role": "refusal",
+        "reference_ids": [
+          "ref-occ-a40ea7ded4d5b67cce9f36fd897ccc252cec374fd1449bce8cd7938e7b762d5d"
+        ]
+      },
+      {
+        "role": "page_result_artifact",
+        "reference_ids": [
+          "ref-page-result-artifact"
+        ]
+      },
+      {
+        "role": "page_return_event",
+        "reference_ids": [
+          "ref-page-return-event"
+        ]
+      },
+      {
+        "role": "cursor_advance_event",
+        "reference_ids": [
+          "ref-cursor-advance-event"
+        ]
+      },
+      {
+        "role": "cursor_state",
+        "reference_ids": [
+          "ref-cursor-state"
+        ]
+      },
+      {
+        "role": "traversal_state",
+        "reference_ids": [
+          "ref-traversal-state"
+        ]
+      },
+      {
+        "role": "control_return",
+        "reference_ids": [
+          "ref-occ-433fb768ef0b9bcfcf8bd935599ec5c2484fb33fec53be7d1636be06ff48a8f8"
+        ]
+      },
+      {
+        "role": "control_advancement",
+        "reference_ids": [
+          "ref-occ-74d1078c3adfa25a41efe4893dce8b5007d709fbf6c80fe956d5f44f18266abc"
+        ]
+      },
+      {
+        "role": "control_returned_page",
+        "reference_ids": [
+          "ref-occ-fcb18425d88ed3c9337dc66c50763c92c3dc96e56bf217e46e13d7dedbc6e6bf"
+        ]
+      },
+      {
+        "role": "verification",
+        "reference_ids": [
+          "ref-versioned-cursor-verification"
+        ]
+      },
+      {
+        "role": "return_failure_condition",
+        "reference_ids": [
+          "ref-return-failure-condition"
+        ]
+      },
+      {
+        "role": "emission_failure_condition",
+        "reference_ids": [
+          "ref-emission-failure-condition"
+        ]
+      },
+      {
+        "role": "advancement_failure_condition",
+        "reference_ids": [
+          "ref-advancement-failure-condition"
+        ]
+      },
+      {
+        "role": "write_failure_condition",
+        "reference_ids": [
+          "ref-write-failure-condition"
+        ]
+      },
+      {
+        "role": "mutation_failure_condition",
+        "reference_ids": [
+          "ref-mutation-failure-condition"
+        ]
+      },
+      {
+        "role": "false_refusal_condition",
+        "reference_ids": [
+          "ref-false-refusal-condition"
+        ]
+      }
+    ],
+    "number_bindings": [],
+    "claim_pattern_bindings": [],
+    "resolver_facts": [],
+    "delivered_evidence": [],
+    "stable_evaluation": {}
+  }
+}

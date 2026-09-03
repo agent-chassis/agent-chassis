@@ -1,8 +1,6 @@
 
 
 import {
-  FULL_INDEX_CONFIG_KEYS,
-  FULL_INDEX_CONFIG_SCOPES,
   HISTORICAL_DELIVERY_INDEX_RECOVERY,
   projectAuthenticatedSliceReviewMaterializationFailure,
   SLICE_REVIEW_MATERIALIZATION_DIAGNOSTIC_CODES,
@@ -61,8 +59,6 @@ const APPROVED_MATERIALIZATION_PREDICATES = Object.freeze(
 );
 const MATERIALIZATION_REFUSED_PSEUDOREFS =
   SLICE_REVIEW_POSTCHECK_STATE_BUDGET.refused_pseudorefs;
-const MATERIALIZATION_CONFIG_KEYS = FULL_INDEX_CONFIG_KEYS;
-const MATERIALIZATION_CONFIG_SCOPES = FULL_INDEX_CONFIG_SCOPES;
 const MATERIALIZATION_MAX_SUFFIX_DEPTH =
   HISTORICAL_DELIVERY_INDEX_RECOVERY.max_suffix_commits;
 
@@ -82,8 +78,8 @@ function publishableMaterializationDetail(detail) {
     predicate,
     field: enumField("field", SAFE_POSTCHECK_MISMATCH_FIELDS),
     pseudoref: enumField("pseudoref", MATERIALIZATION_REFUSED_PSEUDOREFS),
-    config_key: enumField("config_key", MATERIALIZATION_CONFIG_KEYS),
-    config_scope: enumField("config_scope", MATERIALIZATION_CONFIG_SCOPES),
+    config_key: null,
+    config_scope: null,
     suffix_depth: integerField("suffix_depth", 0, MATERIALIZATION_MAX_SUFFIX_DEPTH),
     traversal_bound: integerField("traversal_bound", 0, MATERIALIZATION_MAX_SUFFIX_DEPTH),
     git_exit_status: integerField("git_exit_status", 0, 255)

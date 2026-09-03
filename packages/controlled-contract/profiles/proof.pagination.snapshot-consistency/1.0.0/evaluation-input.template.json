@@ -1,0 +1,202 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.experimental.v0.2",
+  "evaluation_stage": "pre_dispatch",
+  "reference_bindings": [
+    {
+      "role": "mutation_trace",
+      "reference_ids": [
+        "ref-a-trace"
+      ]
+    },
+    {
+      "role": "projection_result",
+      "reference_ids": [
+        "ref-f-projection"
+      ]
+    },
+    {
+      "role": "primary_before_capture",
+      "reference_ids": [
+        "ref-b-primary-before"
+      ]
+    },
+    {
+      "role": "primary_after_capture",
+      "reference_ids": [
+        "ref-c-primary-after"
+      ]
+    },
+    {
+      "role": "control_before_capture",
+      "reference_ids": [
+        "ref-d-control-before"
+      ]
+    },
+    {
+      "role": "control_after_capture",
+      "reference_ids": [
+        "ref-e-control-after"
+      ]
+    },
+    {
+      "role": "traversal",
+      "reference_ids": [
+        "ref-traversal-snapshot"
+      ]
+    },
+    {
+      "role": "live_source",
+      "reference_ids": [
+        "ref-live-source"
+      ]
+    },
+    {
+      "role": "snapshot",
+      "reference_ids": [
+        "ref-snapshot-frozen"
+      ]
+    },
+    {
+      "role": "snapshot_state",
+      "reference_ids": [
+        "ref-snapshot-state-frozen"
+      ]
+    },
+    {
+      "role": "initial_source_version",
+      "reference_ids": [
+        "ref-source-version-initial"
+      ]
+    },
+    {
+      "role": "later_source_version",
+      "reference_ids": [
+        "ref-source-version-later"
+      ]
+    },
+    {
+      "role": "page_attempt_population",
+      "reference_ids": [
+        "ref-pop-page-attempt-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd"
+      ]
+    },
+    {
+      "role": "page_attempts",
+      "reference_ids": [
+        "ref-occ-12e8e53773376aae5df4015682622d466f6b89565de0c0179be77289305fce12",
+        "ref-occ-694f6a63d905ff3fd0b8e1d5d3ec10942e6bb7e05b808e17883482d6944f84cb"
+      ]
+    },
+    {
+      "role": "returned_page_population",
+      "reference_ids": [
+        "ref-pop-returned-page-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd"
+      ]
+    },
+    {
+      "role": "returned_pages",
+      "reference_ids": [
+        "ref-occ-7b6363cb5518e5047daca4fe3b1741ecb5da920900281e9d81ef3eabca0e09cf",
+        "ref-occ-ed882e874d6a8634b118b1c8ae1ac764a380ec5bda64ad71d5a9ca7208bbbb0e"
+      ]
+    },
+    {
+      "role": "member_occurrence_population",
+      "reference_ids": [
+        "ref-pop-member-occurrence-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd"
+      ]
+    },
+    {
+      "role": "member_occurrences",
+      "reference_ids": [
+        "ref-occ-a0f95a18c2f29d38d5083df9b01034164ad4e91cab92c124c0b89f7a0ce406fa",
+        "ref-occ-e2eba6fe19012cf389cb970431499ab5e96bd5ea7e1aa26f82d5507093f87242",
+        "ref-occ-fe19dad7b41f740d82de008a2a70325e9cee09f109e1e3230809e222ca7d3f08"
+      ]
+    },
+    {
+      "role": "stable_member_occurrence_population",
+      "reference_ids": [
+        "ref-pop-stable-member-occurrence-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd"
+      ]
+    },
+    {
+      "role": "stable_member_occurrences",
+      "reference_ids": [
+        "ref-occ-0fc747b502efc00fce945738be1e6fda221eabd11fb709f47a5e6886455a46c6",
+        "ref-occ-4068b3d532716faff21f4508cf4ce843efafd11bb21d205681e0abf821971d77",
+        "ref-occ-e23b376fed730b0053277c44926934d64f554bf0cf4c8cf7a6f1e72fb41e981c"
+      ]
+    },
+    {
+      "role": "mutation_population",
+      "reference_ids": [
+        "ref-pop-mutation-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd"
+      ]
+    },
+    {
+      "role": "mutations",
+      "reference_ids": [
+        "ref-occ-bd3cd6afc7aca13cc7f9fdc950198e93d3b8a91e1d7013095105a6d3a61b1a80"
+      ]
+    },
+    {
+      "role": "first_page_attempt",
+      "reference_ids": [
+        "ref-occ-694f6a63d905ff3fd0b8e1d5d3ec10942e6bb7e05b808e17883482d6944f84cb"
+      ]
+    },
+    {
+      "role": "later_page_attempt",
+      "reference_ids": [
+        "ref-occ-12e8e53773376aae5df4015682622d466f6b89565de0c0179be77289305fce12"
+      ]
+    },
+    {
+      "role": "first_returned_page",
+      "reference_ids": [
+        "ref-occ-7b6363cb5518e5047daca4fe3b1741ecb5da920900281e9d81ef3eabca0e09cf"
+      ]
+    },
+    {
+      "role": "later_returned_page",
+      "reference_ids": [
+        "ref-occ-ed882e874d6a8634b118b1c8ae1ac764a380ec5bda64ad71d5a9ca7208bbbb0e"
+      ]
+    },
+    {
+      "role": "relevant_mutation",
+      "reference_ids": [
+        "ref-occ-bd3cd6afc7aca13cc7f9fdc950198e93d3b8a91e1d7013095105a6d3a61b1a80"
+      ]
+    },
+    {
+      "role": "sequence_comparison_result",
+      "reference_ids": [
+        "ref-sequence-comparison-result"
+      ]
+    },
+    {
+      "role": "identical_sequence_state",
+      "reference_ids": [
+        "ref-identical-sequence-state"
+      ]
+    },
+    {
+      "role": "verification",
+      "reference_ids": [
+        "ref-snapshot-pagination-verification"
+      ]
+    },
+    {
+      "role": "sequence_failure_condition",
+      "reference_ids": [
+        "ref-sequence-failure-condition"
+      ]
+    }
+  ],
+  "number_bindings": [],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": []
+}

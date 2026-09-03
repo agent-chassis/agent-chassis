@@ -11,7 +11,6 @@ import {
   writeContractMetadata
 } from "../lib/wiki.mjs";
 import {
-  ensureAdoptionWorkRecords,
   ensureAgentsBoilerplateTemplate,
   ensureWikiMcpDeclaration,
   AGENTS_BOILERPLATE_SEEDED_RELATIVE_PATH,
@@ -19,9 +18,12 @@ import {
 } from "../lib/wiki-scaffold.mjs";
 import { ensureLexicalSearchIndex } from "../lib/search.mjs";
 import { SIDECAR_DEFAULT_CACHE_DIR } from "../lib/sidecar-status.mjs";
+import { CONTROLLED_CONTRACT_PRIVATE_PATH_ROOT } from
+  "../lib/controlled-contract-private-path-policy.mjs";
 import { generateViews } from "./generate.mjs";
 
 const BOOTSTRAP_SEARCH_CACHE_DIR = ".cache/wiki-search";
+const CONTROLLED_CONTRACT_DIRECTORY_PLACEHOLDER = ".gitkeep";
 
 const BOOTSTRAP_GITIGNORE_ENTRIES = [
   `${SIDECAR_DEFAULT_CACHE_DIR}/`,
@@ -119,6 +121,20 @@ async function bootstrapCacheAndIgnores(targetDir, { profile, extensionNamespace
   };
 }
 
+async function ensureControlledContractPrivateDirectory(targetDir) {
+  const directory = path.join(
+    targetDir,
+    ...CONTROLLED_CONTRACT_PRIVATE_PATH_ROOT.split("/")
+  );
+  await mkdir(directory, { recursive: true });
+  const placeholder = path.join(directory, CONTROLLED_CONTRACT_DIRECTORY_PLACEHOLDER);
+  try {
+    await writeFile(placeholder, "", { encoding: "utf8", flag: "wx" });
+  } catch (error) {
+    if (error?.code !== "EEXIST") throw error;
+  }
+}
+
 export async function bootstrapRepo({
   dir = ".",
   repo,
@@ -136,6 +152,8 @@ export async function bootstrapRepo({
 
   const { created: surfaces, manifest, extensionNamespaces: extensions } =
     await ensureCoreSurfaces(targetDir, { profile, extensionNamespaces });
+
+  await ensureControlledContractPrivateDirectory(targetDir);
   const coreFiles = await syncCoreFiles(targetDir, {
     repo: resolvedRepo,
     profile,
@@ -148,18 +166,12 @@ export async function bootstrapRepo({
 
   const {
     getStaticIn0001AdoptionSeed,
-    getStaticIn0001AdoptionSeedWorkRecords,
     renderStaticIn0001AdoptionSeedMarkdown
   } = await import("../index.mjs");
   const adoptionSeed = getStaticIn0001AdoptionSeed();
   const adoption = await ensureAdoptionInitiative(targetDir, {
     seed: adoptionSeed,
     body: renderStaticIn0001AdoptionSeedMarkdown(adoptionSeed)
-  });
-
-  const adoptionWorkRecords = await ensureAdoptionWorkRecords(targetDir, {
-    records: getStaticIn0001AdoptionSeedWorkRecords(adoptionSeed),
-    repo: resolvedRepo
   });
 
   const wikiMcpDeclaration = await ensureWikiMcpDeclaration(targetDir, {
@@ -210,12 +222,6 @@ export async function bootstrapRepo({
       kept: adoption.kept,
       requiredChecks: adoptionSeed.required_checks,
       ownedWork: adoptionSeed.owned_work.map((work) => work.key)
-    },
-    adoptionWorkRecords: {
-      created: adoptionWorkRecords.created,
-      kept: adoptionWorkRecords.kept,
-      createdCount: adoptionWorkRecords.created.length,
-      keptCount: adoptionWorkRecords.kept.length
     },
     wikiMcpDeclaration: {
       path: wikiMcpDeclaration.relativePath,

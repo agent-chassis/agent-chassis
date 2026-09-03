@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "controlled-contract-authentication-provenance-witnesses.v1.schema.json",
+  "title": "Closed direct-source authentication/provenance witness documents",
+  "oneOf": [
+    { "$ref": "#/$defs/target_resolution" },
+    { "$ref": "#/$defs/source_authentication" },
+    { "$ref": "#/$defs/source_of_record" },
+    { "$ref": "#/$defs/attempt_binding" },
+    { "$ref": "#/$defs/authentication" }
+  ],
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "reference_id": { "type": "string", "pattern": "^ref-[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "identity": {
+      "oneOf": [
+        { "type": "object", "additionalProperties": false, "required": ["kind", "repository", "path"], "properties": { "kind": { "const": "repository_path" }, "repository": { "type": "string", "minLength": 1 }, "path": { "type": "string", "minLength": 1 } } },
+        { "type": "object", "additionalProperties": false, "required": ["kind", "repository", "path", "symbol"], "properties": { "kind": { "const": "code_symbol" }, "repository": { "type": "string", "minLength": 1 }, "path": { "type": "string", "minLength": 1 }, "symbol": { "type": "string", "minLength": 1 }, "scip_symbol": { "type": "string", "minLength": 1 } } },
+        { "type": "object", "additionalProperties": false, "required": ["kind", "domain", "value"], "properties": { "kind": { "const": "durable_id" }, "domain": { "type": "string", "minLength": 1 }, "value": { "type": "string", "minLength": 1 } } },
+        { "type": "object", "additionalProperties": false, "required": ["kind", "name"], "properties": { "kind": { "const": "runtime_parameter" }, "name": { "type": "string", "minLength": 1 } } },
+        { "type": "object", "additionalProperties": false, "required": ["kind", "term"], "properties": { "kind": { "const": "profile_term" }, "term": { "type": "string", "minLength": 1 } } }
+      ]
+    },
+    "role": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["grounded_identity", "reference_id", "type_term"],
+      "properties": {
+        "grounded_identity": { "$ref": "#/$defs/identity" },
+        "reference_id": { "$ref": "#/$defs/reference_id" },
+        "type_term": { "type": "string", "minLength": 1 }
+      }
+    },
+    "signed_proof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claims", "proof_kind", "public_key_spki_base64", "schema_version", "signature_base64", "signer_grounded_identity", "verification_method"],
+      "properties": {
+        "schema_version": { "const": "controlled-contract.authentication-provenance-signed-proof.v1" },
+        "proof_kind": { "enum": ["aggregate_authentication", "attempt_binding", "source_authentication", "source_of_record_assignment", "target_resolution"] },
+        "verification_method": { "const": "ed25519" },
+        "signer_grounded_identity": { "$ref": "#/$defs/identity" },
+        "public_key_spki_base64": { "type": "string", "pattern": "^[A-Za-z0-9+/]+={0,2}$" },
+        "signature_base64": { "type": "string", "pattern": "^[A-Za-z0-9+/]+={0,2}$" },
+        "claims": { "type": "object" }
+      }
+    },
+    "mechanism_evidence": {
+      "type": "object",
+      "minProperties": 2,
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "target_resolution": {
+      "type": "object", "additionalProperties": false,
+      "required": ["evidence_content_sha256", "mechanism_evidence", "resolution_method", "schema_version", "target", "verification_proof", "verification_proof_sha256"],
+      "properties": {
+        "schema_version": { "const": "controlled-contract.authentication-target-resolution-witness.v1" },
+        "evidence_content_sha256": { "$ref": "#/$defs/sha256" },
+        "mechanism_evidence": { "$ref": "#/$defs/mechanism_evidence" },
+        "resolution_method": { "enum": ["authenticated_record_key", "signed_target_digest", "verified_manifest_entry"] },
+        "target": { "$ref": "#/$defs/role" },
+        "verification_proof": { "$ref": "#/$defs/signed_proof" },
+        "verification_proof_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "source_authentication": {
+      "type": "object", "additionalProperties": false,
+      "required": ["acquisition_kind", "authentication_method", "authentication_proof", "authentication_proof_sha256", "evidence_content_sha256", "mechanism_evidence", "schema_version", "source"],
+      "properties": {
+        "schema_version": { "const": "controlled-contract.source-authentication-witness.v1" },
+        "acquisition_kind": { "enum": ["direct", "derived"] },
+        "authentication_method": { "enum": ["authenticated_channel", "authenticated_store_read", "verified_signature"] },
+        "authentication_proof": { "$ref": "#/$defs/signed_proof" },
+        "authentication_proof_sha256": { "$ref": "#/$defs/sha256" },
+        "evidence_content_sha256": { "$ref": "#/$defs/sha256" },
+        "mechanism_evidence": { "$ref": "#/$defs/mechanism_evidence" },
+        "source": { "$ref": "#/$defs/role" }
+      }
+    },
+    "source_of_record": {
+      "type": "object", "additionalProperties": false,
+      "required": ["assignment_method", "assignment_proof", "assignment_proof_sha256", "attempt", "mechanism_evidence", "schema_version", "source", "target"],
+      "properties": {
+        "schema_version": { "const": "controlled-contract.source-of-record-assignment-witness.v1" },
+        "assignment_method": { "enum": ["authenticated_catalog_assignment", "signed_registry_assignment", "transactional_store_assignment"] },
+        "assignment_proof": { "$ref": "#/$defs/signed_proof" },
+        "assignment_proof_sha256": { "$ref": "#/$defs/sha256" },
+        "attempt": { "$ref": "#/$defs/role" },
+        "mechanism_evidence": { "$ref": "#/$defs/mechanism_evidence" },
+        "source": { "$ref": "#/$defs/role" },
+        "target": { "$ref": "#/$defs/role" }
+      }
+    },
+    "attempt_binding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["attempt", "attempt_binding_proof", "attempt_binding_proof_sha256", "capture_authority_grounded_identity", "evidence_content_sha256", "evidence_occurrence", "schema_version"],
+      "properties": {
+        "schema_version": { "const": "controlled-contract.observation-attempt-binding-witness.v1" },
+        "attempt": { "$ref": "#/$defs/role" },
+        "attempt_binding_proof": { "$ref": "#/$defs/signed_proof" },
+        "attempt_binding_proof_sha256": { "$ref": "#/$defs/sha256" },
+        "capture_authority_grounded_identity": { "$ref": "#/$defs/identity" },
+        "evidence_content_sha256": { "$ref": "#/$defs/sha256" },
+        "evidence_occurrence": { "$ref": "#/$defs/role" }
+      }
+    },
+    "authentication": {
+      "type": "object", "additionalProperties": false,
+      "required": ["acquisition_kind", "attempt_binding_witness_sha256", "authentication_method", "authentication_proof", "authentication_proof_sha256", "evidence_content_sha256", "evidence_occurrence_grounded_identity_sha256", "mechanism_evidence", "observation_attempt_grounded_identity_sha256", "schema_version", "source_authentication_witness_sha256", "source_grounded_identity_sha256", "source_of_record_assignment_witness_sha256", "target_grounded_identity_sha256", "target_resolution_witness_sha256"],
+      "properties": {
+        "schema_version": { "const": "controlled-contract.authentication-witness.v1" },
+        "acquisition_kind": { "enum": ["direct", "derived"] },
+        "attempt_binding_witness_sha256": { "$ref": "#/$defs/sha256" },
+        "authentication_method": { "enum": ["authenticated_channel_validation", "signature_validation", "trusted_store_validation"] },
+        "authentication_proof": { "$ref": "#/$defs/signed_proof" },
+        "authentication_proof_sha256": { "$ref": "#/$defs/sha256" },
+        "evidence_content_sha256": { "$ref": "#/$defs/sha256" },
+        "evidence_occurrence_grounded_identity_sha256": { "$ref": "#/$defs/sha256" },
+        "mechanism_evidence": { "$ref": "#/$defs/mechanism_evidence" },
+        "observation_attempt_grounded_identity_sha256": { "$ref": "#/$defs/sha256" },
+        "source_authentication_witness_sha256": { "$ref": "#/$defs/sha256" },
+        "source_grounded_identity_sha256": { "$ref": "#/$defs/sha256" },
+        "source_of_record_assignment_witness_sha256": { "$ref": "#/$defs/sha256" },
+        "target_grounded_identity_sha256": { "$ref": "#/$defs/sha256" },
+        "target_resolution_witness_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    }
+  }
+}

@@ -34,6 +34,9 @@ import {
 import {
   projectValidateDispatchPackInputCarrier
 } from "@agent-chassis/wiki-core/src/lib/work-record-dispatch-node-engine-admissibility.mjs";
+import {
+  projectWorkRecordTestProofValidation
+} from "@agent-chassis/wiki-core/src/lib/work-record-test-proof-bindings.mjs";
 
 import {
   ensureNewWorkerWriteRoots as helperEnsureNewWorkerWriteRoots
@@ -425,18 +428,6 @@ export async function evaluateWorkerAdmissionForBackend({
   if (!unit.ok) {
     return { allowed: false, reason: "invalid_subject_address", detail: { subject } };
   }
-
-  if (unit.value.slice_id !== null && canonical_work_record?.status === "review") {
-    return {
-      allowed: false,
-      reason: "managed_parent_wk_review_blocks_worker_dispatch",
-      detail: {
-        record_id: unit.value.record_id,
-        parent_status: canonical_work_record.status,
-        remediation: "move the parent out of whole-WK review, or complete the terminal cycle"
-      }
-    };
-  }
   const unitAddress = unit.value.address;
   const recordId = unit.value.record_id;
   let repo;
@@ -622,6 +613,12 @@ export function buildCanonicalSummary(record, readiness, unit) {
         dispatch_intent: selectedSlice.dispatch_intent || null
       }
     : null;
+  const validationProjection = projectWorkRecordTestProofValidation({
+    selectedUnit: selectedUnit ?? record
+  });
+  if (validationProjection.status !== "valid") {
+    throw new Error("worker admission requires valid current acceptance.validation declarations");
+  }
 
   return {
     record_id: record.id,
@@ -645,13 +642,7 @@ export function buildCanonicalSummary(record, readiness, unit) {
       : Array.isArray(record.acceptance?.criteria)
         ? record.acceptance.criteria
         : [],
-    validation_commands: selectedUnit
-      ? Array.isArray(selectedUnit.acceptance?.validation)
-        ? selectedUnit.acceptance.validation
-        : []
-      : Array.isArray(record.acceptance?.validation)
-        ? record.acceptance.validation
-        : [],
+    validation_commands: validationProjection.validation_entries,
     dispatch_intent: selectedUnit ? selectedUnit.dispatch_intent : record.dispatch_intent || null,
     selected_unit: selectedUnit,
     accepted_escalations: Array.isArray(readiness.accepted_escalations) ? readiness.accepted_escalations : [],

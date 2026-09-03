@@ -1,0 +1,3034 @@
+{
+  "schema_version": "controlled-contract-proof-pack-coverage-witness-index.experimental.v0.1",
+  "profile_digest": "58d8b4e7783e86e43b9ea1f26f81337173b1b6cc3c5fdcdd87b56f9f20eba309",
+  "witnesses": [
+    {
+      "surface_id": "claim-comparison-records-ordered-sequences-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "fixed-claim-comparison-records-ordered-sequences-modalities",
+      "variant_id": "fixed-claim-comparison-records-ordered-sequences-modalities",
+      "weakened_profile_digest": "94e39d62771669db948b1b34802db6b762d5ecbb8fd030e729c59ce0cae30eb8",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-comparison-records-ordered-sequences-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-comparison-records-ordered-sequences-proposition-operand-0-role",
+      "variant_id": "fixed-claim-comparison-records-ordered-sequences-proposition-operand-0-role",
+      "weakened_profile_digest": "8d4aa4a3a8b59f150afd19479a05ca08cd8732de01a4a51de26e13c7f92be395",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/operands/0/role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-comparison-records-ordered-sequences-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-comparison-records-ordered-sequences-proposition-operand-1-role",
+      "variant_id": "fixed-claim-comparison-records-ordered-sequences-proposition-operand-1-role",
+      "weakened_profile_digest": "1ae2ea39a79d3d6ca3d815732312109a99888cb33d4dce8340805dec392bcaa0",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/operands/1/role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-comparison-records-ordered-sequences-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-comparison-records-ordered-sequences-proposition-operator",
+      "variant_id": "fixed-claim-comparison-records-ordered-sequences-proposition-operator",
+      "weakened_profile_digest": "802d20de2b75bd95509588af000bd148c62dafad74ce124095a88921cf2f4d38",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-comparison-records-ordered-sequences-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-comparison-records-ordered-sequences-proposition-subject",
+      "variant_id": "fixed-claim-comparison-records-ordered-sequences-proposition-subject",
+      "weakened_profile_digest": "10d48bd82acd66402df75944047bd470530e1bf617aab4471b3c931da23d9744",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/subject_role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-each-attempt-resolves-selected-snapshot-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "fixed-claim-each-attempt-resolves-selected-snapshot-modalities",
+      "variant_id": "fixed-claim-each-attempt-resolves-selected-snapshot-modalities",
+      "weakened_profile_digest": "8d953b235b1c8f54b9a52a0f61fc60c1ba3848cde131523b9bd9e9accc43bcd6",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-each-attempt-resolves-selected-snapshot-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-each-attempt-resolves-selected-snapshot-proposition-applicability-mode",
+      "variant_id": "fixed-claim-each-attempt-resolves-selected-snapshot-proposition-applicability-mode",
+      "weakened_profile_digest": "491c027f3250681501420f52ee41c927544a7ea65dbcd4c0454bd175c6f24c6e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-each-attempt-resolves-selected-snapshot-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-each-attempt-resolves-selected-snapshot-proposition-applicability-operands",
+      "variant_id": "fixed-claim-each-attempt-resolves-selected-snapshot-proposition-applicability-operands",
+      "weakened_profile_digest": "c288c59e63e4e029b266e0f5303a959554743f6356e2c0afa669d7602f553867",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "mutation_trace"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-each-attempt-resolves-selected-snapshot-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-each-attempt-resolves-selected-snapshot-proposition-operand-0-role",
+      "variant_id": "fixed-claim-each-attempt-resolves-selected-snapshot-proposition-operand-0-role",
+      "weakened_profile_digest": "bc10a90de4a3ab6428cba29f80af6c9e7c10e17e5349fd3fc97c825d84a00bd4",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/operands/0/role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-each-attempt-resolves-selected-snapshot-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-each-attempt-resolves-selected-snapshot-proposition-operator",
+      "variant_id": "fixed-claim-each-attempt-resolves-selected-snapshot-proposition-operator",
+      "weakened_profile_digest": "da7b9ab1f9cc251d1f438952490abf308cc68729a8795f10b8e124f287302087",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-each-returned-page-resolves-selected-snapshot-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "fixed-claim-each-returned-page-resolves-selected-snapshot-modalities",
+      "variant_id": "fixed-claim-each-returned-page-resolves-selected-snapshot-modalities",
+      "weakened_profile_digest": "70faadfa2a301ec78c5b5b505a18b709a6ecc04f95c65166f534f99f0c1c1706",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-each-returned-page-resolves-selected-snapshot-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-each-returned-page-resolves-selected-snapshot-proposition-applicability-mode",
+      "variant_id": "fixed-claim-each-returned-page-resolves-selected-snapshot-proposition-applicability-mode",
+      "weakened_profile_digest": "d6d68297fea14fd8b7ee5789586bc69c5430dd92ce79b39940db10e67241abcd",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-each-returned-page-resolves-selected-snapshot-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-each-returned-page-resolves-selected-snapshot-proposition-applicability-operands",
+      "variant_id": "fixed-claim-each-returned-page-resolves-selected-snapshot-proposition-applicability-operands",
+      "weakened_profile_digest": "cdbebc75f149279dd6d34620d843cda620a0494e6f4411e5932672b40cfbc224",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "mutation_trace"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-each-returned-page-resolves-selected-snapshot-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-each-returned-page-resolves-selected-snapshot-proposition-operand-0-role",
+      "variant_id": "fixed-claim-each-returned-page-resolves-selected-snapshot-proposition-operand-0-role",
+      "weakened_profile_digest": "0e4ea332eefa918953b17ffaa0cd2717cfc1312d6ff6e5357953f520dd1b8a9e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/operands/0/role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-each-returned-page-resolves-selected-snapshot-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-each-returned-page-resolves-selected-snapshot-proposition-operator",
+      "variant_id": "fixed-claim-each-returned-page-resolves-selected-snapshot-proposition-operator",
+      "weakened_profile_digest": "84dc37f7b63dbc5affb87d4f4bcc8544a8d595fd5a18c31d604ff0beb7d36c02",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-first-page-precedes-mutation-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "fixed-claim-first-page-precedes-mutation-modalities",
+      "variant_id": "fixed-claim-first-page-precedes-mutation-modalities",
+      "weakened_profile_digest": "5ff3e8110910570265957f84f39f1a5c37423531d9cf285efbdedf0a7fe85261",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-first-page-precedes-mutation-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-first-page-precedes-mutation-proposition-operand-0-role",
+      "variant_id": "fixed-claim-first-page-precedes-mutation-proposition-operand-0-role",
+      "weakened_profile_digest": "d06f0a39e876573da70d544376a86b0914d8f042e4af247ad3c87f0cc1ab60a0",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/operands/0/role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-first-page-precedes-mutation-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-first-page-precedes-mutation-proposition-operator",
+      "variant_id": "fixed-claim-first-page-precedes-mutation-proposition-operator",
+      "weakened_profile_digest": "440c237824c1ef70fbebc931652061282e3297924f0322ca4539d26d02168c30",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-first-page-precedes-mutation-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-first-page-precedes-mutation-proposition-subject",
+      "variant_id": "fixed-claim-first-page-precedes-mutation-proposition-subject",
+      "weakened_profile_digest": "9e7456604327b0ff7490dbafefc4ea7c648749cfee7a40a94ebcc5baba865a76",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/subject_role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-live-source-initial-state-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "fixed-claim-live-source-initial-state-modalities",
+      "variant_id": "fixed-claim-live-source-initial-state-modalities",
+      "weakened_profile_digest": "88bcb53c5981ca7fec4f259c11b0d55279f9256f46b46d351863e2d20fb1ff06",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-live-source-initial-state-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-live-source-initial-state-proposition-applicability-mode",
+      "variant_id": "fixed-claim-live-source-initial-state-proposition-applicability-mode",
+      "weakened_profile_digest": "7145398607534089529b1e5025e6f66719cf23ff761e249292e1f4055b348226",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-live-source-initial-state-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-live-source-initial-state-proposition-applicability-operands",
+      "variant_id": "fixed-claim-live-source-initial-state-proposition-applicability-operands",
+      "weakened_profile_digest": "115ec2fa7f412c065461c113dddbb7b03a90b738ba41816f87409292c1d7a1c0",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "mutation_trace"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-live-source-initial-state-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-live-source-initial-state-proposition-operand-0-role",
+      "variant_id": "fixed-claim-live-source-initial-state-proposition-operand-0-role",
+      "weakened_profile_digest": "d7586c9338f5f24bf651e82e6c00cf345e8f3d37d6afe914c6175a370c009cff",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/operands/0/role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-live-source-initial-state-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-live-source-initial-state-proposition-operator",
+      "variant_id": "fixed-claim-live-source-initial-state-proposition-operator",
+      "weakened_profile_digest": "8b666168c9fa3ffdf1b264efdbc0eb7200dc9dbbacb68cb43d5db8f99666f278",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-live-source-initial-state-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-live-source-initial-state-proposition-subject",
+      "variant_id": "fixed-claim-live-source-initial-state-proposition-subject",
+      "weakened_profile_digest": "dad996984f4a9eed1f636272d380375857aa4274ceb0834433664f215ba95afb",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/subject_role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-live-source-later-state-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "fixed-claim-live-source-later-state-modalities",
+      "variant_id": "fixed-claim-live-source-later-state-modalities",
+      "weakened_profile_digest": "f383ce2ea2203e72d42e83015e047c4968c4deb287e2c4b7d75aa4e322f3e0a5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-live-source-later-state-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-live-source-later-state-proposition-applicability-mode",
+      "variant_id": "fixed-claim-live-source-later-state-proposition-applicability-mode",
+      "weakened_profile_digest": "484e0c6abeeb6e27049b844e55128f27090fcc579226ac27a6995582186b9326",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-live-source-later-state-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-live-source-later-state-proposition-applicability-operands",
+      "variant_id": "fixed-claim-live-source-later-state-proposition-applicability-operands",
+      "weakened_profile_digest": "a8f26e04aa5a0e9adcb92a8f0a68e97b95a1dd1c06fdba379b10c453cbf6e821",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "mutation_trace"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-live-source-later-state-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-live-source-later-state-proposition-operand-0-role",
+      "variant_id": "fixed-claim-live-source-later-state-proposition-operand-0-role",
+      "weakened_profile_digest": "caafbe0feb5f3ee2f8a87eb9c986ea08efa035b5f35e62e922bf7bfc306fdb6e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/operands/0/role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-live-source-later-state-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-live-source-later-state-proposition-operator",
+      "variant_id": "fixed-claim-live-source-later-state-proposition-operator",
+      "weakened_profile_digest": "3a55e2f680949989efed9f66a12bb1685e26501db7fa5b06c171b90d09ef1d4e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-live-source-later-state-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-live-source-later-state-proposition-subject",
+      "variant_id": "fixed-claim-live-source-later-state-proposition-subject",
+      "weakened_profile_digest": "f1dcdd69e243d29a934a3ad91956391ab6a28699a41ccc0928b22c45bbe3f123",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/subject_role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-mutation-precedes-later-page-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "fixed-claim-mutation-precedes-later-page-modalities",
+      "variant_id": "fixed-claim-mutation-precedes-later-page-modalities",
+      "weakened_profile_digest": "ae54e389c062ecddfc2c8cd34418bdc81f750fa748d32eb474df6b3919409c4f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-mutation-precedes-later-page-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-mutation-precedes-later-page-proposition-operand-0-role",
+      "variant_id": "fixed-claim-mutation-precedes-later-page-proposition-operand-0-role",
+      "weakened_profile_digest": "16fa03bbcf15c7696d212230a5e4164b12a5bf9714be4b0c7ab25250bfbea0ba",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/operands/0/role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-mutation-precedes-later-page-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-mutation-precedes-later-page-proposition-operator",
+      "variant_id": "fixed-claim-mutation-precedes-later-page-proposition-operator",
+      "weakened_profile_digest": "3ef031e6915aef51dff9a1fa3276b74293dc7e66b80aa859c9efa3affcb93296",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-mutation-precedes-later-page-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-mutation-precedes-later-page-proposition-subject",
+      "variant_id": "fixed-claim-mutation-precedes-later-page-proposition-subject",
+      "weakened_profile_digest": "f4291229e8c3b21204f67a2eeb4f1ccc13434466e6ab2969dc6c903fca2d2812",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/subject_role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-ordered-sequences-identical-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "fixed-claim-ordered-sequences-identical-modalities",
+      "variant_id": "fixed-claim-ordered-sequences-identical-modalities",
+      "weakened_profile_digest": "bb41156d7ca7ced942a16addbc53f55c1601d8a3e21abd3b6e6af7a8d82b83c2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-patterns",
+      "weakening_class": "deletion",
+      "fixture_id": "fixed-claim-patterns",
+      "variant_id": "fixed-claim-patterns",
+      "weakened_profile_digest": "d04a22d053ca2b5cc232dac475bf22e63148a6373afd563a191c1ff5defa05bf",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns",
+          "value": [
+            {
+              "pattern_id": "each-returned-page-resolves-selected-snapshot",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "for_each": {
+                "population_role": "returned_pages",
+                "member_role": "returned_page"
+              },
+              "proposition_template": {
+                "subject_role": "returned_page",
+                "operator": "reference:resolves_to",
+                "applicability_context": {
+                  "mode": "where",
+                  "operand_roles": [
+                    "traversal"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "snapshot"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "snapshot-state-at-first-page",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "snapshot",
+                "operator": "reference:has_state",
+                "applicability_context": {
+                  "mode": "where",
+                  "operand_roles": [
+                    "first_page_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "snapshot_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "snapshot-state-at-later-page",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "snapshot",
+                "operator": "reference:has_state",
+                "applicability_context": {
+                  "mode": "where",
+                  "operand_roles": [
+                    "later_page_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "snapshot_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "first-page-precedes-mutation",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "first_returned_page",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "relevant_mutation"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "mutation-precedes-later-page",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "relevant_mutation",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "later_page_attempt"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "relevant-mutation-mutates-live-source",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "relevant_mutation",
+                "operator": "reference:mutates",
+                "applicability_context": {
+                  "mode": "where",
+                  "operand_roles": [
+                    "traversal"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "live_source"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "live-source-initial-state",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "live_source",
+                "operator": "reference:has_state",
+                "applicability_context": {
+                  "mode": "where",
+                  "operand_roles": [
+                    "first_page_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "initial_source_version"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "live-source-later-state",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "live_source",
+                "operator": "reference:has_state",
+                "applicability_context": {
+                  "mode": "where",
+                  "operand_roles": [
+                    "later_page_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "later_source_version"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "comparison-records-ordered-sequences",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "sequence_comparison_result",
+                "operator": "reference:records",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "stable_member_occurrence_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "member_occurrence_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "ordered-sequences-identical",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "sequence_comparison_result",
+                "operator": "reference:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "identical_sequence_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verification-reads-exact-pagination-captures",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "mutation_trace"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "primary_before_capture"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "primary_after_capture"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "control_before_capture"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "control_after_capture"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "projection_result"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "traversal"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "page_attempts"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "returned_pages"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "member_occurrence_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "stable_member_occurrence_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "relevant_mutation"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "snapshot"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "snapshot_state"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "initial_source_version"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "later_source_version"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "sequence_comparison_result"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verify-ordered-sequences-identical",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "sequence_comparison_result"
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "falsifying_proposition_template": {
+                "subject_role": "sequence_comparison_result",
+                "operator": "reference:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "sequence_failure_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "identical_sequence_state"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression",
+          "value": {
+            "all_of": [
+              {
+                "pattern": "complete-page-attempt-population"
+              },
+              {
+                "pattern": "complete-returned-page-population"
+              },
+              {
+                "pattern": "complete-member-occurrence-population"
+              },
+              {
+                "pattern": "complete-stable-member-occurrence-population"
+              },
+              {
+                "pattern": "complete-mutation-population"
+              },
+              {
+                "pattern": "each-returned-page-resolves-selected-snapshot"
+              },
+              {
+                "pattern": "snapshot-state-at-first-page"
+              },
+              {
+                "pattern": "snapshot-state-at-later-page"
+              },
+              {
+                "pattern": "first-page-precedes-mutation"
+              },
+              {
+                "pattern": "mutation-precedes-later-page"
+              },
+              {
+                "pattern": "relevant-mutation-mutates-live-source"
+              },
+              {
+                "pattern": "live-source-initial-state"
+              },
+              {
+                "pattern": "live-source-later-state"
+              },
+              {
+                "pattern": "comparison-records-ordered-sequences"
+              },
+              {
+                "pattern": "ordered-sequences-identical"
+              },
+              {
+                "pattern": "verification-reads-exact-pagination-captures"
+              },
+              {
+                "pattern": "verify-ordered-sequences-identical"
+              },
+              {
+                "pattern": "verification-targets-sequence-equality"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-relevant-mutation-mutates-live-source-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "fixed-claim-relevant-mutation-mutates-live-source-modalities",
+      "variant_id": "fixed-claim-relevant-mutation-mutates-live-source-modalities",
+      "weakened_profile_digest": "5fd819929ea640db95351a2dbda9a21e796e54f74be2cebc5ef79e1436f5f1f0",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-relevant-mutation-mutates-live-source-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-relevant-mutation-mutates-live-source-proposition-applicability-mode",
+      "variant_id": "fixed-claim-relevant-mutation-mutates-live-source-proposition-applicability-mode",
+      "weakened_profile_digest": "b040acaa3f3a4142b2054c6e4b52905010e58450983e0e8a4be17c3217a3bbfb",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-relevant-mutation-mutates-live-source-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-relevant-mutation-mutates-live-source-proposition-applicability-operands",
+      "variant_id": "fixed-claim-relevant-mutation-mutates-live-source-proposition-applicability-operands",
+      "weakened_profile_digest": "0133b83df2900eaf2a347461db9eb78fc0c99854eda253c29c9f9ca5e52757de",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "mutation_trace"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-relevant-mutation-mutates-live-source-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-relevant-mutation-mutates-live-source-proposition-operand-0-role",
+      "variant_id": "fixed-claim-relevant-mutation-mutates-live-source-proposition-operand-0-role",
+      "weakened_profile_digest": "1591a36d0898f079757218d367a5f52e74f7eb4754e12580391bee4f36d6e0e5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/proposition_template/operands/0/role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-relevant-mutation-mutates-live-source-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-relevant-mutation-mutates-live-source-proposition-operator",
+      "variant_id": "fixed-claim-relevant-mutation-mutates-live-source-proposition-operator",
+      "weakened_profile_digest": "920f81b08fb25f110b350764a119cad1b9fe8cd20a2c1b979857fcc27cb7fdac",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-relevant-mutation-mutates-live-source-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-relevant-mutation-mutates-live-source-proposition-subject",
+      "variant_id": "fixed-claim-relevant-mutation-mutates-live-source-proposition-subject",
+      "weakened_profile_digest": "0aca0126c383980cf62131e91337c9a10f16e0feb1aeaef2b4066a9ba7784cf4",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/proposition_template/subject_role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-snapshot-state-at-first-page-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "fixed-claim-snapshot-state-at-first-page-modalities",
+      "variant_id": "fixed-claim-snapshot-state-at-first-page-modalities",
+      "weakened_profile_digest": "099998fa5c98657e5f384197a20f8066fd5136bf22cb3a8a2405b9757c2f598b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-snapshot-state-at-first-page-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-snapshot-state-at-first-page-proposition-applicability-mode",
+      "variant_id": "fixed-claim-snapshot-state-at-first-page-proposition-applicability-mode",
+      "weakened_profile_digest": "3b0da428508196af51eaa1e685dc6af44b439b226d6bce85ce6d386ca75eacee",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-snapshot-state-at-first-page-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-snapshot-state-at-first-page-proposition-applicability-operands",
+      "variant_id": "fixed-claim-snapshot-state-at-first-page-proposition-applicability-operands",
+      "weakened_profile_digest": "e1eaa01809efd2edee804210b8f7113523455f94247e6278b98fa263b8d7ee8b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "mutation_trace"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-snapshot-state-at-first-page-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-snapshot-state-at-first-page-proposition-operand-0-role",
+      "variant_id": "fixed-claim-snapshot-state-at-first-page-proposition-operand-0-role",
+      "weakened_profile_digest": "76cdcdd1b92b712f443adf1fd9a39669c12c685e4e0fe24f20beb40c3fabbfba",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/operands/0/role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-snapshot-state-at-first-page-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-snapshot-state-at-first-page-proposition-operator",
+      "variant_id": "fixed-claim-snapshot-state-at-first-page-proposition-operator",
+      "weakened_profile_digest": "628052aaf2d1761c54f392ebd1a256419d64033bd9500ff095b8a99c58e61021",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-snapshot-state-at-first-page-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-snapshot-state-at-first-page-proposition-subject",
+      "variant_id": "fixed-claim-snapshot-state-at-first-page-proposition-subject",
+      "weakened_profile_digest": "c7971658fae97d1889be5a24de0ecac7ff48f93422248187ca6e9a71efd91a64",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/subject_role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-snapshot-state-at-later-page-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "fixed-claim-snapshot-state-at-later-page-modalities",
+      "variant_id": "fixed-claim-snapshot-state-at-later-page-modalities",
+      "weakened_profile_digest": "8808acbf0a339371b30e8a453f950519183ccdbf18c7aa6da9427bba1ab20a41",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-snapshot-state-at-later-page-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-snapshot-state-at-later-page-proposition-applicability-mode",
+      "variant_id": "fixed-claim-snapshot-state-at-later-page-proposition-applicability-mode",
+      "weakened_profile_digest": "affdb2fdf15cb99c3bdfbae068a7d17d73d5d7707efaa3511b0c6036801cda3a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-snapshot-state-at-later-page-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-snapshot-state-at-later-page-proposition-applicability-operands",
+      "variant_id": "fixed-claim-snapshot-state-at-later-page-proposition-applicability-operands",
+      "weakened_profile_digest": "0bd3ee569de7c0db10f253a2d0a7345c305e4beb3a04e5d7b8110a8ef984ce7b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "mutation_trace"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-snapshot-state-at-later-page-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-snapshot-state-at-later-page-proposition-operand-0-role",
+      "variant_id": "fixed-claim-snapshot-state-at-later-page-proposition-operand-0-role",
+      "weakened_profile_digest": "23e148d76e9a2eb595fb8c0f83155e17b3445b15b12b07af44593a427cb27f20",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/operands/0/role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-snapshot-state-at-later-page-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-snapshot-state-at-later-page-proposition-operator",
+      "variant_id": "fixed-claim-snapshot-state-at-later-page-proposition-operator",
+      "weakened_profile_digest": "471a64f7b37391604849358ab6d45cd5cf6c99f73135e704f9b2cf97e38418af",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-snapshot-state-at-later-page-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-snapshot-state-at-later-page-proposition-subject",
+      "variant_id": "fixed-claim-snapshot-state-at-later-page-proposition-subject",
+      "weakened_profile_digest": "7d53cb038380b60b25e59e9ca9bc30d0e03a377be28c3cebdf2e0d716de547b5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/subject_role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-exact-pagination-captures-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "fixed-claim-verification-reads-exact-pagination-captures-modalities",
+      "variant_id": "fixed-claim-verification-reads-exact-pagination-captures-modalities",
+      "weakened_profile_digest": "70b067a9ca448ad4a0805466dd08460a935d92a8abad133973c69da587670733",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/allowed_modalities",
+          "value": [
+            "MUST",
+            "MUST_NOT"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-exact-pagination-captures-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-0-role",
+      "variant_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-0-role",
+      "weakened_profile_digest": "8e34c0fab86e87a673df90c0460151238eeea8e5538bb186ac48b26656f751d2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/operands/0/role",
+          "value": "projection_result"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-exact-pagination-captures-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-1-role",
+      "variant_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-1-role",
+      "weakened_profile_digest": "97e787f4a48593ab85fe3af5610013df1c5033ffcf065a16d0e7b0250c7b7247",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/operands/1/role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-exact-pagination-captures-proposition-operand-10-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-10-role",
+      "variant_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-10-role",
+      "weakened_profile_digest": "91455a88b052087069775a3008a53f317178ca07ad2825992ccd9b4b2fa4fa14",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/operands/10/role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-exact-pagination-captures-proposition-operand-11-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-11-role",
+      "variant_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-11-role",
+      "weakened_profile_digest": "99eb204f0bc82d6f49e57b7b7bb974488c838b86e7c4a61b9903700cc5e3f4c2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/operands/11/role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-exact-pagination-captures-proposition-operand-12-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-12-role",
+      "variant_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-12-role",
+      "weakened_profile_digest": "2b533b517ae420822760a57cb707962b4241b1c345d9e0947a62407c954f6613",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/operands/12/role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-exact-pagination-captures-proposition-operand-13-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-13-role",
+      "variant_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-13-role",
+      "weakened_profile_digest": "4f80630af9000c3b8eb85a3031dffe51dcf5ed05f631526b2f05ec71721aa80b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/operands/13/role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-exact-pagination-captures-proposition-operand-14-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-14-role",
+      "variant_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-14-role",
+      "weakened_profile_digest": "decb770e1a970a4633cef177af4f6f927b28a713bce937b45ce134dda0ff6e4e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/operands/14/role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-exact-pagination-captures-proposition-operand-15-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-15-role",
+      "variant_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-15-role",
+      "weakened_profile_digest": "a557a1641d310f2a908a31e68645c6f30c102b47f20e48edf60ade5c3da465bc",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/operands/15/role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-exact-pagination-captures-proposition-operand-16-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-16-role",
+      "variant_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-16-role",
+      "weakened_profile_digest": "53562d32b84b69e872040b8e29067feb414b567c4b06609af17bdc729027a973",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/operands/16/role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-exact-pagination-captures-proposition-operand-2-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-2-role",
+      "variant_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-2-role",
+      "weakened_profile_digest": "27b50c8391fd9f9cf32c2354008f358d73c3aff4cf64e906a6773caac4e1fed2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/operands/2/role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-exact-pagination-captures-proposition-operand-3-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-3-role",
+      "variant_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-3-role",
+      "weakened_profile_digest": "3a05d6e9fc585dba059fda2e78c076458b3acaca8f2e46bbcaa1c0c48e7c36dc",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/operands/3/role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-exact-pagination-captures-proposition-operand-4-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-4-role",
+      "variant_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-4-role",
+      "weakened_profile_digest": "78d00917b472beab6efcae1cd3e3f5c9ec4f5ddb799d403ea84b78fc7fd4a482",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/operands/4/role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-exact-pagination-captures-proposition-operand-5-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-5-role",
+      "variant_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-5-role",
+      "weakened_profile_digest": "234f4eebcda12c354b57813e30354f451f16f46656ba611b9c79acec65ec743d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/operands/5/role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-exact-pagination-captures-proposition-operand-6-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-6-role",
+      "variant_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-6-role",
+      "weakened_profile_digest": "663e947d48225101bfdbe3a47901e8c25cb42ded23fbf409b4fc7f6acc72a638",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/operands/6/role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-exact-pagination-captures-proposition-operand-7-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-7-role",
+      "variant_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-7-role",
+      "weakened_profile_digest": "7e959b9bfb6da5c727515bfa0a180453942f2f1b618c5f0d32979411f5d9b799",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/operands/7/role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-exact-pagination-captures-proposition-operand-8-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-8-role",
+      "variant_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-8-role",
+      "weakened_profile_digest": "13d5cab8040a91189c689a993eca3338fd60ccf251fc310424d718662f91f4ad",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/operands/8/role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-exact-pagination-captures-proposition-operand-9-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-9-role",
+      "variant_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operand-9-role",
+      "weakened_profile_digest": "40c6771ecc091862f073d41aa4d06f6a030464b9940e14147dd734b0165d6f82",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/operands/9/role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-exact-pagination-captures-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operator",
+      "variant_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-operator",
+      "weakened_profile_digest": "08b7c60ae43f0e2450d523fe5bb82db6d6e30c30bf6380433aba6c86b0483f81",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verification-reads-exact-pagination-captures-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-subject",
+      "variant_id": "fixed-claim-verification-reads-exact-pagination-captures-proposition-subject",
+      "weakened_profile_digest": "035d8314d0ef8fb02c6e090da1cd6525f37821a50301177e59b5b860779e3574",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/subject_role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-ordered-sequences-identical-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "fixed-claim-verify-ordered-sequences-identical-modalities",
+      "variant_id": "fixed-claim-verify-ordered-sequences-identical-modalities",
+      "weakened_profile_digest": "2cbf3fec9257c533c80d6b52ade1de7d205f67ec238edebdea70cc338a6ed5bb",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-ordered-sequences-identical-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-verify-ordered-sequences-identical-proposition-operand-0-role",
+      "variant_id": "fixed-claim-verify-ordered-sequences-identical-proposition-operand-0-role",
+      "weakened_profile_digest": "83f11241de8484cefb351d1986fdebea29abeabe6af56046660213d6f100e651",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/operands/0/role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-ordered-sequences-identical-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-verify-ordered-sequences-identical-proposition-operator",
+      "variant_id": "fixed-claim-verify-ordered-sequences-identical-proposition-operator",
+      "weakened_profile_digest": "07caaf13905651052a0d52aba895b16fb009a2c8969e35e919e9757ec092e682",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-ordered-sequences-identical-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "fixed-claim-verify-ordered-sequences-identical-proposition-subject",
+      "variant_id": "fixed-claim-verify-ordered-sequences-identical-proposition-subject",
+      "weakened_profile_digest": "e9ceeba7274fa3eef36c039310ef8af09756944c3894471a7eee77b10e06dc77",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/subject_role",
+          "value": "mutation_trace"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-ordered-sequences-identical-verification-methods",
+      "weakening_class": "verification_method_broadening",
+      "fixture_id": "fixed-claim-verify-ordered-sequences-identical-verification-methods",
+      "variant_id": "fixed-claim-verify-ordered-sequences-identical-verification-methods",
+      "weakened_profile_digest": "84f58f0ddc225a9664c2f5912f851f1c4a99f16bfada8d94e51acd2d2805d6c6",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/verification_methods",
+          "value": [
+            "analysis",
+            "demonstration",
+            "proof",
+            "test_execution",
+            "audit"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "falsifier-condition-bindings",
+      "weakening_class": "falsifier_weakening",
+      "fixture_id": "fixed-falsifier-condition-bindings",
+      "variant_id": "fixed-falsifier-condition-bindings",
+      "weakened_profile_digest": "8b6ee7c18dceedb81b18a1d668633038e7d8518b8a1ff4116866665569600e7c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings/0/applicability_context",
+          "value": {
+            "mode": "when",
+            "operand_roles": [
+              "sequence_failure_condition",
+              "traversal"
+            ]
+          }
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/falsifying_proposition_template/applicability_context",
+          "value": {
+            "mode": "when",
+            "operand_roles": [
+              "sequence_failure_condition",
+              "traversal"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "surface_id": "reference-binding-patterns",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "fixed-reference-binding-patterns",
+      "variant_id": "fixed-reference-binding-patterns",
+      "weakened_profile_digest": "1fde72f4bf013af6098801887b80a6c05da9156ff879ee646cccb73def5d9400",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_binding_patterns",
+          "value": [
+            {
+              "pattern_id": "complete-page-attempt-population",
+              "required_by_stage": "pre_dispatch",
+              "comparison": "complete_population",
+              "roles": [
+                "page_attempt_population",
+                "page_attempts"
+              ],
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            },
+            {
+              "pattern_id": "complete-returned-page-population",
+              "required_by_stage": "pre_dispatch",
+              "comparison": "complete_population",
+              "roles": [
+                "returned_page_population",
+                "returned_pages"
+              ],
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            },
+            {
+              "pattern_id": "complete-member-occurrence-population",
+              "required_by_stage": "pre_dispatch",
+              "comparison": "complete_population",
+              "roles": [
+                "member_occurrence_population",
+                "member_occurrences"
+              ],
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            },
+            {
+              "pattern_id": "complete-stable-member-occurrence-population",
+              "required_by_stage": "pre_dispatch",
+              "comparison": "complete_population",
+              "roles": [
+                "stable_member_occurrence_population",
+                "stable_member_occurrences"
+              ],
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression",
+          "value": {
+            "all_of": [
+              {
+                "pattern": "complete-page-attempt-population"
+              },
+              {
+                "pattern": "complete-returned-page-population"
+              },
+              {
+                "pattern": "complete-member-occurrence-population"
+              },
+              {
+                "pattern": "complete-stable-member-occurrence-population"
+              },
+              {
+                "pattern": "each-attempt-resolves-selected-snapshot"
+              },
+              {
+                "pattern": "each-returned-page-resolves-selected-snapshot"
+              },
+              {
+                "pattern": "snapshot-state-at-first-page"
+              },
+              {
+                "pattern": "snapshot-state-at-later-page"
+              },
+              {
+                "pattern": "first-page-precedes-mutation"
+              },
+              {
+                "pattern": "mutation-precedes-later-page"
+              },
+              {
+                "pattern": "relevant-mutation-mutates-live-source"
+              },
+              {
+                "pattern": "live-source-initial-state"
+              },
+              {
+                "pattern": "live-source-later-state"
+              },
+              {
+                "pattern": "comparison-records-ordered-sequences"
+              },
+              {
+                "pattern": "ordered-sequences-identical"
+              },
+              {
+                "pattern": "verification-reads-exact-pagination-captures"
+              },
+              {
+                "pattern": "verify-ordered-sequences-identical"
+              },
+              {
+                "pattern": "verification-targets-sequence-equality"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "surface_id": "relation-patterns",
+      "weakening_class": "relation_weakening",
+      "fixture_id": "fixed-relation-patterns",
+      "variant_id": "fixed-relation-patterns",
+      "weakened_profile_digest": "5b5b5a137b7f474eda35e2639be91995bf4880df404d9058f28da7bb4e421232",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/relation_patterns",
+          "value": [
+            {
+              "pattern_id": "verification-targets-sequence-equality",
+              "required_by_stage": "pre_dispatch",
+              "role": "verifies",
+              "source_claim_pattern_id": "alternate-verify-ordered-sequences-identical",
+              "target_claim_pattern_id": "ordered-sequences-identical"
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns",
+          "value": [
+            {
+              "pattern_id": "each-attempt-resolves-selected-snapshot",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "for_each": {
+                "population_role": "page_attempts",
+                "member_role": "page_attempt"
+              },
+              "proposition_template": {
+                "subject_role": "page_attempt",
+                "operator": "reference:resolves_to",
+                "applicability_context": {
+                  "mode": "where",
+                  "operand_roles": [
+                    "traversal"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "snapshot"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "each-returned-page-resolves-selected-snapshot",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "for_each": {
+                "population_role": "returned_pages",
+                "member_role": "returned_page"
+              },
+              "proposition_template": {
+                "subject_role": "returned_page",
+                "operator": "reference:resolves_to",
+                "applicability_context": {
+                  "mode": "where",
+                  "operand_roles": [
+                    "traversal"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "snapshot"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "snapshot-state-at-first-page",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "snapshot",
+                "operator": "reference:has_state",
+                "applicability_context": {
+                  "mode": "where",
+                  "operand_roles": [
+                    "first_page_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "snapshot_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "snapshot-state-at-later-page",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "snapshot",
+                "operator": "reference:has_state",
+                "applicability_context": {
+                  "mode": "where",
+                  "operand_roles": [
+                    "later_page_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "snapshot_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "first-page-precedes-mutation",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "first_returned_page",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "relevant_mutation"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "mutation-precedes-later-page",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "relevant_mutation",
+                "operator": "reference:precedes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "later_page_attempt"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "relevant-mutation-mutates-live-source",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "relevant_mutation",
+                "operator": "reference:mutates",
+                "applicability_context": {
+                  "mode": "where",
+                  "operand_roles": [
+                    "traversal"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "live_source"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "live-source-initial-state",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "live_source",
+                "operator": "reference:has_state",
+                "applicability_context": {
+                  "mode": "where",
+                  "operand_roles": [
+                    "first_page_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "initial_source_version"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "live-source-later-state",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "live_source",
+                "operator": "reference:has_state",
+                "applicability_context": {
+                  "mode": "where",
+                  "operand_roles": [
+                    "later_page_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "later_source_version"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "comparison-records-ordered-sequences",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "sequence_comparison_result",
+                "operator": "reference:records",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "stable_member_occurrence_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "member_occurrence_population"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "ordered-sequences-identical",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "sequence_comparison_result",
+                "operator": "reference:equals",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "identical_sequence_state"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verification-reads-exact-pagination-captures",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "mutation_trace"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "primary_before_capture"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "primary_after_capture"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "control_before_capture"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "control_after_capture"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "projection_result"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "traversal"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "page_attempts"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "returned_pages"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "member_occurrence_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "stable_member_occurrence_population"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "relevant_mutation"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "snapshot"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "snapshot_state"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "initial_source_version"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "later_source_version"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "sequence_comparison_result"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "alternate-verify-ordered-sequences-identical",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "snapshot_state"
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "falsifying_proposition_template": {
+                "subject_role": "sequence_comparison_result",
+                "operator": "reference:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "sequence_failure_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "identical_sequence_state"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression",
+          "value": {
+            "all_of": [
+              {
+                "pattern": "complete-page-attempt-population"
+              },
+              {
+                "pattern": "complete-returned-page-population"
+              },
+              {
+                "pattern": "complete-member-occurrence-population"
+              },
+              {
+                "pattern": "complete-stable-member-occurrence-population"
+              },
+              {
+                "pattern": "complete-mutation-population"
+              },
+              {
+                "pattern": "each-attempt-resolves-selected-snapshot"
+              },
+              {
+                "pattern": "each-returned-page-resolves-selected-snapshot"
+              },
+              {
+                "pattern": "snapshot-state-at-first-page"
+              },
+              {
+                "pattern": "snapshot-state-at-later-page"
+              },
+              {
+                "pattern": "first-page-precedes-mutation"
+              },
+              {
+                "pattern": "mutation-precedes-later-page"
+              },
+              {
+                "pattern": "relevant-mutation-mutates-live-source"
+              },
+              {
+                "pattern": "live-source-initial-state"
+              },
+              {
+                "pattern": "live-source-later-state"
+              },
+              {
+                "pattern": "comparison-records-ordered-sequences"
+              },
+              {
+                "pattern": "ordered-sequences-identical"
+              },
+              {
+                "pattern": "verification-reads-exact-pagination-captures"
+              },
+              {
+                "pattern": "alternate-verify-ordered-sequences-identical"
+              },
+              {
+                "pattern": "verification-targets-sequence-equality"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "surface_id": "role-control-after-capture-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-control-after-capture-allowed-type-terms",
+      "variant_id": "fixed-role-control-after-capture-allowed-type-terms",
+      "weakened_profile_digest": "a11db7df3a232fc96de21466c63251c1d81c1e5b2715972ba99b5247da046402",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/5/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-control-after-capture-cardinality",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "fixed-role-control-after-capture-cardinality",
+      "variant_id": "fixed-role-control-after-capture-cardinality",
+      "weakened_profile_digest": "50cd57e80b8551cf5b7e7af77fb5d80762ed665ef03a4f0d4f8018671d40d4cc",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/5/cardinality",
+          "value": "one_or_more"
+        }
+      ]
+    },
+    {
+      "surface_id": "role-control-before-capture-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-control-before-capture-allowed-type-terms",
+      "variant_id": "fixed-role-control-before-capture-allowed-type-terms",
+      "weakened_profile_digest": "ccb479f8054306202524d60b45d6f2fbb0d1b8fd201b3b650489c07995a3c695",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/4/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-control-before-capture-cardinality",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "fixed-role-control-before-capture-cardinality",
+      "variant_id": "fixed-role-control-before-capture-cardinality",
+      "weakened_profile_digest": "983d2a286d54c34cce747bc7165f2cd4833b62ae27179b595001445f5485288c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/4/cardinality",
+          "value": "one_or_more"
+        }
+      ]
+    },
+    {
+      "surface_id": "role-first-page-attempt-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-first-page-attempt-allowed-type-terms",
+      "variant_id": "fixed-role-first-page-attempt-allowed-type-terms",
+      "weakened_profile_digest": "d87ddc944b7a5d5cbfed2ace420d6ab990cb430e4799b545e445dc31255a82d5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/22/allowed_type_terms",
+          "value": [
+            "cc:event",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-first-page-attempt-cardinality",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "fixed-role-first-page-attempt-cardinality",
+      "variant_id": "fixed-role-first-page-attempt-cardinality",
+      "weakened_profile_digest": "0cd5aeb408f66bad14a92c96a1493cddbac6e831b0b977a861adbd09cf5b4c46",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/22/cardinality",
+          "value": "one_or_more"
+        }
+      ]
+    },
+    {
+      "surface_id": "role-first-returned-page-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-first-returned-page-allowed-type-terms",
+      "variant_id": "fixed-role-first-returned-page-allowed-type-terms",
+      "weakened_profile_digest": "ee22a67610a59a08b2d44d1854c51badea6297d77aae619011bc08f161e5bdb5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/24/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-identical-sequence-state-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-identical-sequence-state-allowed-type-terms",
+      "variant_id": "fixed-role-identical-sequence-state-allowed-type-terms",
+      "weakened_profile_digest": "21ccad9d57dcd78e9e36a219237eca94dfa6627135a8243409e51aa5a86a76d3",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/28/allowed_type_terms",
+          "value": [
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-initial-source-version-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-initial-source-version-allowed-type-terms",
+      "variant_id": "fixed-role-initial-source-version-allowed-type-terms",
+      "weakened_profile_digest": "345e0116dec942d95ee2b63566be7ed8dc08cfb3eb1c7da4c6bc87a8ad2a971e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/10/allowed_type_terms",
+          "value": [
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-later-page-attempt-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-later-page-attempt-allowed-type-terms",
+      "variant_id": "fixed-role-later-page-attempt-allowed-type-terms",
+      "weakened_profile_digest": "1bce34ad7689ba8e6ab4e0ad22c6ea0a0864db1a7900ec82a815e0c1448d5c8c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/23/allowed_type_terms",
+          "value": [
+            "cc:event",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-later-page-attempt-cardinality",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "fixed-role-later-page-attempt-cardinality",
+      "variant_id": "fixed-role-later-page-attempt-cardinality",
+      "weakened_profile_digest": "861afc01cd20cdd8f98e9b8962cc38cfae59f6719e459f79ee146156b9e88fb0",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/23/cardinality",
+          "value": "one_or_more"
+        }
+      ]
+    },
+    {
+      "surface_id": "role-later-returned-page-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-later-returned-page-allowed-type-terms",
+      "variant_id": "fixed-role-later-returned-page-allowed-type-terms",
+      "weakened_profile_digest": "a5d6a822eb454fb80f873f7778fee360e7841826965298c20e5cf108be22d788",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/25/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-later-returned-page-cardinality",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "fixed-role-later-returned-page-cardinality",
+      "variant_id": "fixed-role-later-returned-page-cardinality",
+      "weakened_profile_digest": "346fecc54b732679956b0da9255c1793f4bbc2c58de1b71334db3377a43b39a9",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/25/cardinality",
+          "value": "one_or_more"
+        }
+      ]
+    },
+    {
+      "surface_id": "role-later-source-version-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-later-source-version-allowed-type-terms",
+      "variant_id": "fixed-role-later-source-version-allowed-type-terms",
+      "weakened_profile_digest": "5786649a9033a6b21d1aef90048f9174681de18ca564ef232d5a3c233b994ae9",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/11/allowed_type_terms",
+          "value": [
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-live-source-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-live-source-allowed-type-terms",
+      "variant_id": "fixed-role-live-source-allowed-type-terms",
+      "weakened_profile_digest": "9597b9a9d122a1aa2e4adea8b4241ab5c38843db3b11a419fef90a5ff7f8fb9c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/7/allowed_type_terms",
+          "value": [
+            "cc:resource",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-member-occurrence-population-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-member-occurrence-population-allowed-type-terms",
+      "variant_id": "fixed-role-member-occurrence-population-allowed-type-terms",
+      "weakened_profile_digest": "f03372e86833d9b062f04aa6a9fd1f13363784080fc1d94f59600fb668560eee",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/16/allowed_type_terms",
+          "value": [
+            "cc:population",
+            "cc:scope"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-member-occurrences-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-member-occurrences-allowed-type-terms",
+      "variant_id": "fixed-role-member-occurrences-allowed-type-terms",
+      "weakened_profile_digest": "d1760dcd383f7173cbf8e0c509cc30bff42bb903cffdcfaa2c371587f0b52773",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/17/allowed_type_terms",
+          "value": [
+            "cc:evidence",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-mutation-population-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-mutation-population-allowed-type-terms",
+      "variant_id": "fixed-role-mutation-population-allowed-type-terms",
+      "weakened_profile_digest": "5060eb95d5234b61952e02f2f73d2ee0d57431c54a87564e282aa0994cdf707b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/20/allowed_type_terms",
+          "value": [
+            "cc:population",
+            "cc:scope"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-mutation-trace-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-mutation-trace-allowed-type-terms",
+      "variant_id": "fixed-role-mutation-trace-allowed-type-terms",
+      "weakened_profile_digest": "71694c5096f3d0dbba45f70ab16d95b0bd80c7e626c7527cceecc9d57ed04eb9",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/0/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-mutation-trace-cardinality",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "fixed-role-mutation-trace-cardinality",
+      "variant_id": "fixed-role-mutation-trace-cardinality",
+      "weakened_profile_digest": "a946c7cd2c2716d8c9c69aa4f055eece0a67dd52891a94675030208599db7cce",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/0/cardinality",
+          "value": "one_or_more"
+        }
+      ]
+    },
+    {
+      "surface_id": "role-mutations-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-mutations-allowed-type-terms",
+      "variant_id": "fixed-role-mutations-allowed-type-terms",
+      "weakened_profile_digest": "474b3ab39e3663f75ffdaf8352b10ed8c74f97c77141b51e829c72d422b2d4b1",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/21/allowed_type_terms",
+          "value": [
+            "cc:event",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-page-attempt-population-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-page-attempt-population-allowed-type-terms",
+      "variant_id": "fixed-role-page-attempt-population-allowed-type-terms",
+      "weakened_profile_digest": "feacc663c75ad368579d9f2541e980a6d6e028b3365f10c642b0cbc7750833cd",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/12/allowed_type_terms",
+          "value": [
+            "cc:population",
+            "cc:scope"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-page-attempts-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-page-attempts-allowed-type-terms",
+      "variant_id": "fixed-role-page-attempts-allowed-type-terms",
+      "weakened_profile_digest": "903117ad48bec3f35430d70744f7abe3324876c3a8a8ea25597b44a3b6761aff",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/13/allowed_type_terms",
+          "value": [
+            "cc:event",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-primary-after-capture-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-primary-after-capture-allowed-type-terms",
+      "variant_id": "fixed-role-primary-after-capture-allowed-type-terms",
+      "weakened_profile_digest": "99fb3fa328e0092925d0c28dc9b54055b3ec5a8098613890712916babccab39b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/3/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-primary-after-capture-cardinality",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "fixed-role-primary-after-capture-cardinality",
+      "variant_id": "fixed-role-primary-after-capture-cardinality",
+      "weakened_profile_digest": "723935c12e44e48cd9b4ffab84e6233ceb1aa6b835f6b8f937480a2e876e453c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/3/cardinality",
+          "value": "one_or_more"
+        }
+      ]
+    },
+    {
+      "surface_id": "role-primary-before-capture-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-primary-before-capture-allowed-type-terms",
+      "variant_id": "fixed-role-primary-before-capture-allowed-type-terms",
+      "weakened_profile_digest": "2509539c2564816f2f8b10d78500735d555dd692d43549a6e96d786bead1f235",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/2/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-primary-before-capture-cardinality",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "fixed-role-primary-before-capture-cardinality",
+      "variant_id": "fixed-role-primary-before-capture-cardinality",
+      "weakened_profile_digest": "6390435340b0ccdd6bfb97c7f0fdbe5c93efd67612aa2804af0574696dc0b7e5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/2/cardinality",
+          "value": "one_or_more"
+        }
+      ]
+    },
+    {
+      "surface_id": "role-projection-result-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-projection-result-allowed-type-terms",
+      "variant_id": "fixed-role-projection-result-allowed-type-terms",
+      "weakened_profile_digest": "a99b3326674b066787f87eb4fff1ef9b70ba3d1f7cc6d418c66c10efa7b4ff4e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/1/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-projection-result-cardinality",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "fixed-role-projection-result-cardinality",
+      "variant_id": "fixed-role-projection-result-cardinality",
+      "weakened_profile_digest": "fac5b03e7ee120a155f20baf0d5219d5891b28a71fd06928dec39b94d7f26932",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/1/cardinality",
+          "value": "one_or_more"
+        }
+      ]
+    },
+    {
+      "surface_id": "role-relevant-mutation-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-relevant-mutation-allowed-type-terms",
+      "variant_id": "fixed-role-relevant-mutation-allowed-type-terms",
+      "weakened_profile_digest": "8fbc998ffa0cdd72a88632a410316589a00544be3191ab579a802b796c7626d7",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/26/allowed_type_terms",
+          "value": [
+            "cc:event",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-returned-page-population-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-returned-page-population-allowed-type-terms",
+      "variant_id": "fixed-role-returned-page-population-allowed-type-terms",
+      "weakened_profile_digest": "35e977d7f2d2296ed9014efb975d09cfef9de098484dd9776e80d7832a170846",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/14/allowed_type_terms",
+          "value": [
+            "cc:population",
+            "cc:scope"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-returned-pages-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-returned-pages-allowed-type-terms",
+      "variant_id": "fixed-role-returned-pages-allowed-type-terms",
+      "weakened_profile_digest": "52332c6adc6ca39ffbf9524050b9d2cf78509ca35ee3e2d7c72b2b57a72aad2f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/15/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-sequence-comparison-result-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-sequence-comparison-result-allowed-type-terms",
+      "variant_id": "fixed-role-sequence-comparison-result-allowed-type-terms",
+      "weakened_profile_digest": "df4bfbea6a1756b119366d2451f859b116d32b44bd9594eae1b051dba0903b33",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/27/allowed_type_terms",
+          "value": [
+            "cc:evidence",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-sequence-failure-condition-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-sequence-failure-condition-allowed-type-terms",
+      "variant_id": "fixed-role-sequence-failure-condition-allowed-type-terms",
+      "weakened_profile_digest": "2963cd5848414e9e20633342039cec861b4a06776c7ea271ffe1cde138c3d6df",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/30/allowed_type_terms",
+          "value": [
+            "cc:criterion",
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-sequence-failure-condition-cardinality",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "fixed-role-sequence-failure-condition-cardinality",
+      "variant_id": "fixed-role-sequence-failure-condition-cardinality",
+      "weakened_profile_digest": "c7d57b92eef36736a5b88bcb5eff6718616dc3bc69e44fe17d27989c067e4099",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/30/cardinality",
+          "value": "one_or_more"
+        }
+      ]
+    },
+    {
+      "surface_id": "role-snapshot-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-snapshot-allowed-type-terms",
+      "variant_id": "fixed-role-snapshot-allowed-type-terms",
+      "weakened_profile_digest": "a567f648fef130470a7bfbfd06386b87cde9c27886cb7658c8c010b84308bcef",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/8/allowed_type_terms",
+          "value": [
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-snapshot-state-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-snapshot-state-allowed-type-terms",
+      "variant_id": "fixed-role-snapshot-state-allowed-type-terms",
+      "weakened_profile_digest": "6cc8ef53797d1ebb0f6e9d9e9796f2579c07d2f9e2df7f4a37d53fc51111f82c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/9/allowed_type_terms",
+          "value": [
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-stable-member-occurrence-population-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-stable-member-occurrence-population-allowed-type-terms",
+      "variant_id": "fixed-role-stable-member-occurrence-population-allowed-type-terms",
+      "weakened_profile_digest": "39f30fbd9c906d553f88b8be58d0b16e9e3a0cc0fac9227de538a376a983c8bc",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/18/allowed_type_terms",
+          "value": [
+            "cc:population",
+            "cc:scope"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-stable-member-occurrences-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-stable-member-occurrences-allowed-type-terms",
+      "variant_id": "fixed-role-stable-member-occurrences-allowed-type-terms",
+      "weakened_profile_digest": "c91f6d2a62e2dd872b38e468db64f7cfe7c17125a8b895660c8f0fdf2047cb06",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/19/allowed_type_terms",
+          "value": [
+            "cc:evidence",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-traversal-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-traversal-allowed-type-terms",
+      "variant_id": "fixed-role-traversal-allowed-type-terms",
+      "weakened_profile_digest": "6f48ff2789377ae48098fbd139029529e67c8aee0182068adb4d302b35fc8613",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/6/allowed_type_terms",
+          "value": [
+            "cc:process",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-traversal-cardinality",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "fixed-role-traversal-cardinality",
+      "variant_id": "fixed-role-traversal-cardinality",
+      "weakened_profile_digest": "ce28740dba8920115b99901791ad72a1ffc446c48af7a869b12cf778188225a9",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/6/cardinality",
+          "value": "one_or_more"
+        }
+      ]
+    },
+    {
+      "surface_id": "role-verification-allowed-type-terms",
+      "weakening_class": "type_broadening",
+      "fixture_id": "fixed-role-verification-allowed-type-terms",
+      "variant_id": "fixed-role-verification-allowed-type-terms",
+      "weakened_profile_digest": "290852c42274a1a5b351d4972a9d7b566c9121275ebe98430497972373cbe8cc",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/29/allowed_type_terms",
+          "value": [
+            "cc:test",
+            "cc:process",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "satisfaction-expression",
+      "weakening_class": "satisfaction_branch_broadening",
+      "fixture_id": "fixed-satisfaction-expression",
+      "variant_id": "fixed-satisfaction-expression",
+      "weakened_profile_digest": "ab8ab3a98ee82e96e8dfe7aca4b99a385c902ab2b551e7b315d837516ea23650",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression",
+          "value": {
+            "any_of": [
+              {
+                "pattern": "complete-page-attempt-population"
+              },
+              {
+                "pattern": "complete-returned-page-population"
+              },
+              {
+                "pattern": "complete-member-occurrence-population"
+              },
+              {
+                "pattern": "complete-stable-member-occurrence-population"
+              },
+              {
+                "pattern": "complete-mutation-population"
+              },
+              {
+                "pattern": "each-attempt-resolves-selected-snapshot"
+              },
+              {
+                "pattern": "each-returned-page-resolves-selected-snapshot"
+              },
+              {
+                "pattern": "snapshot-state-at-first-page"
+              },
+              {
+                "pattern": "snapshot-state-at-later-page"
+              },
+              {
+                "pattern": "first-page-precedes-mutation"
+              },
+              {
+                "pattern": "mutation-precedes-later-page"
+              },
+              {
+                "pattern": "relevant-mutation-mutates-live-source"
+              },
+              {
+                "pattern": "live-source-initial-state"
+              },
+              {
+                "pattern": "live-source-later-state"
+              },
+              {
+                "pattern": "comparison-records-ordered-sequences"
+              },
+              {
+                "pattern": "ordered-sequences-identical"
+              },
+              {
+                "pattern": "verification-reads-exact-pagination-captures"
+              },
+              {
+                "pattern": "verify-ordered-sequences-identical"
+              },
+              {
+                "pattern": "verification-targets-sequence-equality"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

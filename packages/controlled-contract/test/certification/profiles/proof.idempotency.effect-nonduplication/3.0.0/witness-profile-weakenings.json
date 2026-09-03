@@ -1,0 +1,3396 @@
+{
+  "schema_version": "controlled-contract-proof-pack-coverage-witness-index.experimental.v0.1",
+  "profile_digest": "ec74e42e4d06ce1c11ea2f5b5d4cf2b0556696b8bb05f2086424e47640aa54dc",
+  "witnesses": [
+    {
+      "surface_id": "claim-first-effect-state-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-weakened-modality-first-effect-state",
+      "variant_id": "reject-weakened-modality-first-effect-state",
+      "weakened_profile_digest": "51b1ace1d62e4c331dec205d683ada0508e683f13cb63c150de1a5a5d355c297",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-first-effect-state-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-census-v034-corrections",
+      "variant_id": "claim-first-effect-state-proposition-applicability-mode",
+      "weakened_profile_digest": "b1c8cfe1fbe69976f8e6f7cddb3f1ffefe5e86105d3885ea2876e94e85100fbb",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-first-effect-state-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-first-effect-state-proposition-applicability-operands-value-5b5b227265662d64",
+      "weakened_profile_digest": "dcd46686dcbe1f76a709ba19598499a66784e2535c04ef62669cea2806a0e03f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "duplicate_effect_condition"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-first-effect-state-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-first-effect-state-proposition-operand-0-role-value-5b227265662d6475",
+      "weakened_profile_digest": "09705d07806060b2bad450a1381f43080cad5ccf0aeabf021f10eb4e5bc192a6",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/operands/0/role",
+          "value": "duplicate_effect_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-first-effect-state-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-operator-variations-base",
+      "variant_id": "first-effect-state-operator-reference-accepts",
+      "weakened_profile_digest": "0110b4d6ed2603d9d26bd5a0d69a40a021f77e214571145c98925176a2edb8f5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-first-effect-state-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-first-effect-state-proposition-subject-value-5b227265662d6475",
+      "weakened_profile_digest": "bed64fcfa01b2adb26257914a87ffc8df44fab07da4275d5c10adfc06c925ddf",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/proposition_template/subject_role",
+          "value": "duplicate_effect_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-first-input-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-weakened-modality-first-input",
+      "variant_id": "reject-weakened-modality-first-input",
+      "weakened_profile_digest": "017fee5c3fcb9262b2ad27222613babbe23a23fc0f70e49d6fe36dbe2115253a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-first-input-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-first-input-proposition-operand-0-role-value-5b227265662d6475",
+      "weakened_profile_digest": "e769797929d78d44ed24bc7463e15935a372be4de970fd7a79b4efca19e14bb2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/operands/0/role",
+          "value": "duplicate_effect_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-first-input-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-operator-variations-base",
+      "variant_id": "first-input-operator-reference-accepts",
+      "weakened_profile_digest": "8d0e750635705badb9552fccaea257628e95fb40a2a514153021f320b14a2c23",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-first-input-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-first-input-proposition-subject-value-5b227265662d6475",
+      "weakened_profile_digest": "1dc1b771ec5aa9c0737d6a0dbf885b42bdb45ef55ebc8f56676136ac8ef3eba6",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/subject_role",
+          "value": "duplicate_effect_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-first-invocation-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-weakened-modality-first-invocation",
+      "variant_id": "reject-weakened-modality-first-invocation",
+      "weakened_profile_digest": "291708a3d72c5daf628d7edfc1ed61bd3eaaa6dac951ba867a1e92a9d9098f85",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-first-invocation-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-first-invocation-proposition-operand-0-role-value-5b227265662d6475",
+      "weakened_profile_digest": "db73d08c0ae1abf09b119590a79541ab479f7d5d98220eed698ded3a6ac7f1d3",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/operands/0/role",
+          "value": "duplicate_effect_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-first-invocation-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-operator-variations-base",
+      "variant_id": "first-invocation-operator-reference-accepts",
+      "weakened_profile_digest": "502579ada022bab08675daa61745ac8753e363a5f8bce823fc1433708df5b8bf",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-first-invocation-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-first-invocation-proposition-subject-value-5b227265662d6475",
+      "weakened_profile_digest": "0704cf334f37e1b56b79fef5b9fdfeb23d21222f0bbfa6662fd0c429609a7d1f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/proposition_template/subject_role",
+          "value": "duplicate_effect_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-first-observation-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-weakened-modality-first-observation",
+      "variant_id": "reject-weakened-modality-first-observation",
+      "weakened_profile_digest": "d52d34f26c97b4a5d7c37fc18bb9eaf5045acb4771c6238b74f47e5405d999e6",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-first-observation-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-census-v034-corrections",
+      "variant_id": "claim-first-observation-proposition-applicability-mode",
+      "weakened_profile_digest": "2af3c8cbcce7bdbc9e47fadf3e062e38c35f2aaf867b58ac4c8ff1eed6c1d331",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-first-observation-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-first-observation-proposition-applicability-operands-value-5b5b227265662d64",
+      "weakened_profile_digest": "fee05a4d9e93a8f6b6205a0b94b0199600abe78b6fd165e85eea0b561d9c99f9",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "duplicate_effect_condition"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-first-observation-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-first-observation-proposition-operand-0-role-value-5b227265662d6475",
+      "weakened_profile_digest": "99f98369ea4cf9ea584a144a210745e22686817c93b2f90658132cc282614b0b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/proposition_template/operands/0/role",
+          "value": "duplicate_effect_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-first-observation-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-operator-variations-base",
+      "variant_id": "first-observation-operator-reference-accepts",
+      "weakened_profile_digest": "8879980cbc5e10dc1473993626b62c9a7d314b413cda9dcfc1fcfa46325e3b69",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-first-observation-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-first-observation-proposition-subject-value-5b227265662d6475",
+      "weakened_profile_digest": "6fde401c1a5762fa18945f8b370bedc7b3ae47ae03299e42ca0f068ea3c92274",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/proposition_template/subject_role",
+          "value": "duplicate_effect_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-first-observation-record-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-weakened-modality-first-observation-record",
+      "variant_id": "reject-weakened-modality-first-observation-record",
+      "weakened_profile_digest": "109f5c54078ce1a1ce9fe8d02e6dd3ce92f08fbd67276eea6d49c1a1b7dd3d89",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-first-observation-record-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-census-v034-corrections",
+      "variant_id": "claim-first-observation-record-proposition-applicability-mode",
+      "weakened_profile_digest": "c4588f9b060694dcf5f332dc17e8c722f3ad184dda4c8723895f305e4895db7b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-first-observation-record-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-first-observation-record-proposition-applicability-operands-value-5b5b227265662d64",
+      "weakened_profile_digest": "bd0219b814c99c4d71cc80385b40f49849b89ac117f86e5fc00219bdc62558cb",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "duplicate_effect_condition"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-first-observation-record-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-first-observation-record-proposition-operand-0-role-value-5b227265662d6475",
+      "weakened_profile_digest": "87c91afb695ba42483972adeeb7d3fd78c0315d261a778ab71240bd76f755774",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/operands/0/role",
+          "value": "duplicate_effect_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-first-observation-record-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-operator-variations-base",
+      "variant_id": "first-observation-record-operator-reference-accepts",
+      "weakened_profile_digest": "a3be50c96edbbfc3c360551cd9d278203c8ac40f87f549362c3cc2ee6ae95518",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-first-observation-record-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-first-observation-record-proposition-subject-value-5b227265662d6475",
+      "weakened_profile_digest": "c2125976bd315b5e525b123114a706fc6327d74f44487e7048e632f58409fef7",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/subject_role",
+          "value": "duplicate_effect_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-idempotency-equivalence-verification-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-weakened-modality-idempotency-equivalence-verification",
+      "variant_id": "reject-weakened-modality-idempotency-equivalence-verification",
+      "weakened_profile_digest": "6b7618a90730d5b49d2257001125e5ebd2162312b326d8c7c7d6b22577b0204d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/16/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-idempotency-equivalence-verification-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-idempotency-equivalence-verification-proposition-operand-0-role-value-5b227265662d6475",
+      "weakened_profile_digest": "49e91962aa929e5ccda9896fe23b11a582b91681adf590e13e5e5dba793aa1aa",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/16/proposition_template/operands/0/role",
+          "value": "duplicate_effect_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-idempotency-equivalence-verification-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-operator-variations-base",
+      "variant_id": "idempotency-equivalence-verification-operator-reference-accepts",
+      "weakened_profile_digest": "7bf68d4984b9e961dbf02d04a119e0460bca932e9fd481add10b0fb2378a60e1",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/16/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-idempotency-equivalence-verification-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-idempotency-equivalence-verification-proposition-subject-value-5b227265662d6475",
+      "weakened_profile_digest": "1e70e6ff9a4ad85da27309990dfb89435bea162ba41a0920761ce422f7fbb99e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/16/proposition_template/subject_role",
+          "value": "duplicate_effect_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-idempotency-equivalence-verification-verification-methods",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-idempotency-equivalence-verification-verification-methods-value-5b22617564697422",
+      "weakened_profile_digest": "82c79e51ed78f0ca427c96244b85074d323393069c4311d3a309c73b081b9ad5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/16/verification_methods",
+          "value": [
+            "analysis",
+            "demonstration",
+            "proof",
+            "test_execution",
+            "audit"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-idempotent-effect-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-weakened-modality-idempotent-effect",
+      "variant_id": "reject-weakened-modality-idempotent-effect",
+      "weakened_profile_digest": "886a0fe80462e9d39c2646a5e556a4726b51bc99a29f4363bea55b3ca334a554",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-idempotent-effect-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-census-v034-corrections",
+      "variant_id": "claim-idempotent-effect-proposition-applicability-mode",
+      "weakened_profile_digest": "040b8842011c4364c223c6688240c9c4f1a2a4e2c8fbe30552333db3ea703aa2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-idempotent-effect-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-idempotent-effect-proposition-applicability-operands-value-5b5b227265662d64",
+      "weakened_profile_digest": "795c9109abfc0af12ecbab9b03c98029ea409381da11b3dee50680669d8d7077",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "duplicate_effect_condition"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-idempotent-effect-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-census-v034-corrections",
+      "variant_id": "claim-idempotent-effect-proposition-operator",
+      "weakened_profile_digest": "78c031bf51149721d36781fd34470e1f73eb38b07f75922fbfe7d8ae432419de",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/operator",
+          "value": "reference:not_equals"
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/16/falsifying_proposition_template/operator",
+          "value": "reference:equals"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-operation-effect-resource-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-weakened-modality-operation-effect-resource",
+      "variant_id": "reject-weakened-modality-operation-effect-resource",
+      "weakened_profile_digest": "451d00d87509404c8e6ef9f7aa949177d17958256ef06b444525cca9dcaef3a2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-operation-effect-resource-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-operation-effect-resource-proposition-operand-0-role-value-5b227265662d6475",
+      "weakened_profile_digest": "d12a836b7a2aa8225f9aa95201144dbeee2699a8f879e853436f7e62af025486",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/operands/0/role",
+          "value": "duplicate_effect_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-operation-effect-resource-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-operator-variations-base",
+      "variant_id": "operation-effect-resource-operator-reference-accepts",
+      "weakened_profile_digest": "97fe1dd4feb44adb54aa2426ef9df27b7e80e071218ee8c7a4462ce6a733a67a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-operation-effect-resource-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-operation-effect-resource-proposition-subject-value-5b227265662d6475",
+      "weakened_profile_digest": "812f68d971b5148d158c06297cca83b611ec0fb7bda5d1f864c28f255bf93dda",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/proposition_template/subject_role",
+          "value": "duplicate_effect_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-patterns",
+      "weakening_class": "deletion",
+      "fixture_id": "reject-deleted-claim-first-invocation",
+      "variant_id": "reject-deleted-claim-first-invocation",
+      "weakened_profile_digest": "5b74bf84e531451972981a2788a58b5667d68317febf16f42d3f6e73c15e4179",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns",
+          "value": [
+            {
+              "pattern_id": "operation-effect-resource",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "operation",
+                "operator": "reference:writes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "effect_subject"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "idempotent-effect",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "state_after_second",
+                "operator": "reference:equals",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "second_invocation"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "state_after_first"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "first-input",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "first_invocation",
+                "operator": "reference:uses",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "first_input"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "first-effect-state",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "effect_subject",
+                "operator": "reference:has_state",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "first_invocation"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "state_after_first"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "first-observation-record",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "observation_after_first",
+                "operator": "reference:records",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "first_invocation"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "state_after_first"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "first-observation",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "first_invocation"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "observation_after_first"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "pre-second-effect-state",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "effect_subject",
+                "operator": "reference:has_state",
+                "applicability_context": {
+                  "mode": "before",
+                  "operand_roles": [
+                    "second_invocation"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "state_before_second"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "pre-second-observation-record",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "observation_before_second",
+                "operator": "reference:records",
+                "applicability_context": {
+                  "mode": "before",
+                  "operand_roles": [
+                    "second_invocation"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "state_before_second"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "pre-second-observation",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "before",
+                  "operand_roles": [
+                    "second_invocation"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "observation_before_second"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "pre-second-state-equality",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "state_before_second",
+                "operator": "reference:equals",
+                "applicability_context": {
+                  "mode": "before",
+                  "operand_roles": [
+                    "second_invocation"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "state_after_first"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "second-invocation",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "second_invocation",
+                "operator": "reference:performs",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "first_invocation"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "operation"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "second-input",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "second_invocation",
+                "operator": "reference:uses",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "first_invocation"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "second_input"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "second-effect-state",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "effect_subject",
+                "operator": "reference:has_state",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "second_invocation"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "state_after_second"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "second-observation-record",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "observation_after_second",
+                "operator": "reference:records",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "second_invocation"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "state_after_second"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "second-observation",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "second_invocation"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "observation_after_second"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "idempotency-equivalence-verification",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "operation"
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "falsifying_proposition_template": {
+                "subject_role": "state_after_second",
+                "operator": "reference:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "duplicate_effect_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "state_after_first"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "pre-second-equality-verification",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "effect_subject"
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "falsifying_proposition_template": {
+                "subject_role": "state_before_second",
+                "operator": "reference:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "intervening_reset_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "state_after_first"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/collection_patterns/0/member_claim_pattern_ids",
+          "value": [
+            "first-effect-state",
+            "first-observation-record",
+            "first-observation",
+            "pre-second-effect-state",
+            "pre-second-observation-record",
+            "pre-second-observation",
+            "second-invocation",
+            "second-effect-state",
+            "second-observation-record",
+            "second-observation"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/collection_patterns/1/member_claim_pattern_ids",
+          "value": [
+            "first-effect-state",
+            "first-observation-record",
+            "first-observation",
+            "pre-second-effect-state",
+            "pre-second-observation-record",
+            "pre-second-observation",
+            "second-invocation",
+            "second-effect-state",
+            "second-observation-record",
+            "second-observation"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression/all_of",
+          "value": [
+            {
+              "pattern": "first-input"
+            },
+            {
+              "pattern": "operation-effect-resource"
+            },
+            {
+              "pattern": "first-effect-state"
+            },
+            {
+              "pattern": "first-observation-record"
+            },
+            {
+              "pattern": "first-observation"
+            },
+            {
+              "pattern": "pre-second-effect-state"
+            },
+            {
+              "pattern": "pre-second-observation-record"
+            },
+            {
+              "pattern": "pre-second-observation"
+            },
+            {
+              "pattern": "pre-second-state-equality"
+            },
+            {
+              "pattern": "pre-second-equality-verification"
+            },
+            {
+              "pattern": "verification-target-pre-second-equality"
+            },
+            {
+              "pattern": "second-invocation"
+            },
+            {
+              "pattern": "second-input"
+            },
+            {
+              "pattern": "identical-input-binding"
+            },
+            {
+              "pattern": "second-effect-state"
+            },
+            {
+              "pattern": "second-observation-record"
+            },
+            {
+              "pattern": "second-observation"
+            },
+            {
+              "pattern": "proof-sequence"
+            },
+            {
+              "pattern": "proof-population"
+            },
+            {
+              "pattern": "idempotent-effect"
+            },
+            {
+              "pattern": "distinct-effect-state-binding"
+            },
+            {
+              "pattern": "idempotency-equivalence-verification"
+            },
+            {
+              "pattern": "verification-target-equivalence"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-pre-second-effect-state-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-weakened-modality-pre-second-effect-state",
+      "variant_id": "reject-weakened-modality-pre-second-effect-state",
+      "weakened_profile_digest": "23d49da8ee1d97b359cd825a015cd2ec649a681d10ee7a5b3c497ad92305292c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-pre-second-effect-state-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-census-v034-corrections",
+      "variant_id": "claim-pre-second-effect-state-proposition-applicability-mode",
+      "weakened_profile_digest": "9c2db054dc32751d4e4fb804ec9f6746a23e3352e5882dbcb8efc59b35513afc",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-pre-second-effect-state-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-pre-second-effect-state-proposition-applicability-operands-value-5b5b227265662d64",
+      "weakened_profile_digest": "9d1bbfd9f74cf6048fbb9e0199434651e300b5e0332bdadca84f6aa4c3b791fb",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "duplicate_effect_condition"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-pre-second-effect-state-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-pre-second-effect-state-proposition-operand-0-role-value-5b227265662d6475",
+      "weakened_profile_digest": "cecce36be8753c4b17e05b8d832f2aaa6887365683046d94cf122c144981848c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/operands/0/role",
+          "value": "duplicate_effect_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-pre-second-effect-state-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-operator-variations-base",
+      "variant_id": "pre-second-effect-state-operator-reference-accepts",
+      "weakened_profile_digest": "8c2ced572a77e82f1fa0a4fa2751fa02b89f7e550e669c9f75deff7005320e96",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-pre-second-effect-state-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-pre-second-effect-state-proposition-subject-value-5b227265662d6475",
+      "weakened_profile_digest": "4dab9f448ce5e5995376b710d491fb5b1b8f8c76154afb5cb718d375d0a90fdc",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/subject_role",
+          "value": "duplicate_effect_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-pre-second-equality-verification-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-weakened-modality-pre-second-equality-verification",
+      "variant_id": "reject-weakened-modality-pre-second-equality-verification",
+      "weakened_profile_digest": "4be952223321805aab8875241c51399d8b38c6e5b65492b7950e505ea59ce2d8",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-pre-second-equality-verification-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-pre-second-equality-verification-proposition-operand-0-role-value-5b227265662d6475",
+      "weakened_profile_digest": "49e119b24870d1d2edee4b0f1d0b7e5191711ef3d521f8ae67e02a58598b27ff",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/proposition_template/operands/0/role",
+          "value": "duplicate_effect_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-pre-second-equality-verification-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-operator-variations-base",
+      "variant_id": "pre-second-equality-verification-operator-reference-accepts",
+      "weakened_profile_digest": "50d1b9bd764960e39e6daa36a6bf662b338ad5647c822c585934f05d33d0eea0",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-pre-second-equality-verification-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-pre-second-equality-verification-proposition-subject-value-5b227265662d6475",
+      "weakened_profile_digest": "f4773309dea4d65a1a51b39041a633946c4fb1cfaac080dde381e3018f1e42f1",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/proposition_template/subject_role",
+          "value": "duplicate_effect_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-pre-second-equality-verification-verification-methods",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-pre-second-equality-verification-verification-methods-value-5b22617564697422",
+      "weakened_profile_digest": "20542234799ac3703d5e9945207d3fc59b2861a2496a5c15be72e984f6e72f2c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/verification_methods",
+          "value": [
+            "analysis",
+            "demonstration",
+            "proof",
+            "test_execution",
+            "audit"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-pre-second-observation-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-weakened-modality-pre-second-observation",
+      "variant_id": "reject-weakened-modality-pre-second-observation",
+      "weakened_profile_digest": "e435b0682a5270d3a2d1186aa3df73fad075c3976566c4018afed17a2b0a7a2d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-pre-second-observation-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-census-v034-corrections",
+      "variant_id": "claim-pre-second-observation-proposition-applicability-mode",
+      "weakened_profile_digest": "78e4042f21fcff4089fc4dae3cc839d6384ff2c73aa9e9c87f42a3cdb10d5bc8",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-pre-second-observation-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-pre-second-observation-proposition-applicability-operands-value-5b5b227265662d64",
+      "weakened_profile_digest": "d7c012cae252efbf153f91489af5926d45ab4ce990ee4a2ee34e8a0e3d1471f9",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "duplicate_effect_condition"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-pre-second-observation-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-pre-second-observation-proposition-operand-0-role-value-5b227265662d6475",
+      "weakened_profile_digest": "9424ca55f54463f8e36a551a22252951ae00840f96947ac0772b0900a8a78f21",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/operands/0/role",
+          "value": "duplicate_effect_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-pre-second-observation-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-operator-variations-base",
+      "variant_id": "pre-second-observation-operator-reference-accepts",
+      "weakened_profile_digest": "1c89d36a9faaa21ad879b0d50362c0e9ecfa18ad4a54336221db8548b53716a0",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-pre-second-observation-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-pre-second-observation-proposition-subject-value-5b227265662d6475",
+      "weakened_profile_digest": "aaca4ab790087824c96854fb9068c3a704b1fe5616fd53e77019d474ad387b8d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/9/proposition_template/subject_role",
+          "value": "duplicate_effect_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-pre-second-observation-record-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-weakened-modality-pre-second-observation-record",
+      "variant_id": "reject-weakened-modality-pre-second-observation-record",
+      "weakened_profile_digest": "86d2e30cce562b4a9354f65d64972d7698b1b1391c66f01431bfb1531251a7dd",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-pre-second-observation-record-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-census-v034-corrections",
+      "variant_id": "claim-pre-second-observation-record-proposition-applicability-mode",
+      "weakened_profile_digest": "0d28dd363171b04e1587e1133c5d2dc56b5101b70c4b8d2888a551c940ae2781",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-pre-second-observation-record-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-pre-second-observation-record-proposition-applicability-operands-value-5b5b227265662d64",
+      "weakened_profile_digest": "667fabae874037859ac08e99d2eee8a98704a9629ed5c13543934d0631830fa1",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "duplicate_effect_condition"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-pre-second-observation-record-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-pre-second-observation-record-proposition-operand-0-role-value-5b227265662d6475",
+      "weakened_profile_digest": "19f1b621f086f764bc0ca62815fdeba8a225056f61ac600c0c4fe91f537f5b1c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/operands/0/role",
+          "value": "duplicate_effect_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-pre-second-observation-record-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-operator-variations-base",
+      "variant_id": "pre-second-observation-record-operator-reference-accepts",
+      "weakened_profile_digest": "809848493ad6670f4274476ab53605954775fd65b9ce8abafd3b219b8460971a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-pre-second-observation-record-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-pre-second-observation-record-proposition-subject-value-5b227265662d6475",
+      "weakened_profile_digest": "8c2135a072073c82c42da69cbd80f6ce26582591a293be7e8fdaad39c0d7f836",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/8/proposition_template/subject_role",
+          "value": "duplicate_effect_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-pre-second-state-equality-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-weakened-modality-pre-second-state-equality",
+      "variant_id": "reject-weakened-modality-pre-second-state-equality",
+      "weakened_profile_digest": "6dcb8c4f1a8538a2101a47875337e2661d8f5fbb5e0f4781700031b1ab790b01",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-pre-second-state-equality-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-census-v034-corrections",
+      "variant_id": "claim-pre-second-state-equality-proposition-applicability-mode",
+      "weakened_profile_digest": "3875091c4208a0842486c3d24d45ae14dc521baed94a091f2f3fae5b23d46c0d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-pre-second-state-equality-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-pre-second-state-equality-proposition-applicability-operands-value-5b5b227265662d64",
+      "weakened_profile_digest": "2b3d5fe4472ff8f21b5adf5fb2015c9ce071e63a5ebca3567139df02bdf3ecb8",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "duplicate_effect_condition"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-pre-second-state-equality-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-census-v034-corrections",
+      "variant_id": "claim-pre-second-state-equality-proposition-operator",
+      "weakened_profile_digest": "cbd9fd9cf925b48a566800b110347618aaac2a3e4d545c3848a14fbcce22e91d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/10/proposition_template/operator",
+          "value": "reference:not_equals"
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/falsifying_proposition_template/operator",
+          "value": "reference:equals"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-second-effect-state-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-weakened-modality-second-effect-state",
+      "variant_id": "reject-weakened-modality-second-effect-state",
+      "weakened_profile_digest": "88b37f643c1a5ff81446e231d5bb2e81b3cba7bcb67fc654e0d09f28b440f50f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/13/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-second-effect-state-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-census-v034-corrections",
+      "variant_id": "claim-second-effect-state-proposition-applicability-mode",
+      "weakened_profile_digest": "08729928a913192cf95f7d87ac780e1fe37be7f5e8c572d1ec44dc3bcd184fb7",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/13/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-second-effect-state-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-second-effect-state-proposition-applicability-operands-value-5b5b227265662d64",
+      "weakened_profile_digest": "acd9b0d33edf2e2dba78127bfa17ea0924b4741549e5bae2f9b736b502fb14e4",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/13/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "duplicate_effect_condition"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-second-effect-state-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-second-effect-state-proposition-operand-0-role-value-5b227265662d6475",
+      "weakened_profile_digest": "20f3d7c5fdcc8f46cfb96aec7519fcace3ad9142a8551056cdae27855fb3b4f3",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/13/proposition_template/operands/0/role",
+          "value": "duplicate_effect_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-second-effect-state-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-operator-variations-base",
+      "variant_id": "second-effect-state-operator-reference-accepts",
+      "weakened_profile_digest": "b0230e817aefc31d8ba4ae185197b09474fb9ab37b833752856cf31cc543a9c0",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/13/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-second-effect-state-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-second-effect-state-proposition-subject-value-5b227265662d6475",
+      "weakened_profile_digest": "fef560736b4324b8d04087ce07ecd1b8b090ac5f3b699f31b22380bf3742c4f5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/13/proposition_template/subject_role",
+          "value": "duplicate_effect_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-second-input-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-weakened-modality-second-input",
+      "variant_id": "reject-weakened-modality-second-input",
+      "weakened_profile_digest": "2a601da6f471047a1646ceacc8166d0fccf07304dd1734dc9e9cab4bb1902343",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-second-input-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-census-v034-corrections",
+      "variant_id": "claim-second-input-proposition-applicability-mode",
+      "weakened_profile_digest": "3822449352cd9b260063139b75870af370c3c20ac4093da15c47b154712b5d56",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-second-input-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-second-input-proposition-applicability-operands-value-5b5b227265662d64",
+      "weakened_profile_digest": "2798b5d9806e59ab11a4828b8c97b1c1fed72cff29befa2fbfe043c7335b94af",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "duplicate_effect_condition"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-second-input-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-second-input-proposition-operand-0-role-value-5b227265662d6475",
+      "weakened_profile_digest": "49511d65e25e6a25bcbce5c68212a49d9befb4a402c0b5701e4c20e09dd3913b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/operands/0/role",
+          "value": "duplicate_effect_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-second-input-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-operator-variations-base",
+      "variant_id": "second-input-operator-reference-accepts",
+      "weakened_profile_digest": "904352ffdf8ca7aa82bb1579fa11f7d000e433a64eb7e0b34a08d365a6102bc5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-second-input-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-second-input-proposition-subject-value-5b227265662d6475",
+      "weakened_profile_digest": "590e34c453b04f37350c56f6f548835d95bb0c19662bf59af38c48669624e92c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/12/proposition_template/subject_role",
+          "value": "duplicate_effect_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-second-invocation-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-weakened-modality-second-invocation",
+      "variant_id": "reject-weakened-modality-second-invocation",
+      "weakened_profile_digest": "aa057e517f4eccf302d2325f293b91787cebe64e8732b132540b995259de87cb",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-second-invocation-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-census-v034-corrections",
+      "variant_id": "claim-second-invocation-proposition-applicability-mode",
+      "weakened_profile_digest": "8e7e2a415a124ae250b908d936d1cc37b82702bd1ab56f7146ded2e9d0e7cea5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-second-invocation-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-second-invocation-proposition-applicability-operands-value-5b5b227265662d64",
+      "weakened_profile_digest": "8bda3c7d40ace0fd088a81f2568c3297464f20cddd665038dce737b829f9b379",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "duplicate_effect_condition"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-second-invocation-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-second-invocation-proposition-operand-0-role-value-5b227265662d6475",
+      "weakened_profile_digest": "d48d7f544f56eea3aaa7ab80498d5c7f5ad73a048388d436f142837beb4dde12",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/operands/0/role",
+          "value": "duplicate_effect_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-second-invocation-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-operator-variations-base",
+      "variant_id": "second-invocation-operator-reference-accepts",
+      "weakened_profile_digest": "3b978668d62f0866ce584b8f454a53f5c9d73e15d3b798f664be390f6199c585",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-second-invocation-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-second-invocation-proposition-subject-value-5b227265662d6475",
+      "weakened_profile_digest": "a5d51ead811af14bc32ec986657b37d989ed743fed1758117af207661a8a8332",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/11/proposition_template/subject_role",
+          "value": "duplicate_effect_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-second-observation-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-weakened-modality-second-observation",
+      "variant_id": "reject-weakened-modality-second-observation",
+      "weakened_profile_digest": "643b194aee53296200dec1cca4bed562b801027495e37baa34f10b922bc773de",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/15/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-second-observation-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-census-v034-corrections",
+      "variant_id": "claim-second-observation-proposition-applicability-mode",
+      "weakened_profile_digest": "64ab6c0a5ea5ec85a6eb9de2059543a9b86e1f91ab4d5832433810a6f7a81338",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/15/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-second-observation-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-second-observation-proposition-applicability-operands-value-5b5b227265662d64",
+      "weakened_profile_digest": "7c7e8844d4c1a0a925bb4247fe3df38fb83bca13a3e684bb41b93fb31c031228",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/15/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "duplicate_effect_condition"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-second-observation-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-second-observation-proposition-operand-0-role-value-5b227265662d6475",
+      "weakened_profile_digest": "de68798bcc8338d1a15f02935de08ddb9fabc8f6632f6dcce64a1140c7264f14",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/15/proposition_template/operands/0/role",
+          "value": "duplicate_effect_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-second-observation-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-operator-variations-base",
+      "variant_id": "second-observation-operator-reference-accepts",
+      "weakened_profile_digest": "f2d0963172fa997c5541830621dd1d90829f727e605eaf8b92dcfbb0ed4b1905",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/15/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-second-observation-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-second-observation-proposition-subject-value-5b227265662d6475",
+      "weakened_profile_digest": "1c6d087190b3fa4242f0386beb735a0be28a365c07d4f53925d222268cd71cd7",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/15/proposition_template/subject_role",
+          "value": "duplicate_effect_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-second-observation-record-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "reject-weakened-modality-second-observation-record",
+      "variant_id": "reject-weakened-modality-second-observation-record",
+      "weakened_profile_digest": "09aeffba907c17004e5c8072fbe336abaef9045e20ddffd022fc57e9a2cce74f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-second-observation-record-proposition-applicability-mode",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-census-v034-corrections",
+      "variant_id": "claim-second-observation-record-proposition-applicability-mode",
+      "weakened_profile_digest": "651b2dbed177323a234d1ddf2cf1f2523c9fcf56ea40d635de84beb769da6435",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/proposition_template/applicability_context/mode",
+          "value": "if"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-second-observation-record-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-second-observation-record-proposition-applicability-operands-value-5b5b227265662d64",
+      "weakened_profile_digest": "5f820324940c54c1097fffb1fba5167d6330db0ac113890bb0db78df75180bc9",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/proposition_template/applicability_context/operand_roles",
+          "value": [
+            "duplicate_effect_condition"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-second-observation-record-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-second-observation-record-proposition-operand-0-role-value-5b227265662d6475",
+      "weakened_profile_digest": "d3f981ad2965c21636d7a332a1b449cd233faedaf46b694eda6f9eac899b4b29",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/proposition_template/operands/0/role",
+          "value": "duplicate_effect_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-second-observation-record-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-operator-variations-base",
+      "variant_id": "second-observation-record-operator-reference-accepts",
+      "weakened_profile_digest": "13b3b67dc7272a19033f758d7f8166e9231c3d2d6c5dd8703824e422aea34e9f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-second-observation-record-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "semantic-claim-variations-base",
+      "variant_id": "claim-second-observation-record-proposition-subject-value-5b227265662d6475",
+      "weakened_profile_digest": "7faa130adab3726c83976ebfb3b02c35f5f94839a01239ef72943020b63e945f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/14/proposition_template/subject_role",
+          "value": "duplicate_effect_condition"
+        }
+      ]
+    },
+    {
+      "surface_id": "collection-proof-population-candidate-quantifier",
+      "weakening_class": "population_membership_weakening",
+      "fixture_id": "reject-any-proof-population",
+      "variant_id": "reject-any-proof-population",
+      "weakened_profile_digest": "5df82e8365e6a966c29d9afd4201f951132775afd15408c4f0cfa4791771bbcd",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/collection_patterns/1/candidate_quantifier",
+          "value": "any"
+        }
+      ]
+    },
+    {
+      "surface_id": "collection-proof-population-collection-kind",
+      "weakening_class": "collection_weakening",
+      "fixture_id": "collection-surface-variations",
+      "variant_id": "collection-proof-population-kind-and-match",
+      "weakened_profile_digest": "7716bf6d04c522250edf95507e48f25420e49a638872203ad50e348f51714948",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/collection_patterns/1/collection_kind",
+          "value": "ordered_sequence"
+        },
+        {
+          "op": "replace",
+          "path": "/collection_patterns/1/match_mode",
+          "value": "subsequence"
+        }
+      ]
+    },
+    {
+      "surface_id": "collection-proof-population-collection-purpose",
+      "weakening_class": "collection_weakening",
+      "fixture_id": "collection-surface-variations",
+      "variant_id": "collection-proof-population-purpose",
+      "weakened_profile_digest": "c21c71dca67f290b0725763511a5194aad39a6a6f8d7e3ee9e056f454ee85538",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/collection_patterns/1/collection_purpose",
+          "value": "weakened_profile_proof_population"
+        }
+      ]
+    },
+    {
+      "surface_id": "collection-proof-population-match-mode",
+      "weakening_class": "collection_weakening",
+      "fixture_id": "collection-surface-variations",
+      "variant_id": "collection-proof-population-kind-and-match",
+      "weakened_profile_digest": "7716bf6d04c522250edf95507e48f25420e49a638872203ad50e348f51714948",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/collection_patterns/1/match_mode",
+          "value": "subsequence"
+        },
+        {
+          "op": "replace",
+          "path": "/collection_patterns/1/collection_kind",
+          "value": "ordered_sequence"
+        }
+      ]
+    },
+    {
+      "surface_id": "collection-proof-population-member-claim-pattern-ids",
+      "weakening_class": "population_membership_weakening",
+      "fixture_id": "collection-surface-variations",
+      "variant_id": "collection-proof-population-members",
+      "weakened_profile_digest": "91e734054bee559ad75569fc7fbc0c53a55025b16788893920e969cacdcd91dc",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/collection_patterns/1/member_claim_pattern_ids",
+          "value": [
+            "first-invocation",
+            "first-effect-state",
+            "first-observation-record",
+            "first-observation",
+            "pre-second-effect-state",
+            "pre-second-observation-record",
+            "pre-second-observation",
+            "second-invocation",
+            "second-effect-state",
+            "second-observation-record"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "collection-proof-population-required-by-stage",
+      "weakening_class": "stage_weakening",
+      "fixture_id": "collection-surface-variations",
+      "variant_id": "collection-proof-population-stage",
+      "weakened_profile_digest": "f44f1c0895fbc6947cd51fe5d0b7e5926ea00f578004e224dd088a8eaa139acc",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/collection_patterns/1/required_by_stage",
+          "value": "post_delivery"
+        },
+        {
+          "op": "replace",
+          "path": "/evaluation_stages",
+          "value": [
+            "pre_dispatch",
+            "post_delivery"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "collection-proof-sequence-candidate-quantifier",
+      "weakening_class": "population_membership_weakening",
+      "fixture_id": "reject-any-proof-sequence",
+      "variant_id": "reject-any-proof-sequence",
+      "weakened_profile_digest": "713f97c99f146dbdb84de6495a8e2d4f19c3d7815000748aea82eb85602c6201",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/collection_patterns/0/candidate_quantifier",
+          "value": "any"
+        }
+      ]
+    },
+    {
+      "surface_id": "collection-proof-sequence-collection-kind",
+      "weakening_class": "collection_weakening",
+      "fixture_id": "collection-surface-variations",
+      "variant_id": "collection-proof-sequence-kind-and-match",
+      "weakened_profile_digest": "7067913d45cede5a2d207a15115c1432a9a9605ad982a60bd628089d6956811c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/collection_patterns/0/collection_kind",
+          "value": "closed_set"
+        },
+        {
+          "op": "replace",
+          "path": "/collection_patterns/0/match_mode",
+          "value": "exact"
+        }
+      ]
+    },
+    {
+      "surface_id": "collection-proof-sequence-collection-purpose",
+      "weakening_class": "collection_weakening",
+      "fixture_id": "collection-surface-variations",
+      "variant_id": "collection-proof-sequence-purpose",
+      "weakened_profile_digest": "a66b8246bbb1576bd3dbc519e77d62527c74851fd764c9f54dd6ee26088a38f0",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/collection_patterns/0/collection_purpose",
+          "value": "weakened_profile_proof_sequence"
+        }
+      ]
+    },
+    {
+      "surface_id": "collection-proof-sequence-match-mode",
+      "weakening_class": "collection_weakening",
+      "fixture_id": "collection-surface-variations",
+      "variant_id": "collection-proof-sequence-kind-and-match",
+      "weakened_profile_digest": "7067913d45cede5a2d207a15115c1432a9a9605ad982a60bd628089d6956811c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/collection_patterns/0/match_mode",
+          "value": "exact"
+        },
+        {
+          "op": "replace",
+          "path": "/collection_patterns/0/collection_kind",
+          "value": "closed_set"
+        }
+      ]
+    },
+    {
+      "surface_id": "collection-proof-sequence-member-claim-pattern-ids",
+      "weakening_class": "population_membership_weakening",
+      "fixture_id": "collection-surface-variations",
+      "variant_id": "collection-proof-sequence-members",
+      "weakened_profile_digest": "22a7394c4b7754777e0f9d04872049e54abf740877487df1e0e6f829d4dc6afc",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/collection_patterns/0/member_claim_pattern_ids",
+          "value": [
+            "first-invocation",
+            "first-effect-state",
+            "first-observation-record",
+            "first-observation",
+            "pre-second-effect-state",
+            "pre-second-observation-record",
+            "pre-second-observation",
+            "second-invocation",
+            "second-effect-state",
+            "second-observation-record"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "collection-proof-sequence-required-by-stage",
+      "weakening_class": "stage_weakening",
+      "fixture_id": "collection-surface-variations",
+      "variant_id": "collection-proof-sequence-stage",
+      "weakened_profile_digest": "1f922018b6028349c5e4a46bcca48bb8cae4dd58acc8a2281d3dd96fe01ee726",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/collection_patterns/0/required_by_stage",
+          "value": "post_delivery"
+        },
+        {
+          "op": "replace",
+          "path": "/evaluation_stages",
+          "value": [
+            "pre_dispatch",
+            "post_delivery"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "distinct-reference-role-sets",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "reject-collapsed-distinct-reference-roles",
+      "variant_id": "reject-collapsed-distinct-reference-roles",
+      "weakened_profile_digest": "14f07944bd13a434de1af65fe4b2c737a9c0d23f060b4192c85530f4cf21269f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/distinct_reference_role_sets",
+          "value": []
+        }
+      ]
+    },
+    {
+      "surface_id": "falsifier-condition-bindings",
+      "weakening_class": "falsifier_weakening",
+      "fixture_id": "reject-unscoped-falsifier-idempotency-equivalence-verification",
+      "variant_id": "reject-unscoped-falsifier-idempotency-equivalence-verification",
+      "weakened_profile_digest": "764ac77fd6e02a367346657ac84aa5acc0e81e44c7031098dff77288050ab60c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings",
+          "value": [
+            {
+              "relation_pattern_id": "verification-target-equivalence",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            },
+            {
+              "relation_pattern_id": "verification-target-pre-second-equality",
+              "applicability_context": {
+                "mode": "when",
+                "operand_roles": [
+                  "intervening_reset_condition"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/16/falsifying_proposition_template/applicability_context/mode",
+          "value": "unconditional"
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/16/falsifying_proposition_template/applicability_context/operand_roles",
+          "value": []
+        }
+      ]
+    },
+    {
+      "surface_id": "falsifier-condition-bindings",
+      "weakening_class": "falsifier_weakening",
+      "fixture_id": "reject-unscoped-falsifier-pre-second-equality-verification",
+      "variant_id": "reject-unscoped-falsifier-pre-second-equality-verification",
+      "weakened_profile_digest": "f41dd10c867be2c232f9ebf8627e3cbf77825f1fad66e5881122cabc6bf9f5d5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings",
+          "value": [
+            {
+              "relation_pattern_id": "verification-target-equivalence",
+              "applicability_context": {
+                "mode": "when",
+                "operand_roles": [
+                  "duplicate_effect_condition"
+                ]
+              }
+            },
+            {
+              "relation_pattern_id": "verification-target-pre-second-equality",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/falsifying_proposition_template/applicability_context/mode",
+          "value": "unconditional"
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/17/falsifying_proposition_template/applicability_context/operand_roles",
+          "value": []
+        }
+      ]
+    },
+    {
+      "surface_id": "proof-collections",
+      "weakening_class": "collection_weakening",
+      "fixture_id": "reject-removed-proof-collections",
+      "variant_id": "reject-removed-proof-collections",
+      "weakened_profile_digest": "e6729d3d589b070eb2f234f4ed392baa6a5db6a812fff949db81106cb720b29c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/collection_patterns",
+          "value": []
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression/all_of",
+          "value": [
+            {
+              "pattern": "first-invocation"
+            },
+            {
+              "pattern": "first-input"
+            },
+            {
+              "pattern": "operation-effect-resource"
+            },
+            {
+              "pattern": "first-effect-state"
+            },
+            {
+              "pattern": "first-observation-record"
+            },
+            {
+              "pattern": "first-observation"
+            },
+            {
+              "pattern": "pre-second-effect-state"
+            },
+            {
+              "pattern": "pre-second-observation-record"
+            },
+            {
+              "pattern": "pre-second-observation"
+            },
+            {
+              "pattern": "pre-second-state-equality"
+            },
+            {
+              "pattern": "pre-second-equality-verification"
+            },
+            {
+              "pattern": "verification-target-pre-second-equality"
+            },
+            {
+              "pattern": "second-invocation"
+            },
+            {
+              "pattern": "second-input"
+            },
+            {
+              "pattern": "identical-input-binding"
+            },
+            {
+              "pattern": "second-effect-state"
+            },
+            {
+              "pattern": "second-observation-record"
+            },
+            {
+              "pattern": "second-observation"
+            },
+            {
+              "pattern": "idempotent-effect"
+            },
+            {
+              "pattern": "distinct-effect-state-binding"
+            },
+            {
+              "pattern": "idempotency-equivalence-verification"
+            },
+            {
+              "pattern": "verification-target-equivalence"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "reference-binding-patterns",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "reject-distinct-replay-input",
+      "variant_id": "reject-distinct-replay-input",
+      "weakened_profile_digest": "d9c45885006e2e44f4eaa77ca120c29ba4b855756e0f36fd09f0c0849d0a02ae",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_binding_patterns",
+          "value": []
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression/all_of",
+          "value": [
+            {
+              "pattern": "first-invocation"
+            },
+            {
+              "pattern": "first-input"
+            },
+            {
+              "pattern": "operation-effect-resource"
+            },
+            {
+              "pattern": "first-effect-state"
+            },
+            {
+              "pattern": "first-observation-record"
+            },
+            {
+              "pattern": "first-observation"
+            },
+            {
+              "pattern": "pre-second-effect-state"
+            },
+            {
+              "pattern": "pre-second-observation-record"
+            },
+            {
+              "pattern": "pre-second-observation"
+            },
+            {
+              "pattern": "pre-second-state-equality"
+            },
+            {
+              "pattern": "pre-second-equality-verification"
+            },
+            {
+              "pattern": "verification-target-pre-second-equality"
+            },
+            {
+              "pattern": "second-invocation"
+            },
+            {
+              "pattern": "second-input"
+            },
+            {
+              "pattern": "second-effect-state"
+            },
+            {
+              "pattern": "second-observation-record"
+            },
+            {
+              "pattern": "second-observation"
+            },
+            {
+              "pattern": "proof-sequence"
+            },
+            {
+              "pattern": "proof-population"
+            },
+            {
+              "pattern": "idempotent-effect"
+            },
+            {
+              "pattern": "idempotency-equivalence-verification"
+            },
+            {
+              "pattern": "verification-target-equivalence"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-duplicate-effect-condition-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-broadened-type-duplicate-effect-condition",
+      "variant_id": "reject-broadened-type-duplicate-effect-condition",
+      "weakened_profile_digest": "9b3b91b8859b762ac19352a47ddd57a052b50957e52d0d5dee6d74e9fcacc7a3",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/14/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-effect-subject-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-broadened-type-effect-subject",
+      "variant_id": "reject-broadened-type-effect-subject",
+      "weakened_profile_digest": "9d6266fd2b9ef07946933d300c39d2a4fed1b9a5722f41ecaf16bc9c7caad549",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/5/allowed_type_terms",
+          "value": [
+            "cc:resource",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-first-input-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-broadened-type-first-input-and-second-input",
+      "variant_id": "reject-broadened-type-first-input-and-second-input",
+      "weakened_profile_digest": "7b7940b6aaef7c8631b7581ec80983eed891d5ed0c1ab2343a69e0ded62b43bf",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/3/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:configuration",
+            "cc:entity",
+            "cc:actor"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/4/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:configuration",
+            "cc:entity",
+            "cc:actor"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-first-invocation-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-broadened-type-first-invocation",
+      "variant_id": "reject-broadened-type-first-invocation",
+      "weakened_profile_digest": "f778babd964ddf67f08578f0a439691c3073d0b77dca3dd42e10fdf2d1b09bfe",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/1/allowed_type_terms",
+          "value": [
+            "cc:event",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-intervening-reset-condition-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-broadened-type-intervening-reset-condition",
+      "variant_id": "reject-broadened-type-intervening-reset-condition",
+      "weakened_profile_digest": "6bb990270f6126d95b42cfe782088fd7167cc42cb9e8ae2cdaf2c7440fcf2284",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/13/allowed_type_terms",
+          "value": [
+            "cc:configuration",
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-observation-after-first-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-broadened-type-observation-after-first",
+      "variant_id": "reject-broadened-type-observation-after-first",
+      "weakened_profile_digest": "0967748bd432595403a61475674f7eef3b28f11c8b3bb9a15901200f5a2d2200",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/9/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-observation-after-second-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-broadened-type-observation-after-second",
+      "variant_id": "reject-broadened-type-observation-after-second",
+      "weakened_profile_digest": "299b077a0b85e74b82e573c042ffef250517e600449faf8832b00e34540302bf",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/11/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-observation-before-second-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-broadened-type-observation-before-second",
+      "variant_id": "reject-broadened-type-observation-before-second",
+      "weakened_profile_digest": "458c1feca3408b5a17fa45f7fc82ddfd54ff038d53cae4c64704bbb26a322a37",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/10/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-operation-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-broadened-type-operation",
+      "variant_id": "reject-broadened-type-operation",
+      "weakened_profile_digest": "8321c75886bdc2f273806ec9344ce5da66095e811b5b9e05d6e54ce20f7a43a8",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/0/allowed_type_terms",
+          "value": [
+            "cc:operation",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-second-input-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-broadened-type-first-input-and-second-input",
+      "variant_id": "reject-broadened-type-first-input-and-second-input",
+      "weakened_profile_digest": "7b7940b6aaef7c8631b7581ec80983eed891d5ed0c1ab2343a69e0ded62b43bf",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/4/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:configuration",
+            "cc:entity",
+            "cc:actor"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/reference_roles/3/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:configuration",
+            "cc:entity",
+            "cc:actor"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-second-invocation-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-broadened-type-second-invocation",
+      "variant_id": "reject-broadened-type-second-invocation",
+      "weakened_profile_digest": "8d1d8a3c764f3a5fca6f35162b614fd07cd42029d095a7018f222327d88d2e8e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/2/allowed_type_terms",
+          "value": [
+            "cc:event",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-state-after-first-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-broadened-type-state-after-first",
+      "variant_id": "reject-broadened-type-state-after-first",
+      "weakened_profile_digest": "6d003b122482f2b69cf1f6fbf7309e0eac963caa19f4a6f30a96ffa34fa3e914",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/6/allowed_type_terms",
+          "value": [
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-state-after-second-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-broadened-type-state-after-second",
+      "variant_id": "reject-broadened-type-state-after-second",
+      "weakened_profile_digest": "335beff4b3bc51e7ccf477ddcd38d0edbdb08bbeafa9ffc5e8cdf06ead522cea",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/8/allowed_type_terms",
+          "value": [
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-state-before-second-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-broadened-type-state-before-second",
+      "variant_id": "reject-broadened-type-state-before-second",
+      "weakened_profile_digest": "c01ef2463f560beecea8744ec2b01a08bbcaafe7b4b7d6a1c643175b63a6f39f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/7/allowed_type_terms",
+          "value": [
+            "cc:state",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-verification-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "reject-broadened-type-verification",
+      "variant_id": "reject-broadened-type-verification",
+      "weakened_profile_digest": "e30c5722b904dfb3572f95a47bdb9ff661634f76007f7bb25af67d1adb4e472c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/12/allowed_type_terms",
+          "value": [
+            "cc:process",
+            "cc:test",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "satisfaction-expression",
+      "weakening_class": "satisfaction_branch_broadening",
+      "fixture_id": "reject-any-satisfaction-branch",
+      "variant_id": "reject-any-satisfaction-branch",
+      "weakened_profile_digest": "4caabe0c66f8aec15dbeebbb7204b3859d300411902eed3066567011a94fc070",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression",
+          "value": {
+            "any_of": [
+              {
+                "pattern": "first-invocation"
+              },
+              {
+                "pattern": "first-input"
+              },
+              {
+                "pattern": "operation-effect-resource"
+              },
+              {
+                "pattern": "first-effect-state"
+              },
+              {
+                "pattern": "first-observation-record"
+              },
+              {
+                "pattern": "first-observation"
+              },
+              {
+                "pattern": "pre-second-effect-state"
+              },
+              {
+                "pattern": "pre-second-observation-record"
+              },
+              {
+                "pattern": "pre-second-observation"
+              },
+              {
+                "pattern": "pre-second-state-equality"
+              },
+              {
+                "pattern": "pre-second-equality-verification"
+              },
+              {
+                "pattern": "verification-target-pre-second-equality"
+              },
+              {
+                "pattern": "second-invocation"
+              },
+              {
+                "pattern": "second-input"
+              },
+              {
+                "pattern": "identical-input-binding"
+              },
+              {
+                "pattern": "second-effect-state"
+              },
+              {
+                "pattern": "second-observation-record"
+              },
+              {
+                "pattern": "second-observation"
+              },
+              {
+                "pattern": "proof-sequence"
+              },
+              {
+                "pattern": "proof-population"
+              },
+              {
+                "pattern": "idempotent-effect"
+              },
+              {
+                "pattern": "distinct-effect-state-binding"
+              },
+              {
+                "pattern": "idempotency-equivalence-verification"
+              },
+              {
+                "pattern": "verification-target-equivalence"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "surface_id": "verification-relations",
+      "weakening_class": "relation_weakening",
+      "fixture_id": "reject-weakened-verification-relations",
+      "variant_id": "reject-weakened-verification-relations",
+      "weakened_profile_digest": "0c0e0d2a74f26091859b40135a0257777e1bfe5147c5aaebf91c0c66d984f5d2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/relation_patterns",
+          "value": [
+            {
+              "pattern_id": "verification-target-pre-second-equality",
+              "required_by_stage": "pre_dispatch",
+              "role": "verifies",
+              "source_claim_pattern_id": "pre-second-equality-verification",
+              "target_claim_pattern_id": "pre-second-state-equality"
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns",
+          "value": [
+            {
+              "pattern_id": "operation-effect-resource",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "operation",
+                "operator": "reference:writes",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "effect_subject"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "first-invocation",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "first_invocation",
+                "operator": "reference:performs",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "operation"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "first-input",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "first_invocation",
+                "operator": "reference:uses",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "first_input"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "first-effect-state",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "effect_subject",
+                "operator": "reference:has_state",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "first_invocation"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "state_after_first"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "first-observation-record",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "observation_after_first",
+                "operator": "reference:records",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "first_invocation"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "state_after_first"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "first-observation",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "first_invocation"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "observation_after_first"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "pre-second-effect-state",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "effect_subject",
+                "operator": "reference:has_state",
+                "applicability_context": {
+                  "mode": "before",
+                  "operand_roles": [
+                    "second_invocation"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "state_before_second"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "pre-second-observation-record",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "observation_before_second",
+                "operator": "reference:records",
+                "applicability_context": {
+                  "mode": "before",
+                  "operand_roles": [
+                    "second_invocation"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "state_before_second"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "pre-second-observation",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "before",
+                  "operand_roles": [
+                    "second_invocation"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "observation_before_second"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "pre-second-state-equality",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "state_before_second",
+                "operator": "reference:equals",
+                "applicability_context": {
+                  "mode": "before",
+                  "operand_roles": [
+                    "second_invocation"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "state_after_first"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "second-invocation",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "second_invocation",
+                "operator": "reference:performs",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "first_invocation"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "operation"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "second-input",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "second_invocation",
+                "operator": "reference:uses",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "first_invocation"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "second_input"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "second-effect-state",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "effect_subject",
+                "operator": "reference:has_state",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "second_invocation"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "state_after_second"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "second-observation-record",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "observation_after_second",
+                "operator": "reference:records",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "second_invocation"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "state_after_second"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "second-observation",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "evidence",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "after",
+                  "operand_roles": [
+                    "second_invocation"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "observation_after_second"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "pre-second-equality-verification",
+              "required_by_stage": "pre_dispatch",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "verification",
+                "operator": "reference:covers",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "effect_subject"
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "falsifying_proposition_template": {
+                "subject_role": "state_before_second",
+                "operator": "reference:not_equals",
+                "applicability_context": {
+                  "mode": "when",
+                  "operand_roles": [
+                    "intervening_reset_condition"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "state_after_first"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings",
+          "value": [
+            {
+              "relation_pattern_id": "verification-target-pre-second-equality",
+              "applicability_context": {
+                "mode": "when",
+                "operand_roles": [
+                  "intervening_reset_condition"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression/all_of",
+          "value": [
+            {
+              "pattern": "first-invocation"
+            },
+            {
+              "pattern": "first-input"
+            },
+            {
+              "pattern": "operation-effect-resource"
+            },
+            {
+              "pattern": "first-effect-state"
+            },
+            {
+              "pattern": "first-observation-record"
+            },
+            {
+              "pattern": "first-observation"
+            },
+            {
+              "pattern": "pre-second-effect-state"
+            },
+            {
+              "pattern": "pre-second-observation-record"
+            },
+            {
+              "pattern": "pre-second-observation"
+            },
+            {
+              "pattern": "pre-second-state-equality"
+            },
+            {
+              "pattern": "pre-second-equality-verification"
+            },
+            {
+              "pattern": "verification-target-pre-second-equality"
+            },
+            {
+              "pattern": "second-invocation"
+            },
+            {
+              "pattern": "second-input"
+            },
+            {
+              "pattern": "identical-input-binding"
+            },
+            {
+              "pattern": "second-effect-state"
+            },
+            {
+              "pattern": "second-observation-record"
+            },
+            {
+              "pattern": "second-observation"
+            },
+            {
+              "pattern": "proof-sequence"
+            },
+            {
+              "pattern": "proof-population"
+            },
+            {
+              "pattern": "distinct-effect-state-binding"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

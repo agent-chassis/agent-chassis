@@ -1,0 +1,30 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v1",
+  "profile_id": "proof.result-shape.cross-representation-parity",
+  "profile_version": "2.0.0",
+  "profile_digest": "7c54272cb40392a2703f74122c2c3e4cee12a84bb19050ee94c993cf142cf944",
+  "guarantee": "For one declared logical source, two distinct result surfaces expose equal complete populations of typed member descriptors by mutual subset, bind one shared exact nonnegative member count, emit count signals equal to that count, and expose one explicitly selected canonical value pair that is exactly equal. One verification reads both full representations and each verified behavior has its controlled complement as a separate falsifier.",
+  "guarantee_digest": "dbdd109fc9962e1d632ad0dde104123ccbf2a37d79c402d77f7eb5f1f0b0635e",
+  "explicit_exclusions": [
+    "applicability-selection",
+    "automatic-or-arbitrary-multi-value-pairing",
+    "business-semantics-referential-integrity-and-cross-member-invariants",
+    "caller-authored-population-truthfulness-and-completeness",
+    "delivered-test-implementation-and-result-value-authenticity",
+    "field-name-or-schema-mapping",
+    "independent-schema-truthfulness-or-compatibility",
+    "logical-source-provenance",
+    "nested-recursive-value-parity",
+    "ordering-transport-media-type-pagination-and-streaming-parity",
+    "type-coercion-normalization-unit-conversion-rounding-or-timezone-conversion",
+    "typed-member-descriptor-authoritative-construction-or-existence"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "a00445907ac09f4e591c3edc16956fc262ba95eb17313f68ccb5bbedad979f80",
+    "adequacy_result_digest": "d70af317ee2e5f197de7fe5e1385c7c7fee8e6cdbae7a7d684b9e59cd0484ea0",
+    "executable_control_count": 40,
+    "negative_fixture_count": 87,
+    "coverage_witness_count": 87
+  }
+}

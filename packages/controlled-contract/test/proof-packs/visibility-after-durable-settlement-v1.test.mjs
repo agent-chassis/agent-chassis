@@ -24,15 +24,15 @@ import {
   visibilityAfterDurableSettlementGuaranteeSatisfied
 } from "./visibility-after-durable-settlement-v1-harness.mjs";
 import {
-  validateProfileSchemaV034,
-  validateProfileSemanticsV034
-} from "../../lib/verification-profile-v034.mjs";
+  validateProfileSchemaV1,
+  validateProfileSemanticsV1
+} from "../support/stable-v1-proof-pack-runtime.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const repositoryRoot = path.resolve(packageRoot, "../..");
 const packDirectory = path.join(
   packageRoot,
-  "test/certification/profiles/proof.ordering.visibility-after-durable-settlement/1.0.0"
+  "test/certification/profiles/proof.ordering.visibility-after-durable-settlement/2.0.0"
 );
 const readJson = async (name) => JSON.parse(await readFile(
   path.join(packDirectory, name), "utf8"
@@ -40,9 +40,9 @@ const readJson = async (name) => JSON.parse(await readFile(
 
 test("visibility-after-durable-settlement profile is current, pre-dispatch, and digest bound", async () => {
   const adequacy = await readJson("adequacy.json");
-  assert.equal(validateProfileSchemaV034(VISIBILITY_AFTER_DURABLE_SETTLEMENT_V1_PROFILE), true,
-    JSON.stringify(validateProfileSchemaV034.errors));
-  assert.deepEqual(validateProfileSemanticsV034(VISIBILITY_AFTER_DURABLE_SETTLEMENT_V1_PROFILE), []);
+  assert.equal(validateProfileSchemaV1(VISIBILITY_AFTER_DURABLE_SETTLEMENT_V1_PROFILE), true,
+    JSON.stringify(validateProfileSchemaV1.errors));
+  assert.deepEqual(validateProfileSemanticsV1(VISIBILITY_AFTER_DURABLE_SETTLEMENT_V1_PROFILE), []);
   assert.deepEqual(VISIBILITY_AFTER_DURABLE_SETTLEMENT_V1_PROFILE.evaluation_stages, ["pre_dispatch"]);
   assert.equal(adequacy.profile_digest, profileDigest(VISIBILITY_AFTER_DURABLE_SETTLEMENT_V1_PROFILE));
   assert.equal(adequacy.guarantee_digest, guaranteeDigest(adequacy.guarantee));

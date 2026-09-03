@@ -1,9 +1,5 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import Ajv2020 from "ajv/dist/2020.js";
 
@@ -20,14 +16,10 @@ import {
   VERIFICATION_PROFILE_RESULT_SCHEMA_V034,
   VERIFICATION_PROFILE_SCHEMA_V034,
   evaluateVerificationProfileV034,
+  profileDigestV034,
   validateProfileSemanticsV034
 } from "../../lib/verification-profile-v034.mjs";
 import { VOCABULARY_DIGESTS } from "../../vocabulary/cv.experimental.0.34.mjs";
-import {
-  TOOL_VERSION_V034,
-  checkVerificationProfile
-} from "../development/tools/check-verification-profile.mjs";
-import { buildIdempotencyV2Fixture } from "../proof-packs/idempotency-v2-test-fixture.mjs";
 
 const profileUrl = new URL(
   "../../profiles/proof.idempotency.effect-nonduplication/2.0.0/profile.json",
@@ -69,19 +61,20 @@ function resolveTemplate(template, cardinality) {
   };
 }
 
-function selectedClaimPatterns(branch) {
+function selectedClaimPatterns(historicalProfile, branch) {
   const otherBranch = branch === "equality" ? branchPatternIds.cardinality :
     branchPatternIds.equality;
-  return profile.claim_patterns.filter(({ pattern_id: patternId }) =>
+  return historicalProfile.claim_patterns.filter(({ pattern_id: patternId }) =>
     !otherBranch.has(patternId)
   );
 }
 
-function proofContract(domain, branch = "equality", cardinality = 1) {
+function proofContract(domain, branch = "equality", cardinality = 1,
+  historicalProfile = profile) {
   assert.ok(["payment", "queue", "database"].includes(domain));
   assert.ok(branchPatternIds[branch]);
   const referenceById = new Map();
-  for (const role of profile.reference_roles) {
+  for (const role of historicalProfile.reference_roles) {
     const referenceId = referenceIdForRole(role.role);
     if (!referenceById.has(referenceId)) referenceById.set(referenceId, {
       reference_id: referenceId,
@@ -94,7 +87,7 @@ function proofContract(domain, branch = "equality", cardinality = 1) {
   }
   const propositions = [];
   const claims = [];
-  const selectedPatterns = selectedClaimPatterns(branch);
+  const selectedPatterns = selectedClaimPatterns(historicalProfile, branch);
   for (const pattern of selectedPatterns) {
     const propositionId = `prop-${pattern.pattern_id}`;
     propositions.push({
@@ -119,7 +112,7 @@ function proofContract(domain, branch = "equality", cardinality = 1) {
     claims.push(claim);
   }
   const selectedIds = new Set(selectedPatterns.map(({ pattern_id: id }) => id));
-  const relations = profile.relation_patterns
+  const relations = historicalProfile.relation_patterns
     .filter(({ source_claim_pattern_id: source, target_claim_pattern_id: target }) =>
       selectedIds.has(source) && selectedIds.has(target)
     )
@@ -129,7 +122,7 @@ function proofContract(domain, branch = "equality", cardinality = 1) {
       source_claim_id: `claim-${pattern.source_claim_pattern_id}`,
       target_claim_id: `claim-${pattern.target_claim_pattern_id}`
     }));
-  const collections = profile.collection_patterns.map((pattern) => ({
+  const collections = historicalProfile.collection_patterns.map((pattern) => ({
     collection_id: `set-${pattern.pattern_id}`,
     collection_kind: pattern.collection_kind,
     purpose: pattern.collection_purpose,
@@ -149,11 +142,12 @@ function proofContract(domain, branch = "equality", cardinality = 1) {
   };
 }
 
-function evaluationInput(branch = "equality", cardinality = 1) {
+function evaluationInput(branch = "equality", cardinality = 1,
+  historicalProfile = profile) {
   return {
     input_version: EVALUATION_INPUT_VERSION_V034,
     evaluation_stage: "pre_dispatch",
-    reference_bindings: profile.reference_roles.map(({ role }) => ({
+    reference_bindings: historicalProfile.reference_roles.map(({ role }) => ({
       role,
       reference_ids: [referenceIdForRole(role)]
     })),
@@ -164,6 +158,20 @@ function evaluationInput(branch = "equality", cardinality = 1) {
     claim_pattern_bindings: [],
     resolver_facts: [],
     delivered_evidence: []
+  };
+}
+
+function historicalIdempotencyFixture({
+  domain = "payment",
+  branch = "equality",
+  cardinality = 1,
+  historicalProfile = profile
+} = {}) {
+  const frozenProfile = structuredClone(historicalProfile);
+  return {
+    contract: proofContract(domain, branch, cardinality, frozenProfile),
+    profile: frozenProfile,
+    input: evaluationInput(branch, cardinality, frozenProfile)
   };
 }
 
@@ -219,7 +227,7 @@ test("v0.34 profile schema derives active terms and excludes withheld applicabil
 });
 
 test("v0.34 reference roles can require a concrete identity kind", () => {
-  const fixture = buildIdempotencyV2Fixture();
+  const fixture = historicalIdempotencyFixture();
   fixture.profile.reference_roles.find(({ role }) => role === "operation")
     .allowed_identity_kinds = ["code_symbol"];
   const operationReferenceId = fixture.input.reference_bindings.find(
@@ -271,7 +279,7 @@ test("v0.34 reference roles can require a concrete identity kind", () => {
 });
 
 test("v0.34 binds a reference-role population to an exact integer role count", () => {
-  const fixture = buildIdempotencyV2Fixture();
+  const fixture = historicalIdempotencyFixture();
   const countedReferences = fixture.contract.references.slice(0, 2);
   fixture.profile.reference_roles.push({
     role: "counted_references",
@@ -394,7 +402,9 @@ test("v0.34 treats a positive proposition as the falsifier for a negative behavi
 
   assert.deepEqual(validateProfileSemanticsV034(negativeProfile), []);
 
-  const { contract, input } = buildIdempotencyV2Fixture({ profile: negativeProfile });
+  const { contract, input } = historicalIdempotencyFixture({
+    historicalProfile: negativeProfile
+  });
   contract.claims.find(
     ({ claim_id: claimId }) => claimId === "claim-idempotent-effect"
   ).modality = "MUST_NOT";
@@ -493,40 +503,27 @@ test("an incomplete one-invocation plan cannot satisfy idempotency 2.0", () => {
   assert.notEqual(result.satisfaction, "satisfied");
 });
 
-test("the local checker selects the v0.34 evaluator from the profile schema", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "verification-profile-v034-"));
-  const contractPath = path.join(directory, "contract.json");
-  const admittedProfileUrl = new URL(
-    "../certification/profiles/proof.idempotency.effect-nonduplication/2.0.0/profile.json",
+test("the frozen v0.34 evaluator reproduces its historical admission binding", async () => {
+  const historicalAdmission = JSON.parse(await readFile(new URL(
+    "../../profiles/proof.idempotency.effect-nonduplication/2.0.0/admission.json",
     import.meta.url
-  );
-  const profilePath = fileURLToPath(admittedProfileUrl);
-  const inputPath = path.join(directory, "input.json");
-  await Promise.all([
-    writeFile(contractPath, `${JSON.stringify(proofContract("payment"), null, 2)}\n`),
-    writeFile(inputPath, `${JSON.stringify(evaluationInput(), null, 2)}\n`)
-  ]);
-  const result = await checkVerificationProfile({ contractPath, profilePath, inputPath });
-  assert.equal(result.tool_version, TOOL_VERSION_V034);
-  assert.equal(result.evaluation.satisfaction, "satisfied");
-  assert.equal(result.evaluation.vocabulary.algebra_digest, VOCABULARY_DIGESTS.algebra);
-  assert.equal(result.inputs.adequacy.profile_digest.length, 64);
-  assert.equal(
-    result.inputs.profile.sha256,
-    createHash("sha256").update(await readFile(admittedProfileUrl, "utf8")).digest("hex")
-  );
-  assert.equal(
-    result.inputs.adequacy.sha256,
-    createHash("sha256").update(await readFile(
-      new URL(
-        "../certification/profiles/proof.idempotency.effect-nonduplication/2.0.0/adequacy.json",
-        import.meta.url
-      ),
-      "utf8"
-    )).digest("hex")
-  );
-  assert.equal(result.admission.kind, "local_proof_pack_admission");
-  assert.equal(result.admission.adequacy_verified, true);
-  assert.equal(result.evaluation.admission.kind, "unadmitted_direct");
-  assert.equal(result.evaluation.admission.adequacy_attested, false);
+  ), "utf8"));
+  const fixture = historicalIdempotencyFixture();
+  const first = evaluateVerificationProfileV034({
+    contract: fixture.contract,
+    profile: fixture.profile,
+    evaluation_input: fixture.input
+  });
+  const second = evaluateVerificationProfileV034({
+    contract: structuredClone(fixture.contract),
+    profile: structuredClone(fixture.profile),
+    evaluation_input: structuredClone(fixture.input)
+  });
+  assert.deepEqual(second, first);
+  assert.equal(first.satisfaction, "satisfied");
+  assert.equal(first.vocabulary.algebra_digest, VOCABULARY_DIGESTS.algebra);
+  assert.equal(first.admission.profile_digest, profileDigestV034(profile));
+  assert.equal(first.admission.profile_digest, historicalAdmission.profile_digest);
+  assert.equal(first.admission.kind, "unadmitted_direct");
+  assert.equal(first.admission.adequacy_attested, false);
 });

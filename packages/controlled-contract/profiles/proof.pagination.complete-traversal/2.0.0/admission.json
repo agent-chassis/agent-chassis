@@ -1,0 +1,54 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v2",
+  "profile_id": "proof.pagination.complete-traversal",
+  "profile_version": "2.0.0",
+  "profile_digest": "4b8c3738b3b35c31f4a9d5c09aff3ecd12557d5c30f8bc0f972084351abab54f",
+  "guarantee": "For one exact package-authenticated authoritative ordered-occurrence population and exact captured finite pagination trace, every occurrence is returned exactly once in authoritative order through one canonical initial state, one linear opaque cursor chain, one snapshot/version identity, and one terminal page, with equality-normalized completeness and fail-closed resource accounting.",
+  "guarantee_digest": "c5ad980aa18bc912f1364789e814675e45343e85f3ebf56702f932b357323414",
+  "explicit_exclusions": [
+    "caller-declared-population-completeness",
+    "cas-linearizability",
+    "cross-contract-result-join",
+    "cross-pack-result-join",
+    "runtime-truth",
+    "snapshot-acquisition-atomicity",
+    "traversal-liveness",
+    "unrepresented-concurrency"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "a3c3a4ecc996a80c98c33ab7e4ea36b15b2f4212d4a27a82cdaec8d357d9dd3d",
+    "adequacy_result_digest": "5dfb8c673987343caacdfc4a8cc82fb4caa31d04cb5fd820cfc8a96051bde4c4",
+    "executable_control_count": 49,
+    "negative_fixture_count": 0,
+    "coverage_witness_count": 33
+  },
+  "exact_binding": {
+    "declaration_digest": "edcdea09f957b1d0885894f746e49550a4d22aff70c80c64d7f10bee291e0232",
+    "certification_result_digest": "b17af7bf9208d80b4cabc38687c4c7be4dc6d28375c3fe3effba41ec72537b36",
+    "executable_control_count": 12,
+    "binding_kinds": [
+      "artifact_bytes"
+    ],
+    "relation_operators": [
+      "deterministic_projection"
+    ],
+    "corpus_id": "complete-pagination-traversal-exact-binding",
+    "corpus_version": "1.0.0",
+    "corpus_digest": "b43cb27fdb22076d1f29dba2a4c69a2f4e9f7b30d8597c7941e9402d24bb6db4",
+    "passed_control_ids": [
+      "authenticated-population-substitution-refused",
+      "authentication-result-splice-refused",
+      "caller-selected-projection-refused",
+      "capture-swapping-refused",
+      "certification-mismatch-refused",
+      "empty-traversal-positive",
+      "equality-policy-substitution-refused",
+      "profile-admission-mismatch-refused",
+      "projection-result-splice-refused",
+      "resource-policy-substitution-refused",
+      "trace-splicing-refused",
+      "valid-complete-traversal-positive"
+    ]
+  }
+}

@@ -9,23 +9,20 @@ import {
   profileDigest,
   runProofPackAdequacy
 } from "../support/proof-pack-adequacy.mjs";
-import {
-  assertFixedNegativeCorpus
-} from "../support/fixed-negative-corpus-test-helpers.mjs";
 
 const controlledContractRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)), ".."
 );
 const packDirectory = path.join(
   controlledContractRoot,
-  "certification/profiles/proof.atomicity.failure-boundary/1.0.0"
+  "certification/profiles/proof.atomicity.failure-boundary/2.0.0"
 );
 
 async function readJson(relativePath) {
   return JSON.parse(await readFile(path.join(packDirectory, relativePath), "utf8"));
 }
 
-test("atomicity 1.0 binds its canonical guarantee and executable controls", async () => {
+test("atomicity 2.0 binds its canonical guarantee and executable controls", async () => {
   const [profile, adequacy] = await Promise.all([
     readJson("profile.json"),
     readJson("adequacy.json")
@@ -35,7 +32,9 @@ test("atomicity 1.0 binds its canonical guarantee and executable controls", asyn
   assert.equal(adequacy.profile_digest, profileDigest(profile));
   assert.equal(adequacy.guarantee_digest, guaranteeDigest(adequacy.guarantee));
 
-  const result = await runProofPackAdequacy(packDirectory);
+  const result = await runProofPackAdequacy(packDirectory, {
+    variationMode: "full_census"
+  });
   assert.equal(result.passed, true);
   assert.equal(result.control_count, 46);
   assert.equal(result.negative_fixture_count, 66);
@@ -43,37 +42,17 @@ test("atomicity 1.0 binds its canonical guarantee and executable controls", asyn
   assert.deepEqual(result.diagnostics, []);
 });
 
-function retargetAtomicityVerification(profile) {
-  const relation = profile.relation_patterns[0];
-  const originalTarget = profile.claim_patterns.find(
-    ({ pattern_id: id }) => id === relation.target_claim_pattern_id
-  );
-  const replacement = profile.claim_patterns.find(
-    ({ pattern_id: id }) => id === "fully-committed-state-allowed"
-  );
-  originalTarget.claim_kind = "evidence";
-  replacement.claim_kind = "behavior";
-  relation.target_claim_pattern_id = replacement.pattern_id;
-  const verification = profile.claim_patterns.find(
-    ({ pattern_id: id }) => id === relation.source_claim_pattern_id
-  );
-  verification.falsifying_proposition_template = {
-    ...structuredClone(replacement.proposition_template),
-    operator: "reference:not_member_of"
-  };
-  profile.falsifier_condition_bindings[0].applicability_context =
-    structuredClone(replacement.proposition_template.applicability_context);
-  return profile;
-}
-
-test("atomicity fixed negatives kill every fully rebound critical weakening", async () => {
-  const matrix = await assertFixedNegativeCorpus({
-    packDirectory,
-    expectedFixtureCount: 66,
-    expectedSurfaceCount: 201,
-    relationMutation: retargetAtomicityVerification
+test("atomicity full census preserves every negative and weakening refusal", async () => {
+  const result = await runProofPackAdequacy(packDirectory, {
+    variationMode: "full_census"
   });
-  assert.deepEqual(matrix, { fixture_count: 66, mutation_count: 58 });
+  assert.equal(result.negative_fixture_results.length, 66);
+  assert.equal(result.negative_fixture_results.every(
+    ({ outcome }) => outcome === "rejected"
+  ), true);
+  assert.equal(result.observations.controls.filter(({ category }) =>
+    category === "mutant" || category === "profile_rejection"
+  ).every(({ profile_satisfaction: satisfaction }) => satisfaction !== "satisfied"), true);
 });
 
 test("atomicity executable sources are repository-relative and fully declared", async () => {

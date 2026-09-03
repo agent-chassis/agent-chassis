@@ -1,0 +1,403 @@
+{
+  "schema_version": "controlled-contract-verification-profile.v1",
+  "profile_id": "proof.integration.prefix-safety",
+  "profile_version": "2.0.0",
+  "contract_schema_version": "controlled-acceptance-contract.v1",
+  "vocabulary_version": "controlled-contract-vocabulary.v1",
+  "vocabulary_signature_digest": "596a4c44d98aed1d31dd9ab3842fc054be6f8ffa3d62a3867a3966e75ecab742",
+  "vocabulary_algebra_digest": "0fbea1e7377baeef1869cbc55dc588ef5509ed40c768ce2a3c4f58be1133cf9c",
+  "vocabulary_definitions_digest": "bb3d2a63cb6fc8c62b9bc36d29d07549dea6ad85e32badb0cbb3cacfd6ad4759",
+  "vocabulary_complete_digest": "45484504f06968c6b4ac812c24b9f1b6e47e1d34ba21fefebde8dd85d1290fa9",
+  "evaluation_stages": [
+    "pre_dispatch"
+  ],
+  "verification_falsifier_policy": "controlled_complement_per_target",
+  "reference_roles": [
+    {
+      "role": "integration_dag",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "integration_units",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "execution_paths",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "prefix_census",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "repository_path",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "prefix_case_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "prefix_cases",
+      "allowed_type_terms": [
+        "cc:evidence"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "one_or_more"
+    },
+    {
+      "role": "preservation_result",
+      "allowed_type_terms": [
+        "cc:evidence",
+        "cc:state"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "preserved_state",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "verification",
+      "allowed_type_terms": [
+        "cc:process",
+        "cc:test"
+      ],
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "durable_id",
+        "repository_path"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "case_failure_condition",
+      "allowed_type_terms": [
+        "cc:criterion",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    }
+  ],
+  "number_roles": [
+    {
+      "role": "case_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 1
+    }
+  ],
+  "distinct_reference_role_sets": [
+    {
+      "roles": [
+        "integration_dag",
+        "integration_units",
+        "execution_paths",
+        "prefix_census",
+        "prefix_case_population",
+        "verification",
+        "case_failure_condition"
+      ]
+    }
+  ],
+  "reference_binding_patterns": [
+    {
+      "pattern_id": "complete-prefix-case-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "prefix_case_population",
+        "prefix_cases"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    }
+  ],
+  "reference_role_count_bindings": [
+    {
+      "reference_role": "prefix_cases",
+      "number_role": "case_count"
+    }
+  ],
+  "claim_patterns": [
+    {
+      "pattern_id": "census-includes-case-population",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "prefix_census",
+        "operator": "reference:includes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "prefix_case_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "each-prefix-case-preserved",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "prefix_cases",
+        "member_role": "prefix_case"
+      },
+      "proposition_template": {
+        "subject_role": "prefix_case",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "preserved_state"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "preservation-result-records-case-population",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "preservation_result",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "prefix_case_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "all-prefix-cases-preserved",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "preservation_result",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "preserved_state"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "verification-reads-exact-prefix-census",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "integration_dag"
+          },
+          {
+            "kind": "reference",
+            "role": "integration_units"
+          },
+          {
+            "kind": "reference",
+            "role": "execution_paths"
+          },
+          {
+            "kind": "reference",
+            "role": "prefix_census"
+          },
+          {
+            "kind": "reference",
+            "role": "prefix_cases"
+          },
+          {
+            "kind": "reference",
+            "role": "preservation_result"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "verify-all-prefix-cases-preserved",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "preservation_result"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "preservation_result",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "case_failure_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "preserved_state"
+          }
+        ]
+      }
+    }
+  ],
+  "relation_patterns": [
+    {
+      "pattern_id": "verification-target-prefix-preservation",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "verify-all-prefix-cases-preserved",
+      "target_claim_pattern_id": "all-prefix-cases-preserved"
+    }
+  ],
+  "falsifier_condition_bindings": [
+    {
+      "relation_pattern_id": "verification-target-prefix-preservation",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "case_failure_condition"
+        ]
+      }
+    }
+  ],
+  "collection_patterns": [],
+  "resolver_fact_patterns": [],
+  "evidence_patterns": [],
+  "satisfaction_expression": {
+    "all_of": [
+      {
+        "pattern": "complete-prefix-case-population"
+      },
+      {
+        "pattern": "census-includes-case-population"
+      },
+      {
+        "pattern": "each-prefix-case-preserved"
+      },
+      {
+        "pattern": "preservation-result-records-case-population"
+      },
+      {
+        "pattern": "all-prefix-cases-preserved"
+      },
+      {
+        "pattern": "verification-reads-exact-prefix-census"
+      },
+      {
+        "pattern": "verify-all-prefix-cases-preserved"
+      },
+      {
+        "pattern": "verification-target-prefix-preservation"
+      }
+    ]
+  }
+}

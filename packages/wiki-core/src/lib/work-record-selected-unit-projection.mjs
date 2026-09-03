@@ -5,6 +5,8 @@ import {
   WORK_RECORD_WORK_KIND_VALUES,
   WORK_RECORD_REVIEW_PURPOSE_VALUES
 } from "./work-record-schema-constants.mjs";
+import { projectWorkRecordTestProofValidation } from "./work-record-test-proof-bindings.mjs";
+import { analyzeWorkRecordFindingsUnit } from "./work-record-findings-semantics.mjs";
 
 const MAX_PROJECTED_NODES = 10000;
 const MAX_PROJECTED_DEPTH = 64;
@@ -60,7 +62,9 @@ function cloneData(value, state, depth = 0) {
       if (!Object.hasOwn(descriptor, "value")) return INVALID;
       const cloned = cloneData(descriptor.value, state, depth + 1);
       if (cloned === INVALID) return INVALID;
-      if (cloned !== undefined) result[field] = cloned;
+      if (cloned !== undefined || state.preserveUndefinedProperties === true) {
+        result[field] = cloned;
+      }
     }
   }
 
@@ -70,6 +74,14 @@ function cloneData(value, state, depth = 0) {
 
 function cloneAuthored(value) {
   return cloneData(value, { seen: new WeakSet(), nodes: 0 });
+}
+
+function cloneAcceptanceValidation(value) {
+  return cloneData(value, {
+    seen: new WeakSet(),
+    nodes: 0,
+    preserveUndefinedProperties: true
+  });
 }
 
 function copyAuthored(projected, source, field, transform = cloneAuthored) {
@@ -107,6 +119,16 @@ function projectStringList(value) {
   return projected;
 }
 
+function projectAcceptanceValidationList(value) {
+  const cloned = cloneAcceptanceValidation(value);
+  if (cloned === INVALID) return INVALID;
+
+  const projection = projectWorkRecordTestProofValidation({
+    selectedUnit: { acceptance: { validation: cloned } }
+  });
+  return projection.status === "valid" ? structuredClone(projection.validation_entries) : INVALID;
+}
+
 function projectAgentNotes(value) {
   if (typeof value === "string") return value;
   return projectStringList(value);
@@ -133,9 +155,8 @@ function projectReadScope(value) {
 
 function projectAcceptance(value) {
   const source = ownDataValue(value, "acceptance");
-  const legacyValidation = ownDataValue(value, "validation");
-  if (!source.present && !legacyValidation.present) return undefined;
-  if (source.value === INVALID || legacyValidation.value === INVALID) return INVALID;
+  if (!source.present) return undefined;
+  if (source.value === INVALID) return INVALID;
 
   const acceptance = {};
   if (source.present) {
@@ -149,13 +170,9 @@ function projectAcceptance(value) {
       if (acceptance.criteria === INVALID) return INVALID;
     }
     if (validation.present) {
-      acceptance.validation = projectStringList(validation.value);
+      acceptance.validation = projectAcceptanceValidationList(validation.value);
       if (acceptance.validation === INVALID) return INVALID;
     }
-  }
-  if (!Object.hasOwn(acceptance, "validation") && legacyValidation.present) {
-    acceptance.validation = projectStringList(legacyValidation.value);
-    if (acceptance.validation === INVALID) return INVALID;
   }
   return acceptance;
 }
@@ -180,26 +197,21 @@ export function projectSelectedWorkRecordUnit(value) {
   if (!copyCanonicalScalar(projected, value, "review_purpose", (entry) =>
     WORK_RECORD_REVIEW_PURPOSE_VALUES.includes(entry)
   )) return null;
-  if (Object.hasOwn(projected, "review_purpose") && projected.work_kind !== "review") return null;
-  if (projected.work_kind === "review" && !Object.hasOwn(projected, "review_purpose")) {
-    projected.review_purpose = "standalone";
+
+  const findings = analyzeWorkRecordFindingsUnit(projected);
+  if (
+    Object.hasOwn(projected, "review_purpose") &&
+    findings.review_purpose_origin !== "authored"
+  ) {
+    return null;
+  }
+  if (findings.review_purpose_origin === "reviewer_default") {
+    projected.review_purpose = findings.effective_review_purpose;
   }
 
   const acceptance = projectAcceptance(value);
   if (acceptance === INVALID) return null;
   if (acceptance !== undefined) projected.acceptance = acceptance;
-
-  const topLevelValidation = ownDataValue(value, "validation");
-  const acceptanceValidation = acceptance && Object.hasOwn(acceptance, "validation")
-    ? acceptance.validation
-    : undefined;
-  if (topLevelValidation.present || acceptanceValidation !== undefined) {
-    const validation = topLevelValidation.present
-      ? projectStringList(topLevelValidation.value)
-      : cloneAuthored(acceptanceValidation);
-    if (validation === INVALID) return null;
-    projected.validation = validation;
-  }
 
   const readScope = projectReadScope(value);
   if (readScope === INVALID) return null;
@@ -228,6 +240,7 @@ export function projectSelectedWorkRecordUnit(value) {
   const sectionsSource = ownDataValue(value, "sections");
   if (sectionsSource.present) {
     if (!isObject(sectionsSource.value) || Array.isArray(sectionsSource.value)) return null;
+    if (ownDataValue(sectionsSource.value, "structured_validation").present) return null;
     const sections = {};
     if (!copyAuthored(sections, sectionsSource.value, "agent_notes", projectAgentNotes)) return null;
     projected.sections = sections;
@@ -246,4 +259,14 @@ export function projectSelectedWorkRecordUnit(value) {
   }
 
   return projected;
+}
+
+export function selectedUnitProjectionProbe(value, fields) {
+  if (!isObject(value) || Array.isArray(value)) return value;
+  const probe = {};
+  for (const field of fields) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, field);
+    if (descriptor) Object.defineProperty(probe, field, descriptor);
+  }
+  return probe;
 }

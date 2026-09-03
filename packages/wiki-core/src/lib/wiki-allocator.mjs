@@ -2,6 +2,8 @@
 
 import { lstat, mkdtemp, open, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { classifyControlledContractRepositoryPath } from
+  "./controlled-contract-tool-shared.mjs";
 import { ensureDirectory, normalizeType, pathExists } from "./wiki-shared.mjs";
 
 const ALLOCATOR_STATE_FILE = ".id-state.json";
@@ -51,7 +53,33 @@ export async function nextId(targetDir, type, manifest, { reserve = false } = {}
   return formatAllocatedId(definition, nextValue);
 }
 
-export async function withAllocatorLock(targetDir, callback) {
+const ALLOCATOR_CLEANUP_EVIDENCE_FIELD = "cleanup_failures";
+
+function allocatorCleanupEvidence(failures, offset = 0) {
+  return failures.map(({ step, error }, index) => Object.freeze({
+    step,
+    order: offset + index,
+    code: error?.code ?? null,
+    message: error instanceof Error ? error.message : String(error),
+    error
+  }));
+}
+
+function withAllocatorCleanupEvidence(primary, failures) {
+  if (failures.length === 0) return primary;
+  if (primary instanceof Error || (primary && typeof primary === "object")) {
+    const existing = Array.isArray(primary[ALLOCATOR_CLEANUP_EVIDENCE_FIELD])
+      ? primary[ALLOCATOR_CLEANUP_EVIDENCE_FIELD]
+      : [];
+    primary[ALLOCATOR_CLEANUP_EVIDENCE_FIELD] = Object.freeze([
+      ...existing,
+      ...allocatorCleanupEvidence(failures, existing.length)
+    ]);
+  }
+  return primary;
+}
+
+export async function withAllocatorLock(targetDir, callback, { faultInjector = null } = {}) {
   await ensureDirectory(path.join(targetDir, "wiki"));
   const { lockPath } = getAllocatorPaths(targetDir);
   const retries = 50;
@@ -74,12 +102,35 @@ export async function withAllocatorLock(targetDir, callback) {
     throw new Error(`Timed out waiting for allocator lock at ${lockPath}`);
   }
 
+  let primary = null;
+  let hasPrimary = false;
+  let result;
   try {
-    return await callback();
-  } finally {
-    await handle.close();
-    await rm(lockPath, { force: true });
+    result = await callback();
+  } catch (error) {
+    primary = error;
+    hasPrimary = true;
   }
+
+  const failures = [];
+  for (const { step, cleanup } of [
+    { step: "allocator_lock_handle_close", cleanup: () => handle.close() },
+
+    { step: "allocator_lock_path_remove", cleanup: () => rm(lockPath, { force: true }) }
+  ]) {
+    try {
+      if (typeof faultInjector === "function") await faultInjector(step);
+      await cleanup();
+    } catch (error) {
+      failures.push({ step, error });
+    }
+  }
+
+  if (hasPrimary) throw withAllocatorCleanupEvidence(primary, failures);
+  if (failures.length > 0) {
+    throw withAllocatorCleanupEvidence(failures[0].error, failures.slice(1));
+  }
+  return result;
 }
 
 export async function readOrInitializeAllocatorState(targetDir, manifest) {
@@ -150,21 +201,31 @@ async function scanAllocatorState(targetDir, manifest) {
   return state;
 }
 
-async function scanHighestAllocatedValue(targetDir, definition) {
-  const markdownHighest = await scanHighestAllocatedMarkdownValue(targetDir, definition);
-  const jsonHighest = definition.directory === "wiki/issues"
-    ? await scanHighestAllocatedJsonWorkRecordValue(targetDir, definition)
-    : 0;
-  return Math.max(markdownHighest, jsonHighest);
+export async function collectOccupiedAllocatedRecordValues(targetDir, definition) {
+  const occupied = new Set();
+  await collectAllocatedMarkdownValues(targetDir, definition, occupied);
+  if (definition.directory === "wiki/issues") {
+    await collectAllocatedJsonWorkRecordValues(targetDir, definition, occupied);
+    await collectAllocatedControlledCarrierValues(targetDir, definition, occupied);
+  }
+  return occupied;
 }
 
-async function scanHighestAllocatedMarkdownValue(targetDir, definition) {
+async function scanHighestAllocatedValue(targetDir, definition) {
+  const occupied = await collectOccupiedAllocatedRecordValues(targetDir, definition);
+  let highest = 0;
+  for (const value of occupied) {
+    highest = Math.max(highest, value);
+  }
+  return highest;
+}
+
+async function collectAllocatedMarkdownValues(targetDir, definition, occupied) {
   const directoryPath = path.join(targetDir, definition.directory);
   if (!(await pathExists(directoryPath))) {
-    return 0;
+    return;
   }
 
-  let highest = 0;
   const entries = await readdir(directoryPath, { withFileTypes: true });
   const pattern = new RegExp(`^${definition.prefix}-(\\d{4})\\.md$`);
   for (const entry of entries) {
@@ -175,18 +236,16 @@ async function scanHighestAllocatedMarkdownValue(targetDir, definition) {
     if (!match) {
       continue;
     }
-    highest = Math.max(highest, Number.parseInt(match[1], 10));
+    occupied.add(Number.parseInt(match[1], 10));
   }
-  return highest;
 }
 
-async function scanHighestAllocatedJsonWorkRecordValue(targetDir, definition) {
+async function collectAllocatedJsonWorkRecordValues(targetDir, definition, occupied) {
   const directoryPath = path.join(targetDir, "wiki", "work-records");
   if (!(await pathExists(directoryPath))) {
-    return 0;
+    return;
   }
 
-  let highest = 0;
   const entries = await readdir(directoryPath, { withFileTypes: true });
   const pattern = new RegExp(`^${definition.prefix}-(\\d{4})\\.json$`);
   for (const entry of entries) {
@@ -197,9 +256,48 @@ async function scanHighestAllocatedJsonWorkRecordValue(targetDir, definition) {
     if (!match) {
       continue;
     }
-    highest = Math.max(highest, Number.parseInt(match[1], 10));
+    occupied.add(Number.parseInt(match[1], 10));
   }
-  return highest;
+}
+
+const CONTROLLED_CONTRACT_STORE_SEGMENTS = ["wiki", "contracts"];
+
+function collectAllocatedCarrierPath(repositoryPath, definition, occupied) {
+  const name = path.posix.basename(repositoryPath);
+  const pattern = new RegExp(`^${definition.prefix}-(\\d{4})(?:[-.]|$)`);
+  const match = name.match(pattern);
+  if (!match) return;
+  const wkId = `${definition.prefix}-${match[1]}`;
+  const classification = classifyControlledContractRepositoryPath({ wkId, repositoryPath });
+  if (classification.active === true || classification.accumulated === true) {
+    occupied.add(Number.parseInt(match[1], 10));
+  }
+}
+
+async function collectAllocatedControlledCarrierValues(targetDir, definition, occupied) {
+  const storePath = path.join(targetDir, ...CONTROLLED_CONTRACT_STORE_SEGMENTS);
+  if (!(await pathExists(storePath))) {
+    return;
+  }
+
+  async function visit(directoryPath, relativeSegments) {
+    let entries;
+    try {
+      entries = await readdir(directoryPath, { withFileTypes: true });
+    } catch (error) {
+      if (error?.code === "ENOENT") return;
+      throw error;
+    }
+    for (const entry of entries) {
+      const childSegments = [...relativeSegments, entry.name];
+      const repositoryPath = ["wiki", "contracts", ...childSegments].join("/");
+      collectAllocatedCarrierPath(repositoryPath, definition, occupied);
+      if (entry.isDirectory()) {
+        await visit(path.join(directoryPath, entry.name), childSegments);
+      }
+    }
+  }
+  await visit(storePath, []);
 }
 
 function getAllocatedTypes(manifest) {
@@ -239,9 +337,16 @@ export function parseAllocatedIdValue(id, definition) {
 }
 
 export async function nextAllocatedRecordValue(targetDir, definition, stateValue) {
-  const highestExisting = await scanHighestAllocatedValue(targetDir, definition);
-  if (highestExisting < stateValue) {
-    return highestExisting + 1;
+  const occupied = await collectOccupiedAllocatedRecordValues(targetDir, definition);
+  let highestExisting = 0;
+  for (const value of occupied) {
+    highestExisting = Math.max(highestExisting, value);
   }
-  return Math.max(highestExisting, stateValue) + 1;
+  let candidate = highestExisting < stateValue
+    ? highestExisting + 1
+    : Math.max(highestExisting, stateValue) + 1;
+  while (occupied.has(candidate)) {
+    candidate += 1;
+  }
+  return candidate;
 }

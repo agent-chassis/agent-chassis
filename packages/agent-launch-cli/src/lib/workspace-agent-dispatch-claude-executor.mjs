@@ -7,14 +7,17 @@ import { defaultBuildClaudeBwrapPlan } from "./workspace-agent-claude-launch-sup
 import {
   BACKEND_REFUSAL_CODES
 } from "./workspace-agent-dispatch-backend.mjs";
+import {
+  resolveTerminalStructuredRoleResultMode
+} from "@agent-chassis/agent-launch-core/src/lib/work-record-launch-prompt.mjs";
 import { resolveLauncherRoleToolNames } from "./launcher-role-tool-profile.mjs";
 import { assertFrozenWorkerScopeAuthority } from "./workspace-agent-launch-core.mjs";
 import { assertCodexWorkerCommitCredentialBinding } from "./codex-role-mcp-env.mjs";
 import { __LAUNCH_CORE_TERMINAL_STATUSES_FOR_TESTS } from "./workspace-agent-launch-core.mjs";
 import {
-  FROZEN_SLICE_LEVEL_ACCEPTANCE_CONTRACT_SCHEMA_VERSION,
-  resolveFindingsOnlyAcceptanceContract
-} from "./workspace-agent-findings-role-context.mjs";
+  consumeAdvisoryReviewInput,
+  renderFamilyNeutralAdvisoryReviewInput
+} from "./workspace-agent-advisory-review-contract.mjs";
 import {
   LAUNCHER_WRITE_POSTURES
 } from "./workspace-agent-family-policy.mjs";
@@ -32,7 +35,6 @@ import {
   resolveClaudeSpawnFailureOutcome,
   settleClaudeSupervisedLaunch
 } from "./workspace-agent-claude-launch-outcome.mjs";
-export { CLAUDE_EXACT_SLICE_REVIEW_SANDBOX_REQUIRED_REASON } from "./workspace-agent-claude-launch-outcome.mjs";
 import {
   CLAUDE_LAUNCH_EXECUTOR_MISSING_BACKEND_PATH,
   CLAUDE_LAUNCH_EXECUTOR_UNAVAILABLE_REASON,
@@ -43,34 +45,13 @@ import {
   resolveClaudeLauncherWriteScope
 } from "./workspace-agent-claude-launch-support.mjs";
 import {
-  renderTrustedCorrectiveFindingsInstructions
-} from "./workspace-agent-launch-adapter-contract.mjs";
+  attachLauncherObservedTerminalResultModeFacts
+} from "./workspace-agent-dispatch-result-mode.mjs";
+import { selectWorkerLifecycleFromEffectiveWriteScope } from
+  "./workspace-agent-worker-lifecycle.mjs";
 
 export const CLAUDE_WORKER_SCOPE_AUTHORITY_INVALID_REASON =
   "claude_worker_scope_authority_invalid";
-
-function isLauncherOwnedExactSliceReview(input, { role, subject } = {}) {
-  const contract = input?.trusted_frozen_review_contract ??
-    input?.readiness?.trusted_frozen_review_contract;
-  const target = input?.readiness?.frozen_slice_review_target;
-  return role === "reviewer" &&
-    contract !== null && typeof contract === "object" && !Array.isArray(contract) &&
-    Object.keys(contract).sort().join("\0") === [
-      "canonical_parent_wk_contract", "review_subject", "review_unit_contract", "schema_version"
-    ].sort().join("\0") &&
-    contract.schema_version === FROZEN_SLICE_LEVEL_ACCEPTANCE_CONTRACT_SCHEMA_VERSION &&
-    contract.review_subject === subject &&
-    typeof contract.canonical_parent_wk_contract === "string" &&
-    typeof contract.review_unit_contract === "string" &&
-    target !== null && typeof target === "object" && !Array.isArray(target) &&
-    target.slice_level_review === true &&
-    typeof target.ref === "string" &&
-    typeof target.sha === "string" &&
-    typeof target.diff_base_sha === "string" &&
-    typeof (input?.config_root_dir ?? input?.readiness?.config_root_dir) === "string" &&
-    typeof input?.workspace_dir === "string" &&
-    (input.config_root_dir ?? input.readiness.config_root_dir) !== input.workspace_dir;
-}
 
 export {
   CLAUDE_BWRAP_ENV_ALLOWLIST,
@@ -153,6 +134,36 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
         { subject: input?.subject ?? null }
       );
     }
+    let advisoryReviewInput = null;
+    if (input?.advisory_review_input !== undefined) {
+      try {
+        advisoryReviewInput = consumeAdvisoryReviewInput(input.advisory_review_input,
+          { role, subject });
+      } catch {
+        return makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
+          "advisory_review_input_invalid", { role, subject });
+      }
+    }
+    let lifecycleKind = "advisory";
+    if (advisoryReviewInput === null) {
+      if (role !== "worker") {
+        return makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
+          "advisory_review_input_required", { role, subject });
+      }
+      try {
+        lifecycleKind = selectWorkerLifecycleFromEffectiveWriteScope(
+          input?.canonical_unit_write_scope
+        );
+      } catch (error) {
+        return makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
+          error?.code ?? "launcher_effective_write_scope_invalid",
+          { subject, authority_limb: "mechanical_failure" });
+      }
+      if (lifecycleKind !== "implementation") {
+        return makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
+          "worker_implementation_lifecycle_required", { role, subject });
+      }
+    }
 
     const runtimePreflight = await resolveClaudeRuntimePreflight({
       options,
@@ -169,9 +180,11 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
     if (runtimePreflight.refusal) return runtimePreflight.refusal;
     const { spawn, probe, resolvedClaudePath } = runtimePreflight;
 
-    const prompt = typeof promptForSubject === "function"
-      ? promptForSubject({ role, subject, workspaceDir })
-      : null;
+    const prompt = advisoryReviewInput === null
+      ? (typeof promptForSubject === "function"
+          ? promptForSubject({ role, subject, workspaceDir })
+          : null)
+      : renderFamilyNeutralAdvisoryReviewInput(advisoryReviewInput);
 
     const requestedModel = typeof input?.model === "string" && input.model.length > 0
       ? input.model
@@ -179,24 +192,23 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
 
     const writePosture = resolveClaudeLauncherRoleWritePosture(role);
 
-    const launcherOwnedExactSliceReview = isLauncherOwnedExactSliceReview(input, { role, subject });
     const writeScopeGate = resolveClaudeLauncherWriteScope({
       role,
-      writeScope: await resolveCanonicalWriteScope({
-        subject,
-        workspaceDir: launcherOwnedExactSliceReview
-          ? (input.config_root_dir ?? input.readiness.config_root_dir)
-          : workspaceDir,
-        loadWorkRecord
-      }),
-      launcherOwnedExactSliceReview
+      writeScope: advisoryReviewInput !== null
+        ? []
+        : await resolveCanonicalWriteScope({ subject, workspaceDir, loadWorkRecord })
     });
     const wsr = writeScopeGate.refusal;
     if (wsr) return makeRefusal(wsr.code, wsr.reason, wsr.detail);
     const writeScope = writeScopeGate.writeScope;
 
     const provisioning = input?.worktree_provisioning ?? null;
-    const managedImplementationWorker = role === "worker" && provisioning !== null;
+    const serverProvisionedWorktreeGitBinding =
+      input?.provisionedWorktreeGitBinding ?? input?.provisioned_worktree_git_binding ?? null;
+    const managedImplementationWorker =
+      lifecycleKind === "implementation" && provisioning !== null;
+    const advisoryExecution = advisoryReviewInput !== null;
+    const canonicalRepo = advisoryReviewInput?.repository ?? null;
 
     const effectiveNativeRepoWriteMechanism =
       nativeRepoWriteMechanism === true && !managedImplementationWorker;
@@ -210,7 +222,7 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
           subject,
           worktreeProvisioning: provisioning,
           provisionedWorktreeGitBinding:
-            input?.provisionedWorktreeGitBinding ?? input?.provisioned_worktree_git_binding ?? null,
+            serverProvisionedWorktreeGitBinding,
           required: managedImplementationWorker
         }
       );
@@ -264,15 +276,22 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
           createMcpConduit,
           role,
           subject,
-          conduitWorkspaceDir:
-            provisioning?.main_repo ?? path.resolve(workspaceDir ?? defaultCwd),
+
+          conduitWorkspaceDir: advisoryExecution
+            ? canonicalRepo
+            : provisioning?.main_repo ?? path.resolve(workspaceDir ?? defaultCwd),
           commitTuple,
           workerScopeAuthority: role === "worker" ? workerScopeAuthority : null,
 
-          canonicalWriteScope: role === "worker" && workerScopeAuthority === null
+          canonicalWriteScope: lifecycleKind === "implementation" &&
+              workerScopeAuthority === null
             ? writeScope ?? []
             : null,
-          provisioning
+          provisioning,
+
+          completionCredential: input?.completion_credential ?? null,
+          completionTransport: input?.completion_transport ?? null,
+          canonicalRepo: advisoryExecution ? canonicalRepo : null
         });
       } catch (err) {
         return await refuseAfterConduit(
@@ -305,26 +324,16 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
     }
     const claudeSettings = permissionSurface.claudeSettings;
 
-    const schemaConstrainedTerminalResult = workspaceDir
-      ? resolveSchemaConstrainedTier({ workspaceDir }) === true
-      : false;
-
-    const correctiveInstructions = role === "worker"
-      ? renderTrustedCorrectiveFindingsInstructions(
-          input?.readiness?.trusted_corrective_findings_context ?? null,
-          { subject }
-        )
-      : null;
-
-    const findingsOnlyAcceptance = await resolveFindingsOnlyAcceptanceContract({
-      role,
-      subject,
-      workspaceDir,
-      loadWorkRecord,
-
-      frozenReviewContract: input?.trusted_frozen_review_contract ??
-        input?.readiness?.trusted_frozen_review_contract ?? null
+    const schemaConstrainedTerminalResult = advisoryReviewInput !== null
+      ? advisoryReviewInput.formal_result_contract?.mode === "schema_constrained"
+      : workspaceDir
+        ? resolveSchemaConstrainedTier({ workspaceDir }) === true
+        : false;
+    const terminalStructuredRoleResultMode = resolveTerminalStructuredRoleResultMode({
+      schemaConstrained: schemaConstrainedTerminalResult,
+      role
     });
+
     const commandLineResult = buildClaudeLaunchCommandLine({
       buildCommandLine,
       resolvedClaudePath,
@@ -334,11 +343,10 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
       requestedModel,
       workspaceDir,
       probe,
-      findingsOnlyAcceptance,
+      canonicalRepo: advisoryExecution ? canonicalRepo : null,
       claudeSettings,
       effectiveNativeRepoWriteMechanism,
       schemaConstrainedTerminalResult,
-      correctiveInstructions
     });
     if (commandLineResult.refusal) {
       const r = commandLineResult.refusal;
@@ -367,9 +375,7 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
 
     const readOnlyRoots = [
       ...(claudeSettings?.settingsRoot ? [claudeSettings.settingsRoot] : []),
-      ...(role === "reviewer" && Array.isArray(input?.reviewer_dependency_binds)
-        ? input.reviewer_dependency_binds
-        : [])
+      ...(advisoryExecution ? [advisoryReviewInput.private_checkout_root] : [])
     ];
     const writePathMounts = await resolveClaudeWritePathMounts({
       needsDirectoryScope,
@@ -404,27 +410,11 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
       );
     }
 
-    const terminalReviewSpawnBarrier =
-      typeof input?.terminal_review_spawn_barrier === "function"
-        ? input.terminal_review_spawn_barrier
-        : null;
-    if (terminalReviewSpawnBarrier !== null) {
-      const verdict = terminalReviewSpawnBarrier();
-      if (verdict?.ok !== true) {
-        return await refuseAfterConduit(
-          BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
-          verdict?.reason ?? "terminal_review_attempt_contract_recheck_failed",
-          { role, subject, ...(verdict?.detail ?? {}) }
-        );
-      }
-    }
-
     const launchOutcomeContext = {
       role,
       subject,
       conduit,
       refuseAfterConduit,
-      launcherOwnedExactSliceReview,
       commandLine,
       argv,
       env,
@@ -434,7 +424,6 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
       captureFinalResult,
       resolvedClaudePath,
       killTimeoutMs,
-      terminalReviewSpawnBarrier,
       needsDirectoryScope,
       verifyWorkerWriteScope,
       writeScope,
@@ -454,17 +443,22 @@ export function createClaudeWorkspaceAgentLaunchExecutor(options = {}) {
 
         runtimeRoots,
         readOnlyRoots,
-        findingsRole: role === "reviewer" || role === "redteam" ? role : null,
-        credentialsWritable: launcherOwnedExactSliceReview !== true,
+        protectGitMetadata: advisoryExecution,
+        provisionedWorktreeGitBinding: serverProvisionedWorktreeGitBinding,
+        credentialsWritable: !advisoryExecution,
         stdioMcpConduit: conduit,
-        stdio: ["ignore", "pipe", "pipe"],
-
-        terminalReviewSpawnBarrier
+        stdio: ["ignore", "pipe", "pipe"]
       });
     } catch (err) {
       return await resolveClaudeSpawnFailureOutcome(err, launchOutcomeContext);
     }
-    return await settleClaudeSupervisedLaunch({ ...launchOutcomeContext, child });
+    const launchResult = await settleClaudeSupervisedLaunch({ ...launchOutcomeContext, child });
+    return launchResult?.accepted === true
+      ? attachLauncherObservedTerminalResultModeFacts(
+          launchResult,
+          { selectedContract: terminalStructuredRoleResultMode }
+        )
+      : launchResult;
   };
 }
 

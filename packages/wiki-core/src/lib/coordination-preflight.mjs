@@ -10,6 +10,11 @@ import {
   RUNTIME_BLOCKER_CODES,
   RUNTIME_BLOCKER_TAXONOMY_SCHEMA_VERSION
 } from "./runtime-blocker-taxonomy.mjs";
+import {
+  AGENT_DISPATCH_IDENTITY_SCHEMA_VERSION,
+  CALLER_ROLE_KIND_VALUES,
+  isAcceptedIdentityTrustSource
+} from "./agent-dispatch-identity.mjs";
 
 export const COORDINATION_PREFLIGHT_SCHEMA_VERSION = "coordination-preflight.v1";
 
@@ -29,6 +34,47 @@ export const COORDINATOR_FORBIDDEN_WRITE_SURFACES = Object.freeze([
   ".agent-runs/"
 ]);
 
+export const COORDINATION_PREFLIGHT_COVERAGE_SCHEMA_VERSION =
+  "coordination-preflight-coverage.v1";
+
+export const COORDINATION_PREFLIGHT_LOCAL_HANDLING_VALUES = Object.freeze([
+  "evaluated_locally",
+  "projected",
+  "not_evaluated"
+]);
+
+export const COORDINATION_PREFLIGHT_FACT_FAMILY_IDS = Object.freeze([
+  "coordinator_identity_and_role",
+  "repository_docs_wiki_mount_and_writeback",
+  "structured_route_registration",
+  "launcher_active_composition_compatibility",
+  "graph_impact",
+  "local_dispatch_structural_readiness",
+  "cce_declaration_admissibility_and_policy",
+  "launcher_backend_provisioning_and_spawn_readiness"
+]);
+
+export const CCE_POLICY_PROJECTION_SCHEMA_VERSIONS = Object.freeze([
+  "cce-boundary-policy-decision.v1",
+  "launcher-authenticated-no-cce-authority-declaration.v1"
+]);
+
+export const COORDINATION_PREFLIGHT_COMPLETE_RETRIEVAL = Object.freeze({
+  kind: "structured_route",
+  route: "workspace_coordination_preflight",
+  argument: "verbose",
+  value: true,
+  returns: "coverage.families"
+});
+
+const PROJECTION_BY_REFERENCE_SCHEMAS = new Set([
+  "launcher-transition-plan.v1",
+  ...CCE_POLICY_PROJECTION_SCHEMA_VERSIONS
+]);
+
+const OWNER_BOUND_IDENTITY_FACTS = new WeakSet();
+const OWNER_BOUND_CCE_POLICY_PROJECTIONS = new WeakSet();
+
 const READ_ONLY_ROLE_VALUES = Object.freeze(["reviewer", "redteam"]);
 
 const ROLE_KIND_VALUES = Object.freeze([
@@ -41,6 +87,9 @@ const ROLE_KIND_VALUES = Object.freeze([
 ]);
 
 function freezeDeep(value) {
+  if (PROJECTION_BY_REFERENCE_SCHEMAS.has(value?.schema_version) && Object.isFrozen(value)) {
+    return value;
+  }
   if (Array.isArray(value)) {
     value.forEach(freezeDeep);
     return Object.freeze(value);
@@ -70,6 +119,168 @@ function isReadOnlyDispatchRole(role) {
   return READ_ONLY_ROLE_VALUES.includes(role);
 }
 
+function isObjectReference(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+export function authenticateCoordinationPreflightOwnerFacts({
+  identity = null,
+  cce_policy_projection = null
+} = {}) {
+  if (isObjectReference(identity)) {
+    OWNER_BOUND_IDENTITY_FACTS.add(identity);
+  }
+  if (isObjectReference(cce_policy_projection)) {
+    OWNER_BOUND_CCE_POLICY_PROJECTIONS.add(cce_policy_projection);
+  }
+  return Object.freeze({ identity, cce_policy_projection });
+}
+
+function classifyIdentityProjection(identity) {
+  if (identity === null || identity === undefined) {
+    return { carrier_state: "absent", authenticated: false };
+  }
+  if (!isObjectReference(identity)) {
+    return { carrier_state: "malformed_identity_envelope", authenticated: false };
+  }
+  if (identity.accepted === false) {
+    return { carrier_state: "rejected_identity_envelope", authenticated: false };
+  }
+  const completeAcceptedShape =
+    identity.schema_version === AGENT_DISPATCH_IDENTITY_SCHEMA_VERSION &&
+    identity.accepted === true &&
+    CALLER_ROLE_KIND_VALUES.includes(identity.role_kind) &&
+    isAcceptedIdentityTrustSource(identity.trust_source) &&
+    Object.isFrozen(identity);
+  if (!completeAcceptedShape) {
+    return { carrier_state: "malformed_identity_envelope", authenticated: false };
+  }
+  if (!OWNER_BOUND_IDENTITY_FACTS.has(identity)) {
+    return { carrier_state: "unauthenticated_identity_envelope", authenticated: false };
+  }
+  return { carrier_state: "accepted_owner_minted_identity", authenticated: true };
+}
+
+function classifyCcePolicyProjection(carrier) {
+  if (carrier === null || carrier === undefined) {
+    return { carrier_state: "absent", authenticated: false };
+  }
+  if (typeof carrier !== "object" || Array.isArray(carrier)) {
+    return { carrier_state: "malformed_carrier", authenticated: false };
+  }
+  if (!CCE_POLICY_PROJECTION_SCHEMA_VERSIONS.includes(carrier.schema_version)) {
+    return { carrier_state: "unrecognized_carrier", authenticated: false };
+  }
+  if (!Object.isFrozen(carrier)) {
+    return { carrier_state: "unauthenticated_carrier", authenticated: false };
+  }
+  if (!OWNER_BOUND_CCE_POLICY_PROJECTIONS.has(carrier)) {
+
+    return { carrier_state: "unauthenticated_carrier", authenticated: false };
+  }
+  return { carrier_state: "authenticated_projection", authenticated: true };
+}
+
+function buildFactFamilies({
+  identityFact,
+  compositionSupplied,
+  graphImpactSupplied,
+  validateDispatchRouteRegistered,
+  ccePolicy,
+  launcherPlanSupplied
+}) {
+  return [
+    {
+      family: "coordinator_identity_and_role",
+
+      evaluation_origin: "workspace_agent_dispatch_identity_contract",
+      local_handling: identityFact.authenticated ? "projected" : "not_evaluated",
+      authoritative_boundary: "workspace_agent_dispatch_identity_contract",
+      state: identityFact.carrier_state,
+      discloses: ["role", "caller_session_role", "target_dispatch_role", "identity"]
+    },
+    {
+      family: "repository_docs_wiki_mount_and_writeback",
+      evaluation_origin: "coordination_preflight",
+      local_handling: "evaluated_locally",
+      authoritative_boundary: "coordination_preflight",
+      state: "probed",
+      discloses: [
+        "repo_mount_writable",
+        "repo_readable",
+        "docs_writable",
+        "wiki_writable",
+        "writeback",
+        "filesystem_diagnostics"
+      ]
+    },
+    {
+      family: "structured_route_registration",
+      evaluation_origin: "mcp_runtime_registration",
+      local_handling: "evaluated_locally",
+      authoritative_boundary: "wiki_mcp_tool_registration",
+      state: "live_registration_read",
+
+      discloses: ["available_structured_routes", "structured_dispatch.route_registered"]
+    },
+    {
+      family: "launcher_active_composition_compatibility",
+      evaluation_origin: "launcher_stdio_mcp_composition_authority",
+      local_handling: compositionSupplied ? "projected" : "not_evaluated",
+      authoritative_boundary: "agent_launch_launcher",
+      state: compositionSupplied ? "closed_gate_projected" : "no_composition_fact_supplied",
+      discloses: ["structured_dispatch"]
+    },
+    {
+      family: "graph_impact",
+      evaluation_origin: graphImpactSupplied
+        ? "coordination_preflight"
+        : "workspace_code_index_graph_impact",
+
+      local_handling: graphImpactSupplied ? "evaluated_locally" : "not_evaluated",
+      authoritative_boundary: "workspace_code_index_graph_impact",
+      state: graphImpactSupplied ? "degraded_state_mapped" : "no_graph_state_supplied",
+      discloses: ["blockers"]
+    },
+    {
+      family: "local_dispatch_structural_readiness",
+      evaluation_origin: "workspace_validate_dispatch",
+
+      local_handling: "not_evaluated",
+      authoritative_boundary: "workspace_validate_dispatch",
+      state: validateDispatchRouteRegistered
+        ? "route_registered_not_called"
+        : "route_not_registered",
+      discloses: []
+    },
+    {
+      family: "cce_declaration_admissibility_and_policy",
+      evaluation_origin: "chassis_control_engine",
+      local_handling: ccePolicy.authenticated ? "projected" : "not_evaluated",
+      authoritative_boundary: "chassis_control_engine",
+      state: ccePolicy.carrier_state,
+
+      local_policy_verdict: null,
+      policy_classification: ccePolicy.authenticated
+        ? "cce_owned_projection"
+        : "non_policy",
+      projected_fact: ccePolicy.authenticated ? ccePolicy.carrier : null,
+      discloses: ["coverage.families[cce_declaration_admissibility_and_policy]"]
+    },
+    {
+      family: "launcher_backend_provisioning_and_spawn_readiness",
+      evaluation_origin: "agent_launch_launcher",
+      local_handling: launcherPlanSupplied ? "projected" : "not_evaluated",
+      authoritative_boundary: "agent_launch_launcher",
+      state: launcherPlanSupplied
+        ? "transition_plan_projected"
+        : "no_launcher_projection_supplied",
+
+      discloses: ["launcher_transition_plan"]
+    }
+  ];
+}
+
 export function evaluateCoordinationPreflight({
   role = "unknown",
   caller_session_role = null,
@@ -82,8 +293,16 @@ export function evaluateCoordinationPreflight({
   wiki_writable = null,
   available_structured_routes = [],
   structured_dispatch_compatibility = null,
-  graph_impact_state = null
+  graph_impact_state = null,
+  launcher_transition_plan = null,
+
+  cce_policy_projection = null
 } = {}) {
+  if (launcher_transition_plan !== null &&
+      (launcher_transition_plan?.schema_version !== "launcher-transition-plan.v1" ||
+        !Object.isFrozen(launcher_transition_plan))) {
+    throw new TypeError("coordination preflight requires the exact frozen launcher transition plan");
+  }
   const normalizedRole = ROLE_KIND_VALUES.includes(role) ? role : "unknown";
   const normalizedCaller =
     caller_session_role === null
@@ -400,6 +619,58 @@ export function evaluateCoordinationPreflight({
       ? "proceed_read_only_dispatch_writeback_blocked"
       : "proceed";
 
+  const ccePolicy = {
+    ...classifyCcePolicyProjection(cce_policy_projection),
+    carrier: cce_policy_projection
+  };
+  const identityFact = classifyIdentityProjection(identity);
+  const families = buildFactFamilies({
+    identityFact,
+    compositionSupplied: structured_dispatch_compatibility !== null,
+    graphImpactSupplied: Boolean(graph_impact_state),
+    validateDispatchRouteRegistered: routeNames.has("workspace_validate_dispatch"),
+    ccePolicy,
+    launcherPlanSupplied: launcher_transition_plan !== null
+  });
+  const countBy = (handling) =>
+    families.filter((entry) => entry.local_handling === handling).length;
+  const evaluatedLocallyCount = countBy("evaluated_locally");
+  const projectedCount = countBy("projected");
+  const notEvaluatedCount = countBy("not_evaluated");
+  const deferredBoundaries = families
+    .filter((entry) => entry.local_handling !== "evaluated_locally")
+    .map((entry) => ({
+      family: entry.family,
+      local_handling: entry.local_handling,
+      authoritative_boundary: entry.authoritative_boundary
+    }));
+
+  const coverage = {
+    schema_version: COORDINATION_PREFLIGHT_COVERAGE_SCHEMA_VERSION,
+    local_handling_vocabulary: COORDINATION_PREFLIGHT_LOCAL_HANDLING_VALUES.slice(),
+    family_ids: COORDINATION_PREFLIGHT_FACT_FAMILY_IDS.slice(),
+    family_count: families.length,
+    evaluated_locally_count: evaluatedLocallyCount,
+    projected_count: projectedCount,
+    not_evaluated_count: notEvaluatedCount,
+
+    omitted_count: projectedCount + notEvaluatedCount,
+    families,
+    deferred_boundaries: deferredBoundaries,
+    complete_retrieval: COORDINATION_PREFLIGHT_COMPLETE_RETRIEVAL
+  };
+
+  const proceedScope = {
+    next_action: nextAction,
+    proceed: !blocking,
+    scope: "locally_evaluated_and_projected_coordination_facts",
+    asserts_complete_launch_readiness: false,
+    launch_readiness_owner: "agent_launch_launcher",
+    deferred_boundaries: deferredBoundaries,
+    summary:
+      "A proceed result means no coordination blocker was found among the fact families preflight evaluated or reported. It is not complete launch readiness: the deferred boundaries listed here still own their own facts."
+  };
+
   const writePolicy = {
     role: normalizedRole,
     allowed_roots: COORDINATOR_ALLOWED_WRITE_SURFACES.slice(),
@@ -448,11 +719,16 @@ export function evaluateCoordinationPreflight({
       fact: null,
       blocker: null
     }),
+
+    launcher_transition_plan,
     blockers,
 
     analysis_blocked: blocking,
     blocking,
-    next_action: nextAction
+    next_action: nextAction,
+
+    coverage,
+    proceed_scope: proceedScope
   });
 }
 
@@ -524,7 +800,9 @@ export async function runCoordinationPreflight({
   target_dispatch_role = null,
   available_structured_routes = [],
   structured_dispatch_compatibility = null,
-  graph_impact_state = null
+  graph_impact_state = null,
+  launcher_transition_plan = null,
+  cce_policy_projection = null
 } = {}) {
   if (!dir) {
     throw new Error("runCoordinationPreflight requires a repository directory");
@@ -547,7 +825,9 @@ export async function runCoordinationPreflight({
     wiki_writable: wikiWritable,
     available_structured_routes,
     structured_dispatch_compatibility,
-    graph_impact_state
+    graph_impact_state,
+    launcher_transition_plan,
+    cce_policy_projection
   });
 }
 

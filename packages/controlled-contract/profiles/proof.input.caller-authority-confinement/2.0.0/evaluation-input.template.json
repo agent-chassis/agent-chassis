@@ -1,0 +1,437 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.v1",
+  "evaluation_stage": "post_delivery",
+  "reference_bindings": [
+    {
+      "role": "acceptance",
+      "reference_ids": [
+        "ref-cia-acceptance"
+      ]
+    },
+    {
+      "role": "accepted_attempt",
+      "reference_ids": [
+        "ref-cia-accepted-attempt"
+      ]
+    },
+    {
+      "role": "accepted_request",
+      "reference_ids": [
+        "ref-cia-accepted-request"
+      ]
+    },
+    {
+      "role": "accepted_request_capture",
+      "reference_ids": [
+        "ref-cia-accepted-request-source"
+      ]
+    },
+    {
+      "role": "capture_proof",
+      "reference_ids": [
+        "ref-cia-observation-capture-proof"
+      ]
+    },
+    {
+      "role": "forbidden_attempt",
+      "reference_ids": [
+        "ref-observation-attempt-caller-authority-forbidden"
+      ]
+    },
+    {
+      "role": "forbidden_request",
+      "reference_ids": [
+        "ref-cia-forbidden-request"
+      ]
+    },
+    {
+      "role": "forbidden_request_capture",
+      "reference_ids": [
+        "ref-cia-forbidden-request-source"
+      ]
+    },
+    {
+      "role": "interface",
+      "reference_ids": [
+        "ref-cia-request-interface"
+      ]
+    },
+    {
+      "role": "observation_cut",
+      "reference_ids": [
+        "ref-cia-observation-cut"
+      ]
+    },
+    {
+      "role": "observation_evidence_capture",
+      "reference_ids": [
+        "ref-cia-observation-evidence"
+      ]
+    },
+    {
+      "role": "parser",
+      "reference_ids": [
+        "ref-cia-parser"
+      ]
+    },
+    {
+      "role": "path_like_control",
+      "reference_ids": [
+        "ref-cia-path-like-opaque-control"
+      ]
+    },
+    {
+      "role": "policy_capture",
+      "reference_ids": [
+        "ref-cia-input-policy-source"
+      ]
+    },
+    {
+      "role": "projection_result",
+      "reference_ids": [
+        "ref-cia-projection-result"
+      ]
+    },
+    {
+      "role": "refusal",
+      "reference_ids": [
+        "ref-cia-refusal"
+      ]
+    },
+    {
+      "role": "verification",
+      "reference_ids": [
+        "ref-cia-verification"
+      ]
+    },
+    {
+      "role": "accepted_supply_pop",
+      "reference_ids": [
+        "ref-cia-accepted-supplied-member-population"
+      ]
+    },
+    {
+      "role": "accepted_members",
+      "reference_ids": [
+        "ref-cia-member-0e0ddaf8a98edcfa370b98a1ac8674fcbec9fbe3c0c9816aca0fdacaa486c6f3",
+        "ref-cia-member-3182d041a1b42de7803df2261c1f152f5623c7e90a336197d8ba9ce63e568997",
+        "ref-cia-member-974f1ac0855f251b66d0d87ae57738bb0074e6989e4517fed78c8b5a79d3b375",
+        "ref-cia-member-a82ee84c8e2e31d66419a7bbbe85dab49c71b5273aeaa582e8089506f6c7752b",
+        "ref-cia-member-c3ae01ca9f4e6d4c7bf1bfb9fe6fb8a13c88033a9fdb36de1f093c6fd7f05c3c",
+        "ref-cia-member-fb578f14d098310aa1b9b54a6eed2c6f38e2b389b3f246b782efce48bccb4d58",
+        "ref-cia-member-fc70a921a2fe61214a6a6ffc9616cce681991ae2f7c4f32361043bf06f523497"
+      ]
+    },
+    {
+      "role": "allowed_members_pop",
+      "reference_ids": [
+        "ref-cia-allowed-member-population"
+      ]
+    },
+    {
+      "role": "allowed_members",
+      "reference_ids": [
+        "ref-cia-member-0e0ddaf8a98edcfa370b98a1ac8674fcbec9fbe3c0c9816aca0fdacaa486c6f3",
+        "ref-cia-member-3182d041a1b42de7803df2261c1f152f5623c7e90a336197d8ba9ce63e568997",
+        "ref-cia-member-974f1ac0855f251b66d0d87ae57738bb0074e6989e4517fed78c8b5a79d3b375",
+        "ref-cia-member-a82ee84c8e2e31d66419a7bbbe85dab49c71b5273aeaa582e8089506f6c7752b",
+        "ref-cia-member-c3ae01ca9f4e6d4c7bf1bfb9fe6fb8a13c88033a9fdb36de1f093c6fd7f05c3c",
+        "ref-cia-member-fb578f14d098310aa1b9b54a6eed2c6f38e2b389b3f246b782efce48bccb4d58",
+        "ref-cia-member-fc70a921a2fe61214a6a6ffc9616cce681991ae2f7c4f32361043bf06f523497"
+      ]
+    },
+    {
+      "role": "authority_classes_pop",
+      "reference_ids": [
+        "ref-cia-authority-classification-population"
+      ]
+    },
+    {
+      "role": "authority_classes",
+      "reference_ids": [
+        "ref-cia-classification-authority-bearing-forbidden"
+      ]
+    },
+    {
+      "role": "coordinate_classes_pop",
+      "reference_ids": [
+        "ref-cia-coordinate-classification-population"
+      ]
+    },
+    {
+      "role": "coordinate_classes",
+      "reference_ids": [
+        "ref-cia-classification-resolution-coordinate"
+      ]
+    },
+    {
+      "role": "declared_members_pop",
+      "reference_ids": [
+        "ref-cia-declared-member-population"
+      ]
+    },
+    {
+      "role": "declared_members",
+      "reference_ids": [
+        "ref-cia-member-0e0ddaf8a98edcfa370b98a1ac8674fcbec9fbe3c0c9816aca0fdacaa486c6f3",
+        "ref-cia-member-1719d6e10f28e25cb44234ddb9875318615f377c1c165fa4c345a6446b85171e",
+        "ref-cia-member-3182d041a1b42de7803df2261c1f152f5623c7e90a336197d8ba9ce63e568997",
+        "ref-cia-member-38711201bf401022414e329144f58e37c3dca96c5a1db45390bb5b61d78cf262",
+        "ref-cia-member-974f1ac0855f251b66d0d87ae57738bb0074e6989e4517fed78c8b5a79d3b375",
+        "ref-cia-member-a82ee84c8e2e31d66419a7bbbe85dab49c71b5273aeaa582e8089506f6c7752b",
+        "ref-cia-member-c3ae01ca9f4e6d4c7bf1bfb9fe6fb8a13c88033a9fdb36de1f093c6fd7f05c3c",
+        "ref-cia-member-fb578f14d098310aa1b9b54a6eed2c6f38e2b389b3f246b782efce48bccb4d58",
+        "ref-cia-member-fc70a921a2fe61214a6a6ffc9616cce681991ae2f7c4f32361043bf06f523497"
+      ]
+    },
+    {
+      "role": "forbidden_supply_pop",
+      "reference_ids": [
+        "ref-cia-forbidden-supplied-member-population"
+      ]
+    },
+    {
+      "role": "forbidden_supply",
+      "reference_ids": [
+        "ref-cia-member-1719d6e10f28e25cb44234ddb9875318615f377c1c165fa4c345a6446b85171e",
+        "ref-cia-member-3182d041a1b42de7803df2261c1f152f5623c7e90a336197d8ba9ce63e568997",
+        "ref-cia-member-fb578f14d098310aa1b9b54a6eed2c6f38e2b389b3f246b782efce48bccb4d58"
+      ]
+    },
+    {
+      "role": "forbidden_members_pop",
+      "reference_ids": [
+        "ref-cia-forbidden-member-population"
+      ]
+    },
+    {
+      "role": "forbidden_members",
+      "reference_ids": [
+        "ref-cia-member-1719d6e10f28e25cb44234ddb9875318615f377c1c165fa4c345a6446b85171e",
+        "ref-cia-member-38711201bf401022414e329144f58e37c3dca96c5a1db45390bb5b61d78cf262"
+      ]
+    },
+    {
+      "role": "family_classes_pop",
+      "reference_ids": [
+        "ref-cia-family-classification-population"
+      ]
+    },
+    {
+      "role": "family_classes",
+      "reference_ids": [
+        "ref-cia-classification-prohibited-family"
+      ]
+    },
+    {
+      "role": "mandatory_sources_pop",
+      "reference_ids": [
+        "ref-cia-mandatory-source-population"
+      ]
+    },
+    {
+      "role": "mandatory_sources",
+      "reference_ids": [
+        "ref-provenance-source-cia-1",
+        "ref-provenance-source-cia-2",
+        "ref-provenance-source-cia-3",
+        "ref-provenance-source-cia-4",
+        "ref-provenance-source-cia-5",
+        "ref-provenance-source-cia-6",
+        "ref-provenance-source-cia-7",
+        "ref-provenance-source-cia-8",
+        "ref-provenance-source-cia-9"
+      ]
+    },
+    {
+      "role": "observed_sources_pop",
+      "reference_ids": [
+        "ref-cia-observed-source-population"
+      ]
+    },
+    {
+      "role": "observed_sources",
+      "reference_ids": [
+        "ref-provenance-source-cia-1",
+        "ref-provenance-source-cia-2",
+        "ref-provenance-source-cia-3",
+        "ref-provenance-source-cia-4",
+        "ref-provenance-source-cia-5",
+        "ref-provenance-source-cia-6",
+        "ref-provenance-source-cia-7",
+        "ref-provenance-source-cia-8",
+        "ref-provenance-source-cia-9"
+      ]
+    },
+    {
+      "role": "pre_refusal_pop",
+      "reference_ids": [
+        "ref-cia-pre-refusal-occurrence-population"
+      ]
+    },
+    {
+      "role": "pre_cut_occurrences",
+      "reference_ids": []
+    },
+    {
+      "role": "prohibited_families_pop",
+      "reference_ids": [
+        "ref-cia-prohibited-family-population"
+      ]
+    },
+    {
+      "role": "prohibited_families",
+      "reference_ids": [
+        "ref-cia-family-catalog",
+        "ref-cia-family-environment",
+        "ref-cia-family-filesystem",
+        "ref-cia-family-loader",
+        "ref-cia-family-module",
+        "ref-cia-family-resolver",
+        "ref-cia-family-return",
+        "ref-cia-family-subprocess",
+        "ref-cia-family-success"
+      ]
+    },
+    {
+      "role": "protected_effects_pop",
+      "reference_ids": [
+        "ref-cia-protected-effect-population"
+      ]
+    },
+    {
+      "role": "protected_effects",
+      "reference_ids": [
+        "ref-cia-effect-environment",
+        "ref-cia-effect-import",
+        "ref-cia-effect-read"
+      ]
+    },
+    {
+      "role": "resolution_coordinates_pop",
+      "reference_ids": [
+        "ref-cia-resolution-coordinate-population"
+      ]
+    },
+    {
+      "role": "resolution_coordinates",
+      "reference_ids": [
+        "ref-cia-coordinate-environment",
+        "ref-cia-coordinate-module",
+        "ref-cia-coordinate-server-root"
+      ]
+    },
+    {
+      "role": "resolver_operations_pop",
+      "reference_ids": [
+        "ref-cia-resolver-operation-population"
+      ]
+    },
+    {
+      "role": "resolver_operations",
+      "reference_ids": [
+        "ref-cia-operation-environment",
+        "ref-cia-operation-module",
+        "ref-cia-operation-server-root"
+      ]
+    },
+    {
+      "role": "selected_forbidden_pop",
+      "reference_ids": [
+        "ref-cia-selected-forbidden-member-population"
+      ]
+    },
+    {
+      "role": "selected_forbidden",
+      "reference_ids": [
+        "ref-cia-member-1719d6e10f28e25cb44234ddb9875318615f377c1c165fa4c345a6446b85171e"
+      ]
+    },
+    {
+      "role": "server_coordinates_pop",
+      "reference_ids": [
+        "ref-cia-server-selected-coordinate-population"
+      ]
+    },
+    {
+      "role": "server_coordinates",
+      "reference_ids": [
+        "ref-cia-coordinate-server-root"
+      ]
+    }
+  ],
+  "number_bindings": [
+    {
+      "role": "accepted_members_count",
+      "value": 7
+    },
+    {
+      "role": "allowed_members_count",
+      "value": 7
+    },
+    {
+      "role": "authority_classes_count",
+      "value": 1
+    },
+    {
+      "role": "coordinate_classes_count",
+      "value": 1
+    },
+    {
+      "role": "declared_members_count",
+      "value": 9
+    },
+    {
+      "role": "forbidden_supply_count",
+      "value": 3
+    },
+    {
+      "role": "forbidden_members_count",
+      "value": 2
+    },
+    {
+      "role": "family_classes_count",
+      "value": 1
+    },
+    {
+      "role": "mandatory_sources_count",
+      "value": 9
+    },
+    {
+      "role": "observed_sources_count",
+      "value": 9
+    },
+    {
+      "role": "pre_cut_occurrences_count",
+      "value": 0
+    },
+    {
+      "role": "prohibited_families_count",
+      "value": 9
+    },
+    {
+      "role": "protected_effects_count",
+      "value": 3
+    },
+    {
+      "role": "resolution_coordinates_count",
+      "value": 3
+    },
+    {
+      "role": "resolver_operations_count",
+      "value": 3
+    },
+    {
+      "role": "selected_forbidden_count",
+      "value": 1
+    },
+    {
+      "role": "server_coordinates_count",
+      "value": 1
+    }
+  ],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": [],
+  "stable_evaluation": {}
+}

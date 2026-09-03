@@ -163,10 +163,6 @@ export async function launchWorkspaceAgentFamilyLaunchLifecycle({
   adaptSupervisedResult = null,
   adaptEnvelope = null,
   postRunVerification = null,
-
-  preSpawnBarrier = null,
-  buildPreSpawnBarrierRefusal = null,
-
   resolveSpawn = null
 } = {}) {
   requireFunction(spawn, "spawn");
@@ -194,22 +190,6 @@ export async function launchWorkspaceAgentFamilyLaunchLifecycle({
     }
     if (typeof spawnNow !== "function") {
       return buildNoChildRefusal(null);
-    }
-  }
-
-  if (typeof preSpawnBarrier === "function") {
-    requireFunction(buildPreSpawnBarrierRefusal, "buildPreSpawnBarrierRefusal");
-
-    if (typeof resolveSpawn !== "function") {
-      return buildPreSpawnBarrierRefusal({
-        ok: false,
-        reason: "terminal_review_spawn_primitive_unresolved",
-        detail: { family: kind ?? null, subject: subject ?? null }
-      });
-    }
-    const verdict = preSpawnBarrier();
-    if (verdict?.ok !== true) {
-      return buildPreSpawnBarrierRefusal(verdict ?? null);
     }
   }
 

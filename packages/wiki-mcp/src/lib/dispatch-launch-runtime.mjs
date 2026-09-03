@@ -4,13 +4,16 @@ import { randomBytes } from "node:crypto";
 import { realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import {
-  setWorkRecordStatusByUnit,
-  writeValidatedWorkRecord
-} from "../../../wiki-core/src/index.mjs";
+  deriveLauncherOwnedDispatchWorktreeRoot
+} from "@agent-chassis/agent-launch-core/src/lib/launcher-owned-worktree-root.mjs";
 import {
   createManagedWorkerConfinementActivationBinding,
   createWorkspaceAgentDispatchBackend
 } from "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-dispatch-backend.mjs";
+import {
+  createCanonicalCommittedSliceIntegrationAdapter
+} from "@agent-chassis/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-integration.mjs";
+export { createCanonicalCommittedSliceIntegrationAdapter };
 import {
   WIKI_MCP_DISPATCH_WORKTREE_ROOT_ENV_VAR,
   WIKI_MCP_WORKSPACE_DIR_ENV_VAR
@@ -37,16 +40,14 @@ import {
   SLICE_REVIEW_SURFACE_PREPARATION_SCHEMA_VERSION,
   WK_FORGE_HANDOFF_FAILURE_CATEGORIES
 } from "@agent-chassis/agent-launch-cli/src/lib/trusted-operation-contracts.mjs";
-import {
-  defaultIntegrateManagedWorkerSlice,
-  TERMINAL_REVIEW_EVIDENCE_COMPOSITIONS
-} from "@agent-chassis/agent-launch-cli/src/lib/trusted-slice-integration.mjs";
-import {
-  integrateCommittedSlice
-} from "@agent-chassis/agent-launch-cli/src/lib/slice-integration.mjs";
+import { defaultRunGitAsync } from
+  "@agent-chassis/agent-launch-cli/src/lib/worktree-substrate.mjs";
 import {
   defaultWkForgeHandoff
 } from "@agent-chassis/agent-launch-cli/src/lib/wk-forge-handoff.mjs";
+import {
+  trustedWkForgeMerge
+} from "@agent-chassis/agent-launch-cli/src/lib/wk-forge-merge.mjs";
 
 import {
   evaluateWorkerAdmissionForBackend
@@ -59,6 +60,8 @@ import {
   runPostWorkerSliceLifecycle,
   TERMINAL_REVIEW_EVIDENCE_MODES
 } from "./dispatch-run-monitor-routes.mjs";
+import { settleFormalReviewAttestationForDispatch } from
+  "./review-attestation-tools.mjs";
 import { WORKSPACE_CLOSED_INPUT_COMMIT_COMPOSITION } from "./workspace-commit-tool.mjs";
 import {
   assertManagedStdioMcpCompositionAuthority,
@@ -95,6 +98,58 @@ export {
   TERMINAL_CANDIDATE_UNKNOWN_FAILURE_MESSAGE,
   TERMINAL_REVIEW_UNIT_PROJECTION_CODES
 } from "./dispatch-terminal-candidate-runtime.mjs";
+
+export function createWkForgeHandoffPublicationStateResolver({
+  dispatchBackend, terminalCandidateCoordinator
+} = {}) {
+  if (typeof dispatchBackend?.resolveTerminalCandidatePublicationState !== "function" ||
+      typeof terminalCandidateCoordinator?.recoverTerminalCandidateUnderAuthority !== "function") {
+    throw new TypeError(
+      "WK forge publication-state resolver requires trusted backend and recovery composition"
+    );
+  }
+  return async (wkId, authorityContext) => {
+    const retained = await dispatchBackend.resolveTerminalCandidatePublicationState(wkId);
+    if (retained !== null) return retained;
+    const recovered = await terminalCandidateCoordinator.recoverTerminalCandidateUnderAuthority({
+      wkId, authorityContext
+    });
+    if (recovered === null) return null;
+    return Object.freeze({
+      binding: recovered.binding,
+      materialization: recovered.materialization
+    });
+  };
+}
+
+export function createForgeConfirmedLandedPublicationIdentityResolver({
+  mainRepo,
+  resolveTerminalCandidatePublicationState,
+  forgeMerge = trustedWkForgeMerge
+} = {}) {
+  if (typeof mainRepo !== "string" || mainRepo.length === 0 ||
+      typeof resolveTerminalCandidatePublicationState !== "function" ||
+      typeof forgeMerge !== "function") {
+    throw new TypeError(
+      "forge-confirmed landed-publication resolver requires the trusted merge composition"
+    );
+  }
+  return async ({ dependency } = {}) => {
+    const wk = dependency?.record_id;
+    if (dependency?.target_work_kind !== "implementation" ||
+        dependency?.target_status !== "done" ||
+        dependency?.provenance !== "canonical_wk_json" ||
+        dependency?.external_repo !== null ||
+        typeof wk !== "string" || !/^WK-\d{4}$/u.test(wk)) {
+      return null;
+    }
+    return await forgeMerge({
+      mainRepo,
+      assignedUnit: wk,
+      deps: { resolveTerminalCandidatePublicationState }
+    });
+  };
+}
 
 const SESSION_IDENTITY_SCHEMA_VERSION = "workspace-agent-dispatch-session-identity.v1";
 const DISPATCH_CODEX_AUTHENTICATED_SMOKE_TIMEOUT_ENV_VAR =
@@ -236,21 +291,20 @@ export function createDirectSliceReviewPreparationAdapter(
   };
 }
 
-function createDirectSliceIntegrationAdapter({ mainRepo }) {
+export function createDirectSliceIntegrationAdapter({ requestCommittedSliceIntegration }) {
+  if (typeof requestCommittedSliceIntegration !== "function") {
+    throw new TypeError("direct slice integration requires the backend-owned integration route");
+  }
   return async (request) => {
     const boundRequest = exactLifecycleTuple(request);
-
-    const integration = await defaultIntegrateManagedWorkerSlice({
-      mainRepo,
-      assignedUnit: boundRequest.assigned_unit,
-      launchRef: boundRequest.launch_ref,
-      runId: boundRequest.run_id,
-      retryId: boundRequest.retry_id,
-      terminalReviewEvidenceComposition:
-        TERMINAL_REVIEW_EVIDENCE_COMPOSITIONS.LIVE_MATERIALIZER
+    const integration = await requestCommittedSliceIntegration({
+      subject: boundRequest.assigned_unit
     });
     if (!integration || integration.integrated !== true) {
-      throw new Error("direct slice integration returned no successful trusted result");
+      return {
+        accepted: false,
+        refusal: integration?.refusal ?? integration ?? null
+      };
     }
 
     return {
@@ -260,47 +314,6 @@ function createDirectSliceIntegrationAdapter({ mainRepo }) {
         tuple: Object.freeze({ ...boundRequest })
       })
     };
-  };
-}
-
-export function createCanonicalCommittedSliceIntegrationAdapter(mainRepo) {
-  return async ({ context, boundaryAuthorization } = {}) => {
-    const target = boundaryAuthorization?.target;
-    if (context?.review_admission_kind !== "canonical_committed_slice" ||
-        context.review_subject !== target?.subject ||
-        context.committed_target_digest !== target?.committed_target_digest ||
-        context.reviewed_sha !== target?.reviewed_sha ||
-        context.diff_base_sha !== target?.diff_base_sha ||
-        context.slice_ref !== target?.slice_ref) {
-      throw new Error("canonical committed-slice integration binding is unavailable or mismatched");
-    }
-    const writeStatus = ({ unitAddress, status, expectedSourceDigest }) =>
-      setWorkRecordStatusByUnit({
-        dir: mainRepo,
-        unitAddress,
-        status,
-        expectedSourceDigest
-      });
-    const writeRecordCas = ({ record, expectedSourceDigest }) =>
-      writeValidatedWorkRecord({
-        dir: mainRepo,
-        record,
-        expectedSourceDigest
-      });
-    return integrateCommittedSlice({
-      mainRepo,
-      worktreePath: context.worktree_path,
-      unitAddress: `${context.initiative}/${context.record_id}/${context.review_slice_id}`,
-      sliceRef: context.slice_ref,
-      wkRef: `refs/heads/wk/${context.initiative}/${context.record_id}`,
-      baseSha: context.diff_base_sha,
-      commit: context.reviewed_sha,
-      workerTerminated: false,
-      transitionToReview: writeStatus,
-      markSliceComplete: writeStatus,
-      writeRecordCas,
-      boundaryAuthorization
-    });
   };
 }
 
@@ -367,9 +380,7 @@ export function resolveDispatchWorktreeProvisioningConfig(env = process.env) {
     failure.code = DISPATCH_WORKSPACE_IDENTITY_UNCANONICALIZABLE_CODE;
     throw failure;
   }
-  const launcherBase = path.dirname(canonicalMainRepo);
-  const repoName = path.basename(canonicalMainRepo);
-  const canonicalWorktreeRoot = path.join(launcherBase, ".agent-worktrees", repoName);
+  const canonicalWorktreeRoot = deriveLauncherOwnedDispatchWorktreeRoot(canonicalMainRepo);
   const propagatedRoot = String(env[WIKI_MCP_DISPATCH_WORKTREE_ROOT_ENV_VAR] ?? "").trim();
   if (propagatedRoot && path.resolve(propagatedRoot) !== canonicalWorktreeRoot) {
     throw new Error(
@@ -487,7 +498,9 @@ function projectAuthenticatedWkForgeRecoveryRefusal(outcome, error) {
 export function buildDispatchRuntime(env = process.env, {
   registeredTier = "free_local",
   sliceIntegrationCcePolicy = null,
-  wkForgeHandoffCcePolicy = null
+  wkForgeHandoffCcePolicy = null,
+  workspaceRepos = null,
+  resolveWorkspaceRepo = null
 } = {}) {
 
   void registeredTier;
@@ -500,16 +513,20 @@ export function buildDispatchRuntime(env = process.env, {
 
   const worktreeProvisioning = resolveDispatchWorktreeProvisioningConfig(env);
 
-  const worktreeProvisioningConfig = worktreeProvisioning;
+  let dispatchBackend = null;
   const hostSliceReviewPreparationAdapter = worktreeProvisioning === null
     ? null
     : createDirectSliceReviewPreparationAdapter(worktreeProvisioning.mainRepo);
-  const directSliceIntegrationAdapter =
-    worktreeProvisioning !== null
-      ? createDirectSliceIntegrationAdapter({
-          mainRepo: worktreeProvisioning.mainRepo
-        })
-      : null;
+  const directSliceIntegrationAdapter = worktreeProvisioning === null
+    ? null
+    : createDirectSliceIntegrationAdapter({
+        requestCommittedSliceIntegration: (request) => {
+          if (dispatchBackend === null) {
+            throw new Error("backend-owned committed-slice integration route is unavailable");
+          }
+          return dispatchBackend.requestCommittedSliceIntegration(request);
+        }
+      });
   const canonicalCommittedSliceIntegration = worktreeProvisioning === null
     ? null
     : createCanonicalCommittedSliceIntegrationAdapter(worktreeProvisioning.mainRepo);
@@ -518,6 +535,28 @@ export function buildDispatchRuntime(env = process.env, {
     : createTerminalCandidateCoordinator({
         mainRepo: worktreeProvisioning.mainRepo,
         worktreeRoot: worktreeProvisioning.worktreeRoot
+      });
+  const resolveForgeConfirmedLandedPublicationIdentity = worktreeProvisioning === null ||
+      terminalCandidateCoordinator === null
+    ? null
+    : createForgeConfirmedLandedPublicationIdentityResolver({
+        mainRepo: worktreeProvisioning.mainRepo,
+        resolveTerminalCandidatePublicationState: async (wkId, authorityContext) => {
+          if (dispatchBackend === null) return null;
+          return await createWkForgeHandoffPublicationStateResolver({
+            dispatchBackend,
+            terminalCandidateCoordinator
+          })(wkId, authorityContext);
+        }
+      });
+  const worktreeProvisioningConfig = worktreeProvisioning === null
+    ? null
+    : Object.freeze({
+        ...worktreeProvisioning,
+        deps: Object.freeze({
+          ...(worktreeProvisioning.deps ?? {}),
+          resolveForgeConfirmedLandedPublicationIdentity
+        })
       });
   const composedPostWorkerSliceLifecycle = composePostWorkerSliceLifecycle({
     worktreeProvisioning,
@@ -529,8 +568,8 @@ export function buildDispatchRuntime(env = process.env, {
 
     lifecycle: runPostWorkerSliceLifecycle
   });
-  const dispatchBackend =
-    launchExecutors && launchExecutors.codex
+
+  dispatchBackend = launchExecutors !== null
       ? createWorkspaceAgentDispatchBackend({
           launchExecutors,
           managedStdioMcpCompositionAuthority,
@@ -538,13 +577,23 @@ export function buildDispatchRuntime(env = process.env, {
           worktreeProvisioning: worktreeProvisioningConfig,
           closedInputCommitComposition: WORKSPACE_CLOSED_INPUT_COMMIT_COMPOSITION,
           postWorkerSliceLifecycle: composedPostWorkerSliceLifecycle,
+          postWorkerLifecycleRunGit: defaultRunGitAsync,
           canonicalCommittedSliceIntegration,
           ...(terminalCandidateCoordinator === null
             ? {}
             : { recoverTerminalCandidate: terminalCandidateCoordinator.recoverTerminalCandidate }),
 
           sliceIntegrationCcePolicy,
-          evaluateWorkerAdmission: evaluateWorkerAdmissionForBackend
+          evaluateWorkerAdmission: evaluateWorkerAdmissionForBackend,
+          settleFormalReviewAttestation:
+            workspaceRepos !== null && typeof resolveWorkspaceRepo === "function"
+              ? ({ record, formalResult }) => settleFormalReviewAttestationForDispatch({
+                  record,
+                  formalResult,
+                  workspaceRepos,
+                  resolveWorkspaceRepo
+                })
+              : null
         })
       : null;
   const wkForgeHandoffAdapter = worktreeProvisioning === null || dispatchBackend === null
@@ -556,25 +605,11 @@ export function buildDispatchRuntime(env = process.env, {
             mainRepo: worktreeProvisioning.mainRepo,
             assignedUnit,
             deps: {
-              resolveTerminalCandidatePublicationState: async (wkId) => {
-                const retained = dispatchBackend.resolveTerminalCandidatePublicationState(wkId);
-                if (retained !== null) return retained;
-                const recovered = await terminalCandidateCoordinator.recoverTerminalCandidate(wkId);
-                if (recovered === null) return null;
-                return Object.freeze({
-                  binding: recovered.binding,
-                  materialization: recovered.materialization,
-                  advisory_review_evidence: Object.freeze({
-                    schema_version: "workspace-agent-terminal-review-advisory-evidence.v1",
-                    authority: "advisory_only",
-                    candidate_sha: recovered.binding.candidate,
-                    base_sha: recovered.binding.base,
-                    wk_sha: recovered.binding.wk_tip,
-                    reviews: Object.freeze([]),
-                    observation: "review_history_not_required_for_restart_recovery"
-                  })
-                });
-              },
+              resolveTerminalCandidatePublicationState:
+                createWkForgeHandoffPublicationStateResolver({
+                  dispatchBackend,
+                  terminalCandidateCoordinator
+                }),
 
               forgeHandoffCcePolicy: wkForgeHandoffCcePolicy
             }

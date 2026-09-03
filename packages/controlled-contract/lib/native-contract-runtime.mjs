@@ -1,5 +1,3 @@
-import Ajv2020 from "ajv/dist/2020.js";
-
 import { resolveNativeContractDag } from "./native-contract-dag.mjs";
 
 const compareCodeUnits = (left, right) => {
@@ -54,7 +52,7 @@ function duplicateReferenceIdentities(references) {
 
 function createNativeContractRuntime({
   carrierVersion,
-  schema,
+  validateSchema,
   complementByOperator,
   inverseByOperator = {},
   functionalOperators,
@@ -67,10 +65,11 @@ function createNativeContractRuntime({
   operandSemanticsByOperator,
   conjunctiveRangeOperators,
   crossOperatorConstraints = { kind: "unsupported", reason: "not supplied" },
+  buildEqualityNormalization = null,
+  equalityNormalizedOperators = new Set(),
   validatePropositionSemantics = () => [],
   validatePopulationRelations = () => []
 }) {
-  const validateSchema = new Ajv2020({ strict: true, allErrors: true }).compile(schema);
   const complements = new Map(Object.entries(complementByOperator));
   const inverses = new Map(Object.entries(inverseByOperator));
   const functional = new Set(functionalOperators);
@@ -84,7 +83,8 @@ function createNativeContractRuntime({
     ? crossOperatorConstraints.constraints
     : [];
 
-  function normalizedApplicability(context) {
+  function normalizedApplicability(context, equality = null) {
+    if (equality) return equality.normalizeApplicability(context);
     return {
       mode: context.mode,
       operand_reference_ids: [...new Set(context.operand_reference_ids)].sort(compareCodeUnits)
@@ -113,6 +113,7 @@ function createNativeContractRuntime({
   }
 
   function directPropositionContradictions(contract) {
+    const equalityNormalization = buildEqualityNormalization?.(contract) ?? null;
     const propositionById = new Map(
       contract.propositions.map((proposition) => [proposition.proposition_id, proposition])
     );
@@ -138,11 +139,18 @@ function createNativeContractRuntime({
       });
     }
 
+    const equalityFor = (proposition) =>
+      equalityNormalizedOperators.has(proposition.operator)
+        ? equalityNormalization
+        : null;
     const sameApplicability = (left, right) =>
-      JSON.stringify(normalizedApplicability(left.applicability_context)) ===
-        JSON.stringify(normalizedApplicability(right.applicability_context));
+      JSON.stringify(normalizedApplicability(
+        left.applicability_context, equalityFor(left)
+      )) === JSON.stringify(normalizedApplicability(
+        right.applicability_context, equalityFor(right)
+      ));
     const applicabilityKey = (proposition) => JSON.stringify(
-      normalizedApplicability(proposition.applicability_context)
+      normalizedApplicability(proposition.applicability_context, equalityFor(proposition))
     );
     const substitutionOperators = new Set(declaredCrossConstraints
       .filter(({ kind }) => kind === "reference_equivalence_substitution")
@@ -207,6 +215,9 @@ function createNativeContractRuntime({
       );
     }
     const equivalentReference = (proposition, referenceId) => {
+      if (equalityFor(proposition)) return equalityNormalization.canonicalize(
+        referenceId, proposition.applicability_context
+      );
       const unconditionalReference = unconditionalEquivalenceIsGlobal
         ? findEquivalent(unconditionalParent, referenceId)
         : referenceId;
@@ -334,7 +345,7 @@ function createNativeContractRuntime({
             claim.proposition.operands.length !== 1 ||
             claim.proposition.operands[0].kind !== "reference") continue;
         const applicability = JSON.stringify(normalizedApplicability(
-          claim.proposition.applicability_context
+          claim.proposition.applicability_context, equalityFor(claim.proposition)
         ));
         const group = claimsByApplicability.get(applicability) ?? [];
         group.push(claim);
@@ -557,6 +568,7 @@ function createNativeContractRuntime({
       graph: null
     };
 
+    const equalityNormalization = buildEqualityNormalization?.(contract) ?? null;
     const referenceById = new Map(
       contract.references.map((reference) => [reference.reference_id, reference])
     );
@@ -575,6 +587,12 @@ function createNativeContractRuntime({
       ...directPropositionContradictions(contract),
       ...validatePopulationRelations(contract)
     ];
+    for (const applicabilityContext of equalityNormalization?.ambiguous_contexts ?? []) {
+      diagnostics.push({
+        code: "equality_scope_normalization_ambiguous",
+        applicability_context: applicabilityContext
+      });
+    }
 
     for (const proposition of contract.propositions) {
       if (!referenceById.has(proposition.subject_reference_id)) diagnostics.push({
@@ -607,7 +625,13 @@ function createNativeContractRuntime({
           });
         }
         if (operand.kind === "reference" &&
-            operand.reference_id === proposition.subject_reference_id &&
+            (equalityNormalization && equalityNormalizedOperators.has(proposition.operator)
+              ? equalityNormalization.equivalent(
+                  operand.reference_id,
+                  proposition.subject_reference_id,
+                  proposition.applicability_context
+                )
+              : operand.reference_id === proposition.subject_reference_id) &&
             irreflexive.has(proposition.operator)) diagnostics.push({
           code: "irreflexive_proposition",
           proposition_id: proposition.proposition_id,

@@ -5,6 +5,8 @@ import {
   computeWorkRecordSourceDigest,
   WORK_RECORD_CLOSURE_FIELD_NAMES
 } from "../../../wiki-core/src/lib/work-record-schema.mjs";
+import { withControlledContractAuthorityExclusion } from
+  "@agent-chassis/wiki-core/src/lib/controlled-contract-carrier-set-publication.mjs";
 
 import {
   WK_FORGE_HANDOFF_RESULT_SCHEMA_VERSION,
@@ -15,7 +17,14 @@ import {
   WK_FORGE_HANDOFF_CCE_POLICY_DECISION_SCHEMA_VERSION,
   WK_FORGE_HANDOFF_POLICY_POSTURES
 } from "./trusted-operation-contracts.mjs";
-import { verifyTerminalWkCandidateObjectBinding } from "./terminal-wk-candidate.mjs";
+import {
+  assertTerminalWkCandidateVersionDecision,
+  inspectTerminalWkCandidateVersion,
+  verifyTerminalWkCandidateObjectBinding
+} from "./terminal-wk-candidate.mjs";
+import {
+  authenticateCurrentControlledContractGenerationAtW
+} from "./controlled-carrier-attachment-primitive.mjs";
 import {
   assertTerminalCandidateMaterialization,
   verifyTerminalCandidateCheckout
@@ -29,6 +38,16 @@ import {
 export { WK_FORGE_HANDOFF_FAILURE_CATEGORIES };
 
 export const FORGE_LANDING_BRANCH_ENV_VAR = "AGENT_LAUNCH_FORGE_LANDING_BRANCH";
+
+const authenticatedHandoffResults = new WeakMap();
+
+export function assertAuthenticatedWkForgeHandoffResult(result) {
+  const retained = authenticatedHandoffResults.get(result);
+  if (retained === undefined) {
+    throw new Error("WK forge handoff result is not launcher-authenticated");
+  }
+  return retained;
+}
 
 export const PULL_REQUEST_PAGE_LIMIT = 20;
 export const PULL_REQUEST_PAGE_SIZE = 100;
@@ -873,7 +892,7 @@ function pullRequestObservationRefusal(observation, extra = {}) {
   return refuse(category, { stage: "pull_request", reason: observation.reason, ...extra });
 }
 
-async function publishExactTerminalCandidate({ mainRepo, wk, candidateState, deps }) {
+export async function publishExactTerminalCandidate({ mainRepo, wk, candidateState, deps = {} }) {
   const runGit = deps.runGit ?? defaultRunGit;
   const binding = candidateState?.binding;
   const materialization = candidateState?.materialization;
@@ -883,10 +902,17 @@ async function publishExactTerminalCandidate({ mainRepo, wk, candidateState, dep
         reason: "exact_terminal_candidate_unavailable"
       });
     }
+    let candidateVersionDecision;
     try {
       assertTerminalCandidateMaterialization(materialization, binding);
-      verifyTerminalWkCandidateObjectBinding({ binding, runGit });
-      verifyTerminalCandidateCheckout({ binding, candidateRoot: materialization.candidate_root, runGit });
+      await verifyTerminalWkCandidateObjectBinding({ binding, runGit });
+      await verifyTerminalCandidateCheckout({ binding, candidateRoot: materialization.candidate_root, runGit });
+      const observedDecision = await inspectTerminalWkCandidateVersion({ binding, runGit });
+      assertTerminalWkCandidateVersionDecision(observedDecision, {
+        binding,
+        requireSelected: true
+      });
+      candidateVersionDecision = observedDecision;
     } catch (error) {
       return refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.ELIGIBILITY, {
         reason: "terminal_candidate_binding_moved",
@@ -942,10 +968,23 @@ async function publishExactTerminalCandidate({ mainRepo, wk, candidateState, dep
     if (policy.ok !== true) return policy;
     const boundaryAuthorization = policy.authorization;
 
-    const guard = () => {
+    const guard = async () => {
       try {
-        verifyTerminalWkCandidateObjectBinding({ binding, runGit });
-        verifyTerminalCandidateCheckout({ binding, candidateRoot: materialization.candidate_root, runGit });
+        await verifyTerminalWkCandidateObjectBinding({ binding, runGit });
+        await verifyTerminalCandidateCheckout({ binding, candidateRoot: materialization.candidate_root, runGit });
+        const observedDecision = await inspectTerminalWkCandidateVersion({ binding, runGit });
+        assertTerminalWkCandidateVersionDecision(observedDecision, {
+          binding,
+          requireSelected: true
+        });
+        if (observedDecision.version_identity !==
+              candidateVersionDecision.version_identity ||
+            observedDecision.immutable_version_ref !==
+              candidateVersionDecision.immutable_version_ref ||
+            observedDecision.current_selection_observation !==
+              candidateVersionDecision.current_selection_observation) {
+          throw new Error("terminal candidate version selection moved during forge handoff");
+        }
       } catch (error) {
         return refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.ELIGIBILITY, {
           reason: "terminal_candidate_binding_moved", message: error?.message ?? String(error)
@@ -954,11 +993,11 @@ async function publishExactTerminalCandidate({ mainRepo, wk, candidateState, dep
       return null;
     };
 
-    let moved = guard();
+    let moved = await guard();
     if (moved !== null) return moved;
     let branchObservation = await forge.observeRemoteBranch({ branch });
     let authenticatedHead = binding.candidate;
-    moved = guard();
+    moved = await guard();
     if (moved !== null) return moved;
     if (branchObservation?.kind === "present") {
       if (branchObservation.sha !== binding.candidate) {
@@ -973,13 +1012,13 @@ async function publishExactTerminalCandidate({ mainRepo, wk, candidateState, dep
         authenticatedHead = closeout.head;
       }
     } else if (branchObservation?.kind === "absent") {
-      moved = guard();
+      moved = await guard();
       if (moved !== null) return moved;
       await forge.publishBranchIfAbsent({ branch, commit: binding.candidate });
-      moved = guard();
+      moved = await guard();
       if (moved !== null) return moved;
       branchObservation = await forge.observeRemoteBranch({ branch });
-      moved = guard();
+      moved = await guard();
       if (moved !== null) return moved;
       if (branchObservation?.kind !== "present" || branchObservation.sha !== binding.candidate) {
         return refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.INDETERMINATE, {
@@ -992,10 +1031,10 @@ async function publishExactTerminalCandidate({ mainRepo, wk, candidateState, dep
       });
     }
 
-    moved = guard();
+    moved = await guard();
     if (moved !== null) return moved;
     let observedPrs = await observeExactPullRequests({ forge, repository, base: landing, head: branch });
-    moved = guard();
+    moved = await guard();
     if (moved !== null) return moved;
     if (observedPrs.ok !== true) return pullRequestObservationRefusal(observedPrs);
     if (observedPrs.matches.length > 1) {
@@ -1004,9 +1043,10 @@ async function publishExactTerminalCandidate({ mainRepo, wk, candidateState, dep
       });
     }
     if (observedPrs.matches.length === 0) {
-      moved = guard();
+      moved = await guard();
       if (moved !== null) return moved;
 
+      let createPullRequestError = null;
       try {
         await forge.createPullRequest({
           base: landing,
@@ -1014,15 +1054,21 @@ async function publishExactTerminalCandidate({ mainRepo, wk, candidateState, dep
           title: `${wk}: ${String(candidateRecord.record.title ?? "terminal candidate").trim()}`,
           body: `Exact validated terminal candidate ${binding.candidate} for ${wk}; reviewer and redteam evidence is advisory.\n`
         });
-      } catch {
+      } catch (error) {
 
+        createPullRequestError = error;
       }
-      moved = guard();
+      moved = await guard();
       if (moved !== null) return moved;
       observedPrs = await observeExactPullRequests({ forge, repository, base: landing, head: branch });
-      moved = guard();
+      moved = await guard();
       if (moved !== null) return moved;
-      if (observedPrs.ok !== true) return pullRequestObservationRefusal(observedPrs, { after_create: true });
+      if (observedPrs.ok !== true) {
+        return pullRequestObservationRefusal(observedPrs, {
+          after_create: true,
+          create_outcome: createPullRequestError === null ? "returned" : "threw"
+        });
+      }
       if (observedPrs.matches.length > 1) {
         return refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.PUBLICATION_DISAGREEMENT, {
           stage: "pull_request",
@@ -1032,7 +1078,9 @@ async function publishExactTerminalCandidate({ mainRepo, wk, candidateState, dep
       }
       if (observedPrs.matches.length !== 1) {
         return refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.INDETERMINATE, {
-          stage: "pull_request", reason: "pull_request_not_exactly_observable_after_create"
+          stage: "pull_request",
+          reason: "pull_request_not_exactly_observable_after_create",
+          create_outcome: createPullRequestError === null ? "returned" : "threw"
         });
       }
     }
@@ -1054,28 +1102,59 @@ async function publishExactTerminalCandidate({ mainRepo, wk, candidateState, dep
       });
     }
 
-    moved = guard();
+    moved = await guard();
     if (moved !== null) return moved;
-    return { ok: true, result: buildResult(WK_FORGE_HANDOFF_RESULT_KINDS.HANDED_OFF, {
+    const result = buildResult(WK_FORGE_HANDOFF_RESULT_KINDS.HANDED_OFF, {
       assigned_unit: wk,
       initiative,
       branch,
       commit: authenticatedHead,
+      terminal_candidate: binding.candidate,
       tree: binding.candidate_tree,
       parent: binding.base,
       base_branch: landing,
       repository: { host: repository.host, owner: repository.owner, name: repository.name },
       boundary_authorization: boundaryAuthorization,
-      advisory_review_evidence: candidateState.advisory_review_evidence ?? null,
+      version_identity: candidateVersionDecision.version_identity,
+      immutable_version_ref: candidateVersionDecision.immutable_version_ref,
+      current_selection_observation:
+        candidateVersionDecision.current_selection_observation,
       pull_request_state: pullRequest.merged === true ? "already_merged" : "open_exact",
       pull_request: pullRequest,
       proposal_authority: "configured_forge_and_human_merge_actor"
-    }) };
+    });
+    authenticatedHandoffResults.set(result, Object.freeze({
+      binding,
+      version_decision: candidateVersionDecision
+    }));
+    return { ok: true, result };
   } catch {
     return refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.INDETERMINATE, {
       reason: "terminal_candidate_publication_threw"
     });
   }
+}
+
+async function authenticateForgeGenerationAuthority({ mainRepo, wk, candidateState }) {
+  const candidateBinding = candidateState?.binding;
+  let authority;
+  try {
+    authority = await authenticateCurrentControlledContractGenerationAtW({
+      repoRoot: mainRepo,
+      wkId: wk,
+      expectedWkTipSha: candidateBinding?.wk_tip,
+      expectedGeneration: candidateBinding?.controlled_generation,
+      deps: {}
+    });
+  } catch (error) {
+    if (typeof error?.details?.expected_tip === "string" &&
+        typeof error?.details?.actual_tip === "string") {
+      return Object.freeze({ ok: false, reason: "terminal_candidate_binding_moved" });
+    }
+    throw error;
+  }
+  return Object.freeze({ ok: true, generationBinding: authority.binding,
+    authenticated: authority.authenticated });
 }
 
 export async function defaultWkForgeHandoff({ mainRepo, assignedUnit, deps = {} } = {}) {
@@ -1091,14 +1170,35 @@ export async function defaultWkForgeHandoff({ mainRepo, assignedUnit, deps = {} 
       reason: "exact_terminal_candidate_resolver_unavailable"
     });
   }
-  const candidateState = await deps.resolveTerminalCandidatePublicationState(wk);
-  if (candidateState === null || candidateState === undefined) {
+  try {
+    return await withControlledContractAuthorityExclusion({
+      repoRoot: mainRepo,
+      wkId: wk,
+      run: async (authorityContext) => {
+        const candidateState = await deps.resolveTerminalCandidatePublicationState(
+          wk, authorityContext
+        );
+        if (candidateState === null || candidateState === undefined) {
+          return refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.ELIGIBILITY, {
+            reason: "exact_terminal_candidate_unavailable"
+          });
+        }
+        const generationAuthority = await authenticateForgeGenerationAuthority({
+          mainRepo, wk, candidateState
+        });
+        if (generationAuthority.ok !== true) {
+          return refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.ELIGIBILITY, {
+            reason: generationAuthority.reason
+          });
+        }
+        return publishExactTerminalCandidate({ mainRepo, wk, candidateState, deps });
+      }
+    });
+  } catch {
     return refuse(WK_FORGE_HANDOFF_FAILURE_CATEGORIES.ELIGIBILITY, {
-      reason: "exact_terminal_candidate_unavailable"
+      reason: "controlled_contract_generation_authority_refused"
     });
   }
-  return publishExactTerminalCandidate({ mainRepo, wk, candidateState, deps });
-
 }
 
 function buildResult(kind, fields) {

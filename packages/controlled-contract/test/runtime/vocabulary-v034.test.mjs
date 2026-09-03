@@ -23,12 +23,22 @@ const sorted = (values) => [...values].sort();
 const readableV033Operators = () => Object.values(OPERATOR_CODEBOOK).map(
   ({ value_kind: valueKind, predicate }) => `${valueKind}:${predicate}`
 );
+const authenticationProvenanceOperators = [
+  "reference:authenticates",
+  "reference:does_not_authenticate",
+  "reference:does_not_have_source_of_record",
+  "reference:does_not_originate_from",
+  "reference:has_source_of_record",
+  "reference:not_observed_in",
+  "reference:observed_in",
+  "reference:originates_from"
+];
 
 test("v0.34 carries complete mechanical semantics for every current operator", () => {
   const result = validateVocabulary();
   assert.equal(result.valid, true);
   assert.deepEqual(result.diagnostics, []);
-  assert.equal(CONTROLLED_VOCABULARY.operators.length, 85);
+  assert.equal(CONTROLLED_VOCABULARY.operators.length, 93);
   assert.deepEqual(
     CONTROLLED_VOCABULARY.value_kinds.map(({ term }) => term),
     ["reference", "boolean", "number", "range"]
@@ -37,6 +47,7 @@ test("v0.34 carries complete mechanical semantics for every current operator", (
     sorted(CONTROLLED_VOCABULARY.operators.map(({ term }) => term)),
     sorted([
       ...readableV033Operators(),
+      ...authenticationProvenanceOperators,
       "reference:subset_of",
       "reference:not_subset_of"
     ])
@@ -45,7 +56,8 @@ test("v0.34 carries complete mechanical semantics for every current operator", (
     sorted(CONTROLLED_VOCABULARY.type_terms.map(({ term }) => term)),
     sorted([...new Set([
       ...NATIVE_CONTRACT_SCHEMA.$defs.reference.properties.type_term.enum,
-      "cc:population"
+      "cc:population",
+      "cc:evidence_occurrence"
     ])])
   );
   assert.equal(Object.isFrozen(CONTROLLED_VOCABULARY), true);
@@ -222,7 +234,7 @@ test("v0.34 derives every semantic consumer index from the vocabulary artifact",
   assert.deepEqual(Object.keys(indexes.operators_by_value_kind), [
     "reference", "boolean", "number", "range"
   ]);
-  assert.equal(indexes.operators_by_value_kind.reference.length, 71);
+  assert.equal(indexes.operators_by_value_kind.reference.length, 79);
   assert.equal(indexes.operators_by_value_kind.boolean.length, 5);
   assert.equal(indexes.operators_by_value_kind.number.length, 7);
   assert.equal(indexes.operators_by_value_kind.range.length, 2);
@@ -250,9 +262,12 @@ test("v0.34 derives every semantic consumer index from the vocabulary artifact",
     "boolean:immutable",
     "number:equals",
     "number:has_cardinality",
+    "reference:has_source_of_record",
     "reference:has_state",
     "reference:has_status",
+    "reference:observed_in",
     "reference:ordered_as",
+    "reference:originates_from",
     "reference:resolves_to"
   ]);
   for (const digest of Object.values(VOCABULARY_DIGESTS)) assert.match(digest, /^[a-f0-9]{64}$/);
@@ -263,10 +278,11 @@ test("v0.34 projects schema enums and operator-specific cardinalities without co
   assert.deepEqual(projection.value_kind_enum, ["reference", "boolean", "number", "range"]);
   assert.deepEqual(projection.operator_enum, sorted([
     ...readableV033Operators(),
+    ...authenticationProvenanceOperators,
     "reference:subset_of",
     "reference:not_subset_of"
   ]));
-  assert.equal(projection.type_term_enum.length, 23);
+  assert.equal(projection.type_term_enum.length, 24);
   assert.equal(projection.applicability_mode_branches.length, 11);
   assert.deepEqual(
     projection.operator_signatures["reference:has_state"].operand_cardinality,
@@ -357,8 +373,8 @@ test("v0.34 authoring views are advisory, digest-bound, and explicitly incomplet
   assert.equal(view.selected.applicability_modes.length, 0);
   assert.deepEqual(view.unknown_requested_terms, ["after mistakenly?"]);
   assert.deepEqual(view.withheld_requested_terms.map(({ term }) => term), ["counterfactual"]);
-  assert.equal(view.explicit_omissions.operator_count, 83);
-  assert.equal(view.explicit_omissions.type_term_count, 22);
+  assert.equal(view.explicit_omissions.operator_count, 91);
+  assert.equal(view.explicit_omissions.type_term_count, 23);
   assert.equal(view.explicit_omissions.applicability_mode_count, 11);
   assert.deepEqual(view.parent_vocabulary_digests, VOCABULARY_DIGESTS);
 });
@@ -382,7 +398,7 @@ test("the vocabulary query transport returns only requested advisory context", (
   assert.equal(view.selected.operators.length, 1);
   assert.equal(view.selected.type_terms.length, 1);
   assert.equal(view.selected.applicability_modes.length, 1);
-  assert.equal(view.explicit_omissions.operator_count, 84);
+  assert.equal(view.explicit_omissions.operator_count, 92);
   assert.throws(
     () => parseVocabularyQueryArgs(["--search", "state", "--kind", "not-a-kind"]),
     /unknown vocabulary kind/

@@ -90,6 +90,29 @@ export const TOOL_DISCOVERY_TIER_VISIBILITY_VALUES = Object.freeze([
 ]);
 
 export const TOOL_DISCOVERY_TIER_TEXT_FIELDS = Object.freeze(["notes", "summary"]);
+
+export const AGENT_TOOL_CONFORMANCE_REQUIRED_ARRAY_FIELDS = Object.freeze([
+  "task_ids",
+  "side_effects",
+  "authority",
+  "tier_visibility",
+  "use_when",
+  "do_not_use_when",
+  "authoritative_for"
+]);
+export const AGENT_TOOL_CONFORMANCE_REQUIRED_FIELDS = Object.freeze([
+  ...AGENT_TOOL_CONFORMANCE_REQUIRED_ARRAY_FIELDS,
+  "recommended_route",
+  "recommended_first_call"
+]);
+export const AGENT_TOOL_CONFORMANCE_DEBT_MANIFEST_FIELD = "agent_tool_conformance_debt";
+export const AGENT_TOOL_TOKEN_BUDGET_DEBT_MANIFEST_FIELD = "agent_tool_token_budget_debt";
+export const AGENT_TOOL_TOKEN_BUDGET_KEYS = Object.freeze([
+  "live_paid_operator_descriptions",
+  "raw_discovery_notes"
+]);
+
+export const AGENT_TOOL_LIVE_DESCRIPTION_HARD_LIMIT_CHARACTERS = 1500;
 export const TOOL_DISCOVERY_RESULT_REQUIRED_FIELDS = Object.freeze([
   "tool_name",
   "display_name",
@@ -145,6 +168,8 @@ export const TOOL_DISCOVERY_CONTROLLED_TASK_IDS = Object.freeze([
   "dispatch-reviewer",
   "dispatch-redteam",
   "query-agent-run-status",
+  "query-terminal-review-candidate",
+  "advance-terminal-review-candidate",
   "list-orchestrators",
   "start-orchestrator",
   "resume-orchestrator",
@@ -159,12 +184,14 @@ export const TOOL_DISCOVERY_CONTROLLED_TASK_IDS = Object.freeze([
   "set-closure",
   "contract-edit",
   "controlled-contract-authoring",
+  "acceptance-gap-review",
+  "mapping-repair",
+  "obligation-inventory",
+  "proof-obligation-map-inspection",
   "controlled-contract-proof-selection",
   "controlled-contract-proof-plan",
   "controlled-contract-assessment",
   "persist-graph-impact-evidence",
-  "record-review-attestation",
-  "record-review-result-evidence",
   "generate-and-lint",
   "lint-repo",
   "coordination-preflight",
@@ -220,6 +247,10 @@ function stableSortObject(value) {
 
 function digestJson(value) {
   return `sha256:${createHash("sha256").update(JSON.stringify(stableSortObject(value))).digest("hex")}`;
+}
+
+export function digestToolDiscoveryEntry(entry) {
+  return digestJson(entry);
 }
 
 function createDiagnostic(code, level, message, overrides = {}) {
@@ -328,6 +359,88 @@ function validateStringArrayField(diagnostics, object, field, path, required = t
   return normalized;
 }
 
+function validateOptionalRoutingMetadata(diagnostics, tool, path) {
+  for (const field of ["use_when", "do_not_use_when", "authoritative_for", "requires_prior_state"]) {
+    if (hasOwn(tool, field)) {
+      validateStringArrayField(diagnostics, tool, field, path, false);
+    }
+  }
+
+  if (hasOwn(tool, "recommended_first_call")) {
+    const value = tool.recommended_first_call;
+    if (!isObject(value)) {
+      diagnostics.push(
+        createDiagnostic("invalid_tool_entry", "error", `${path}.recommended_first_call must be an object`, {
+          paths: [`${path}.recommended_first_call`]
+        })
+      );
+    } else {
+      if (hasOwn(value, "routing_intents")) {
+        validateStringArrayField(diagnostics, value, "routing_intents", `${path}.recommended_first_call`, false);
+      }
+      if (hasOwn(value, "operation") && !isNonEmptyString(value.operation)) {
+        diagnostics.push(
+          createDiagnostic(
+            "invalid_tool_entry",
+            "error",
+            `${path}.recommended_first_call.operation must be a non-empty string when present`,
+            { paths: [`${path}.recommended_first_call.operation`] }
+          )
+        );
+      }
+      if (hasOwn(value, "arguments") && !isObject(value.arguments)) {
+        diagnostics.push(
+          createDiagnostic(
+            "invalid_tool_entry",
+            "error",
+            `${path}.recommended_first_call.arguments must be an object when present`,
+            { paths: [`${path}.recommended_first_call.arguments`] }
+          )
+        );
+      }
+      if (
+        !hasOwn(value, "routing_intents") &&
+        !hasOwn(value, "operation") &&
+        !hasOwn(value, "arguments")
+      ) {
+        diagnostics.push(
+          createDiagnostic(
+            "invalid_tool_entry",
+            "error",
+            `${path}.recommended_first_call must declare routing_intents, operation, or arguments`,
+            { paths: [`${path}.recommended_first_call`] }
+          )
+        );
+      }
+    }
+  }
+
+  if (hasOwn(tool, "replacement_for_misuse")) {
+    if (!Array.isArray(tool.replacement_for_misuse)) {
+      diagnostics.push(
+        createDiagnostic("invalid_tool_entry", "error", `${path}.replacement_for_misuse must be an array`, {
+          paths: [`${path}.replacement_for_misuse`]
+        })
+      );
+    } else {
+      tool.replacement_for_misuse.forEach((replacement, index) => {
+        const replacementPath = `${path}.replacement_for_misuse[${index}]`;
+        if (!isObject(replacement)) {
+          diagnostics.push(
+            createDiagnostic("invalid_tool_entry", "error", `${replacementPath} must be an object`, {
+              paths: [replacementPath]
+            })
+          );
+          return;
+        }
+        for (const field of ["misuse_code", "routing_intent", "use_instead"]) {
+          validateStringField(diagnostics, replacement, field, replacementPath);
+        }
+      });
+    }
+  }
+}
+
 function validateToolEntry(diagnostics, tool, index) {
   const path = `tools[${index}]`;
   if (!isObject(tool)) {
@@ -393,6 +506,8 @@ function validateToolEntry(diagnostics, tool, index) {
       })
     );
   }
+
+  validateOptionalRoutingMetadata(diagnostics, tool, path);
 
   if (hasOwn(tool, "tier_text") && tool.tier_text != null) {
     if (!isObject(tool.tier_text)) {
@@ -603,7 +718,11 @@ export function isToolDiscoveryFragmentManifest(value) {
   );
 }
 
-function validateToolDiscoveryManifestShape(manifest, manifestPath) {
+export function validateToolDiscoveryManifestShape(
+  manifest,
+  manifestPath,
+  { requireAgentToolConformanceDebt = false } = {}
+) {
   const fail = (message, field) =>
     new ToolDiscoveryFragmentError(`tool-discovery: ${message} (${manifestPath})`, {
       code: "invalid_manifest_shape",
@@ -653,6 +772,369 @@ function validateToolDiscoveryManifestShape(manifest, manifestPath) {
       { code: "manifest_count_mismatch", path: manifestPath }
     );
   }
+
+  const debt = manifest[AGENT_TOOL_CONFORMANCE_DEBT_MANIFEST_FIELD];
+  if (!isObject(debt)) {
+    if (!requireAgentToolConformanceDebt && debt === undefined) {
+      return;
+    }
+    throw fail(
+      `fragment manifest ${AGENT_TOOL_CONFORMANCE_DEBT_MANIFEST_FIELD} must be an object`,
+      AGENT_TOOL_CONFORMANCE_DEBT_MANIFEST_FIELD
+    );
+  }
+  for (const field of [
+    "owner",
+    "target_wk",
+    "retirement_evidence",
+    "baseline_descriptor_digest",
+    "baseline_entry_names_digest",
+    "baseline_entry_digests_digest",
+    "compatibility_alias_records_digest"
+  ]) {
+    if (!isNonEmptyString(debt[field])) {
+      throw fail(
+        `fragment manifest ${AGENT_TOOL_CONFORMANCE_DEBT_MANIFEST_FIELD}.${field} must be a non-empty string`,
+        `${AGENT_TOOL_CONFORMANCE_DEBT_MANIFEST_FIELD}.${field}`
+      );
+    }
+  }
+  if (!/^WK-\d{4,}$/u.test(debt.target_wk)) {
+    throw fail(
+      `fragment manifest ${AGENT_TOOL_CONFORMANCE_DEBT_MANIFEST_FIELD}.target_wk must be a WK id`,
+      `${AGENT_TOOL_CONFORMANCE_DEBT_MANIFEST_FIELD}.target_wk`
+    );
+  }
+  for (const field of [
+    "baseline_descriptor_digest",
+    "baseline_entry_names_digest",
+    "baseline_entry_digests_digest",
+    "compatibility_alias_records_digest"
+  ]) {
+    if (!/^sha256:[a-f0-9]{64}$/u.test(debt[field])) {
+      throw fail(
+        `fragment manifest ${AGENT_TOOL_CONFORMANCE_DEBT_MANIFEST_FIELD}.${field} must be a sha256 digest`,
+        `${AGENT_TOOL_CONFORMANCE_DEBT_MANIFEST_FIELD}.${field}`
+      );
+    }
+  }
+  if (!isObject(debt.baseline_entry_digests)) {
+    throw fail(
+      `fragment manifest ${AGENT_TOOL_CONFORMANCE_DEBT_MANIFEST_FIELD}.baseline_entry_digests must be an object`,
+      `${AGENT_TOOL_CONFORMANCE_DEBT_MANIFEST_FIELD}.baseline_entry_digests`
+    );
+  }
+  for (const [toolName, digest] of Object.entries(debt.baseline_entry_digests)) {
+    if (!isNonEmptyString(toolName) || !/^sha256:[a-f0-9]{64}$/u.test(digest)) {
+      throw fail(
+        `fragment manifest ${AGENT_TOOL_CONFORMANCE_DEBT_MANIFEST_FIELD}.baseline_entry_digests must map tool names to sha256 digests`,
+        `${AGENT_TOOL_CONFORMANCE_DEBT_MANIFEST_FIELD}.baseline_entry_digests.${toolName}`
+      );
+    }
+  }
+  const baselineEntryNamesDigest = digestJson(Object.keys(debt.baseline_entry_digests).sort());
+  if (baselineEntryNamesDigest !== debt.baseline_entry_names_digest) {
+    throw fail(
+      `fragment manifest ${AGENT_TOOL_CONFORMANCE_DEBT_MANIFEST_FIELD}.baseline_entry_names_digest does not match the exact baseline name set`,
+      `${AGENT_TOOL_CONFORMANCE_DEBT_MANIFEST_FIELD}.baseline_entry_names_digest`
+    );
+  }
+  const baselineEntryDigestsDigest = digestJson(debt.baseline_entry_digests);
+  if (baselineEntryDigestsDigest !== debt.baseline_entry_digests_digest) {
+    throw fail(
+      `fragment manifest ${AGENT_TOOL_CONFORMANCE_DEBT_MANIFEST_FIELD}.baseline_entry_digests_digest does not match the exact baseline entry map`,
+      `${AGENT_TOOL_CONFORMANCE_DEBT_MANIFEST_FIELD}.baseline_entry_digests_digest`
+    );
+  }
+  if (!isObject(debt.compatibility_aliases)) {
+    throw fail(
+      `fragment manifest ${AGENT_TOOL_CONFORMANCE_DEBT_MANIFEST_FIELD}.compatibility_aliases must be an object`,
+      `${AGENT_TOOL_CONFORMANCE_DEBT_MANIFEST_FIELD}.compatibility_aliases`
+    );
+  }
+  const aliasRecordFields = [
+    "compatibility_evidence",
+    "owner",
+    "replacement_route",
+    "review_date",
+    "target_wk"
+  ];
+  for (const [toolName, record] of Object.entries(debt.compatibility_aliases)) {
+    if (
+      !isNonEmptyString(toolName) ||
+      !isObject(record) ||
+      JSON.stringify(Object.keys(record).sort()) !== JSON.stringify(aliasRecordFields) ||
+      !isNonEmptyString(record.owner) ||
+      !/^WK-\d{4,}$/u.test(record.target_wk) ||
+      !/^\d{4}-\d{2}-\d{2}$/u.test(record.review_date) ||
+      Number.isNaN(Date.parse(`${record.review_date}T00:00:00Z`)) ||
+      new Date(`${record.review_date}T00:00:00Z`).toISOString().slice(0, 10) !== record.review_date ||
+      !isNonEmptyString(record.replacement_route) ||
+      !isNonEmptyString(record.compatibility_evidence) ||
+      !Object.hasOwn(debt.baseline_entry_digests, toolName)
+    ) {
+      throw fail(
+        `fragment manifest ${AGENT_TOOL_CONFORMANCE_DEBT_MANIFEST_FIELD}.compatibility_aliases must map baseline tool names to complete owner-bound alias records`,
+        `${AGENT_TOOL_CONFORMANCE_DEBT_MANIFEST_FIELD}.compatibility_aliases.${toolName}`
+      );
+    }
+  }
+  if (digestJson(debt.compatibility_aliases) !== debt.compatibility_alias_records_digest) {
+    throw fail(
+      `fragment manifest ${AGENT_TOOL_CONFORMANCE_DEBT_MANIFEST_FIELD}.compatibility_alias_records_digest does not match the exact alias records`,
+      `${AGENT_TOOL_CONFORMANCE_DEBT_MANIFEST_FIELD}.compatibility_alias_records_digest`
+    );
+  }
+  if (!Array.isArray(debt.applicability_exceptions) || debt.applicability_exceptions.length !== 0) {
+    throw fail(
+      `fragment manifest ${AGENT_TOOL_CONFORMANCE_DEBT_MANIFEST_FIELD}.applicability_exceptions must remain an empty array until an adopted owner defines an exception protocol`,
+      `${AGENT_TOOL_CONFORMANCE_DEBT_MANIFEST_FIELD}.applicability_exceptions`
+    );
+  }
+
+  const budgetDebt = manifest[AGENT_TOOL_TOKEN_BUDGET_DEBT_MANIFEST_FIELD];
+  if (!isObject(budgetDebt)) {
+    throw fail(
+      `fragment manifest ${AGENT_TOOL_TOKEN_BUDGET_DEBT_MANIFEST_FIELD} must be an object`,
+      AGENT_TOOL_TOKEN_BUDGET_DEBT_MANIFEST_FIELD
+    );
+  }
+  if (!isNonEmptyString(budgetDebt.owner) || !/^WK-\d{4,}$/u.test(budgetDebt.target_wk)) {
+    throw fail(
+      `fragment manifest ${AGENT_TOOL_TOKEN_BUDGET_DEBT_MANIFEST_FIELD} must name an owner and target WK`,
+      AGENT_TOOL_TOKEN_BUDGET_DEBT_MANIFEST_FIELD
+    );
+  }
+  for (const budgetKey of AGENT_TOOL_TOKEN_BUDGET_KEYS) {
+    const budget = budgetDebt[budgetKey];
+    const budgetPath = `${AGENT_TOOL_TOKEN_BUDGET_DEBT_MANIFEST_FIELD}.${budgetKey}`;
+    if (!isObject(budget)) {
+      throw fail(`fragment manifest ${budgetPath} must be an object`, budgetPath);
+    }
+    for (const field of ["target_ceiling", "baseline_total", "baseline_denominator"]) {
+      if (!isInteger(budget[field]) || budget[field] < 0) {
+        throw fail(`fragment manifest ${budgetPath}.${field} must be a non-negative integer`, `${budgetPath}.${field}`);
+      }
+    }
+    if (budget.target_ceiling >= budget.baseline_total) {
+      throw fail(`fragment manifest ${budgetPath} must represent actual outstanding excess`, budgetPath);
+    }
+    if (budget.measurement_unit !== "javascript_string_characters" || !isNonEmptyString(budget.surface)) {
+      throw fail(`fragment manifest ${budgetPath} must identify its exact surface and character unit`, budgetPath);
+    }
+    if (!isObject(budget.baseline_lengths) || !/^sha256:[a-f0-9]{64}$/u.test(budget.baseline_lengths_digest)) {
+      throw fail(`fragment manifest ${budgetPath} must carry an integrity-pinned baseline length map`, budgetPath);
+    }
+    for (const [toolName, length] of Object.entries(budget.baseline_lengths)) {
+      if (!isNonEmptyString(toolName) || !isInteger(length) || length <= 0) {
+        throw fail(`fragment manifest ${budgetPath}.baseline_lengths must map tool names to positive lengths`, `${budgetPath}.baseline_lengths.${toolName}`);
+      }
+    }
+    const baselineTotal = Object.values(budget.baseline_lengths).reduce((sum, length) => sum + length, 0);
+    if (baselineTotal !== budget.baseline_total || Object.keys(budget.baseline_lengths).length !== budget.baseline_denominator) {
+      throw fail(`fragment manifest ${budgetPath} baseline total or denominator does not match its exact length map`, budgetPath);
+    }
+    if (digestJson(budget.baseline_lengths) !== budget.baseline_lengths_digest) {
+      throw fail(`fragment manifest ${budgetPath}.baseline_lengths_digest does not match the exact baseline length map`, `${budgetPath}.baseline_lengths_digest`);
+    }
+  }
+}
+
+export async function loadToolDiscoveryManifest(manifestPath = TOOL_DISCOVERY_MANIFEST_PATH) {
+  const raw = await readFile(manifestPath, "utf8");
+  let manifest;
+  try {
+    manifest = JSON.parse(raw);
+  } catch (error) {
+    throw new ToolDiscoveryFragmentError(
+      `tool-discovery: fragment manifest is not valid JSON: ${error.message}`,
+      { code: "invalid_manifest_shape", path: manifestPath, cause: error }
+    );
+  }
+  validateToolDiscoveryManifestShape(manifest, manifestPath, {
+    requireAgentToolConformanceDebt: true
+  });
+  return manifest;
+}
+
+function missingAgentToolConformanceControls(tool) {
+  const missing = [];
+  for (const field of AGENT_TOOL_CONFORMANCE_REQUIRED_ARRAY_FIELDS) {
+    if (!Array.isArray(tool?.[field]) || tool[field].length === 0) {
+      missing.push(field);
+    }
+  }
+  if (!isNonEmptyString(tool?.recommended_route)) {
+    missing.push("recommended_route");
+  }
+  if (!isObject(tool?.recommended_first_call) || Object.keys(tool.recommended_first_call).length === 0) {
+    missing.push("recommended_first_call");
+  }
+  return missing;
+}
+
+export function evaluateAgentToolConformance(descriptor, manifest, { accessPolicy = null } = {}) {
+  const debt = manifest?.[AGENT_TOOL_CONFORMANCE_DEBT_MANIFEST_FIELD];
+  const baselineDigests = isObject(debt?.baseline_entry_digests)
+    ? debt.baseline_entry_digests
+    : {};
+  const compatibilityAliases = isObject(debt?.compatibility_aliases)
+    ? debt.compatibility_aliases
+    : {};
+  const access = isObject(accessPolicy?.access) ? accessPolicy.access : null;
+  const applicable = (Array.isArray(descriptor?.tools) ? descriptor.tools : []).filter((tool) =>
+    tool?.kind === "mcp_tool" &&
+    tool.install_state === "installed" &&
+    tool.runtime_posture === "supported" &&
+    (!access || (Array.isArray(access[tool.tool_name]) && access[tool.tool_name].length > 0))
+  );
+  const byName = new Map(applicable.map((tool) => [tool.tool_name, tool]));
+  const missingControls = new Map();
+  for (const tool of applicable) {
+    const missing = missingAgentToolConformanceControls(tool);
+    if (missing.length > 0) {
+      missingControls.set(tool.tool_name, missing);
+    }
+  }
+
+  const debtAdded = [];
+  const debtRetired = [];
+  const remainingToolNames = [];
+  for (const toolName of missingControls.keys()) {
+    const tool = byName.get(toolName);
+    const baselineDigest = baselineDigests[toolName];
+    if (!baselineDigest || digestToolDiscoveryEntry(tool) !== baselineDigest) {
+      debtAdded.push(toolName);
+    } else {
+      remainingToolNames.push(toolName);
+    }
+  }
+  for (const toolName of Object.keys(baselineDigests)) {
+    const tool = byName.get(toolName);
+    if (Object.hasOwn(compatibilityAliases, toolName)) {
+      const aliasRecord = compatibilityAliases[toolName];
+      if (!tool) {
+        debtRetired.push(toolName);
+      } else if (
+        digestToolDiscoveryEntry(tool) !== baselineDigests[toolName] ||
+        tool.compatibility_alias_for !== aliasRecord.replacement_route ||
+        !byName.has(aliasRecord.replacement_route)
+      ) {
+        debtAdded.push(toolName);
+      } else {
+        remainingToolNames.push(toolName);
+      }
+    } else if (tool && !missingControls.has(toolName)) {
+      debtRetired.push(toolName);
+    } else if (!tool) {
+      debtRetired.push(toolName);
+    }
+  }
+
+  debtAdded.sort();
+  debtRetired.sort();
+  remainingToolNames.sort();
+  return {
+    debt_total: remainingToolNames.length,
+    debt_added: [...new Set(debtAdded)].sort(),
+    debt_retired: debtRetired,
+    remaining_tool_names: remainingToolNames,
+    owner: debt?.owner ?? null,
+    target_wk: debt?.target_wk ?? null,
+    retirement_evidence: debt?.retirement_evidence ?? null,
+    compatibility_alias_debt_total: remainingToolNames.filter((toolName) =>
+      Object.hasOwn(compatibilityAliases, toolName)
+    ).length,
+    compatibility_alias_remaining: remainingToolNames.filter((toolName) =>
+      Object.hasOwn(compatibilityAliases, toolName)
+    ),
+    compatibility_alias_retired: debtRetired.filter((toolName) =>
+      Object.hasOwn(compatibilityAliases, toolName)
+    ),
+    compatibility_alias_records: compatibilityAliases,
+    applicable_tool_count: applicable.length,
+    missing_controls: Object.fromEntries(
+      [...missingControls.entries()].sort(([left], [right]) => left.localeCompare(right))
+    ),
+    registration_eligible_tool_names: applicable
+      .filter((tool) => !missingControls.has(tool.tool_name) || remainingToolNames.includes(tool.tool_name))
+      .map((tool) => tool.tool_name)
+      .sort()
+  };
+}
+
+function evaluateTokenBudget(currentLengths, budget, owner, targetWk) {
+  const baselineLengths = budget.baseline_lengths;
+  const names = new Set([...Object.keys(baselineLengths), ...Object.keys(currentLengths)]);
+  let debtAdded = 0;
+  let debtRetired = 0;
+  const addedEntryNames = [];
+  const retiredEntryNames = [];
+  for (const name of names) {
+    const baseline = baselineLengths[name] ?? 0;
+    const current = currentLengths[name] ?? 0;
+    if (current > baseline) {
+      debtAdded += current - baseline;
+      addedEntryNames.push(name);
+    } else if (current < baseline) {
+      debtRetired += baseline - current;
+      retiredEntryNames.push(name);
+    }
+  }
+  const currentValue = Object.values(currentLengths).reduce((sum, length) => sum + length, 0);
+  return {
+    target: budget.target_ceiling,
+    current_value: currentValue,
+    denominator: Object.keys(currentLengths).length,
+    baseline_value: budget.baseline_total,
+    baseline_denominator: budget.baseline_denominator,
+    debt_added: debtAdded,
+    debt_retired: debtRetired,
+    added_entry_names: addedEntryNames.sort(),
+    retired_entry_names: retiredEntryNames.sort(),
+    owner,
+    target_wk: targetWk,
+    remaining_excess: Math.max(0, currentValue - budget.target_ceiling),
+    within_target: currentValue <= budget.target_ceiling,
+    growth_free: debtAdded === 0,
+    measurement_unit: budget.measurement_unit,
+    surface: budget.surface
+  };
+}
+
+export function evaluateAgentToolTokenBudgetDebt(
+  descriptor,
+  manifest,
+  { liveDescriptions = null } = {}
+) {
+  const debt = manifest[AGENT_TOOL_TOKEN_BUDGET_DEBT_MANIFEST_FIELD];
+  const notesLengths = Object.fromEntries(
+    (Array.isArray(descriptor?.tools) ? descriptor.tools : [])
+      .filter((tool) => isNonEmptyString(tool?.notes))
+      .map((tool) => [tool.tool_name, tool.notes.length])
+  );
+  const report = {
+    raw_discovery_notes: evaluateTokenBudget(
+      notesLengths,
+      debt.raw_discovery_notes,
+      debt.owner,
+      debt.target_wk
+    )
+  };
+  if (liveDescriptions !== null) {
+    const descriptionLengths = Object.fromEntries(
+      liveDescriptions
+        .filter((entry) => isNonEmptyString(entry?.name) && isNonEmptyString(entry?.description))
+        .map((entry) => [entry.name, entry.description.length])
+    );
+    report.live_paid_operator_descriptions = evaluateTokenBudget(
+      descriptionLengths,
+      debt.live_paid_operator_descriptions,
+      debt.owner,
+      debt.target_wk
+    );
+  }
+  return report;
 }
 
 export function assembleToolDiscoveryDescriptor(
@@ -814,7 +1296,19 @@ export async function loadToolDiscoveryDescriptor(descriptorPath = DEFAULT_DESCR
   }
 
   if (isToolDiscoveryFragmentManifest(parsed)) {
-    return assembleToolDiscoveryDescriptorFromManifest(parsed, { manifestPath: descriptorPath });
+    const descriptor = await assembleToolDiscoveryDescriptorFromManifest(parsed, {
+      manifestPath: descriptorPath
+    });
+    const validation = validateToolDiscoveryDescriptor(descriptor);
+    if (isObject(parsed[AGENT_TOOL_CONFORMANCE_DEBT_MANIFEST_FIELD]) && !validation.valid) {
+      throw new ToolDiscoveryFragmentError(
+        `tool-discovery: assembled descriptor contains invalid tool metadata: ${validation.diagnostics
+          .map((diagnostic) => diagnostic.paths[0] ?? diagnostic.code)
+          .join(", ")}`,
+        { code: "invalid_tool_entry", path: descriptorPath }
+      );
+    }
+    return descriptor;
   }
 
   return parsed;

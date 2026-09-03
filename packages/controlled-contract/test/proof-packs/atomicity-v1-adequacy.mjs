@@ -2,8 +2,8 @@ import {
   PROOF_PACK_ADEQUACY_RUN_VERSION
 } from "../support/proof-pack-adequacy-constants.mjs";
 import {
-  evaluateVerificationProfileV034
-} from "../../lib/verification-profile-v034.mjs";
+  evaluateStableProofPackFixtureV1
+} from "../support/stable-v1-proof-pack-runtime.mjs";
 
 import {
   buildAtomicityFixture,
@@ -18,7 +18,7 @@ import {
 } from "./atomicity-v1-harness.mjs";
 
 const ATOMICITY_V1_PROFILE_DIGEST =
-  "6bcfc451b5883a076ab5b0f6da7186d1168ce66f035282c8290babe336adee24";
+  "15822312f93cc4208bfd5d71ee653d9271fcdf6eacdfac2e98e1014438238a43";
 const ATOMICITY_V1_GUARANTEE_DIGEST =
   "3d9681b4aa9e3f75889648eb4d87f995da443f7768f7c7d1938d4e93701a9a98";
 
@@ -107,7 +107,7 @@ const GUARANTEE_CRITICAL_PATTERNS = Object.freeze({
 });
 
 function evaluateFixture(fixture) {
-  return evaluateVerificationProfileV034({
+  return evaluateStableProofPackFixtureV1({
     contract: fixture.contract,
     profile: fixture.profile,
     evaluation_input: fixture.input

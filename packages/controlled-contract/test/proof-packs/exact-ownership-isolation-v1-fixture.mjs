@@ -1,9 +1,9 @@
 import {
-  PROFILE_ID_V034,
-  SCHEMA_VERSION_V034,
-  VOCABULARY_VERSION_V034
-} from "../../lib/native-contract-carrier-v034.mjs";
-import { EVALUATION_INPUT_VERSION_V034 } from "../../lib/verification-profile-v034.mjs";
+  PROFILE_ID_V1,
+  SCHEMA_VERSION_V1,
+  VOCABULARY_VERSION_V1
+} from "../../lib/native-contract-carrier-v1.mjs";
+import { EVALUATION_INPUT_VERSION_V1 } from "../support/stable-v1-proof-pack-runtime.mjs";
 
 const V = Object.freeze({
   signature: "5c5e34017a7e0defc5222b9e3fc7fcaec8ca12d70541e609ca29e49c279c5a7d",
@@ -188,9 +188,9 @@ const collections = [
     member_claim_pattern_ids: patterns.map(({ pattern_id }) => pattern_id) }
 ];
 const profile = {
-  schema_version: "controlled-contract-verification-profile.experimental.v0.2",
-  profile_id: "proof.ownership.exact-isolation", profile_version: "1.0.0",
-  contract_schema_version: SCHEMA_VERSION_V034, vocabulary_version: VOCABULARY_VERSION_V034,
+  schema_version: "controlled-contract-verification-profile.v1",
+  profile_id: "proof.ownership.exact-isolation", profile_version: "2.0.0",
+  contract_schema_version: SCHEMA_VERSION_V1, vocabulary_version: VOCABULARY_VERSION_V1,
   vocabulary_signature_digest: V.signature, vocabulary_algebra_digest: V.algebra,
   vocabulary_definitions_digest: V.definitions, vocabulary_complete_digest: V.complete,
   evaluation_stages: ["pre_dispatch"],
@@ -274,8 +274,8 @@ function buildExactOwnershipIsolationFixture({
     }
     claims.push(claim);
   }
-  const contract = { schema_version: SCHEMA_VERSION_V034,
-    vocabulary_version: VOCABULARY_VERSION_V034, profile_id: PROFILE_ID_V034,
+  const contract = { schema_version: SCHEMA_VERSION_V1,
+    vocabulary_version: VOCABULARY_VERSION_V1, profile_id: PROFILE_ID_V1,
     references, propositions, claims,
     relations: relations.map(({ pattern_id, source_claim_pattern_id,
       target_claim_pattern_id }) => ({ relation_id: `rel-${pattern_id}`, role: "verifies",
@@ -288,12 +288,12 @@ function buildExactOwnershipIsolationFixture({
       { collection_id: "set-proof-population", collection_kind: "closed_set",
         purpose: "proof_exact_ownership_isolation_population",
         member_claim_ids: patterns.map(({ pattern_id }) => `claim-${pattern_id}`) }
-    ], residue: [], annotations: [] };
-  const input = { input_version: EVALUATION_INPUT_VERSION_V034,
+    ], residue: [], annotations: [], test_proof_version: "controlled-contract-test-proof.v1", test_proofs: [] };
+  const input = { input_version: EVALUATION_INPUT_VERSION_V1,
     evaluation_stage: "pre_dispatch",
     reference_bindings: Object.keys(roleTypes).map((role) => ({
       role, reference_ids: [refId(role)] })), number_bindings: [],
-    claim_pattern_bindings: [], resolver_facts: [], delivered_evidence: [] };
+    claim_pattern_bindings: [], resolver_facts: [], delivered_evidence: [], stable_evaluation: {} };
   if (mutateContract) mutateContract(contract);
   if (mutateInput) mutateInput(input);
   return { contract, input };

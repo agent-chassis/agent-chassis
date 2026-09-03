@@ -11,6 +11,9 @@ import {
   assertExistingDirectory,
   realpathExisting
 } from "./launch-isolation-paths.mjs";
+import {
+  resolveRepositoryGitMetadataProjection
+} from "./launch-isolation-findings-git-metadata.mjs";
 
 function resolveGitFileReference({ filePath, baseDir, label, requireGitdirPrefix = false }) {
   let raw;
@@ -47,9 +50,7 @@ function resolveGitFileReference({ filePath, baseDir, label, requireGitdirPrefix
     : path.resolve(baseDir, target);
 }
 
-export function normalizeProvisionedWorktreeGitIsolation(identity, repoReal, {
-  projectReadOnlyBinds = true
-} = {}) {
+export function normalizeProvisionedWorktreeGitIsolation(identity, repoReal) {
   if (identity === null || identity === undefined) return null;
   if (typeof identity !== "object" || Array.isArray(identity)) {
     fail(
@@ -185,10 +186,23 @@ export function normalizeProvisionedWorktreeGitIsolation(identity, repoReal, {
     );
   }
 
-  const readOnlyBinds = projectReadOnlyBinds
-    ? [...new Set([mainGitDir, gitDir, worktreeGitFile])]
-        .map((src) => Object.freeze({ src, dst: src }))
-    : [];
+  const metadataProjection = resolveRepositoryGitMetadataProjection({ repoReal });
+  if (metadataProjection === null ||
+      metadataProjection.worktreeGitDir !== gitDir ||
+      metadataProjection.commonGitDir !== mainGitDir ||
+      metadataProjection.gitPointerFile !== worktreeGitFile) {
+    fail(
+      BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.BIND_ENTRY_INVALID,
+      "provisioned worktree Git binding does not match the checkout-derived Git topology",
+      {
+        expected_git_dir: gitDir,
+        expected_main_git_dir: mainGitDir,
+        observed_git_dir: metadataProjection?.worktreeGitDir ?? null,
+        observed_main_git_dir: metadataProjection?.commonGitDir ?? null
+      }
+    );
+  }
+  const readOnlyBinds = metadataProjection.readOnlyBinds;
 
   return Object.freeze({
     schemaVersion: "provisioned-worktree-git-isolation.v1",
@@ -200,6 +214,8 @@ export function normalizeProvisionedWorktreeGitIsolation(identity, repoReal, {
     mainGitDir,
     gitPointerFile: worktreeGitFile,
     worktreeGitFile,
-    readOnlyBinds: Object.freeze(readOnlyBinds)
+    readOnlyBinds,
+    namespaceDirectories: metadataProjection.namespaceDirectories,
+    metadataProjection
   });
 }

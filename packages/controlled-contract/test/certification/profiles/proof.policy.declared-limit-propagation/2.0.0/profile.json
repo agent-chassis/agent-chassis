@@ -1,0 +1,652 @@
+{
+  "schema_version": "controlled-contract-verification-profile.v1",
+  "profile_id": "proof.policy.declared-limit-propagation",
+  "profile_version": "2.0.0",
+  "contract_schema_version": "controlled-acceptance-contract.v1",
+  "vocabulary_version": "controlled-contract-vocabulary.v1",
+  "vocabulary_signature_digest": "596a4c44d98aed1d31dd9ab3842fc054be6f8ffa3d62a3867a3966e75ecab742",
+  "vocabulary_algebra_digest": "0fbea1e7377baeef1869cbc55dc588ef5509ed40c768ce2a3c4f58be1133cf9c",
+  "vocabulary_definitions_digest": "bb3d2a63cb6fc8c62b9bc36d29d07549dea6ad85e32badb0cbb3cacfd6ad4759",
+  "vocabulary_complete_digest": "45484504f06968c6b4ac812c24b9f1b6e47e1d34ba21fefebde8dd85d1290fa9",
+  "verification_falsifier_policy": "controlled_complement_per_target",
+  "evaluation_stages": [
+    "post_delivery"
+  ],
+  "reference_roles": [
+    {
+      "role": "guidance_subject",
+      "allowed_type_terms": [
+        "cc:process",
+        "cc:runtime_component"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "policy_artifact",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "guidance_artifact",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "propagation_report",
+      "allowed_type_terms": [
+        "cc:evidence"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "verification",
+      "allowed_type_terms": [
+        "cc:test",
+        "cc:process"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "mismatch_condition",
+      "allowed_type_terms": [
+        "cc:state",
+        "cc:configuration"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "limit_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "declared_limits",
+      "allowed_type_terms": [
+        "cc:criterion"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "unit_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "measurement_units",
+      "allowed_type_terms": [
+        "cc:configuration"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "association_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "guidance_associations",
+      "allowed_type_terms": [
+        "cc:evidence_occurrence"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "surface_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "guidance_surfaces",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "key_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "policy_keys",
+      "allowed_type_terms": [
+        "cc:configuration"
+      ],
+      "cardinality": "zero_or_more"
+    }
+  ],
+  "number_roles": [
+    {
+      "role": "declared_limits_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 1
+    },
+    {
+      "role": "measurement_units_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 1
+    },
+    {
+      "role": "guidance_associations_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 1
+    },
+    {
+      "role": "guidance_surfaces_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 1
+    },
+    {
+      "role": "policy_keys_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 1
+    }
+  ],
+  "distinct_reference_role_sets": [
+    {
+      "roles": [
+        "policy_artifact",
+        "guidance_artifact",
+        "propagation_report"
+      ]
+    },
+    {
+      "roles": [
+        "limit_population",
+        "unit_population",
+        "association_population",
+        "surface_population",
+        "key_population"
+      ]
+    }
+  ],
+  "reference_binding_patterns": [
+    {
+      "pattern_id": "complete-declared-limits",
+      "required_by_stage": "post_delivery",
+      "comparison": "complete_population",
+      "roles": [
+        "limit_population",
+        "declared_limits"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    },
+    {
+      "pattern_id": "complete-measurement-units",
+      "required_by_stage": "post_delivery",
+      "comparison": "complete_population",
+      "roles": [
+        "unit_population",
+        "measurement_units"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    },
+    {
+      "pattern_id": "complete-guidance-associations",
+      "required_by_stage": "post_delivery",
+      "comparison": "complete_population",
+      "roles": [
+        "association_population",
+        "guidance_associations"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    },
+    {
+      "pattern_id": "complete-guidance-surfaces",
+      "required_by_stage": "post_delivery",
+      "comparison": "complete_population",
+      "roles": [
+        "surface_population",
+        "guidance_surfaces"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    },
+    {
+      "pattern_id": "complete-policy-keys",
+      "required_by_stage": "post_delivery",
+      "comparison": "complete_population",
+      "roles": [
+        "key_population",
+        "policy_keys"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    }
+  ],
+  "reference_role_count_bindings": [
+    {
+      "reference_role": "declared_limits",
+      "number_role": "declared_limits_count"
+    },
+    {
+      "reference_role": "measurement_units",
+      "number_role": "measurement_units_count"
+    },
+    {
+      "reference_role": "guidance_associations",
+      "number_role": "guidance_associations_count"
+    },
+    {
+      "reference_role": "guidance_surfaces",
+      "number_role": "guidance_surfaces_count"
+    },
+    {
+      "reference_role": "policy_keys",
+      "number_role": "policy_keys_count"
+    }
+  ],
+  "binding_constraint_patterns": [],
+  "claim_patterns": [
+    {
+      "pattern_id": "each-guidance-association-targets-one-limit",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "guidance_associations",
+        "member_role": "guidance_association",
+        "complete_population_pattern_id": "complete-guidance-associations",
+        "quantifier": "universal",
+        "empty_behavior": "vacuously_satisfied",
+        "association_bindings": [
+          {
+            "associated_role": "declared_limits",
+            "operator": "reference:targets",
+            "member_position": "subject",
+            "associated_position": "reference_operand",
+            "applicability_context": {
+              "mode": "unconditional",
+              "operand_roles": []
+            },
+            "complete_population_pattern_id": "complete-declared-limits"
+          }
+        ]
+      },
+      "proposition_template": {
+        "subject_role": "guidance_association",
+        "operator": "reference:targets",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "declared_limits"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "each-policy-key-resolves-to-one-limit",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "policy_keys",
+        "member_role": "policy_key",
+        "complete_population_pattern_id": "complete-policy-keys",
+        "quantifier": "universal",
+        "empty_behavior": "vacuously_satisfied",
+        "association_bindings": [
+          {
+            "associated_role": "declared_limits",
+            "operator": "reference:resolves_to",
+            "member_position": "subject",
+            "associated_position": "reference_operand",
+            "applicability_context": {
+              "mode": "unconditional",
+              "operand_roles": []
+            },
+            "complete_population_pattern_id": "complete-declared-limits"
+          }
+        ]
+      },
+      "proposition_template": {
+        "subject_role": "policy_key",
+        "operator": "reference:resolves_to",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "declared_limits"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "each-limit-resolves-to-one-unit",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "declared_limits",
+        "member_role": "limit",
+        "complete_population_pattern_id": "complete-declared-limits",
+        "quantifier": "universal",
+        "empty_behavior": "vacuously_satisfied",
+        "association_bindings": [
+          {
+            "associated_role": "measurement_units",
+            "operator": "reference:resolves_to",
+            "member_position": "subject",
+            "associated_position": "reference_operand",
+            "applicability_context": {
+              "mode": "unconditional",
+              "operand_roles": []
+            },
+            "complete_population_pattern_id": "complete-measurement-units"
+          }
+        ]
+      },
+      "proposition_template": {
+        "subject_role": "limit",
+        "operator": "reference:resolves_to",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "measurement_units"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "policy-contains-limit-population",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "policy_artifact",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "limit_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "policy-contains-unit-population",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "policy_artifact",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "unit_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "guidance-contains-association-population",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "guidance_artifact",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "association_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "guidance-contains-key-population",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "guidance_artifact",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "key_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "report-is-propagated",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "propagation_report",
+        "operator": "boolean:exists",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": true
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "verify-report-is-propagated",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "policy_artifact"
+          },
+          {
+            "kind": "reference",
+            "role": "guidance_artifact"
+          },
+          {
+            "kind": "reference",
+            "role": "propagation_report"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "audit",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "propagation_report",
+        "operator": "boolean:exists",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": false
+          }
+        ]
+      }
+    }
+  ],
+  "relation_patterns": [
+    {
+      "pattern_id": "verification-targets-report-is-propagated",
+      "required_by_stage": "post_delivery",
+      "role": "verifies",
+      "source_claim_pattern_id": "verify-report-is-propagated",
+      "target_claim_pattern_id": "report-is-propagated"
+    }
+  ],
+  "collection_patterns": [],
+  "resolver_fact_patterns": [],
+  "evidence_patterns": [],
+  "falsifier_condition_bindings": [
+    {
+      "relation_pattern_id": "verification-targets-report-is-propagated",
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    }
+  ],
+  "falsifier_occurrence_bindings": [
+    {
+      "relation_pattern_id": "verification-targets-report-is-propagated",
+      "reference_role_joins": [
+        {
+          "role": "propagation_report",
+          "target_positions": [
+            "subject"
+          ],
+          "verification_positions": [
+            "reference_operand"
+          ],
+          "falsifier_positions": [
+            "subject"
+          ]
+        }
+      ],
+      "number_role_joins": [],
+      "applicability_join": "exact_scope"
+    }
+  ],
+  "satisfaction_expression": {
+    "all_of": [
+      {
+        "pattern": "complete-declared-limits"
+      },
+      {
+        "pattern": "complete-measurement-units"
+      },
+      {
+        "pattern": "complete-guidance-associations"
+      },
+      {
+        "pattern": "complete-guidance-surfaces"
+      },
+      {
+        "pattern": "complete-policy-keys"
+      },
+      {
+        "pattern": "each-guidance-association-targets-one-limit"
+      },
+      {
+        "pattern": "each-policy-key-resolves-to-one-limit"
+      },
+      {
+        "pattern": "each-limit-resolves-to-one-unit"
+      },
+      {
+        "pattern": "policy-contains-limit-population"
+      },
+      {
+        "pattern": "policy-contains-unit-population"
+      },
+      {
+        "pattern": "guidance-contains-association-population"
+      },
+      {
+        "pattern": "guidance-contains-key-population"
+      },
+      {
+        "pattern": "report-is-propagated"
+      },
+      {
+        "pattern": "verify-report-is-propagated"
+      },
+      {
+        "pattern": "verification-targets-report-is-propagated"
+      }
+    ]
+  }
+}

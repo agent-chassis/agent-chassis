@@ -1,9 +1,6 @@
 import { BACKEND_REFUSAL_CODES } from "./workspace-agent-dispatch-backend.mjs";
 import { superviseChildLaunch } from "./workspace-agent-launch-core.mjs";
-import {
-  BubblewrapIsolationError,
-  isTerminalReviewSpawnBarrierRefusal
-} from "./launch-isolation.mjs";
+import { BubblewrapIsolationError } from "./launch-isolation.mjs";
 import {
   STDIO_MCP_CONDUIT_REQUIRES_BUBBLEWRAP_REASON as CODEX_STDIO_MCP_CONDUIT_REQUIRES_BUBBLEWRAP_REASON,
   attachStdioMcpConduitLaunchOutcome
@@ -45,9 +42,8 @@ import {
 import {
   buildCodexDispatchWorkerPlanArgs
 } from "./workspace-agent-dispatch-codex-plan-args.mjs";
-import {
-  renderTrustedCorrectiveFindingsInstructions
-} from "./workspace-agent-launch-adapter-contract.mjs";
+import { selectWorkerLifecycleFromEffectiveWriteScope } from
+  "./workspace-agent-worker-lifecycle.mjs";
 
 let plainChildProcessSpawn = null;
 
@@ -120,7 +116,6 @@ export async function launchCodexWorkspaceAgentInProcess({
   effectiveResolvedProfile,
   workspaceAlias,
   workspaceDir,
-  findingsOnlyAcceptance,
   forwardedSourceToolSurface,
   terminalStructuredRoleResultMode,
   buildPlan,
@@ -134,47 +129,33 @@ export async function launchCodexWorkspaceAgentInProcess({
   resolveUnsandboxedOptIn,
   classifyIsolationBackendAvailability,
   probeCanonicalBwrapAvailability,
-  createMcpConduit,
-
-  terminalReviewSpawnBarrier = null
+  createMcpConduit
 }) {
-
-  const terminalReviewBarrierRefusal = (verdict) => makeRefusal(
-    BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
-    verdict?.reason ?? "terminal_review_attempt_contract_recheck_failed",
-    { role, subject, ...(verdict?.detail ?? {}) }
-  );
-  let correctiveInstructions = null;
-  try {
-    correctiveInstructions = role === "worker"
-      ? renderTrustedCorrectiveFindingsInstructions(
-          input?.readiness?.trusted_corrective_findings_context ?? null,
-          { subject }
-        )
-      : null;
-  } catch (error) {
-    return makeRefusal(
-      BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
-      "trusted_corrective_findings_context_invalid",
-      { issue: error?.message ?? String(error) }
-    );
+  const advisoryReview = input?.advisory_review_input !== undefined;
+  let lifecycleKind = "advisory";
+  if (!advisoryReview) {
+    try {
+      lifecycleKind = selectWorkerLifecycleFromEffectiveWriteScope(
+        input?.canonical_unit_write_scope
+      );
+    } catch (error) {
+      return makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
+        error?.code ?? "launcher_effective_write_scope_invalid",
+        { subject, authority_limb: "mechanical_failure" });
+    }
   }
 
   const artifacts = await buildCodexLaunchArtifacts({
     planArgs: buildCodexDispatchWorkerPlanArgs({
       role: codexRole,
       subject,
-      promptArgs: correctiveInstructions === null
-        ? promptArgs
-        : [...promptArgs, correctiveInstructions],
+      promptArgs,
       env,
       cwd: planCwd,
 
       resolvedProfile: effectiveResolvedProfile,
       workspaceAlias,
       workspaceDir,
-      acceptanceCriteria: findingsOnlyAcceptance?.acceptanceCriteria ?? [],
-      acceptanceValidation: findingsOnlyAcceptance?.acceptanceValidation ?? [],
 
       sourceToolSurface: forwardedSourceToolSurface,
 
@@ -184,11 +165,7 @@ export async function launchCodexWorkspaceAgentInProcess({
       provisioned_worktree_git_binding: input?.provisioned_worktree_git_binding ?? null,
       worker_scope_authority: input?.worker_scope_authority ?? null,
       worktree_provisioning: input?.worktree_provisioning ?? null,
-
-      configRootDir: input?.config_root_dir ?? input?.readiness?.config_root_dir ?? null,
-      trustedFrozenReviewContract: input?.trusted_frozen_review_contract ??
-        input?.readiness?.trusted_frozen_review_contract ?? null,
-      reviewerDependencyBinds: input?.reviewer_dependency_binds ?? null
+      advisoryReviewInput: input?.advisory_review_input ?? null
     }),
     buildPlan,
     buildBwrapPlan,
@@ -279,10 +256,6 @@ export async function launchCodexWorkspaceAgentInProcess({
             makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START, "plain_spawn_threw", detail),
           buildNoChildRefusal: () =>
             makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START, "plain_spawn_no_child", null),
-
-          preSpawnBarrier: terminalReviewSpawnBarrier,
-          buildPreSpawnBarrierRefusal: terminalReviewBarrierRefusal,
-
           resolveSpawn: resolveCodexPlainSpawnPrimitive(plainSpawn),
           adaptSupervisedResult: (supervised) =>
             attachProvenanceToSupervisedResult(supervised, {
@@ -319,6 +292,7 @@ export async function launchCodexWorkspaceAgentInProcess({
       ));
     }
     const provisioning = input?.worktree_provisioning ?? null;
+    const canonicalReviewerRoot = input?.advisory_review_input?.repository ?? null;
     const commitTuple = role === "worker" && provisioning !== null
       ? assertCodexWorkerCommitCredentialBinding({
           assignedUnit: subject,
@@ -331,10 +305,18 @@ export async function launchCodexWorkspaceAgentInProcess({
     conduit = await createMcpConduit(resolveCodexConduitInput({
       role: codexRole,
       assignedUnit: subject,
-      workspaceDir: provisioning?.main_repo ?? workspaceDir ?? planCwd,
+
+      workspaceDir: input?.advisory_review_input !== undefined
+        ? canonicalReviewerRoot
+        : provisioning?.main_repo ?? workspaceDir ?? planCwd,
       workerScopeAuthority: bwrapPlan?.workerScopeAuthority ?? null,
       worktreeProvisioning: provisioning,
       commitTuple,
+
+      completionCredential: input?.completion_credential ??
+        input?.completionCredential ??
+        input?.readiness?.completion_credential ??
+        input?.readiness?.completionCredential ?? null,
       launcherEnv: env,
       requested: {
         read_scope: input?.read_scope ?? null,
@@ -358,36 +340,15 @@ export async function launchCodexWorkspaceAgentInProcess({
     ));
   }
 
-  if (typeof terminalReviewSpawnBarrier === "function") {
-    const verdict = terminalReviewSpawnBarrier();
-    if (verdict?.ok !== true) {
-      if (conduit) await conduit.cleanup().catch(() => {});
-      return compensateCodexPreSpawnRefusal(
-        cleanupController,
-        terminalReviewBarrierRefusal(verdict)
-      );
-    }
-  }
-
   let child;
   try {
     child = spawn(bwrapPlan, {
       env: plan.env,
 
-      terminalReviewSpawnBarrier,
-
       stdio: ["ignore", "pipe", "pipe"],
       detached: false
     });
   } catch (err) {
-
-    if (isTerminalReviewSpawnBarrierRefusal(err)) {
-      if (conduit) await conduit.cleanup().catch(() => {});
-      return compensateCodexPreSpawnRefusal(
-        cleanupController,
-        terminalReviewBarrierRefusal(err.verdict)
-      );
-    }
 
     if (conduit !== null) {
       let cleanupDetail = null;
@@ -484,10 +445,6 @@ export async function launchCodexWorkspaceAgentInProcess({
             makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START, "plain_spawn_threw", detail),
           buildNoChildRefusal: () =>
             makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START, "plain_spawn_no_child", null),
-
-          preSpawnBarrier: terminalReviewSpawnBarrier,
-          buildPreSpawnBarrierRefusal: terminalReviewBarrierRefusal,
-
           resolveSpawn: resolveCodexPlainSpawnPrimitive(plainSpawn),
           adaptSupervisedResult: (supervised) =>
             attachProvenanceToSupervisedResult(supervised, {

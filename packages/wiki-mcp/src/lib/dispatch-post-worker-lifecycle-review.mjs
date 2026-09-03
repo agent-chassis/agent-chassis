@@ -3,10 +3,13 @@
 import { setWorkRecordStatusByUnit } from "../../../wiki-core/src/index.mjs";
 import { SLICE_INTEGRATION_DIAGNOSTIC_CODES } from
   "../../../agent-launch-cli/src/lib/slice-integration.mjs";
+
+import { readCanonicalContractGenerationIdentity } from
+  "../../../agent-launch-cli/src/lib/slice-integration-authorization.mjs";
 import {
   lifecycleError,
   POST_WORKER_LIFECYCLE_PHASES,
-  resolvedCommit
+  resolvedTree
 } from "./dispatch-post-worker-lifecycle-bindings.mjs";
 import { OID_RE } from "./dispatch-post-worker-lifecycle-policy.mjs";
 
@@ -20,17 +23,9 @@ const SLICE_REVIEW_FREEZE_CODES = Object.freeze({
 export const POST_WORKER_MISSING_DELIVERY_CODE =
   "agent_launch.post_worker_slice_lifecycle.missing_closed_input_delivery.v1";
 
-function resolveDeliveryTree(runGit, repo, rev) {
-  const res = runGit({ repo, args: ["rev-parse", "--verify", `${rev}^{tree}`] });
-  const oid = res?.ok === true ? String(res.stdout ?? "").trim() : "";
-  if (!OID_RE.test(oid)) {
-    throw lifecycleError(
-      SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH,
-      "post-worker lifecycle could not resolve a delivery tree for empty-delivery classification",
-      { rev }
-    );
-  }
-  return oid;
+async function resolveReviewGitFact({ operation, runGit, repo, value, message, code }) {
+  const resolver = operation === "resolve_commit" ? resolvedCommit : resolvedTree;
+  return await resolver(runGit, repo, value, message, code);
 }
 
 function resolveBoundReviewerTarget(context, sliceTarget, subject) {
@@ -88,11 +83,16 @@ export async function freezeSliceReviewSurface({
   sliceId,
   commit,
   emptyDelivery = false,
+  planReviewerClosure,
   deps
 }) {
   if (typeof deps.resolveCanonicalSliceReviewUnit !== "function" ||
       typeof deps.bindFrozenSliceReviewContext !== "function") {
     throw new Error("post-worker lifecycle requires backend-owned slice-level review context composition");
+  }
+
+  if (typeof planReviewerClosure !== "function") {
+    throw new Error("exact-slice review freeze requires the composed reviewer closure planner");
   }
   const subject = `${wkId}#${sliceId}`;
   const sliceTarget = Object.freeze({
@@ -170,6 +170,22 @@ export async function freezeSliceReviewSurface({
   });
 
   const reviewerTarget = resolveBoundReviewerTarget(context, sliceTarget, subject);
+
+  const resolveGeneration = typeof deps.readCanonicalContractGenerationIdentity === "function"
+    ? deps.readCanonicalContractGenerationIdentity
+    : readCanonicalContractGenerationIdentity;
+  const closurePlan = planReviewerClosure({
+    transport: "managed_terminal_result",
+    repository: context.worktree_path,
+    role: "reviewer",
+    purpose: "canonical_committed_slice",
+    subject,
+    reviewed_sha: reviewerTarget.sha,
+    diff_base_sha: reviewerTarget.diff_base_sha,
+    controlled_generation: resolveGeneration(workspaceDir, wkId)?.digest ?? null,
+    receipt_identity: "workspace-agent-exact-slice-review-receipt.v4",
+    provenance_shape: "canonical_committed_slice"
+  });
   return Object.freeze({
     schema_version: "workspace-agent-slice-review-surface.v1",
     review_subject: subject,
@@ -183,6 +199,7 @@ export async function freezeSliceReviewSurface({
     reviewer_dispatch: Object.freeze({
       tool: "workspace_agent_dispatch",
       args: Object.freeze({ role: "reviewer", subject }),
+      closure_plan: closurePlan,
       context: Object.freeze({
         frozen_slice_review_target: reviewerTarget,
 
@@ -194,7 +211,14 @@ export async function freezeSliceReviewSurface({
   });
 }
 
-export async function prepareExactSliceReviewSurface({ status, binding, sliceRef, commit, runGit, deps }) {
+export async function prepareExactSliceReviewSurface({
+  status,
+  binding,
+  sliceRef,
+  commit,
+  reviewedTree,
+  deps
+}) {
   if (typeof deps.hostSliceReviewPreparationAdapter !== "function") {
     throw lifecycleError(
       "agent_launch.slice_review_materialization.prepare_failed.v1",
@@ -223,13 +247,6 @@ export async function prepareExactSliceReviewSurface({ status, binding, sliceRef
     );
   }
   const preparation = delegated.preparation;
-  const reviewedTreeResult = runGit({
-    repo: binding.worktree_path,
-    args: ["rev-parse", "--verify", `${commit}^{tree}`]
-  });
-  const reviewedTree = reviewedTreeResult?.ok === true
-    ? String(reviewedTreeResult.stdout ?? "").trim()
-    : "";
   if (!OID_RE.test(reviewedTree) ||
       preparation.assigned_unit !== status.subject ||
       preparation.launch_ref !== status.monitor_handle ||
@@ -256,16 +273,13 @@ export async function prepareFreshTerminalSliceReviewSurface({
   sliceRef,
   wkId,
   sliceId,
+  commit,
   runGit,
+  planReviewerClosure,
   deps
 }) {
-  const commit = resolvedCommit(
-    runGit,
-    workspaceDir,
-    sliceRef,
-    "post-worker lifecycle could not resolve the committed slice tip",
-    SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH
-  );
+  const gitFactError =
+    "post-worker lifecycle could not resolve a delivery tree for empty-delivery classification";
 
   if (commit === binding.base_sha) {
     throw lifecycleError(
@@ -280,16 +294,32 @@ export async function prepareFreshTerminalSliceReviewSurface({
     );
   }
 
-  const emptyDelivery =
-    resolveDeliveryTree(runGit, binding.worktree_path, binding.base_sha) ===
-    resolveDeliveryTree(runGit, binding.worktree_path, commit);
+  const [baseTree, reviewedTree] = await Promise.all([
+    resolveReviewGitFact({
+      operation: "resolve_tree",
+      runGit,
+      repo: binding.worktree_path,
+      value: binding.base_sha,
+      message: gitFactError,
+      code: SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH
+    }),
+    resolveReviewGitFact({
+      operation: "resolve_tree",
+      runGit,
+      repo: binding.worktree_path,
+      value: commit,
+      message: gitFactError,
+      code: SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH
+    })
+  ]);
+  const emptyDelivery = baseTree === reviewedTree;
 
   await prepareExactSliceReviewSurface({
     status,
     binding,
     sliceRef,
     commit,
-    runGit,
+    reviewedTree,
     deps
   });
 
@@ -303,6 +333,7 @@ export async function prepareFreshTerminalSliceReviewSurface({
     sliceId,
     commit,
     emptyDelivery,
+    planReviewerClosure,
     deps
   });
 }

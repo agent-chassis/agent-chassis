@@ -1,0 +1,77 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v2",
+  "profile_id": "proof.authentication.direct-source-provenance",
+  "profile_version": "2.0.0",
+  "profile_digest": "0b9b62d09bc5d01b743b5f8fa895fe9729fe05037863ec33f6fe46d6bbb1c42c",
+  "guarantee": "For one exact directly captured evidence occurrence E, target T, provenance source S, and observation attempt A, the captured evidence bytes authenticate T during A, E originates from S during A, T has S as its singular source of record during A, E was observed in A, the selected target and source populations are complete singletons, and four independent verification claims with exact controlled-complement falsifiers verify those same-occurrence behaviors.",
+  "guarantee_digest": "4f01a730acc440a7b32445445b8119e3f2a70f868bf3563fefbbee327b45eb81",
+  "explicit_exclusions": [
+    "authorship-issuance-or-authorization",
+    "caller-honesty-or-source-discovery-completeness",
+    "derived-copied-or-transformed-evidence",
+    "freshness-beyond-the-bound-observation-attempt",
+    "generic-integrity-or-runtime-truth",
+    "ownership-containment-or-decision-authority",
+    "provenance-outside-the-complete-selected-source-population",
+    "runtime-evidence-cce-or-publication-authority"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "cbcefac91d3c4423d44365cceb8a775269f021aa5773bfb7a7ba6e4116302e0b",
+    "adequacy_result_digest": "fe8941aeb884262bd7551b531c7d899d2d1a320c00da5f1fee7d2371b24d9838",
+    "executable_control_count": 75,
+    "negative_fixture_count": 1,
+    "coverage_witness_count": 74
+  },
+  "exact_binding": {
+    "declaration_digest": "035dae4e36eec67ed60f474678af993dbdfca56514a1810124ac0e2ff4b2e37b",
+    "certification_result_digest": "ab429f3b079554ee0701a23b9841fbe3ff0918bc9e4997584848aa4f078610d3",
+    "executable_control_count": 35,
+    "binding_kinds": [
+      "artifact_bytes"
+    ],
+    "relation_operators": [
+      "deterministic_projection"
+    ],
+    "corpus_id": "proof-authentication-direct-source-provenance-exact-binding",
+    "corpus_version": "1.0.0",
+    "corpus_digest": "286403ed1ba612eaec94c7a46ba25ea722ca93baebb093c2022a3730445975da",
+    "passed_control_ids": [
+      "context-admission-digest-mismatch",
+      "context-contract-digest-mismatch",
+      "context-evaluation-input-digest-mismatch",
+      "context-exact-binding-certification-digest-mismatch",
+      "context-exact-binding-declaration-digest-mismatch",
+      "context-profile-digest-mismatch",
+      "context-vocabulary-complete-digest-mismatch",
+      "context-vocabulary-version-mismatch",
+      "coordinated-recomputed-source-set",
+      "equality-evidence-occurrence-alias-does-not-bind",
+      "equality-observation-attempt-alias-does-not-bind",
+      "equality-source-alias-does-not-bind",
+      "equality-target-alias-does-not-bind",
+      "missing-attempt-binding-witness",
+      "missing-authentication-witness",
+      "missing-evidence-content",
+      "missing-occurrence-capture",
+      "missing-source-authentication-witness",
+      "missing-source-of-record-witness",
+      "missing-target-resolution-witness",
+      "occurrence-result-splice",
+      "positive-direct-source-occurrence",
+      "raw-evidence-occurrence-substitution",
+      "raw-observation-attempt-substitution",
+      "raw-source-substitution",
+      "raw-target-substitution",
+      "source-path-reuse",
+      "source-set-extra",
+      "substituted-attempt-binding-witness",
+      "substituted-authentication-witness",
+      "substituted-evidence-content",
+      "substituted-occurrence-capture",
+      "substituted-source-authentication-witness",
+      "substituted-source-of-record-witness",
+      "substituted-target-resolution-witness"
+    ]
+  }
+}

@@ -4,9 +4,16 @@ import path from "node:path";
 
 import { loadKindRecordById } from "../lib/kind-record-store.mjs";
 import { computeWorkRecordSourceDigest } from "../lib/work-record-schema.mjs";
+import { collectWorkRecordControlledContractPrivateScopeFacts } from
+  "../lib/controlled-contract-private-path-policy.mjs";
+import {
+  classifyWorkRecordGenerationTransition,
+  projectWorkRecordGenerationTransition
+} from "../lib/work-record-generation-transition.mjs";
 import { SHA256_PATTERN } from "../lib/work-record-schema-constants.mjs";
 import { getWorkRecordPath, loadWorkRecordById } from "../lib/work-record-store.mjs";
 import {
+  WORK_RECORD_EDIT_FIELD_REGISTRY,
   WORK_RECORD_CONTRACT_EDIT_OPERATIONS,
   applyWorkRecordContractEdit,
   assignWorkRecordToInitiative,
@@ -18,15 +25,8 @@ import {
   parseWorkRecordUnitAddress,
   validateWorkRecordReadySliceRequest
 } from "../lib/work-record-contract-edit.mjs";
-import {
-  findPersistedWorkerAdmissionEvidenceEntry,
-  readPersistedWorkerAdmissionEvidenceSidecar
-} from "../lib/work-record-admission-evidence-sidecar.mjs";
-import {
-  computeReviewedUnitSourceDigest,
-  validateStoredReviewAttestationIntrinsic
-} from "../lib/work-record-review-attestation.mjs";
-import { writeValidatedWorkRecord } from "./work-records.mjs";
+import { computeReviewedUnitSourceDigest } from "../lib/work-record-review-attestation.mjs";
+import { setWorkRecordTaskByUnit, writeValidatedWorkRecord } from "./work-records.mjs";
 import {
   computeWorkRecordPersistenceSnapshotDigest,
   writeValidatedWorkRecordWithAdmissionSidecars
@@ -38,6 +38,7 @@ export { WORK_RECORD_CONTRACT_EDIT_OPERATIONS };
 
 export const ASSIGN_WORK_RECORD_TO_INITIATIVE_OPERATION =
   "assign_work_record_to_initiative";
+export const EDIT_WORK_RECORD_OPERATION = "edit_work_record";
 
 const CLOSEOUT_LINT_TOP_FINDINGS_LIMIT = 5;
 
@@ -156,7 +157,8 @@ function buildResult({
   expectedSourceDigest = undefined,
   currentSourceDigest = null,
   verbose = false,
-  record = null
+  record = null,
+  generationTransition = null
 }) {
   const result = {
     operation,
@@ -171,8 +173,12 @@ function buildResult({
     changed_fields: Array.isArray(changedFields) ? changedFields : [],
     diagnostics: Array.isArray(diagnostics) ? diagnostics : [],
     canonical_record_path: canonicalRecordPath,
-    next_action: nextAction
+    next_action: nextAction,
+    policy_facts: collectWorkRecordControlledContractPrivateScopeFacts(
+      record ?? loaded?.record ?? null
+    )
   };
+  if (generationTransition) result.generation_transition = generationTransition;
   if (expectedSourceDigest !== undefined) {
     result.expected_source_digest = expectedSourceDigest;
     result.current_source_digest = currentSourceDigest ?? null;
@@ -190,8 +196,11 @@ function buildPlannerParams(operation, params, unit) {
       return { slice: params.slice };
     case "delete_slice":
       return { sliceId: params.slice_id ?? params.sliceId ?? sliceId ?? undefined };
+    case "edit_work_record":
+      return { sliceId, edit: params.edit };
     case "set_list_field":
-      return { sliceId, field: params.field, values: params.values };
+
+      return { sliceId, field: params.field, values: params.values, mode: params.mode };
     case "set_acceptance":
       return { sliceId, criteria: params.criteria, validation: params.validation };
     case "shape_review_unit":
@@ -199,6 +208,43 @@ function buildPlannerParams(operation, params, unit) {
     default:
       return {};
   }
+}
+
+function sliceUnit(recordId, sliceId) {
+  return {
+    kind: "slice",
+    address: `${recordId}#${sliceId}`,
+    record_id: recordId,
+    slice_id: sliceId
+  };
+}
+
+function resolveGenerationSelectedUnit({ operation, parsedUnit, plannerParams, beforeRecord, afterRecord }) {
+  if (parsedUnit.kind === "slice") return parsedUnit;
+  if (operation === "delete_slice") {
+    return sliceUnit(parsedUnit.record_id, plannerParams.sliceId);
+  }
+  if (operation === "upsert_slice") {
+    const suppliedSliceId = plannerParams.slice?.id;
+    if (suppliedSliceId) return sliceUnit(parsedUnit.record_id, suppliedSliceId);
+    const beforeIds = new Set((beforeRecord.slices ?? []).map((slice) => slice?.id));
+    const created = (afterRecord.slices ?? []).filter((slice) => !beforeIds.has(slice?.id));
+    if (created.length === 1) return sliceUnit(parsedUnit.record_id, created[0].id);
+  }
+  return parsedUnit;
+}
+
+function classifyProspectiveTransition(selectedUnit, beforeRecord, afterRecord) {
+  return classifyWorkRecordGenerationTransition(selectedUnit, beforeRecord, afterRecord);
+}
+
+function completedRevisionDiagnostic() {
+  return {
+    code: "completed_revision",
+    severity: "error",
+    message: "completed work-record content cannot be revised or deleted in place",
+    path: "status"
+  };
 }
 
 export async function assignWorkRecordToInitiativeByUnit({
@@ -479,6 +525,46 @@ export async function assignWorkRecordToInitiativeByUnit({
   });
 }
 
+export async function editWorkRecordByUnit(options = {}) {
+  const { edit = null } = options;
+  const taskEntry = WORK_RECORD_EDIT_FIELD_REGISTRY.find(
+    (entry) => entry.facade && entry.kind === "task" && entry.field === edit?.field
+  );
+  const taskKeys = new Set(["kind", "field", "action", "value", "text", "index"]);
+  const taskShapeIsClosed = edit && Object.keys(edit).every((key) => taskKeys.has(key));
+  if (
+    taskShapeIsClosed &&
+    edit.kind === "task" &&
+    taskEntry &&
+    taskEntry.actions.includes(edit.action)
+  ) {
+    const result = await setWorkRecordTaskByUnit({
+      dir: options.dir,
+      unitAddress: options.unitAddress,
+      action: edit.action,
+      text: edit.text,
+      index: edit.index,
+      value: edit.value,
+      expectedSourceDigest: options.expectedSourceDigest ?? options.expected_source_digest ?? null,
+      recordStore: options.recordStore ?? null
+    });
+    return {
+      operation: EDIT_WORK_RECORD_OPERATION,
+      ...result,
+      next_action: result.written
+        ? "edit persisted; rerun validation if the record is now ready to dispatch"
+        : result.no_op
+          ? "no change needed; the record already matches the requested edit"
+          : "fix the reported diagnostics and retry the edit"
+    };
+  }
+  return editWorkRecordContractByUnit({
+    ...options,
+    operation: EDIT_WORK_RECORD_OPERATION,
+    params: { edit }
+  });
+}
+
 export async function editWorkRecordContractByUnit({
   dir = ".",
   unitAddress,
@@ -502,7 +588,10 @@ export async function editWorkRecordContractByUnit({
     });
   }
 
-  if (!WORK_RECORD_CONTRACT_EDIT_OPERATIONS.includes(operation)) {
+  if (
+    operation !== EDIT_WORK_RECORD_OPERATION &&
+    !WORK_RECORD_CONTRACT_EDIT_OPERATIONS.includes(operation)
+  ) {
     return buildResult({
       operation,
       recordId: parsed.recordId,
@@ -561,6 +650,26 @@ export async function editWorkRecordContractByUnit({
     });
   }
 
+  if (expected !== null && expected !== undefined && expected !== loaded.source_digest) {
+    return buildResult({
+      operation,
+      recordId: parsed.recordId,
+      unit: parsed.unit,
+      loaded,
+      diagnostics: [{
+        code: "stale_source_digest",
+        severity: "error",
+        message: "source digest does not match the current on-disk record",
+        path: "expected_source_digest"
+      }],
+      sourceDigest: loaded.source_digest || null,
+      expectedSourceDigest: expected,
+      currentSourceDigest: loaded.source_digest || null,
+      nextAction: `reload ${parsed.recordId} and retry with the current source digest`,
+      verbose
+    });
+  }
+
   const baseErrors = (loaded.diagnostics || []).filter((entry) => entry.severity === "error");
   let acceptanceRepair = null;
   if (baseErrors.length > 0) {
@@ -611,6 +720,38 @@ export async function editWorkRecordContractByUnit({
     });
   }
 
+  const generationUnit = resolveGenerationSelectedUnit({
+    operation,
+    parsedUnit: parsed.unit,
+    plannerParams,
+    beforeRecord: loaded.record,
+    afterRecord: plan.updatedRecord
+  });
+  const generation = classifyProspectiveTransition(
+    generationUnit,
+    loaded.record,
+    plan.updatedRecord
+  );
+
+  if (generation.transition === "completed_revision") {
+    return buildResult({
+      operation,
+      recordId: parsed.recordId,
+      unit: parsed.unit,
+      loaded,
+      diagnostics: [completedRevisionDiagnostic()],
+      sourceDigest: loaded.source_digest || null,
+      valid: false,
+      written: false,
+      noOp: false,
+      changedFields: [],
+      canonicalRecordPath: loaded.canonical_record_path || null,
+      nextAction: "create a new work-record lifecycle for further requirements",
+      generationTransition: projectWorkRecordGenerationTransition(generation),
+      verbose
+    });
+  }
+
   if (!plan.changedFields.length) {
     return buildResult({
       operation,
@@ -626,7 +767,12 @@ export async function editWorkRecordContractByUnit({
       canonicalRecordPath: loaded.canonical_record_path || null,
       nextAction: "no change needed; the record already matches the requested edit",
       verbose,
-      record: plan.updatedRecord
+      record: plan.updatedRecord,
+      generationTransition: projectWorkRecordGenerationTransition(generation, {
+        persisted: true,
+        written: false,
+        noOp: true
+      })
     });
   }
 
@@ -649,6 +795,7 @@ export async function editWorkRecordContractByUnit({
         diagnostics: [persistedDiff.diagnostic],
         sourceDigest: loaded.source_digest || null,
         nextAction: "the post-normalization persisted diff exceeded the set_acceptance repair allowlist",
+        generationTransition: projectWorkRecordGenerationTransition(generation),
         verbose
       });
     }
@@ -694,7 +841,12 @@ export async function editWorkRecordContractByUnit({
     expectedSourceDigest: expected === null || expected === undefined ? undefined : expected,
     currentSourceDigest: writeResult.current_source_digest || null,
     verbose,
-    record: updatedRecord
+    record: updatedRecord,
+    generationTransition: projectWorkRecordGenerationTransition(generation, {
+      persisted: Boolean(writeResult.written),
+      written: Boolean(writeResult.written),
+      noOp: false
+    })
   });
 }
 
@@ -721,8 +873,9 @@ function readyCoreResult({
   noOp = false,
   sourceDigest = null,
   reviewedUnitDigest = null,
-  attestationDisposition = null,
-  diagnostics = []
+  generationTransition = null,
+  diagnostics = [],
+  policyFacts = []
 } = {}) {
   return {
     contract_persisted: Boolean(contractPersisted),
@@ -733,101 +886,13 @@ function readyCoreResult({
     no_op: Boolean(noOp),
     source_digest: sourceDigest,
     reviewed_unit_digest: reviewedUnitDigest,
-    attestation_disposition: attestationDisposition,
-    diagnostics: boundedReadyDiagnostics(diagnostics)
+    generation_transition: generationTransition,
+    diagnostics: boundedReadyDiagnostics(diagnostics),
+    policy_facts: policyFacts
   };
 }
 function readyDiagnostic(code, message, pathValue = null) {
   return { code, severity: "error", message, path: pathValue };
-}
-function isObjectValue(value) {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-export function removeReadySliceAttestationCarry(record, index) {
-  const candidate = structuredClone(record);
-  candidate.derived_evidence.splice(index, 1);
-  return candidate;
-}
-
-export async function inspectSelectedUnitStoredAttestations({
-  dir,
-  record,
-  selectedUnit,
-  reviewedUnitDigest,
-  now,
-  readAdmissionEvidence
-}) {
-  const entries = Array.isArray(record.derived_evidence) ? record.derived_evidence : [];
-  const matching = entries
-    .map((entry, index) => ({ entry, index }))
-    .filter(({ entry }) => findPersistedWorkerAdmissionEvidenceEntry(
-      { derived_evidence: [entry] },
-      selectedUnit,
-      reviewedUnitDigest
-    ) === entry);
-  const activeEntries = [];
-
-  for (const match of matching) {
-    let persisted;
-    try {
-      persisted = await readAdmissionEvidence({
-        dir,
-        record: { derived_evidence: [match.entry] },
-        selectedUnit,
-        sourceDigest: reviewedUnitDigest
-      });
-    } catch (error) {
-      return {
-        ok: false,
-        diagnostic: readyDiagnostic(
-          typeof error?.code === "string" ? error.code : "sidecar_evaluation_failed",
-          "referenced admission evidence could not be authenticated and evaluated",
-          "derived_evidence"
-        )
-      };
-    }
-    if (persisted === null) continue;
-    const evidence = persisted?.normalized_request?.evidence;
-    if (evidence === undefined || evidence?.review_attestations === undefined) continue;
-    if (!isObjectValue(evidence) || !Array.isArray(evidence.review_attestations)) {
-      return {
-        ok: false,
-        diagnostic: readyDiagnostic(
-          "review_attestation.malformed.v1",
-          "stored review-attestation evidence is malformed",
-          "derived_evidence"
-        )
-      };
-    }
-    let active = false;
-    for (const attestation of evidence.review_attestations) {
-      const validation = validateStoredReviewAttestationIntrinsic(attestation, {
-        repo: record.repo,
-        selected_unit_address: selectedUnit.address,
-        current_reviewed_unit_digest: reviewedUnitDigest,
-        now
-      });
-      if (!validation.valid) {
-        return {
-          ok: false,
-          diagnostic: readyDiagnostic(
-            validation.decision_code,
-            "stored review attestation failed intrinsic validation",
-            "derived_evidence"
-          )
-        };
-      }
-      active = true;
-    }
-    if (active) {
-      activeEntries.push({
-        index: match.index,
-        compact: !isObjectValue(match.entry.normalized_request)
-      });
-    }
-  }
-  return { ok: true, activeEntries, matchingEntryCount: matching.length };
 }
 
 export async function readyWorkRecordSliceByUnit(options = {}) {
@@ -836,8 +901,6 @@ export async function readyWorkRecordSliceByUnit(options = {}) {
     request: nestedRequest = null,
     recordStore = null,
     writeWorkRecordTransaction = writeValidatedWorkRecordWithAdmissionSidecars,
-    readAdmissionEvidence = readPersistedWorkerAdmissionEvidenceSidecar,
-    operationNow = () => new Date().toISOString(),
     ...topLevelRequest
   } = options;
   if (nestedRequest !== null && Object.keys(topLevelRequest).length > 0) {
@@ -862,65 +925,40 @@ export async function readyWorkRecordSliceByUnit(options = {}) {
   if (request.expected_source_digest && request.expected_source_digest !== loadedSourceDigest) {
     return readyCoreResult({
       sourceDigest: loadedSourceDigest,
+      policyFacts: collectWorkRecordControlledContractPrivateScopeFacts(loaded.record),
       diagnostics: [readyDiagnostic("stale_source_digest", "source digest does not match the current on-disk record", "expected_source_digest")]
     });
   }
 
-  let beforeReviewedDigest = null;
-  let attestationState = { ok: true, activeEntries: [], matchingEntryCount: 0 };
   const selectedBefore = request.slice_id
     ? { kind: "slice", address: `${request.unit}#${request.slice_id}`, record_id: request.unit, slice_id: request.slice_id }
     : null;
-  if (selectedBefore) {
-    const selectedMatches = loaded.record.slices.filter((entry) => entry?.id === request.slice_id);
-    if (selectedMatches.length !== 1) {
-      return readyCoreResult({
-        selectedUnit: selectedBefore,
-        sourceDigest: loadedSourceDigest,
-        diagnostics: [readyDiagnostic(
-          selectedMatches.length === 0 ? "slice_not_found" : "ready_slice_ambiguous_slice",
-          `slice '${request.slice_id}' must identify exactly one existing slice`,
-          "slice_id"
-        )]
-      });
-    }
-    beforeReviewedDigest = computeReviewedUnitSourceDigest({ record: loaded.record, slice_id: request.slice_id });
-    if (!beforeReviewedDigest) {
-      return readyCoreResult({
-        selectedUnit: selectedBefore,
-        sourceDigest: loadedSourceDigest,
-        diagnostics: [readyDiagnostic("ready_slice_reviewed_digest_unavailable", "selected-unit reviewed digest could not be computed", "slice_id")]
-      });
-    }
-    const nowValue = operationNow();
-    const now = nowValue instanceof Date ? nowValue.toISOString() : nowValue;
-    attestationState = await inspectSelectedUnitStoredAttestations({
-      dir: targetDir,
-      record: loaded.record,
-      selectedUnit: selectedBefore,
-      reviewedUnitDigest: beforeReviewedDigest,
-      now,
-      readAdmissionEvidence
-    });
-    if (!attestationState.ok) {
-      return readyCoreResult({
-        selectedUnit: selectedBefore,
-        sourceDigest: loadedSourceDigest,
-        reviewedUnitDigest: beforeReviewedDigest,
-        diagnostics: [attestationState.diagnostic]
-      });
-    }
-  }
 
   const plan = planWorkRecordReadySlice(loaded.record, request);
   if (!plan.ok) {
     return readyCoreResult({
       selectedUnit: selectedBefore,
       sourceDigest: loadedSourceDigest,
-      reviewedUnitDigest: beforeReviewedDigest,
+      policyFacts: plan.policyFacts ?? collectWorkRecordControlledContractPrivateScopeFacts(loaded.record),
       diagnostics: plan.diagnostics
     });
   }
+
+  const generation = classifyProspectiveTransition(
+    plan.selectedUnit,
+    loaded.record,
+    plan.updatedRecord
+  );
+  if (generation.transition === "completed_revision") {
+    return readyCoreResult({
+      selectedUnit: plan.selectedUnit,
+      sourceDigest: loadedSourceDigest,
+      policyFacts: plan.policyFacts,
+      generationTransition: projectWorkRecordGenerationTransition(generation),
+      diagnostics: [completedRevisionDiagnostic()]
+    });
+  }
+
   let candidate = plan.updatedRecord;
   const afterReviewedDigest = computeReviewedUnitSourceDigest({
     record: candidate,
@@ -930,64 +968,24 @@ export async function readyWorkRecordSliceByUnit(options = {}) {
     return readyCoreResult({
       selectedUnit: plan.selectedUnit,
       sourceDigest: loadedSourceDigest,
+      policyFacts: plan.policyFacts,
       diagnostics: [readyDiagnostic("ready_slice_reviewed_digest_unavailable", "prospective reviewed digest could not be computed")]
     });
   }
 
-  const digestChanged = beforeReviewedDigest !== null && beforeReviewedDigest !== afterReviewedDigest;
-  const activeEntries = attestationState.activeEntries;
-  let attestationDisposition = beforeReviewedDigest === null
-    ? "not_applicable"
-    : activeEntries.length > 0 ? "preserved" : "no_active_attestation";
-  let invalidated = false;
-  if (plan.attestationAction === "invalidate_for_review") {
-    if (!digestChanged || plan.shapingMode !== "implementation") {
-      return readyCoreResult({
-        selectedUnit: plan.selectedUnit,
-        sourceDigest: loadedSourceDigest,
-        reviewedUnitDigest: beforeReviewedDigest,
-        diagnostics: [readyDiagnostic("ready_slice_invalidation_not_applicable", "invalidate_for_review requires a behavior-changing implementation update", "attestation_action")]
-      });
-    }
-    if (
-      attestationState.matchingEntryCount !== 1 ||
-      activeEntries.length !== 1 ||
-      !activeEntries[0].compact
-    ) {
-      return readyCoreResult({
-        selectedUnit: plan.selectedUnit,
-        sourceDigest: loadedSourceDigest,
-        reviewedUnitDigest: beforeReviewedDigest,
-        diagnostics: [readyDiagnostic(
-          attestationState.matchingEntryCount === 0 || activeEntries.length === 0
-            ? "ready_slice_invalidation_not_applicable"
-            : "ready_slice_invalidation_ambiguous",
-          "invalidate_for_review requires exactly one compact current-digest attestation carry",
-          "derived_evidence"
-        )]
-      });
-    }
-    candidate = removeReadySliceAttestationCarry(candidate, activeEntries[0].index);
-    invalidated = true;
-    attestationDisposition = "invalidated_for_review";
-  } else if (digestChanged && activeEntries.length > 0) {
-    return readyCoreResult({
-      selectedUnit: plan.selectedUnit,
-      sourceDigest: loadedSourceDigest,
-      reviewedUnitDigest: beforeReviewedDigest,
-      attestationDisposition: "preservation_refused",
-      diagnostics: [readyDiagnostic("ready_slice_active_attestation_requires_invalidation", "behavior-changing edit requires explicit invalidate_for_review", "attestation_action")]
-    });
-  }
-
-  if (plan.changedFields.length === 0 && !invalidated) {
+  if (plan.changedFields.length === 0) {
     return readyCoreResult({
       contractPersisted: true,
       selectedUnit: plan.selectedUnit,
       sourceDigest: loadedSourceDigest,
+      policyFacts: plan.policyFacts,
       reviewedUnitDigest: afterReviewedDigest,
-      attestationDisposition,
       noOp: true,
+      generationTransition: projectWorkRecordGenerationTransition(generation, {
+        persisted: true,
+        written: false,
+        noOp: true
+      }),
       diagnostics: plan.diagnostics
     });
   }
@@ -995,14 +993,14 @@ export async function readyWorkRecordSliceByUnit(options = {}) {
   candidate = structuredClone(candidate);
   candidate.updated = todayDateString();
   const persistedGuard = guardWorkRecordReadySlicePersistedDiff(loaded.record, candidate, {
-    allowedPrefixes: plan.allowedPersistedPrefixes,
-    allowEvidenceInvalidation: invalidated
+    allowedPrefixes: plan.allowedPersistedPrefixes
   });
   if (!persistedGuard.ok) {
     return readyCoreResult({
       selectedUnit: plan.selectedUnit,
       sourceDigest: loadedSourceDigest,
-      reviewedUnitDigest: beforeReviewedDigest,
+      policyFacts: plan.policyFacts,
+      generationTransition: projectWorkRecordGenerationTransition(generation),
       diagnostics: [persistedGuard.diagnostic]
     });
   }
@@ -1018,12 +1016,12 @@ export async function readyWorkRecordSliceByUnit(options = {}) {
     return readyCoreResult({
       selectedUnit: plan.selectedUnit,
       sourceDigest: loadedSourceDigest,
-      reviewedUnitDigest: beforeReviewedDigest,
-      attestationDisposition,
+      policyFacts: plan.policyFacts,
+      generationTransition: projectWorkRecordGenerationTransition(generation),
       diagnostics: writeResult.diagnostics ?? []
     });
   }
-  const changedFields = [...plan.changedFields, ...(invalidated ? ["derived_evidence"] : [])];
+  const changedFields = [...plan.changedFields];
   if (loaded.record.updated !== persistedGuard.normalizedCandidate.updated) changedFields.push("updated");
   return readyCoreResult({
     contractPersisted: true,
@@ -1032,8 +1030,13 @@ export async function readyWorkRecordSliceByUnit(options = {}) {
     changedPaths: persistedGuard.diffPaths,
     written: true,
     sourceDigest: writeResult.source_digest ?? computeWorkRecordSourceDigest(persistedGuard.normalizedCandidate),
+    policyFacts: plan.policyFacts,
     reviewedUnitDigest: afterReviewedDigest,
-    attestationDisposition,
+    generationTransition: projectWorkRecordGenerationTransition(generation, {
+      persisted: true,
+      written: true,
+      noOp: false
+    }),
     diagnostics: writeResult.diagnostics ?? []
   });
 }

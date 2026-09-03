@@ -21,6 +21,20 @@ export const WORKSPACE_AGENT_SANDBOX_DECISION_SCHEMA_VERSION =
 export const WORKSPACE_AGENT_SANDBOX_WARNING_SCHEMA_VERSION =
   "workspace-agent-sandbox-warning.v1";
 
+export const WORKSPACE_AGENT_SANDBOX_WARNING_CODES = Object.freeze({
+  NO_PAID_KEY_NO_BACKEND:
+    "agent_launch.isolation.no_paid_key_no_backend.v1",
+  PAID_KEY_OPERATOR_OPT_OUT_NO_BACKEND:
+    "agent_launch.isolation.paid_key_operator_opt_out_no_backend.v1"
+});
+
+export const WORKSPACE_AGENT_SANDBOX_WARNING_MESSAGES = Object.freeze({
+  NO_PAID_KEY_NO_BACKEND:
+    "filesystem isolation is NOT active; launcher-owned enforcement posture permits this worker-family role to run unenforced because no canonical paid Node Engine key is configured and backend selection could not produce an enforced launch",
+  PAID_KEY_OPERATOR_OPT_OUT_NO_BACKEND:
+    "filesystem isolation is NOT active; launcher-owned enforcement posture permits this worker-family role to run unenforced because a canonical paid Node Engine key is configured and the operator explicitly opted out of local enforcement"
+});
+
 export const WORKSPACE_AGENT_SANDBOX_OUTCOMES = Object.freeze({
   ENFORCED_BACKEND_LAUNCH: "enforced_backend_launch",
   UNENFORCED_PLAIN_LAUNCH: "unenforced_plain_launch",
@@ -498,16 +512,25 @@ function buildRefusal({
 }
 
 function warningCodeForReason(reason) {
-  return reason === WORKSPACE_AGENT_RUN_ENFORCEMENT_REASONS.NO_PAID_KEY_NO_BACKEND
-    ? "agent_launch.isolation.no_paid_key_no_backend.v1"
-    : "agent_launch.isolation.paid_key_operator_opt_out_no_backend.v1";
+  if (reason === WORKSPACE_AGENT_RUN_ENFORCEMENT_REASONS.NO_PAID_KEY_NO_BACKEND) {
+    return WORKSPACE_AGENT_SANDBOX_WARNING_CODES.NO_PAID_KEY_NO_BACKEND;
+  }
+  if (reason ===
+      WORKSPACE_AGENT_RUN_ENFORCEMENT_REASONS.PAID_KEY_OPERATOR_OPT_OUT_NO_BACKEND) {
+    return WORKSPACE_AGENT_SANDBOX_WARNING_CODES.PAID_KEY_OPERATOR_OPT_OUT_NO_BACKEND;
+  }
+  throw new TypeError("unsupported unenforced sandbox warning reason");
 }
 
 function warningMessageForReason(reason) {
   if (reason === WORKSPACE_AGENT_RUN_ENFORCEMENT_REASONS.NO_PAID_KEY_NO_BACKEND) {
-    return "filesystem isolation is NOT active; launcher-owned enforcement posture permits this worker-family role to run unenforced because no canonical paid Node Engine key is configured and backend selection could not produce an enforced launch";
+    return WORKSPACE_AGENT_SANDBOX_WARNING_MESSAGES.NO_PAID_KEY_NO_BACKEND;
   }
-  return "filesystem isolation is NOT active; launcher-owned enforcement posture permits this worker-family role to run unenforced because a canonical paid Node Engine key is configured and the operator explicitly opted out of local enforcement";
+  if (reason ===
+      WORKSPACE_AGENT_RUN_ENFORCEMENT_REASONS.PAID_KEY_OPERATOR_OPT_OUT_NO_BACKEND) {
+    return WORKSPACE_AGENT_SANDBOX_WARNING_MESSAGES.PAID_KEY_OPERATOR_OPT_OUT_NO_BACKEND;
+  }
+  throw new TypeError("unsupported unenforced sandbox warning reason");
 }
 
 function buildUnenforcedReason(posture) {
@@ -850,6 +873,8 @@ export function buildWorkspaceAgentSandboxDecision(options = {}) {
 export default {
   WORKSPACE_AGENT_SANDBOX_DECISION_SCHEMA_VERSION,
   WORKSPACE_AGENT_SANDBOX_WARNING_SCHEMA_VERSION,
+  WORKSPACE_AGENT_SANDBOX_WARNING_CODES,
+  WORKSPACE_AGENT_SANDBOX_WARNING_MESSAGES,
   WORKSPACE_AGENT_SANDBOX_OUTCOMES,
   WORKSPACE_AGENT_SANDBOX_REFUSAL_REASONS,
   WORKSPACE_AGENT_SANDBOX_BACKEND_STATES,

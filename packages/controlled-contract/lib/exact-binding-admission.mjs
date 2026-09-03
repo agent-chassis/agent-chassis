@@ -12,7 +12,7 @@ import {
   sortedUnique
 } from "./exact-binding-common.mjs";
 import { assertCanonicalDeclarationFile } from "./exact-binding.mjs";
-import { profileDigestV034 } from "./verification-profile-v034.mjs";
+import { profileDigest } from "./profile-digest.mjs";
 
 function parseJson(raw, code, label) {
   try {
@@ -95,7 +95,7 @@ async function loadExactBindingAdmissionV1(packDirectory, expectedProfileId, {
   );
   const declaration = assertCanonicalDeclarationFile(raw[2]);
   const certification = assertCanonicalCertificationFile(raw[3]);
-  const profileDigest = profileDigestV034(profile);
+  const actualProfileDigest = profileDigest(profile);
   const declarationDigest = sha256(raw[2]);
   const certificationDigest = sha256(raw[3]);
   const exact = admission.exact_binding;
@@ -109,13 +109,13 @@ async function loadExactBindingAdmissionV1(packDirectory, expectedProfileId, {
     mismatch("expected.profile_id", expectedProfileId, profile.profile_id),
     mismatch("admission.profile_id", profile.profile_id, admission.profile_id),
     mismatch("admission.profile_version", profile.profile_version, admission.profile_version),
-    mismatch("admission.profile_digest", profileDigest, admission.profile_digest),
+    mismatch("admission.profile_digest", actualProfileDigest, admission.profile_digest),
     mismatch("admission.guarantee_digest", sha256(admission.guarantee),
       admission.guarantee_digest),
     mismatch("declaration.profile_id", profile.profile_id, declaration.profile_id),
     mismatch("declaration.profile_version", profile.profile_version,
       declaration.profile_version),
-    mismatch("declaration.profile_digest", profileDigest, declaration.profile_digest),
+    mismatch("declaration.profile_digest", actualProfileDigest, declaration.profile_digest),
     mismatch("admission.exact_binding.declaration_digest", declarationDigest,
       exact.declaration_digest),
     mismatch("admission.exact_binding.certification_result_digest", certificationDigest,
@@ -123,7 +123,7 @@ async function loadExactBindingAdmissionV1(packDirectory, expectedProfileId, {
     mismatch("certification.profile_id", profile.profile_id, certification.profile_id),
     mismatch("certification.profile_version", profile.profile_version,
       certification.profile_version),
-    mismatch("certification.profile_digest", profileDigest, certification.profile_digest),
+    mismatch("certification.profile_digest", actualProfileDigest, certification.profile_digest),
     mismatch("certification.exact_binding_declaration_digest", declarationDigest,
       certification.exact_binding_declaration_digest),
     mismatch("certification.corpus.corpus_id", exact.corpus_id,
@@ -157,7 +157,7 @@ async function loadExactBindingAdmissionV1(packDirectory, expectedProfileId, {
     admission: structuredClone(admission),
     declaration,
     certification,
-    profile_digest: profileDigest,
+    profile_digest: actualProfileDigest,
     admission_digest: canonicalDigest(admission),
     exact_binding_declaration_digest: declarationDigest,
     exact_binding_certification_digest: certificationDigest

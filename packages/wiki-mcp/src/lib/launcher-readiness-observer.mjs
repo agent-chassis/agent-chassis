@@ -15,7 +15,8 @@ export const LAUNCHER_READINESS_SCHEMA_VERSIONS = Object.freeze({
   CLIENT_INITIALIZED: "wiki-mcp-launcher-client-initialized.v1",
   TOOLS_LISTED: "wiki-mcp-launcher-tools-listed.v1",
   CLIENT_RESTARTED: "wiki-mcp-launcher-client-restarted.v1",
-  CLIENT_CLOSED: "wiki-mcp-launcher-client-closed.v1"
+  CLIENT_CLOSED: "wiki-mcp-launcher-client-closed.v1",
+  CLIENT_DISCOVERY_PROBE_CLOSED: "wiki-mcp-launcher-client-closed.discovery-probe.v1"
 });
 
 export class LauncherReadinessObservationError extends Error {
@@ -108,6 +109,9 @@ export class LauncherObservingTransport {
   #initializeRequested = false;
   #initializeAnswered = false;
   #initialized = false;
+  #serverDiscoveryProbeObserved = false;
+
+  #transportErrorObserved = false;
   #lifecycleFailed = false;
   #restartCount = 0;
 
@@ -127,13 +131,26 @@ export class LauncherObservingTransport {
     };
     inner.onclose = () => {
 
-      this.#emit({
-        schema_version: LAUNCHER_READINESS_SCHEMA_VERSIONS.CLIENT_CLOSED,
-        closed: true
-      });
+      const discoveryProbe = this.#serverDiscoveryProbeObserved &&
+        !this.#initializeRequested && !this.#lifecycleFailed &&
+        !this.#transportErrorObserved;
+      this.#emit(discoveryProbe
+        ? {
+            schema_version:
+              LAUNCHER_READINESS_SCHEMA_VERSIONS.CLIENT_DISCOVERY_PROBE_CLOSED,
+            closed: true,
+            discovery_probe: true
+          }
+        : {
+            schema_version: LAUNCHER_READINESS_SCHEMA_VERSIONS.CLIENT_CLOSED,
+            closed: true
+          });
       this.onclose?.();
     };
-    inner.onerror = (error) => { this.onerror?.(error); };
+    inner.onerror = (error) => {
+      this.#transportErrorObserved = true;
+      this.onerror?.(error);
+    };
   }
 
   get sessionId() {
@@ -154,6 +171,12 @@ export class LauncherObservingTransport {
   }
 
   #observeIncoming(message) {
+    if (isJsonRpcRequest(message) && message.method === "server/discover" &&
+        !this.#initializeRequested) {
+
+      this.#serverDiscoveryProbeObserved = true;
+      return;
+    }
     if (isJsonRpcRequest(message) && message.method === "initialize") {
       if (this.#initializeRequested) {
 

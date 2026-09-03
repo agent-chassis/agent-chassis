@@ -1,0 +1,889 @@
+{
+  "schema_version": "controlled-contract-verification-profile.v1",
+  "profile_id": "proof.pagination.complete-traversal",
+  "profile_version": "2.0.0",
+  "contract_schema_version": "controlled-acceptance-contract.v1",
+  "vocabulary_version": "controlled-contract-vocabulary.v1",
+  "vocabulary_signature_digest": "596a4c44d98aed1d31dd9ab3842fc054be6f8ffa3d62a3867a3966e75ecab742",
+  "vocabulary_algebra_digest": "0fbea1e7377baeef1869cbc55dc588ef5509ed40c768ce2a3c4f58be1133cf9c",
+  "vocabulary_definitions_digest": "bb3d2a63cb6fc8c62b9bc36d29d07549dea6ad85e32badb0cbb3cacfd6ad4759",
+  "vocabulary_complete_digest": "45484504f06968c6b4ac812c24b9f1b6e47e1d34ba21fefebde8dd85d1290fa9",
+  "evaluation_stages": [
+    "pre_dispatch"
+  ],
+  "verification_falsifier_policy": "controlled_complement_per_target",
+  "reference_roles": [
+    {
+      "role": "mutation_trace",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "repository_path"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "projection_result",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "repository_path"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "authoritative_population",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:resource"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "authoritative_occurrence_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "authoritative_occurrences",
+      "allowed_type_terms": [
+        "cc:evidence_occurrence"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "returned_occurrence_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "returned_occurrences",
+      "allowed_type_terms": [
+        "cc:evidence_occurrence"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "returned_page_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "returned_pages",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "one_or_more"
+    },
+    {
+      "role": "cursor_transition_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "cursor_transitions",
+      "allowed_type_terms": [
+        "cc:event"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "equality_normalized_member_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "equality_normalized_members",
+      "allowed_type_terms": [
+        "cc:evidence"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "authentication_evidence_occurrence",
+      "allowed_type_terms": [
+        "cc:evidence_occurrence"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "authentication_observation_attempt",
+      "allowed_type_terms": [
+        "cc:event",
+        "cc:process"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "authenticated_source",
+      "allowed_type_terms": [
+        "cc:actor",
+        "cc:entity",
+        "cc:process",
+        "cc:resource",
+        "cc:runtime_component"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "target_resolution_witness",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:evidence"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "repository_path"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "source_authentication_witness",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:evidence"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "repository_path"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "source_of_record_witness",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:evidence"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "repository_path"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "attempt_binding_witness",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:evidence"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "repository_path"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "authentication_witness",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:evidence"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "repository_path"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "authentication_capture",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:evidence"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "repository_path"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "equality_policy",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:configuration"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "repository_path"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "resource_policy",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:configuration"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id",
+        "repository_path"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "traversal",
+      "allowed_type_terms": [
+        "cc:process"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "snapshot",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "traversal_source_version",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "terminal_page",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "exact_order_state",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "exact_equality_state",
+      "allowed_type_terms": [
+        "cc:state"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "aggregate_input_accounting",
+      "allowed_type_terms": [
+        "cc:resource"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "canonical_result_accounting",
+      "allowed_type_terms": [
+        "cc:resource"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "work_accounting",
+      "allowed_type_terms": [
+        "cc:resource"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "verification",
+      "allowed_type_terms": [
+        "cc:process",
+        "cc:test"
+      ],
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "durable_id",
+        "repository_path"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "traversal_failure_condition",
+      "allowed_type_terms": [
+        "cc:criterion",
+        "cc:state"
+      ],
+      "allowed_identity_kinds": [
+        "durable_id"
+      ],
+      "cardinality": "exactly_one"
+    }
+  ],
+  "number_roles": [],
+  "distinct_reference_role_sets": [
+    {
+      "roles": [
+        "mutation_trace",
+        "projection_result",
+        "authoritative_population",
+        "returned_occurrence_population",
+        "returned_page_population",
+        "cursor_transition_population",
+        "equality_normalized_member_population",
+        "traversal",
+        "snapshot",
+        "traversal_source_version",
+        "terminal_page",
+        "verification",
+        "traversal_failure_condition"
+      ]
+    }
+  ],
+  "reference_binding_patterns": [
+    {
+      "pattern_id": "complete-authoritative-occurrence-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "authoritative_occurrence_population",
+        "authoritative_occurrences"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    },
+    {
+      "pattern_id": "complete-returned-occurrence-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "returned_occurrence_population",
+        "returned_occurrences"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "traversal"
+        ]
+      }
+    },
+    {
+      "pattern_id": "complete-returned-page-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "returned_page_population",
+        "returned_pages"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "traversal"
+        ]
+      }
+    },
+    {
+      "pattern_id": "complete-cursor-transition-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "cursor_transition_population",
+        "cursor_transitions"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "traversal"
+        ]
+      }
+    },
+    {
+      "pattern_id": "complete-equality-normalized-member-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "equality_normalized_member_population",
+        "equality_normalized_members"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "traversal"
+        ]
+      }
+    }
+  ],
+  "claim_patterns": [
+    {
+      "pattern_id": "authentication-occurrence-authenticates-population",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "authentication_evidence_occurrence",
+        "operator": "reference:authenticates",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "authentication_observation_attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "authoritative_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "population-has-authenticated-source-of-record",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "authoritative_population",
+        "operator": "reference:has_source_of_record",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "authentication_observation_attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "authenticated_source"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "traversal-uses-authoritative-population",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "traversal",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "authoritative_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "each-page-resolves-snapshot",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "returned_pages",
+        "member_role": "returned_page"
+      },
+      "proposition_template": {
+        "subject_role": "returned_page",
+        "operator": "reference:resolves_to",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "traversal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "snapshot"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "each-page-uses-version",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "returned_pages",
+        "member_role": "returned_page"
+      },
+      "proposition_template": {
+        "subject_role": "returned_page",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "traversal"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "traversal_source_version"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "terminal-page-completes-traversal",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "terminal_page",
+        "operator": "reference:completes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "traversal"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "traversal-has-exact-order",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "traversal",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "exact_order_state"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "traversal-has-exact-equality",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "traversal",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "exact_equality_state"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "verification-reads-exact-traversal-bindings",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "mutation_trace"
+          },
+          {
+            "kind": "reference",
+            "role": "projection_result"
+          },
+          {
+            "kind": "reference",
+            "role": "authoritative_population"
+          },
+          {
+            "kind": "reference",
+            "role": "authentication_evidence_occurrence"
+          },
+          {
+            "kind": "reference",
+            "role": "target_resolution_witness"
+          },
+          {
+            "kind": "reference",
+            "role": "source_authentication_witness"
+          },
+          {
+            "kind": "reference",
+            "role": "source_of_record_witness"
+          },
+          {
+            "kind": "reference",
+            "role": "attempt_binding_witness"
+          },
+          {
+            "kind": "reference",
+            "role": "authentication_witness"
+          },
+          {
+            "kind": "reference",
+            "role": "authentication_capture"
+          },
+          {
+            "kind": "reference",
+            "role": "equality_policy"
+          },
+          {
+            "kind": "reference",
+            "role": "resource_policy"
+          },
+          {
+            "kind": "reference",
+            "role": "returned_pages"
+          },
+          {
+            "kind": "reference",
+            "role": "cursor_transitions"
+          },
+          {
+            "kind": "reference",
+            "role": "aggregate_input_accounting"
+          },
+          {
+            "kind": "reference",
+            "role": "canonical_result_accounting"
+          },
+          {
+            "kind": "reference",
+            "role": "work_accounting"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "verify-complete-traversal",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "traversal"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "traversal",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "traversal_failure_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "exact_order_state"
+          }
+        ]
+      }
+    }
+  ],
+  "relation_patterns": [
+    {
+      "pattern_id": "verification-targets-complete-traversal",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "verify-complete-traversal",
+      "target_claim_pattern_id": "traversal-has-exact-order"
+    }
+  ],
+  "collection_patterns": [],
+  "resolver_fact_patterns": [],
+  "evidence_patterns": [],
+  "falsifier_condition_bindings": [
+    {
+      "relation_pattern_id": "verification-targets-complete-traversal",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "traversal_failure_condition"
+        ]
+      }
+    }
+  ],
+  "satisfaction_expression": {
+    "all_of": [
+      {
+        "pattern": "complete-authoritative-occurrence-population"
+      },
+      {
+        "pattern": "complete-returned-occurrence-population"
+      },
+      {
+        "pattern": "complete-returned-page-population"
+      },
+      {
+        "pattern": "complete-cursor-transition-population"
+      },
+      {
+        "pattern": "complete-equality-normalized-member-population"
+      },
+      {
+        "pattern": "authentication-occurrence-authenticates-population"
+      },
+      {
+        "pattern": "population-has-authenticated-source-of-record"
+      },
+      {
+        "pattern": "traversal-uses-authoritative-population"
+      },
+      {
+        "pattern": "each-page-resolves-snapshot"
+      },
+      {
+        "pattern": "each-page-uses-version"
+      },
+      {
+        "pattern": "terminal-page-completes-traversal"
+      },
+      {
+        "pattern": "traversal-has-exact-order"
+      },
+      {
+        "pattern": "traversal-has-exact-equality"
+      },
+      {
+        "pattern": "verification-reads-exact-traversal-bindings"
+      },
+      {
+        "pattern": "verify-complete-traversal"
+      },
+      {
+        "pattern": "verification-targets-complete-traversal"
+      }
+    ]
+  }
+}

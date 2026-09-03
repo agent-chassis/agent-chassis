@@ -294,11 +294,11 @@ export function resolveCommittedSliceReviewAdmission({
     fail("trusted_commit_scope_mismatch", { changed_paths: changedPaths });
   }
 
-  const worktreePath = emptyDelivery && !requireWorktree
-    ? null
-    : resolveExactWorktree({
+  const worktreePath = requireWorktree
+    ? resolveExactWorktree({
         runGit, mainRepo, worktreeRoot, sliceRef, reviewedSha, changedPaths, subject
-      });
+      })
+    : null;
 
   const finalTip = oid(git(runGit, mainRepo, ["rev-parse", "--verify", `${sliceRef}^{commit}`], "slice_target_recheck_failed"), "final_reviewed_sha");
   if (finalTip !== reviewedSha) fail("committed_slice_target_moved");

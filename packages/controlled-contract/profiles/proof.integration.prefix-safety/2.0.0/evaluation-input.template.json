@@ -1,0 +1,81 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.v1",
+  "evaluation_stage": "pre_dispatch",
+  "reference_bindings": [
+    {
+      "role": "integration_dag",
+      "reference_ids": [
+        "ref-integration-dag"
+      ]
+    },
+    {
+      "role": "integration_units",
+      "reference_ids": [
+        "ref-integration-units"
+      ]
+    },
+    {
+      "role": "execution_paths",
+      "reference_ids": [
+        "ref-execution-paths"
+      ]
+    },
+    {
+      "role": "prefix_census",
+      "reference_ids": [
+        "ref-prefix-census"
+      ]
+    },
+    {
+      "role": "prefix_case_population",
+      "reference_ids": [
+        "ref-prefix-case-population"
+      ]
+    },
+    {
+      "role": "prefix_cases",
+      "reference_ids": [
+        "ref-case-11046cfedf91ad20374cd1c17518c08bb0c8ad11715718135eaa97676f02de83",
+        "ref-case-2e7fd5239cadbcfea7d2d81909be20efc563d677014b48249653a4bc21d777f5",
+        "ref-case-5e05156b5b25c87d670f4caa4ffa44885e1dcd6f9eca24f0ea4c1bc851058d94",
+        "ref-case-c1d1f68e2cde34c714d098f11d756eb9f521d120eb437c698ff1398dd41d1ca2",
+        "ref-case-d5c9b2fa9abdcc72ab9a52d8dcac154529bd9abc753d57bd097e69896b39fa24",
+        "ref-case-de6807d46aceb92273718f767fd5fa15480e15a1c54654f2dda537a8cbdcb730"
+      ]
+    },
+    {
+      "role": "preservation_result",
+      "reference_ids": [
+        "ref-preservation-result"
+      ]
+    },
+    {
+      "role": "preserved_state",
+      "reference_ids": [
+        "ref-preserved-state"
+      ]
+    },
+    {
+      "role": "verification",
+      "reference_ids": [
+        "ref-prefix-verification"
+      ]
+    },
+    {
+      "role": "case_failure_condition",
+      "reference_ids": [
+        "ref-case-failure-condition"
+      ]
+    }
+  ],
+  "number_bindings": [
+    {
+      "role": "case_count",
+      "value": 6
+    }
+  ],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": [],
+  "stable_evaluation": {}
+}

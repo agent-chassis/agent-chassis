@@ -1,0 +1,101 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.v1",
+  "evaluation_stage": "pre_dispatch",
+  "reference_bindings": [
+    {
+      "role": "initialization_operation",
+      "reference_ids": [
+        "<initialization-operation-reference-id>"
+      ]
+    },
+    {
+      "role": "readiness_operation",
+      "reference_ids": [
+        "<readiness-operation-reference-id>"
+      ]
+    },
+    {
+      "role": "capability",
+      "reference_ids": [
+        "<capability-reference-id>"
+      ]
+    },
+    {
+      "role": "initialization_attempt",
+      "reference_ids": [
+        "<initialization-attempt-reference-id>"
+      ]
+    },
+    {
+      "role": "readiness_probe",
+      "reference_ids": [
+        "<readiness-probe-reference-id>"
+      ]
+    },
+    {
+      "role": "readiness_result",
+      "reference_ids": [
+        "<readiness-result-reference-id>"
+      ]
+    },
+    {
+      "role": "completion_report",
+      "reference_ids": [
+        "<completion-report-reference-id>"
+      ]
+    },
+    {
+      "role": "expected_ready_state",
+      "reference_ids": [
+        "<expected-ready-state-reference-id>"
+      ]
+    },
+    {
+      "role": "observed_ready_state",
+      "reference_ids": [
+        "<observed-ready-state-reference-id>"
+      ]
+    },
+    {
+      "role": "readiness_observation",
+      "reference_ids": [
+        "<readiness-observation-reference-id>"
+      ]
+    },
+    {
+      "role": "readiness_state_verification",
+      "reference_ids": [
+        "<readiness-state-verification-reference-id>"
+      ]
+    },
+    {
+      "role": "readiness_order_verification",
+      "reference_ids": [
+        "<readiness-order-verification-reference-id>"
+      ]
+    },
+    {
+      "role": "success_criterion",
+      "reference_ids": [
+        "<success-criterion-reference-id>"
+      ]
+    },
+    {
+      "role": "not_ready_condition",
+      "reference_ids": [
+        "<not-ready-condition-reference-id>"
+      ]
+    },
+    {
+      "role": "premature_completion_condition",
+      "reference_ids": [
+        "<premature-completion-condition-reference-id>"
+      ]
+    }
+  ],
+  "number_bindings": [],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": [],
+  "stable_evaluation": {}
+}

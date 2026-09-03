@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-proof-pack-adequacy.experimental.v0.1",
   "profile_id": "proof.integration.prefix-safety",
   "profile_version": "1.0.0",
-  "profile_digest": "dac9bbac1cfba25f0ae899d631e867e31056764ed884b7a1dca79ba0e7f72a78",
+  "profile_digest": "80afa275a69c57e9d2c4c395169851198efe043df1e097ea6cae25a2ea00f671",
   "guarantee": "For one exact captured complete declared integration DAG, one exact complete integration-unit partition, and one exact declared execution-path and required-branch population, the package-owned integration-prefix-census.v1 transformer derives every independently integrable prefix crossed with every declared path and required branch; that exact derived case population is bound into the profile, every case is declared preserved, the aggregate result records that population, and one verification reads the exact sources, census, every case, and aggregate result with a positive non-preservation falsifier.",
   "guarantee_digest": "77ffbca9bd9a063e667d13d48668f30e21236d4da2f2eb612db07cd7dc40754e",
   "explicit_exclusions": [
@@ -14,23 +14,55 @@
     "runtime-or-deployment-behavior-outside-captured-artifacts"
   ],
   "executable_module": "packages/controlled-contract/test/proof-packs/integration-prefix-safety-v1-adequacy.mjs",
-  "executable_module_digest": "b4d8f955941b9d24ea7b14561e8ea6a405aeb8fb77f48f635c6ad84bec0a9b3b",
+  "executable_module_digest": "b35bb64eac8e4a825e47d9569330c934d09b010bc171119bd0b027ca6a2369fe",
   "executable_dependency_digests": [
     {
+      "path": "packages/controlled-contract/lib/authentication-provenance-occurrence-projection.mjs",
+      "sha256": "5840827cdab652e7d6dcd7c4d9d792f896602dc40cb0fd2eb69a68740869719d"
+    },
+    {
+      "path": "packages/controlled-contract/lib/caller-input-authority-confinement-projection.mjs",
+      "sha256": "86e62fe4785f3b2dec3ed1b072ba57bdd772d7570b21a4f7daf2332de15b4e30"
+    },
+    {
+      "path": "packages/controlled-contract/lib/declared-boundary-record-consistency.mjs",
+      "sha256": "77ea677feccf51f52b92e4d4f59e1b47882533df7281b4247ca20509a18a6a73"
+    },
+    {
+      "path": "packages/controlled-contract/lib/declared-limit-guidance-propagation.mjs",
+      "sha256": "4be7f45a81baf2ed5d894b4b882befd8082ef6c8beaf23c05411014bc100267d"
+    },
+    {
+      "path": "packages/controlled-contract/lib/deterministic-lexicographic-ordering.mjs",
+      "sha256": "1b851826cd19437f44830ee3f3a00464145e75eff411f0114336e2b24cdeae41"
+    },
+    {
       "path": "packages/controlled-contract/lib/deterministic-projection-primitives.mjs",
-      "sha256": "d06bf9d32358bfd59ce4a72432f00241f13b8adfcfa37ffcfba663ec4f06e53e"
+      "sha256": "2090a18c5d66ebb84008074ac06a5ae127d04cf061ea7fb826eda25b99d29f05"
     },
     {
       "path": "packages/controlled-contract/lib/deterministic-projection.mjs",
-      "sha256": "cd9b123e9e7390a8801f4e76045c7008675db8643289142557a6369ca06a3487"
+      "sha256": "7bc660f9fe302e2a1cbfde84ae988b15c6fa055f68e2b3104996457cf1028210"
+    },
+    {
+      "path": "packages/controlled-contract/lib/equality-normalization-v034.mjs",
+      "sha256": "a7cfdf3d0a5d62b3c6cb7ec7cc74d458e4775541d33b39d92236d8bcb5ec8eb4"
+    },
+    {
+      "path": "packages/controlled-contract/lib/mutation-pagination-complete-traversal.mjs",
+      "sha256": "b97ccd2bc5e0c27f52dcb2d7411c0fa35df9c1e84406836e6df527b5c0608dd0"
+    },
+    {
+      "path": "packages/controlled-contract/lib/mutation-pagination-trace-projection.mjs",
+      "sha256": "121e4eceb5b8f1cf687e21a75b92bad6ffc9d156590bb5b8f22eff786f09a47d"
     },
     {
       "path": "packages/controlled-contract/lib/native-contract-carrier-v034.mjs",
-      "sha256": "39d1b01fc19379762f68f79679925ee9767a47780b9e95ed80dda9da53a256af"
+      "sha256": "b0cb0ed42b8feb9b87fcfb914cfe124869efbe2875f0368eeb7b5fe8bef74027"
     },
     {
       "path": "packages/controlled-contract/lib/native-contract-carrier.mjs",
-      "sha256": "d66af02e8de4214cb2623dad624b48b243e445e7a6b70ee7ba244397dcc9b67a"
+      "sha256": "87b3b56f9478a25bcefb36f3a0917a20e3d1f8dd79810a91fa9288ef73e6a248"
     },
     {
       "path": "packages/controlled-contract/lib/native-contract-dag.mjs",
@@ -38,23 +70,47 @@
     },
     {
       "path": "packages/controlled-contract/lib/native-contract-runtime.mjs",
-      "sha256": "99802fbcb40c48c9976ea3fc141e85cc531d40cba2861e273aff1c80611729df"
+      "sha256": "154ee7614793ae6da2851834532f63d0bea91fc1c6b310d5ca35258d80eeadad"
     },
     {
       "path": "packages/controlled-contract/lib/population-semantics-v034.mjs",
-      "sha256": "adf234cd61cce8b8fc25358b2aecd5f996198a976652a85b698d993cb809d5ac"
+      "sha256": "101c3a5c3385ec519db32cf299e8e2567270e87a5c22be801fb400c6f86b9fe7"
+    },
+    {
+      "path": "packages/controlled-contract/lib/projected-contract-graph.mjs",
+      "sha256": "f3d4c985f31b74aef5581c6148a0a4e516ce5bf1f6785190a9805dc1c24ab5fe"
+    },
+    {
+      "path": "packages/controlled-contract/lib/proof-aware-digest.mjs",
+      "sha256": "06b88025e31d54ebfbc8a419eaac0b60c548f50aacd3c55f928f0923684a0248"
+    },
+    {
+      "path": "packages/controlled-contract/lib/proof-aware-planning-policy.mjs",
+      "sha256": "d4dbe15158b8a99894ea4993c00c26084cc122152c92f6c95dd0a6d9660623e8"
+    },
+    {
+      "path": "packages/controlled-contract/lib/sound-negative-observation-projection.mjs",
+      "sha256": "58fcb87c1c79788a5e8e5fb0038e1e08febd7f83c8a6b34be77a3b4c09995b02"
+    },
+    {
+      "path": "packages/controlled-contract/lib/stable-occurrence-identity.mjs",
+      "sha256": "561df8820a08ded0262afca8d9eea9b9b2b8b8ff9aaa67c265d0f8e833456e93"
+    },
+    {
+      "path": "packages/controlled-contract/lib/supplementary-isolation-attempt-projection.mjs",
+      "sha256": "6425626d1836063196dcbdbd514fbc4994ae5f977fa5cf95499095f4843c075b"
     },
     {
       "path": "packages/controlled-contract/lib/verification-profile-v034.mjs",
-      "sha256": "d0bf11ef4a41c0d24e89f4641c2bd5fb669d265993967964f1287d4af6187d87"
+      "sha256": "9f4d5cc43bc1d02c6f5d5b558e4f697d3396bedeaac0811d643140d08d943e85"
     },
     {
       "path": "packages/controlled-contract/lib/verification-profile.mjs",
-      "sha256": "80ed26da14823a639460053a25a6dbd99de010ab0cbe669bfd40d71a294aa03d"
+      "sha256": "b542e7a2872ad29f719bd1b7472bd5239d1ed8f31289e32642e19ec8480889be"
     },
     {
       "path": "packages/controlled-contract/lib/vocabulary-v034.mjs",
-      "sha256": "0685d29caed0c39c846f67552c99f30469647d0f81e9f8cf8394d2823e0ba0a0"
+      "sha256": "af06b8100e1d856136fa045beed45829b8c1ca4de8346e8715dfffa4c5e8feeb"
     },
     {
       "path": "packages/controlled-contract/test/support/proof-pack-adequacy-constants.mjs",
@@ -62,7 +118,7 @@
     },
     {
       "path": "packages/controlled-contract/vocabulary/cv.experimental.0.34.mjs",
-      "sha256": "cc7ba4aa6278640348d274c4095a494f55762de6034c98596d65df7a36a54779"
+      "sha256": "1eb6937a4c314e33a44c3f2ebe415893e937593f0e5a0089829c504f12deaee2"
     }
   ],
   "negative_contract_fixtures": [
@@ -307,7 +363,7 @@
   ],
   "coverage_witness_index": {
     "path": "packages/controlled-contract/test/certification/profiles/proof.integration.prefix-safety/1.0.0/witness-profile-weakenings.json",
-    "sha256": "4458e49b7a144f7b9fddb47c18b8689d625b38471c5ea2fa2d1a4ffaa7b6c07a"
+    "sha256": "eb0a1762acb3a5b6de022a768effcdb0544b8bc0655bb52fee84541af2ed24f0"
   },
   "guarantee_critical_profile_surfaces": [
     {
@@ -1139,25 +1195,25 @@
     {
       "surface_id": "noncritical-vocabulary-algebra-digest",
       "profile_json_pointer": "/vocabulary_algebra_digest",
-      "surface_digest": "2b8dc00de4f88bac72d10838a026512dd7504c6dc9578560e09bb11f835b22c4",
+      "surface_digest": "e4be35f83d73f8b8decea2d050870931bde9992f78c57d021478eae45809a877",
       "reason": "artifact_binding_not_guarantee_semantics"
     },
     {
       "surface_id": "noncritical-vocabulary-complete-digest",
       "profile_json_pointer": "/vocabulary_complete_digest",
-      "surface_digest": "393f6b7b6aa09373e4fcfbbbec720fa0077c5a2f9017036327da566e76ce47f3",
+      "surface_digest": "3972150f31adaaeb83e453564b61132109f63d22c718f297643aa783db9a41c6",
       "reason": "artifact_binding_not_guarantee_semantics"
     },
     {
       "surface_id": "noncritical-vocabulary-definitions-digest",
       "profile_json_pointer": "/vocabulary_definitions_digest",
-      "surface_digest": "5ae98c7d3d662df4fa66ab0eeba95eeaaec09e62149297ffd4be9137a61519e4",
+      "surface_digest": "5712c8ef917cb4a92f2c25a33725896a3db54e59e29bdc780686fd1b54bedaff",
       "reason": "artifact_binding_not_guarantee_semantics"
     },
     {
       "surface_id": "noncritical-vocabulary-signature-digest",
       "profile_json_pointer": "/vocabulary_signature_digest",
-      "surface_digest": "d621fc2daa14a098fe406813a764f3f70181d693d6ed33db736ca3ff55ce9e27",
+      "surface_digest": "6440a56630c8f4b72052f1680c972161b28ae1a7fcd8795435cc6986e060e6f8",
       "reason": "artifact_binding_not_guarantee_semantics"
     },
     {

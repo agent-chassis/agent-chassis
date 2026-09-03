@@ -1,0 +1,1738 @@
+{
+  "schema_version": "controlled-contract-proof-pack-adequacy.experimental.v0.1",
+  "profile_id": "proof.authentication.direct-source-provenance",
+  "profile_version": "2.0.0",
+  "profile_digest": "0b9b62d09bc5d01b743b5f8fa895fe9729fe05037863ec33f6fe46d6bbb1c42c",
+  "guarantee": "For one exact directly captured evidence occurrence E, target T, provenance source S, and observation attempt A, the captured evidence bytes authenticate T during A, E originates from S during A, T has S as its singular source of record during A, E was observed in A, the selected target and source populations are complete singletons, and four independent verification claims with exact controlled-complement falsifiers verify those same-occurrence behaviors.",
+  "guarantee_digest": "4f01a730acc440a7b32445445b8119e3f2a70f868bf3563fefbbee327b45eb81",
+  "required_positive_cases": [
+    "alternative-verification-method",
+    "artifact-actor-process",
+    "authenticated-response",
+    "canonical-record-state",
+    "declaration-order-variant",
+    "delegated-issuer-provenance-root-stable",
+    "harmless-unrelated-evidence",
+    "multiple-independent-authenticators",
+    "one-source-many-target-occurrences",
+    "persisted-record",
+    "signed-artifact-manifest",
+    "source-migration-distinct-attempts",
+    "state-resource-event",
+    "unicode-grounded-identities"
+  ],
+  "required_mutant_kills": [
+    "caller-invented-occurrence-identity",
+    "correct-bytes-wrong-target",
+    "correct-target-wrong-source",
+    "derived-evidence-as-direct",
+    "fabricated-aggregate-authentication-proof",
+    "fabricated-attempt-binding-proof",
+    "fabricated-resolver-fact",
+    "fabricated-source-authentication-proof",
+    "fabricated-source-of-record-proof",
+    "fabricated-target-resolution-proof",
+    "identical-bytes-replayed-under-another-attempt",
+    "incomplete-source-population",
+    "incomplete-target-population",
+    "missing-authenticates-relation",
+    "missing-observed-in-relation",
+    "missing-originates-from-relation",
+    "missing-source-of-record-relation",
+    "missing-verifies-edge",
+    "retargeted-verifies-edge",
+    "reusable-artifact-substituted-for-occurrence",
+    "self-authored-unrelated-source-key",
+    "source-capture-substitution",
+    "source-differs-from-source-of-record",
+    "stale-digest-attack",
+    "unrelated-falsifier",
+    "wrong-observation-attempt",
+    "wrong-scope-falsifier"
+  ],
+  "required_profile_rejections": [
+    "redigested-broaden-satisfaction-expression",
+    "redigested-delete-evidence-authenticates-target-bundle",
+    "redigested-delete-evidence-observed-in-attempt-bundle",
+    "redigested-delete-evidence-originates-from-source-bundle",
+    "redigested-delete-scoped-distinctness",
+    "redigested-delete-source-population-closure",
+    "redigested-delete-target-has-source-of-record-bundle",
+    "redigested-delete-target-population-closure",
+    "redigested-split-shared-attempt-role",
+    "redigested-split-shared-source-role",
+    "redigested-target-falsifier-applicability-split-refused",
+    "redigested-weaken-authentication-modality",
+    "redigested-weaken-capture-cardinality",
+    "reject-fabricated-resolver-fact",
+    "reject-incomplete-source-population",
+    "reject-incomplete-target-population",
+    "reject-missing-authenticates-relation",
+    "reject-missing-observed-in-relation",
+    "reject-missing-originates-from-relation",
+    "reject-missing-source-of-record-relation",
+    "reject-missing-verifies-edge",
+    "reject-retargeted-verifies-edge",
+    "reject-source-differs-from-source-of-record",
+    "reject-unrelated-falsifier",
+    "reject-wrong-observation-attempt",
+    "reject-wrong-scope-falsifier"
+  ],
+  "explicit_exclusions": [
+    "authorship-issuance-or-authorization",
+    "caller-honesty-or-source-discovery-completeness",
+    "derived-copied-or-transformed-evidence",
+    "freshness-beyond-the-bound-observation-attempt",
+    "generic-integrity-or-runtime-truth",
+    "ownership-containment-or-decision-authority",
+    "provenance-outside-the-complete-selected-source-population",
+    "runtime-evidence-cce-or-publication-authority"
+  ],
+  "executable_module": "packages/controlled-contract/test/proof-packs/authentication-provenance-v1-adequacy.mjs",
+  "executable_module_digest": "cd76f522087c9c9c76d8b9a0e5908b6aa4940e3dca7384e8230ec028da727e08",
+  "executable_dependency_digests": [
+    {
+      "path": "packages/controlled-contract/lib/authentication-provenance-occurrence-projection.mjs",
+      "sha256": "5840827cdab652e7d6dcd7c4d9d792f896602dc40cb0fd2eb69a68740869719d"
+    },
+    {
+      "path": "packages/controlled-contract/lib/bounded-diagnostic-projection.mjs",
+      "sha256": "97ebe02ca4b7fbac890a19ec04211918734cd449f2c656065ee09ffdc5cbb067"
+    },
+    {
+      "path": "packages/controlled-contract/lib/deterministic-lexicographic-ordering.mjs",
+      "sha256": "1b851826cd19437f44830ee3f3a00464145e75eff411f0114336e2b24cdeae41"
+    },
+    {
+      "path": "packages/controlled-contract/lib/deterministic-projection-primitives.mjs",
+      "sha256": "2090a18c5d66ebb84008074ac06a5ae127d04cf061ea7fb826eda25b99d29f05"
+    },
+    {
+      "path": "packages/controlled-contract/lib/equality-normalization-v1.mjs",
+      "sha256": "eb2848ae678a33272b331bb7a741b46bdcff2a10882530172e3eabfa3d32dd1a"
+    },
+    {
+      "path": "packages/controlled-contract/lib/equality-normalization.mjs",
+      "sha256": "cc3d82139e6a1c2d2bcd35aeedc31861403864d0df0dab293530f5b23e457535"
+    },
+    {
+      "path": "packages/controlled-contract/lib/exact-binding-common.mjs",
+      "sha256": "adda8677e098200ce6a7767c9eade4efa64cca5043aeaf4b1362c17d7a863a5f"
+    },
+    {
+      "path": "packages/controlled-contract/lib/exact-binding-runtime-registry.mjs",
+      "sha256": "4a5b4685384e5f15665d721a442031f7ad22d6388ca0e6eb17ea7d59bad7d584"
+    },
+    {
+      "path": "packages/controlled-contract/lib/native-contract-carrier-v1.mjs",
+      "sha256": "ea22b65e829a2c79dba91b1d387e4d59a77c7d077e8aac101bdf6724c9d3a316"
+    },
+    {
+      "path": "packages/controlled-contract/lib/native-contract-dag.mjs",
+      "sha256": "5ae748ea3ea224ca2a0c9aa7320876d114345b3de336f1f91001f03c7427cb23"
+    },
+    {
+      "path": "packages/controlled-contract/lib/native-contract-runtime.mjs",
+      "sha256": "154ee7614793ae6da2851834532f63d0bea91fc1c6b310d5ca35258d80eeadad"
+    },
+    {
+      "path": "packages/controlled-contract/lib/population-semantics-v1.mjs",
+      "sha256": "a4b1c4877bc97a5630a4c61bff10af7155d074cb478541e4f214a4ab15110498"
+    },
+    {
+      "path": "packages/controlled-contract/lib/profile-digest.mjs",
+      "sha256": "6abee701ee068282b6f37dff287b04d1203186794b7dae3358dc2ca11bd532eb"
+    },
+    {
+      "path": "packages/controlled-contract/lib/projected-contract-graph.mjs",
+      "sha256": "f3d4c985f31b74aef5581c6148a0a4e516ce5bf1f6785190a9805dc1c24ab5fe"
+    },
+    {
+      "path": "packages/controlled-contract/lib/projected-evaluation-binding.mjs",
+      "sha256": "0297b7f7dac21725c0446d1aa6728bc6f2c24972ba9d25d435b98cdb42cc67c1"
+    },
+    {
+      "path": "packages/controlled-contract/lib/resource-policy.mjs",
+      "sha256": "0d7e7370a5745f4215ac69260fb6cfefeb048778cec1e4fd43c5da6c71448505"
+    },
+    {
+      "path": "packages/controlled-contract/lib/stable-association-semantics.mjs",
+      "sha256": "45df90f5d90670fbd22908302fa0d17884faf392f17c02d2368b338906e4aee7"
+    },
+    {
+      "path": "packages/controlled-contract/lib/stable-occurrence-identity.mjs",
+      "sha256": "561df8820a08ded0262afca8d9eea9b9b2b8b8ff9aaa67c265d0f8e833456e93"
+    },
+    {
+      "path": "packages/controlled-contract/lib/stable-partition-semantics.mjs",
+      "sha256": "373f4ef01f740f4be2e212ed9a74caf7a500cbef77fd985a37e2099653a4a2ac"
+    },
+    {
+      "path": "packages/controlled-contract/lib/stable-relation-semantics.mjs",
+      "sha256": "b0c6a10cf8ed6ca1fdad35082a487f5784c3380d1818b3e6d0863580320f068d"
+    },
+    {
+      "path": "packages/controlled-contract/lib/stable-v1-family-validation.mjs",
+      "sha256": "89a1186b6b2fd176e8e8db6b12e8160e116882f54f2a1804e2ab5572f3432ab7"
+    },
+    {
+      "path": "packages/controlled-contract/lib/test-proof-provider-registry.mjs",
+      "sha256": "8b0eaa6b19178e1edcddf03a79ce269e4d5b825a36574e088e2963a496a7787a"
+    },
+    {
+      "path": "packages/controlled-contract/lib/verification-profile-expanded-semantics.mjs",
+      "sha256": "5722474f5e849ad621669c7c8257acc3deb717470537a9c074ac0ebca852a270"
+    },
+    {
+      "path": "packages/controlled-contract/lib/verification-profile-runtime.mjs",
+      "sha256": "8bab084a7ac6b2912f271eab05aec523dd9ad2dd6a8b8d134f2aafc8c7b51f63"
+    },
+    {
+      "path": "packages/controlled-contract/lib/verification-profile-schema-v1.mjs",
+      "sha256": "2ea7520026444bf376575897a14e2c915f5127e27c77efc8b141ed7a959e3138"
+    },
+    {
+      "path": "packages/controlled-contract/lib/verification-profile-semantics.mjs",
+      "sha256": "f5ae15527cf08037dba1b6333fa770706e0f26814cc0ed267fbb212d84f68dc4"
+    },
+    {
+      "path": "packages/controlled-contract/lib/verification-profile-v1.mjs",
+      "sha256": "c2d5ae1d9f1806fe8e1aace14e0822a8e9ddbe97e7226d454732c9ee5b26729c"
+    },
+    {
+      "path": "packages/controlled-contract/lib/vocabulary-v1.mjs",
+      "sha256": "bb8f70ca8e70600cb951ec45d54a766e3f012cf7da2e6c1236ea2fe521b13e8a"
+    },
+    {
+      "path": "packages/controlled-contract/schema/controlled-acceptance-contract.v1.schema.json",
+      "sha256": "a2eea7c7cc0ffab8dc2f931ae147587ce5a350afeb7c8cde6e973e1ac6168d80"
+    },
+    {
+      "path": "packages/controlled-contract/schema/controlled-contract-admitted-proof-pack.v2.schema.json",
+      "sha256": "fc2e659512b5cf7c265c067e54d9429fee61e88b9e4a10fe9c47dabb2b22efd0"
+    },
+    {
+      "path": "packages/controlled-contract/schema/controlled-contract-exact-binding-assessment-request.v1.schema.json",
+      "sha256": "90fc47606e993120f614c455f3fe43a9874fea7c60f0e526812b592cdc34ebdc"
+    },
+    {
+      "path": "packages/controlled-contract/schema/controlled-contract-exact-binding-certification-result.v1.schema.json",
+      "sha256": "449ff9d502aaeab1ee39ea204a2b55d491a1789184dc19e96d209591ec5b9a6c"
+    },
+    {
+      "path": "packages/controlled-contract/schema/controlled-contract-exact-binding-declaration.v1.schema.json",
+      "sha256": "8d82e7670f71977a6975f23a5f279c4dc70a81adb22a50664b79199961abbdf8"
+    },
+    {
+      "path": "packages/controlled-contract/schema/controlled-contract-exact-binding-result.v1.schema.json",
+      "sha256": "d65fd8810194ccf0f0ef662964cf4f14fc17651d3feddfe68a181299ccc95184"
+    },
+    {
+      "path": "packages/controlled-contract/schema/controlled-contract-exact-binding-sources.v1.schema.json",
+      "sha256": "d47cacba6fa7c184d6fea3957b2a078561dcf269296b8d616c26ef2b050db6b6"
+    },
+    {
+      "path": "packages/controlled-contract/schema/controlled-contract-verification-profile-input.v1.schema.json",
+      "sha256": "38bd0b388ba2c5a4bb108749e1ffd50bdb8147ae5521f1d9d1eaf04126ef0b72"
+    },
+    {
+      "path": "packages/controlled-contract/schema/controlled-contract-verification-profile-result.v1.schema.json",
+      "sha256": "33511e8ea57b6a259b5f2f8dd019cae947af9e1cb3e129333e99279da3f80332"
+    },
+    {
+      "path": "packages/controlled-contract/schema/controlled-contract-verification-profile.v1.schema.json",
+      "sha256": "3e6048e02a946da43337b196911cfdfaa9d4bf9c3d42dac73d41f60e442f6fb8"
+    },
+    {
+      "path": "packages/controlled-contract/test/proof-packs/authentication-provenance-v1-fixture.mjs",
+      "sha256": "7c139b561c975215fdb620a29ca765cd26186470ff951588600d552ba0811c06"
+    },
+    {
+      "path": "packages/controlled-contract/test/support/proof-pack-adequacy-constants.mjs",
+      "sha256": "d55f40522f447e2541469ff531375a149f2c78703434bbf00914ac0c19d40a55"
+    },
+    {
+      "path": "packages/controlled-contract/test/support/stable-v1-proof-pack-runtime.mjs",
+      "sha256": "2695fc8d1e55558adf91846f142afbf0223dabe128a970ddfe38f327e258db86"
+    },
+    {
+      "path": "packages/controlled-contract/vocabulary/controlled-contract-vocabulary.v1.mjs",
+      "sha256": "4e977d3b49644a8d2a6535387860f660280e90e3055d46204e0423e5c1a4bc92"
+    }
+  ],
+  "negative_contract_fixtures": [
+    {
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "path": "packages/controlled-contract/test/certification/profiles/proof.authentication.direct-source-provenance/2.0.0/negative-fixtures/profile-weakening-corpus.json",
+      "sha256": "1a76f411c8899609227ec38e31c5698f5c8872e9c546f19f7dd926e1f65361d8"
+    }
+  ],
+  "coverage_witness_index": {
+    "path": "packages/controlled-contract/test/certification/profiles/proof.authentication.direct-source-provenance/2.0.0/witness-profile-weakenings.json",
+    "sha256": "dda05a9b420200cd59d0755b3fefb64163f1d66ce351d40e0ada7b1dad30e1a2"
+  },
+  "guarantee_critical_profile_surfaces": [
+    {
+      "surface_id": "role-target-population-types",
+      "profile_json_pointer": "/reference_roles/4/allowed_type_terms",
+      "surface_digest": "4d1015f29068a10d8cb0cfbea775b4226b79406e2108ff984921c52b2c766534",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-source-population-types",
+      "profile_json_pointer": "/reference_roles/5/allowed_type_terms",
+      "surface_digest": "4d1015f29068a10d8cb0cfbea775b4226b79406e2108ff984921c52b2c766534",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-evidence-content-types",
+      "profile_json_pointer": "/reference_roles/6/allowed_type_terms",
+      "surface_digest": "34d615a26c9c98c85148ead0b480046b1d33956b8cd6ec88b04d6655745488dd",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-evidence-content-cardinality",
+      "profile_json_pointer": "/reference_roles/6/cardinality",
+      "surface_digest": "ea2d22d428754a4fd5b173df4e93d2fbc351e12f4ab16944e48a6f2feebcf7b9",
+      "coverage": [
+        {
+          "weakening_class": "cardinality_broadening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-target-resolution-witness-types",
+      "profile_json_pointer": "/reference_roles/7/allowed_type_terms",
+      "surface_digest": "34d615a26c9c98c85148ead0b480046b1d33956b8cd6ec88b04d6655745488dd",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-target-resolution-witness-cardinality",
+      "profile_json_pointer": "/reference_roles/7/cardinality",
+      "surface_digest": "ea2d22d428754a4fd5b173df4e93d2fbc351e12f4ab16944e48a6f2feebcf7b9",
+      "coverage": [
+        {
+          "weakening_class": "cardinality_broadening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-source-authentication-witness-types",
+      "profile_json_pointer": "/reference_roles/8/allowed_type_terms",
+      "surface_digest": "34d615a26c9c98c85148ead0b480046b1d33956b8cd6ec88b04d6655745488dd",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-source-authentication-witness-cardinality",
+      "profile_json_pointer": "/reference_roles/8/cardinality",
+      "surface_digest": "ea2d22d428754a4fd5b173df4e93d2fbc351e12f4ab16944e48a6f2feebcf7b9",
+      "coverage": [
+        {
+          "weakening_class": "cardinality_broadening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-source-of-record-witness-types",
+      "profile_json_pointer": "/reference_roles/9/allowed_type_terms",
+      "surface_digest": "34d615a26c9c98c85148ead0b480046b1d33956b8cd6ec88b04d6655745488dd",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-source-of-record-witness-cardinality",
+      "profile_json_pointer": "/reference_roles/9/cardinality",
+      "surface_digest": "ea2d22d428754a4fd5b173df4e93d2fbc351e12f4ab16944e48a6f2feebcf7b9",
+      "coverage": [
+        {
+          "weakening_class": "cardinality_broadening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-attempt-binding-witness-types",
+      "profile_json_pointer": "/reference_roles/10/allowed_type_terms",
+      "surface_digest": "34d615a26c9c98c85148ead0b480046b1d33956b8cd6ec88b04d6655745488dd",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-attempt-binding-witness-cardinality",
+      "profile_json_pointer": "/reference_roles/10/cardinality",
+      "surface_digest": "ea2d22d428754a4fd5b173df4e93d2fbc351e12f4ab16944e48a6f2feebcf7b9",
+      "coverage": [
+        {
+          "weakening_class": "cardinality_broadening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-authentication-witness-types",
+      "profile_json_pointer": "/reference_roles/11/allowed_type_terms",
+      "surface_digest": "34d615a26c9c98c85148ead0b480046b1d33956b8cd6ec88b04d6655745488dd",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-authentication-witness-cardinality",
+      "profile_json_pointer": "/reference_roles/11/cardinality",
+      "surface_digest": "ea2d22d428754a4fd5b173df4e93d2fbc351e12f4ab16944e48a6f2feebcf7b9",
+      "coverage": [
+        {
+          "weakening_class": "cardinality_broadening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-occurrence-capture-types",
+      "profile_json_pointer": "/reference_roles/12/allowed_type_terms",
+      "surface_digest": "34d615a26c9c98c85148ead0b480046b1d33956b8cd6ec88b04d6655745488dd",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-occurrence-capture-cardinality",
+      "profile_json_pointer": "/reference_roles/12/cardinality",
+      "surface_digest": "ea2d22d428754a4fd5b173df4e93d2fbc351e12f4ab16944e48a6f2feebcf7b9",
+      "coverage": [
+        {
+          "weakening_class": "cardinality_broadening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-authentication-verification-types",
+      "profile_json_pointer": "/reference_roles/13/allowed_type_terms",
+      "surface_digest": "e29e2059814a71e22f9dbe9c39adcc2e081158cdb289ffcee5ada1895ffb8952",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-provenance-verification-types",
+      "profile_json_pointer": "/reference_roles/14/allowed_type_terms",
+      "surface_digest": "e29e2059814a71e22f9dbe9c39adcc2e081158cdb289ffcee5ada1895ffb8952",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-source-record-verification-types",
+      "profile_json_pointer": "/reference_roles/15/allowed_type_terms",
+      "surface_digest": "e29e2059814a71e22f9dbe9c39adcc2e081158cdb289ffcee5ada1895ffb8952",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-observation-verification-types",
+      "profile_json_pointer": "/reference_roles/16/allowed_type_terms",
+      "surface_digest": "e29e2059814a71e22f9dbe9c39adcc2e081158cdb289ffcee5ada1895ffb8952",
+      "coverage": [
+        {
+          "weakening_class": "type_broadening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-evidence-authenticates-target-modalities",
+      "profile_json_pointer": "/claim_patterns/0/allowed_modalities",
+      "surface_digest": "d33db3b7a7ce6651be0411e70afa97ef8eb231535bb66c88495727e52b118582",
+      "coverage": [
+        {
+          "weakening_class": "modality_broadening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-modalities",
+      "profile_json_pointer": "/claim_patterns/1/allowed_modalities",
+      "surface_digest": "d33db3b7a7ce6651be0411e70afa97ef8eb231535bb66c88495727e52b118582",
+      "coverage": [
+        {
+          "weakening_class": "modality_broadening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-proposition-subject",
+      "profile_json_pointer": "/claim_patterns/1/proposition_template/subject_role",
+      "surface_digest": "d5e444f56a691c31a1f3e4d3bda9651e4d751ef48e9098ffa5fc569928ea8414",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-proposition-operator",
+      "profile_json_pointer": "/claim_patterns/1/proposition_template/operator",
+      "surface_digest": "2bbe4a2f7455a6354228eb93fd790f924f44117ec8406df9965755849387c77e",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-proposition-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/1/proposition_template/operands/0/role",
+      "surface_digest": "ca4fcbaabcdcefe35f5bdce544678294d2fbb575d7f44d7358cd6dc1d760d2c8",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-proposition-operand-1-role",
+      "profile_json_pointer": "/claim_patterns/1/proposition_template/operands/1/role",
+      "surface_digest": "402f11e4ec0f3035ca9ad91f82b34f3ee3efdd6b449271c3cb2618abf05a347b",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-proposition-operand-2-role",
+      "profile_json_pointer": "/claim_patterns/1/proposition_template/operands/2/role",
+      "surface_digest": "9291aab920c7941a82c1805b133132d0549be23cc0ea6674b1034fe0c2bd5851",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-proposition-operand-3-role",
+      "profile_json_pointer": "/claim_patterns/1/proposition_template/operands/3/role",
+      "surface_digest": "0e153aa644f32f26a48dc910fdcce00f7370c07dae490e82254ac3dbde659c9c",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-proposition-operand-4-role",
+      "profile_json_pointer": "/claim_patterns/1/proposition_template/operands/4/role",
+      "surface_digest": "a9c8ff7a2102c89ffd63356daaa7f34ab8c39d6ff2600671c122bff5b629bb0a",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-proposition-operand-5-role",
+      "profile_json_pointer": "/claim_patterns/1/proposition_template/operands/5/role",
+      "surface_digest": "6a63f9ea1df353ac27fafa6af8a9242a9c1a1d0c1a5ac3f9c6b0382ab45a2f9f",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-proposition-operand-6-role",
+      "profile_json_pointer": "/claim_patterns/1/proposition_template/operands/6/role",
+      "surface_digest": "6dddc0ed2955f79124cae9af6cd9adf172305d8d028a84479b249ebeab26cdab",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-verification-methods",
+      "profile_json_pointer": "/claim_patterns/1/verification_methods",
+      "surface_digest": "662e97a82ceee8aee845e4142700ebd6d6ccbffe0965a172baffa78463400020",
+      "coverage": [
+        {
+          "weakening_class": "verification_method_broadening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-evidence-originates-from-source-modalities",
+      "profile_json_pointer": "/claim_patterns/2/allowed_modalities",
+      "surface_digest": "d33db3b7a7ce6651be0411e70afa97ef8eb231535bb66c88495727e52b118582",
+      "coverage": [
+        {
+          "weakening_class": "modality_broadening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-modalities",
+      "profile_json_pointer": "/claim_patterns/3/allowed_modalities",
+      "surface_digest": "d33db3b7a7ce6651be0411e70afa97ef8eb231535bb66c88495727e52b118582",
+      "coverage": [
+        {
+          "weakening_class": "modality_broadening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-proposition-subject",
+      "profile_json_pointer": "/claim_patterns/3/proposition_template/subject_role",
+      "surface_digest": "a291ff7ad1cc75bdb07b4dd1c2f3d147fba38328e5b40cb24f549cf6aff0ecb8",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-proposition-operator",
+      "profile_json_pointer": "/claim_patterns/3/proposition_template/operator",
+      "surface_digest": "2bbe4a2f7455a6354228eb93fd790f924f44117ec8406df9965755849387c77e",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-proposition-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/3/proposition_template/operands/0/role",
+      "surface_digest": "ca4fcbaabcdcefe35f5bdce544678294d2fbb575d7f44d7358cd6dc1d760d2c8",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-proposition-operand-1-role",
+      "profile_json_pointer": "/claim_patterns/3/proposition_template/operands/1/role",
+      "surface_digest": "402f11e4ec0f3035ca9ad91f82b34f3ee3efdd6b449271c3cb2618abf05a347b",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-proposition-operand-2-role",
+      "profile_json_pointer": "/claim_patterns/3/proposition_template/operands/2/role",
+      "surface_digest": "9291aab920c7941a82c1805b133132d0549be23cc0ea6674b1034fe0c2bd5851",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-proposition-operand-3-role",
+      "profile_json_pointer": "/claim_patterns/3/proposition_template/operands/3/role",
+      "surface_digest": "0e153aa644f32f26a48dc910fdcce00f7370c07dae490e82254ac3dbde659c9c",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-proposition-operand-4-role",
+      "profile_json_pointer": "/claim_patterns/3/proposition_template/operands/4/role",
+      "surface_digest": "a9c8ff7a2102c89ffd63356daaa7f34ab8c39d6ff2600671c122bff5b629bb0a",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-proposition-operand-5-role",
+      "profile_json_pointer": "/claim_patterns/3/proposition_template/operands/5/role",
+      "surface_digest": "6a63f9ea1df353ac27fafa6af8a9242a9c1a1d0c1a5ac3f9c6b0382ab45a2f9f",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-proposition-operand-6-role",
+      "profile_json_pointer": "/claim_patterns/3/proposition_template/operands/6/role",
+      "surface_digest": "6dddc0ed2955f79124cae9af6cd9adf172305d8d028a84479b249ebeab26cdab",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-verification-methods",
+      "profile_json_pointer": "/claim_patterns/3/verification_methods",
+      "surface_digest": "662e97a82ceee8aee845e4142700ebd6d6ccbffe0965a172baffa78463400020",
+      "coverage": [
+        {
+          "weakening_class": "verification_method_broadening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-target-has-source-of-record-modalities",
+      "profile_json_pointer": "/claim_patterns/4/allowed_modalities",
+      "surface_digest": "d33db3b7a7ce6651be0411e70afa97ef8eb231535bb66c88495727e52b118582",
+      "coverage": [
+        {
+          "weakening_class": "modality_broadening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-modalities",
+      "profile_json_pointer": "/claim_patterns/5/allowed_modalities",
+      "surface_digest": "d33db3b7a7ce6651be0411e70afa97ef8eb231535bb66c88495727e52b118582",
+      "coverage": [
+        {
+          "weakening_class": "modality_broadening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-proposition-subject",
+      "profile_json_pointer": "/claim_patterns/5/proposition_template/subject_role",
+      "surface_digest": "897613d5003539a58a311ba5f9120369d11989298bd2e7a7d1c8dcb6fb1078b7",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-proposition-operator",
+      "profile_json_pointer": "/claim_patterns/5/proposition_template/operator",
+      "surface_digest": "2bbe4a2f7455a6354228eb93fd790f924f44117ec8406df9965755849387c77e",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-proposition-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/5/proposition_template/operands/0/role",
+      "surface_digest": "ca4fcbaabcdcefe35f5bdce544678294d2fbb575d7f44d7358cd6dc1d760d2c8",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-proposition-operand-1-role",
+      "profile_json_pointer": "/claim_patterns/5/proposition_template/operands/1/role",
+      "surface_digest": "402f11e4ec0f3035ca9ad91f82b34f3ee3efdd6b449271c3cb2618abf05a347b",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-proposition-operand-2-role",
+      "profile_json_pointer": "/claim_patterns/5/proposition_template/operands/2/role",
+      "surface_digest": "9291aab920c7941a82c1805b133132d0549be23cc0ea6674b1034fe0c2bd5851",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-proposition-operand-3-role",
+      "profile_json_pointer": "/claim_patterns/5/proposition_template/operands/3/role",
+      "surface_digest": "0e153aa644f32f26a48dc910fdcce00f7370c07dae490e82254ac3dbde659c9c",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-proposition-operand-4-role",
+      "profile_json_pointer": "/claim_patterns/5/proposition_template/operands/4/role",
+      "surface_digest": "a9c8ff7a2102c89ffd63356daaa7f34ab8c39d6ff2600671c122bff5b629bb0a",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-proposition-operand-5-role",
+      "profile_json_pointer": "/claim_patterns/5/proposition_template/operands/5/role",
+      "surface_digest": "6a63f9ea1df353ac27fafa6af8a9242a9c1a1d0c1a5ac3f9c6b0382ab45a2f9f",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-proposition-operand-6-role",
+      "profile_json_pointer": "/claim_patterns/5/proposition_template/operands/6/role",
+      "surface_digest": "6dddc0ed2955f79124cae9af6cd9adf172305d8d028a84479b249ebeab26cdab",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-verification-methods",
+      "profile_json_pointer": "/claim_patterns/5/verification_methods",
+      "surface_digest": "662e97a82ceee8aee845e4142700ebd6d6ccbffe0965a172baffa78463400020",
+      "coverage": [
+        {
+          "weakening_class": "verification_method_broadening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-evidence-observed-in-attempt-modalities",
+      "profile_json_pointer": "/claim_patterns/6/allowed_modalities",
+      "surface_digest": "d33db3b7a7ce6651be0411e70afa97ef8eb231535bb66c88495727e52b118582",
+      "coverage": [
+        {
+          "weakening_class": "modality_broadening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-modalities",
+      "profile_json_pointer": "/claim_patterns/7/allowed_modalities",
+      "surface_digest": "d33db3b7a7ce6651be0411e70afa97ef8eb231535bb66c88495727e52b118582",
+      "coverage": [
+        {
+          "weakening_class": "modality_broadening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-proposition-subject",
+      "profile_json_pointer": "/claim_patterns/7/proposition_template/subject_role",
+      "surface_digest": "062913f8e2ed569b4f21b7c2127b588ba31984d58451c60d3f0c09e1e3127fd2",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-proposition-operator",
+      "profile_json_pointer": "/claim_patterns/7/proposition_template/operator",
+      "surface_digest": "2bbe4a2f7455a6354228eb93fd790f924f44117ec8406df9965755849387c77e",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-proposition-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/7/proposition_template/operands/0/role",
+      "surface_digest": "ca4fcbaabcdcefe35f5bdce544678294d2fbb575d7f44d7358cd6dc1d760d2c8",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-proposition-operand-1-role",
+      "profile_json_pointer": "/claim_patterns/7/proposition_template/operands/1/role",
+      "surface_digest": "402f11e4ec0f3035ca9ad91f82b34f3ee3efdd6b449271c3cb2618abf05a347b",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-proposition-operand-2-role",
+      "profile_json_pointer": "/claim_patterns/7/proposition_template/operands/2/role",
+      "surface_digest": "9291aab920c7941a82c1805b133132d0549be23cc0ea6674b1034fe0c2bd5851",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-proposition-operand-3-role",
+      "profile_json_pointer": "/claim_patterns/7/proposition_template/operands/3/role",
+      "surface_digest": "0e153aa644f32f26a48dc910fdcce00f7370c07dae490e82254ac3dbde659c9c",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-proposition-operand-4-role",
+      "profile_json_pointer": "/claim_patterns/7/proposition_template/operands/4/role",
+      "surface_digest": "a9c8ff7a2102c89ffd63356daaa7f34ab8c39d6ff2600671c122bff5b629bb0a",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-proposition-operand-5-role",
+      "profile_json_pointer": "/claim_patterns/7/proposition_template/operands/5/role",
+      "surface_digest": "6a63f9ea1df353ac27fafa6af8a9242a9c1a1d0c1a5ac3f9c6b0382ab45a2f9f",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-proposition-operand-6-role",
+      "profile_json_pointer": "/claim_patterns/7/proposition_template/operands/6/role",
+      "surface_digest": "6dddc0ed2955f79124cae9af6cd9adf172305d8d028a84479b249ebeab26cdab",
+      "coverage": [
+        {
+          "weakening_class": "proposition_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-verification-methods",
+      "profile_json_pointer": "/claim_patterns/7/verification_methods",
+      "surface_digest": "662e97a82ceee8aee845e4142700ebd6d6ccbffe0965a172baffa78463400020",
+      "coverage": [
+        {
+          "weakening_class": "verification_method_broadening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-patterns",
+      "profile_json_pointer": "/claim_patterns",
+      "surface_digest": "fa22439eed1a0a2b2f492dbfc727e7bce411e4f6d349a29e76c2c8dd1292752b",
+      "coverage": [
+        {
+          "weakening_class": "deletion",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "relation-patterns",
+      "profile_json_pointer": "/relation_patterns",
+      "surface_digest": "b9c28ec79d1645a5d69cb3ff731efc520a08088e0c8527e4b1dd8811191409a5",
+      "coverage": [
+        {
+          "weakening_class": "relation_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "reference-binding-patterns",
+      "profile_json_pointer": "/reference_binding_patterns",
+      "surface_digest": "8cb20e759bd8c38e42a484cd9f41a5ffeae8a7ffbc0b1df766216bce3dfcf7be",
+      "coverage": [
+        {
+          "weakening_class": "binding_constraint_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "distinct-reference-role-sets",
+      "profile_json_pointer": "/distinct_reference_role_sets",
+      "surface_digest": "ce49d29ff34718ea4cd55b90e012d83285639f4ca2d09363d2147872abf81888",
+      "coverage": [
+        {
+          "weakening_class": "binding_constraint_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "falsifier-condition-bindings",
+      "profile_json_pointer": "/falsifier_condition_bindings",
+      "surface_digest": "1027f2829a3b2ef4a8ed45c4b3fac1ac9d2891c921b392754f17c6409ef408c5",
+      "coverage": [
+        {
+          "weakening_class": "falsifier_weakening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "satisfaction-expression",
+      "profile_json_pointer": "/satisfaction_expression",
+      "surface_digest": "16068c547cee9b0e411ecfdec11d2fd6cef09e8c47ba8c18b0663c4f545d17c0",
+      "coverage": [
+        {
+          "weakening_class": "satisfaction_branch_broadening",
+          "negative_fixture_ids": [
+            "authentication-provenance-profile-weakening-corpus"
+          ]
+        }
+      ]
+    }
+  ],
+  "noncritical_profile_surfaces": [
+    {
+      "surface_id": "binding-schema-version",
+      "profile_json_pointer": "/schema_version",
+      "surface_digest": "b6d4fc86c245ac558a75a76d315743b2da13cfbdb398a93e9033af78cbbc923e",
+      "reason": "artifact_binding_not_guarantee_semantics"
+    },
+    {
+      "surface_id": "binding-profile-id",
+      "profile_json_pointer": "/profile_id",
+      "surface_digest": "2385bc2db4922033475415413c888e9c444e4a9c5586b580a1e699a18c332083",
+      "reason": "artifact_binding_not_guarantee_semantics"
+    },
+    {
+      "surface_id": "binding-profile-version",
+      "profile_json_pointer": "/profile_version",
+      "surface_digest": "0175d86befbe75525f132794baff42abbf4e2a659aa20f2baec341740a9573e7",
+      "reason": "artifact_binding_not_guarantee_semantics"
+    },
+    {
+      "surface_id": "binding-contract-schema-version",
+      "profile_json_pointer": "/contract_schema_version",
+      "surface_digest": "69fa188228ab47ec0c6de50f593fb19f749e300084d0e3bdddfd8864be9d305b",
+      "reason": "artifact_binding_not_guarantee_semantics"
+    },
+    {
+      "surface_id": "binding-vocabulary-version",
+      "profile_json_pointer": "/vocabulary_version",
+      "surface_digest": "3d262ad204a3df7ffaf8b5512e45e5ca8b7dad47952179092302fd61961c4c72",
+      "reason": "artifact_binding_not_guarantee_semantics"
+    },
+    {
+      "surface_id": "binding-vocabulary-signature-digest",
+      "profile_json_pointer": "/vocabulary_signature_digest",
+      "surface_digest": "a992734ea6177c7734eeab306519fcb768b1635c15672ae087be63b26fd44cf2",
+      "reason": "artifact_binding_not_guarantee_semantics"
+    },
+    {
+      "surface_id": "binding-vocabulary-algebra-digest",
+      "profile_json_pointer": "/vocabulary_algebra_digest",
+      "surface_digest": "27037918dc70f65edc2a6df26a07e47a69dfcd1fedf8e0cc3f557115bf578f96",
+      "reason": "artifact_binding_not_guarantee_semantics"
+    },
+    {
+      "surface_id": "binding-vocabulary-definitions-digest",
+      "profile_json_pointer": "/vocabulary_definitions_digest",
+      "surface_digest": "9f52f33a3896c455c5da2ab7d290452122c9c7b3b2817331c11cc0251a4bacf4",
+      "reason": "artifact_binding_not_guarantee_semantics"
+    },
+    {
+      "surface_id": "binding-vocabulary-complete-digest",
+      "profile_json_pointer": "/vocabulary_complete_digest",
+      "surface_digest": "b0c5efbd4ba1037d8403bdd111260eaec1355c5c39161eec66be63dac86f6e91",
+      "reason": "artifact_binding_not_guarantee_semantics"
+    },
+    {
+      "surface_id": "verification-falsifier-policy",
+      "profile_json_pointer": "/verification_falsifier_policy",
+      "surface_digest": "aaae577b3b144d404f671746b56801734cb9c308e07a6fbc6c8074fd72013c3a",
+      "reason": "schema_singleton_constant"
+    },
+    {
+      "surface_id": "empty-number-roles",
+      "profile_json_pointer": "/number_roles",
+      "surface_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "empty_optional_mechanism"
+    },
+    {
+      "surface_id": "empty-collection-patterns",
+      "profile_json_pointer": "/collection_patterns",
+      "surface_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "empty_optional_mechanism"
+    },
+    {
+      "surface_id": "empty-resolver-fact-patterns",
+      "profile_json_pointer": "/resolver_fact_patterns",
+      "surface_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "empty_optional_mechanism"
+    },
+    {
+      "surface_id": "empty-evidence-patterns",
+      "profile_json_pointer": "/evidence_patterns",
+      "surface_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "empty_optional_mechanism"
+    },
+    {
+      "surface_id": "evaluation-stages",
+      "profile_json_pointer": "/evaluation_stages",
+      "surface_digest": "7e24a284e91207b60105d7e73f9c7afd454265b710e266749744a14c53737308",
+      "reason": "extension_only_stage_set"
+    },
+    {
+      "surface_id": "role-evidence-occurrence-types",
+      "profile_json_pointer": "/reference_roles/0/allowed_type_terms",
+      "surface_digest": "d8ca462bec43fba4bbd4bf5990de38cfa64da3d1e74a9bafb26736f3e4a3a08d",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "role-target-types",
+      "profile_json_pointer": "/reference_roles/1/allowed_type_terms",
+      "surface_digest": "210a4191d74d3376cef71930d19a975b8891c13589625bf8eb9c99789616792a",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "role-source-types",
+      "profile_json_pointer": "/reference_roles/2/allowed_type_terms",
+      "surface_digest": "c08242c329d9be0c5c002f2f01bba61da7edfa6346f2008bc80d04dbda0aa0b6",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "role-observation-attempt-types",
+      "profile_json_pointer": "/reference_roles/3/allowed_type_terms",
+      "surface_digest": "673cd424687c0c54c42f5296decbe61b21cb1652cc88e5942d83c718b6fc7d3e",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-evidence-authenticates-target-required-stage",
+      "profile_json_pointer": "/claim_patterns/0/required_by_stage",
+      "surface_digest": "66e56266954a1de7c410bd86ab42b2554c0a5360ff80d14d893d5904d857db7b",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-evidence-authenticates-target-claim-kind",
+      "profile_json_pointer": "/claim_patterns/0/claim_kind",
+      "surface_digest": "e3e7d3b58414410f3ab29fb1aea29166c439eb702757e2cfc85f3350aae41cee",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-evidence-authenticates-target-proposition-subject",
+      "profile_json_pointer": "/claim_patterns/0/proposition_template/subject_role",
+      "surface_digest": "73fa84a3280710b5b34a15c6a5233e7852e53f5c1c254c0b5ae47af9f5e76bba",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-evidence-authenticates-target-proposition-operator",
+      "profile_json_pointer": "/claim_patterns/0/proposition_template/operator",
+      "surface_digest": "0d7f692f3ffe0c208ed5f7ed2da815dab13a08e82408cab7ae346d32e6ff5fa1",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-evidence-authenticates-target-proposition-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/0/proposition_template/applicability_context/mode",
+      "surface_digest": "7f865398c3aa35d174a19541529592f65d157e4fff787b539b0ba8fb1ddb9acb",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-evidence-authenticates-target-proposition-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/0/proposition_template/applicability_context/operand_roles",
+      "surface_digest": "cd2321ad2bc73aad190441baa20be11748efcda02672d01220e65c49a09360e4",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-evidence-authenticates-target-proposition-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/0/proposition_template/operands/0/role",
+      "surface_digest": "aa962f43aa13b734bd1704f05204720de1c69a6c1a3969fd131c78c6240e7f57",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-required-stage",
+      "profile_json_pointer": "/claim_patterns/1/required_by_stage",
+      "surface_digest": "66e56266954a1de7c410bd86ab42b2554c0a5360ff80d14d893d5904d857db7b",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-claim-kind",
+      "profile_json_pointer": "/claim_patterns/1/claim_kind",
+      "surface_digest": "0f43e98303a5e069bb169ccda8d8ca2c1dd70948ab41491b77e7df6b167456e8",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-proposition-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/1/proposition_template/applicability_context/mode",
+      "surface_digest": "8384463b72b5885d6b22cd54f6e43e6222d661bf2a8d7b8f0506db98ce3379af",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-proposition-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/1/proposition_template/applicability_context/operand_roles",
+      "surface_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-falsifier-subject",
+      "profile_json_pointer": "/claim_patterns/1/falsifying_proposition_template/subject_role",
+      "surface_digest": "73fa84a3280710b5b34a15c6a5233e7852e53f5c1c254c0b5ae47af9f5e76bba",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-falsifier-operator",
+      "profile_json_pointer": "/claim_patterns/1/falsifying_proposition_template/operator",
+      "surface_digest": "823a8427d1af114f06b1bfa18f206d0696111c5561d4b666f46d87317db7fccc",
+      "reason": "redundant_with_covered_semantic_surface"
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-falsifier-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/1/falsifying_proposition_template/applicability_context/mode",
+      "surface_digest": "7f865398c3aa35d174a19541529592f65d157e4fff787b539b0ba8fb1ddb9acb",
+      "reason": "redundant_with_covered_semantic_surface"
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-falsifier-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/1/falsifying_proposition_template/applicability_context/operand_roles",
+      "surface_digest": "cd2321ad2bc73aad190441baa20be11748efcda02672d01220e65c49a09360e4",
+      "reason": "redundant_with_covered_semantic_surface"
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-falsifier-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/1/falsifying_proposition_template/operands/0/role",
+      "surface_digest": "aa962f43aa13b734bd1704f05204720de1c69a6c1a3969fd131c78c6240e7f57",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-evidence-originates-from-source-required-stage",
+      "profile_json_pointer": "/claim_patterns/2/required_by_stage",
+      "surface_digest": "66e56266954a1de7c410bd86ab42b2554c0a5360ff80d14d893d5904d857db7b",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-evidence-originates-from-source-claim-kind",
+      "profile_json_pointer": "/claim_patterns/2/claim_kind",
+      "surface_digest": "e3e7d3b58414410f3ab29fb1aea29166c439eb702757e2cfc85f3350aae41cee",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-evidence-originates-from-source-proposition-subject",
+      "profile_json_pointer": "/claim_patterns/2/proposition_template/subject_role",
+      "surface_digest": "73fa84a3280710b5b34a15c6a5233e7852e53f5c1c254c0b5ae47af9f5e76bba",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-evidence-originates-from-source-proposition-operator",
+      "profile_json_pointer": "/claim_patterns/2/proposition_template/operator",
+      "surface_digest": "d47aba0222dc22607100a65c0ca86467c023d574eec8a62f877604cdd6a9a96c",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-evidence-originates-from-source-proposition-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/2/proposition_template/applicability_context/mode",
+      "surface_digest": "7f865398c3aa35d174a19541529592f65d157e4fff787b539b0ba8fb1ddb9acb",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-evidence-originates-from-source-proposition-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/2/proposition_template/applicability_context/operand_roles",
+      "surface_digest": "cd2321ad2bc73aad190441baa20be11748efcda02672d01220e65c49a09360e4",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-evidence-originates-from-source-proposition-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/2/proposition_template/operands/0/role",
+      "surface_digest": "073171f7f5e1438ae632cb252bda87d19e1bfab1a0ba309e91bdd645886f24ea",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-required-stage",
+      "profile_json_pointer": "/claim_patterns/3/required_by_stage",
+      "surface_digest": "66e56266954a1de7c410bd86ab42b2554c0a5360ff80d14d893d5904d857db7b",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-claim-kind",
+      "profile_json_pointer": "/claim_patterns/3/claim_kind",
+      "surface_digest": "0f43e98303a5e069bb169ccda8d8ca2c1dd70948ab41491b77e7df6b167456e8",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-proposition-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/3/proposition_template/applicability_context/mode",
+      "surface_digest": "8384463b72b5885d6b22cd54f6e43e6222d661bf2a8d7b8f0506db98ce3379af",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-proposition-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/3/proposition_template/applicability_context/operand_roles",
+      "surface_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-falsifier-subject",
+      "profile_json_pointer": "/claim_patterns/3/falsifying_proposition_template/subject_role",
+      "surface_digest": "73fa84a3280710b5b34a15c6a5233e7852e53f5c1c254c0b5ae47af9f5e76bba",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-falsifier-operator",
+      "profile_json_pointer": "/claim_patterns/3/falsifying_proposition_template/operator",
+      "surface_digest": "3618c5e602a4f2481226ab20149c53f3b5d1b5b46a45d6c415e6b9e7aec211fb",
+      "reason": "redundant_with_covered_semantic_surface"
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-falsifier-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/3/falsifying_proposition_template/applicability_context/mode",
+      "surface_digest": "7f865398c3aa35d174a19541529592f65d157e4fff787b539b0ba8fb1ddb9acb",
+      "reason": "redundant_with_covered_semantic_surface"
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-falsifier-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/3/falsifying_proposition_template/applicability_context/operand_roles",
+      "surface_digest": "cd2321ad2bc73aad190441baa20be11748efcda02672d01220e65c49a09360e4",
+      "reason": "redundant_with_covered_semantic_surface"
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-falsifier-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/3/falsifying_proposition_template/operands/0/role",
+      "surface_digest": "073171f7f5e1438ae632cb252bda87d19e1bfab1a0ba309e91bdd645886f24ea",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-target-has-source-of-record-required-stage",
+      "profile_json_pointer": "/claim_patterns/4/required_by_stage",
+      "surface_digest": "66e56266954a1de7c410bd86ab42b2554c0a5360ff80d14d893d5904d857db7b",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-target-has-source-of-record-claim-kind",
+      "profile_json_pointer": "/claim_patterns/4/claim_kind",
+      "surface_digest": "e3e7d3b58414410f3ab29fb1aea29166c439eb702757e2cfc85f3350aae41cee",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-target-has-source-of-record-proposition-subject",
+      "profile_json_pointer": "/claim_patterns/4/proposition_template/subject_role",
+      "surface_digest": "aa962f43aa13b734bd1704f05204720de1c69a6c1a3969fd131c78c6240e7f57",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-target-has-source-of-record-proposition-operator",
+      "profile_json_pointer": "/claim_patterns/4/proposition_template/operator",
+      "surface_digest": "47c912624c4f6660e65561596069a26ac84c0dfc890ae8117c5c3dadc21494f3",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-target-has-source-of-record-proposition-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/4/proposition_template/applicability_context/mode",
+      "surface_digest": "7f865398c3aa35d174a19541529592f65d157e4fff787b539b0ba8fb1ddb9acb",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-target-has-source-of-record-proposition-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/4/proposition_template/applicability_context/operand_roles",
+      "surface_digest": "cd2321ad2bc73aad190441baa20be11748efcda02672d01220e65c49a09360e4",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-target-has-source-of-record-proposition-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/4/proposition_template/operands/0/role",
+      "surface_digest": "073171f7f5e1438ae632cb252bda87d19e1bfab1a0ba309e91bdd645886f24ea",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-required-stage",
+      "profile_json_pointer": "/claim_patterns/5/required_by_stage",
+      "surface_digest": "66e56266954a1de7c410bd86ab42b2554c0a5360ff80d14d893d5904d857db7b",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-claim-kind",
+      "profile_json_pointer": "/claim_patterns/5/claim_kind",
+      "surface_digest": "0f43e98303a5e069bb169ccda8d8ca2c1dd70948ab41491b77e7df6b167456e8",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-proposition-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/5/proposition_template/applicability_context/mode",
+      "surface_digest": "8384463b72b5885d6b22cd54f6e43e6222d661bf2a8d7b8f0506db98ce3379af",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-proposition-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/5/proposition_template/applicability_context/operand_roles",
+      "surface_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-falsifier-subject",
+      "profile_json_pointer": "/claim_patterns/5/falsifying_proposition_template/subject_role",
+      "surface_digest": "aa962f43aa13b734bd1704f05204720de1c69a6c1a3969fd131c78c6240e7f57",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-falsifier-operator",
+      "profile_json_pointer": "/claim_patterns/5/falsifying_proposition_template/operator",
+      "surface_digest": "f25a201356bf6f7c8bef382dd3b5aedd5d95611c3346dbffb7c4c20f032f3a81",
+      "reason": "redundant_with_covered_semantic_surface"
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-falsifier-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/5/falsifying_proposition_template/applicability_context/mode",
+      "surface_digest": "7f865398c3aa35d174a19541529592f65d157e4fff787b539b0ba8fb1ddb9acb",
+      "reason": "redundant_with_covered_semantic_surface"
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-falsifier-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/5/falsifying_proposition_template/applicability_context/operand_roles",
+      "surface_digest": "cd2321ad2bc73aad190441baa20be11748efcda02672d01220e65c49a09360e4",
+      "reason": "redundant_with_covered_semantic_surface"
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-falsifier-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/5/falsifying_proposition_template/operands/0/role",
+      "surface_digest": "073171f7f5e1438ae632cb252bda87d19e1bfab1a0ba309e91bdd645886f24ea",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-evidence-observed-in-attempt-required-stage",
+      "profile_json_pointer": "/claim_patterns/6/required_by_stage",
+      "surface_digest": "66e56266954a1de7c410bd86ab42b2554c0a5360ff80d14d893d5904d857db7b",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-evidence-observed-in-attempt-claim-kind",
+      "profile_json_pointer": "/claim_patterns/6/claim_kind",
+      "surface_digest": "e3e7d3b58414410f3ab29fb1aea29166c439eb702757e2cfc85f3350aae41cee",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-evidence-observed-in-attempt-proposition-subject",
+      "profile_json_pointer": "/claim_patterns/6/proposition_template/subject_role",
+      "surface_digest": "73fa84a3280710b5b34a15c6a5233e7852e53f5c1c254c0b5ae47af9f5e76bba",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-evidence-observed-in-attempt-proposition-operator",
+      "profile_json_pointer": "/claim_patterns/6/proposition_template/operator",
+      "surface_digest": "422932bc085c4a59a45c32befffb38ad189ea2d32c3547b80f7fe853640722ca",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-evidence-observed-in-attempt-proposition-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/6/proposition_template/applicability_context/mode",
+      "surface_digest": "8384463b72b5885d6b22cd54f6e43e6222d661bf2a8d7b8f0506db98ce3379af",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-evidence-observed-in-attempt-proposition-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/6/proposition_template/applicability_context/operand_roles",
+      "surface_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-evidence-observed-in-attempt-proposition-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/6/proposition_template/operands/0/role",
+      "surface_digest": "e1a7cbedc576614e43eacbda7c817216f8b6e836a9b0c26b3f9d97eed7a18de0",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-required-stage",
+      "profile_json_pointer": "/claim_patterns/7/required_by_stage",
+      "surface_digest": "66e56266954a1de7c410bd86ab42b2554c0a5360ff80d14d893d5904d857db7b",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-claim-kind",
+      "profile_json_pointer": "/claim_patterns/7/claim_kind",
+      "surface_digest": "0f43e98303a5e069bb169ccda8d8ca2c1dd70948ab41491b77e7df6b167456e8",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-proposition-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/7/proposition_template/applicability_context/mode",
+      "surface_digest": "8384463b72b5885d6b22cd54f6e43e6222d661bf2a8d7b8f0506db98ce3379af",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-proposition-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/7/proposition_template/applicability_context/operand_roles",
+      "surface_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-falsifier-subject",
+      "profile_json_pointer": "/claim_patterns/7/falsifying_proposition_template/subject_role",
+      "surface_digest": "73fa84a3280710b5b34a15c6a5233e7852e53f5c1c254c0b5ae47af9f5e76bba",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-falsifier-operator",
+      "profile_json_pointer": "/claim_patterns/7/falsifying_proposition_template/operator",
+      "surface_digest": "27060d7da13774691978817eb4e67c5191d476e9eefab243dbc4afc86700bf46",
+      "reason": "redundant_with_covered_semantic_surface"
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-falsifier-applicability-mode",
+      "profile_json_pointer": "/claim_patterns/7/falsifying_proposition_template/applicability_context/mode",
+      "surface_digest": "8384463b72b5885d6b22cd54f6e43e6222d661bf2a8d7b8f0506db98ce3379af",
+      "reason": "redundant_with_covered_semantic_surface"
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-falsifier-applicability-operands",
+      "profile_json_pointer": "/claim_patterns/7/falsifying_proposition_template/applicability_context/operand_roles",
+      "surface_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reason": "redundant_with_covered_semantic_surface"
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-falsifier-operand-0-role",
+      "profile_json_pointer": "/claim_patterns/7/falsifying_proposition_template/operands/0/role",
+      "surface_digest": "e1a7cbedc576614e43eacbda7c817216f8b6e836a9b0c26b3f9d97eed7a18de0",
+      "reason": "independent_alternatives_schema_or_semantics_invalid"
+    }
+  ]
+}

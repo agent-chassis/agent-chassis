@@ -141,7 +141,12 @@ export function mapCodexArtifactsFailureToInProcessRefusal(failure) {
     case "ensure_write_roots_threw":
       return makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START, "ensure_new_worker_write_roots_failed", { message });
     case "build_bwrap_plan_isolation":
-      return makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_REFUSED, "bubblewrap_plan_refused", { code: err.code, message: err.message });
+
+      return makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_REFUSED, "bubblewrap_plan_refused", {
+        code: err.code,
+        message: err.message,
+        ...(err.detail ? { detail: err.detail } : {})
+      });
     case "build_bwrap_plan_threw":
       return makeRefusal(BACKEND_REFUSAL_CODES.LAUNCH_FAILED_BEFORE_START, "build_bwrap_plan_threw", { message });
     case "assert_bwrap_isolation":

@@ -1,7 +1,4 @@
-import { createHash } from "node:crypto";
-
-import Ajv2020 from "ajv/dist/2020.js";
-
+import { compiledValidators } from "./compiled-validator-cache.mjs";
 import {
   CONTROLLED_VOCABULARY,
   VOCABULARY_DIGESTS
@@ -16,16 +13,19 @@ import {
   VERIFICATION_PROFILE_EVALUATION_INPUT_SCHEMA,
   VERIFICATION_PROFILE_RESULT_SCHEMA,
   VERIFICATION_PROFILE_SCHEMA,
-  evaluateVerificationProfileWithRuntime,
-  validateProfileSemantics
+  evaluateVerificationProfileWithRuntime
 } from "./verification-profile.mjs";
+import { createExpandedProfileSemanticValidator } from
+  "./verification-profile-expanded-semantics.mjs";
 import {
   deriveVocabularySchemaProjection
 } from "./vocabulary-v034.mjs";
 import {
+  buildScopedEquality,
   evaluateCompletePopulationBinding,
   referencesEquivalent
 } from "./population-semantics-v034.mjs";
+import { profileDigest } from "./profile-digest.mjs";
 
 const PROFILE_SCHEMA_VERSION_V034 =
   "controlled-contract-verification-profile.experimental.v0.2";
@@ -35,28 +35,16 @@ const RESULT_VERSION_V034 =
   "controlled-contract-verification-profile-result.experimental.v0.2";
 
 const projection = deriveVocabularySchemaProjection();
+const validateProfileSemanticsV034 = createExpandedProfileSemanticValidator({
+  controlledVocabulary: CONTROLLED_VOCABULARY,
+  vocabularyProjection: projection
+});
 const identityKinds = NATIVE_CONTRACT_SCHEMA_V034.$defs.reference.properties.identity.oneOf
   .flatMap((branch) => branch.properties.kind.enum);
-const operatorByTerm = new Map(
-  CONTROLLED_VOCABULARY.operators.map((operator) => [operator.term, operator])
-);
-
 function compareCodeUnits(left, right) {
   const leftString = String(left);
   const rightString = String(right);
   return leftString < rightString ? -1 : leftString > rightString ? 1 : 0;
-}
-
-function canonicalValue(value) {
-  if (Array.isArray(value)) return value.map(canonicalValue);
-  if (value && typeof value === "object") return Object.fromEntries(
-    Object.keys(value).sort(compareCodeUnits).map((key) => [key, canonicalValue(value[key])])
-  );
-  return value;
-}
-
-function canonical(value) {
-  return JSON.stringify(canonicalValue(value));
 }
 
 function arrayCardinalitySchema(cardinality) {
@@ -124,6 +112,28 @@ function buildVerificationProfileSchemaV034() {
     "vocabulary_complete_digest",
     "falsifier_condition_bindings"
   );
+  schema.properties.binding_constraint_patterns = {
+    type: "array",
+    items: {
+      type: "object",
+      required: ["pattern_id", "required_by_stage", "role_kind", "role"],
+      additionalProperties: false,
+      properties: {
+        pattern_id: { type: "string", pattern: "^[a-z][a-z0-9-]*$" },
+        required_by_stage: { type: "string", enum: ["pre_dispatch", "post_delivery"] },
+        role_kind: { type: "string", enum: ["reference", "number"] },
+        role: { type: "string", pattern: "^[a-z][a-z0-9_]*$" },
+        minimum: { type: "integer", minimum: 0 },
+        maximum: { type: "integer", minimum: 0 },
+        binding_presence: { type: "string", enum: ["required", "forbidden"] }
+      },
+      anyOf: [
+        { required: ["minimum"], properties: { minimum: true } },
+        { required: ["maximum"], properties: { maximum: true } },
+        { required: ["binding_presence"], properties: { binding_presence: true } }
+      ]
+    }
+  };
   schema.properties.schema_version.enum = [PROFILE_SCHEMA_VERSION_V034];
   schema.properties.contract_schema_version = {
     type: "string",
@@ -162,7 +172,70 @@ function buildVerificationProfileSchemaV034() {
       }
     }
   };
+  const referenceJoinPositions = [
+    "subject", "reference_operand", "applicability_operand"
+  ];
+  schema.properties.falsifier_occurrence_bindings = {
+    type: "array",
+    items: {
+      type: "object",
+      required: [
+        "relation_pattern_id", "reference_role_joins", "number_role_joins",
+        "applicability_join"
+      ],
+      additionalProperties: false,
+      properties: {
+        relation_pattern_id: { type: "string", pattern: "^[a-z][a-z0-9-]*$" },
+        reference_role_joins: {
+          type: "array",
+          minItems: 1,
+          items: {
+            type: "object",
+            required: [
+              "role", "target_positions", "verification_positions",
+              "falsifier_positions"
+            ],
+            additionalProperties: false,
+            properties: {
+              role: { type: "string", pattern: "^[a-z][a-z0-9_]*$" },
+              target_positions: {
+                type: "array", uniqueItems: true,
+                items: { type: "string", enum: referenceJoinPositions }
+              },
+              verification_positions: {
+                type: "array", minItems: 1, uniqueItems: true,
+                items: { type: "string", enum: referenceJoinPositions }
+              },
+              falsifier_positions: {
+                type: "array", uniqueItems: true,
+                items: { type: "string", enum: referenceJoinPositions }
+              }
+            }
+          }
+        },
+        number_role_joins: {
+          type: "array",
+          items: {
+            type: "object",
+            required: ["role"],
+            additionalProperties: false,
+            properties: {
+              role: { type: "string", pattern: "^[a-z][a-z0-9_]*$" }
+            }
+          }
+        },
+        applicability_join: {
+          type: "string",
+          enum: ["exact_scope", "shared_operands"]
+        }
+      }
+    }
+  };
   schema.properties.reference_role_count_bindings = {
+    description:
+      "Binds a reference-role cardinality to an integer number role. The number role may " +
+      "be exactly_one or zero_or_one; when optional, branch-local binding constraints " +
+      "select whether it is required or forbidden.",
     type: "array",
     uniqueItems: true,
     items: {
@@ -207,6 +280,15 @@ function buildVerificationProfileSchemaV034() {
     uniqueItems: true,
     items: { type: "string", enum: [...identityKinds] }
   };
+  schema.properties.distinct_reference_role_sets.items.properties.applicability_contexts = {
+    description:
+      "Optional exact applicability scopes in which equality-normalized role " +
+      "distinctness is required in addition to unconditional distinctness.",
+    type: "array",
+    minItems: 1,
+    uniqueItems: true,
+    items: buildTemplateApplicabilitySchema()
+  };
   const claimPattern = schema.properties.claim_patterns.items;
   claimPattern.properties.for_each = {
     type: "object",
@@ -214,8 +296,105 @@ function buildVerificationProfileSchemaV034() {
     additionalProperties: false,
     properties: {
       population_role: { type: "string", pattern: "^[a-z][a-z0-9_]*$" },
-      member_role: { type: "string", pattern: "^[a-z][a-z0-9_]*$" }
-    }
+      member_role: { type: "string", pattern: "^[a-z][a-z0-9_]*$" },
+      complete_population_pattern_id: {
+        type: "string", pattern: "^[a-z][a-z0-9-]*$"
+      },
+      quantifier: { type: "string", enum: ["universal"] },
+      empty_behavior: { type: "string", enum: ["vacuously_satisfied"] },
+      association_bindings: {
+        type: "array",
+        minItems: 1,
+        items: {
+          type: "object",
+          required: [
+            "associated_role", "operator", "member_position",
+            "associated_position", "applicability_context",
+            "complete_population_pattern_id"
+          ],
+          additionalProperties: false,
+          properties: {
+            associated_role: {
+              type: "string", pattern: "^[a-z][a-z0-9_]*$"
+            },
+            operator: {
+              type: "string",
+              enum: projection.proposition_branches
+                .filter(({ operand_kind: operandKind }) =>
+                  operandKind === "reference"
+                )
+                .flatMap(({ operator_terms: operatorTerms }) => operatorTerms)
+            },
+            member_position: {
+              type: "string", enum: ["subject", "reference_operand"]
+            },
+            associated_position: {
+              type: "string", enum: ["subject", "reference_operand"]
+            },
+            applicability_context: buildTemplateApplicabilitySchema(),
+            complete_population_pattern_id: {
+              type: "string", pattern: "^[a-z][a-z0-9-]*$"
+            },
+            associated_cardinality: {
+              type: "string", enum: ["exactly_one", "one_or_more"]
+            }
+          },
+          oneOf: [
+            {
+              properties: {
+                member_position: { const: "subject" },
+                associated_position: { const: "reference_operand" }
+              }
+            },
+            {
+              properties: {
+                member_position: { const: "reference_operand" },
+                associated_position: { const: "subject" }
+              }
+            }
+          ]
+        }
+      }
+    },
+    allOf: [{
+      if: {
+        anyOf: [
+          {
+            required: ["complete_population_pattern_id"],
+            properties: { complete_population_pattern_id: true }
+          },
+          { required: ["quantifier"], properties: { quantifier: true } },
+          {
+            required: ["empty_behavior"],
+            properties: { empty_behavior: true }
+          }
+        ]
+      },
+      then: {
+        required: [
+          "quantifier", "empty_behavior"
+        ],
+        properties: {
+          complete_population_pattern_id: true,
+          quantifier: true,
+          empty_behavior: true
+        }
+      }
+    }, {
+      if: {
+        required: ["association_bindings"],
+        properties: { association_bindings: true }
+      },
+      then: {
+        required: [
+          "quantifier", "empty_behavior"
+        ],
+        properties: {
+          quantifier: { const: "universal" },
+          empty_behavior: { const: "vacuously_satisfied" }
+        }
+      }
+    }]
   };
   claimPattern.properties.proposition_template = buildPropositionTemplateSchema(
     claimPattern.properties.proposition_template
@@ -224,6 +403,12 @@ function buildVerificationProfileSchemaV034() {
     buildPropositionTemplateSchema(
       claimPattern.properties.falsifying_proposition_template
     );
+  const expression = schema.$defs.satisfaction_expression;
+  const anyOfBranch = expression.oneOf.find((branch) => branch.properties?.any_of);
+  anyOfBranch.properties.branch_cardinality = {
+    type: "string",
+    enum: ["exactly_one"]
+  };
   return schema;
 }
 
@@ -281,6 +466,9 @@ function buildResultSchemaV034() {
       adequacy_attested: { type: "boolean", enum: [false] }
     }
   };
+  schema.properties.pattern_results.items.properties.pattern_kind.enum.push(
+    "binding_constraint"
+  );
   return schema;
 }
 
@@ -289,293 +477,21 @@ const VERIFICATION_PROFILE_EVALUATION_INPUT_SCHEMA_V034 =
   buildEvaluationInputSchemaV034();
 const VERIFICATION_PROFILE_RESULT_SCHEMA_V034 = buildResultSchemaV034();
 
-const ajv = new Ajv2020({ strict: true, allErrors: true });
-const validateProfileSchemaV034 = ajv.compile(VERIFICATION_PROFILE_SCHEMA_V034);
-const validateEvaluationInputSchemaV034 = ajv.compile(
-  VERIFICATION_PROFILE_EVALUATION_INPUT_SCHEMA_V034
-);
-const validateResultSchemaV034 = ajv.compile(VERIFICATION_PROFILE_RESULT_SCHEMA_V034);
-
-function templatesHaveComplementaryOperands(targetTemplate, falsifierTemplate, complement) {
-  if (complement.kind === "operator") {
-    return falsifierTemplate.operator === complement.term &&
-      canonical(falsifierTemplate.operands) === canonical(targetTemplate.operands);
+const {
+  validateProfileSchemaV034,
+  validateEvaluationInputSchemaV034,
+  validateResultSchemaV034
+} = await compiledValidators("controlled-contract.verification-profile.v034", {
+  validators: {
+    validateProfileSchemaV034: VERIFICATION_PROFILE_SCHEMA_V034,
+    validateEvaluationInputSchemaV034: VERIFICATION_PROFILE_EVALUATION_INPUT_SCHEMA_V034,
+    validateResultSchemaV034: VERIFICATION_PROFILE_RESULT_SCHEMA_V034
   }
-  if (complement.kind !== "operand_transform" ||
-      complement.transform !== "boolean_negation" ||
-      targetTemplate.operator !== falsifierTemplate.operator ||
-      targetTemplate.operands.length !== 1 || falsifierTemplate.operands.length !== 1) {
-    return false;
-  }
-  const targetOperand = targetTemplate.operands[0];
-  const falsifierOperand = falsifierTemplate.operands[0];
-  return targetOperand.kind === "boolean" && falsifierOperand.kind === "boolean" &&
-    targetOperand.value === !falsifierOperand.value;
-}
-
-const negativeModalities = new Set(["MUST_NOT", "SHOULD_NOT"]);
-
-function falsifierModeForTarget(targetPattern) {
-  const polarities = new Set(targetPattern.allowed_modalities.map((modality) =>
-    negativeModalities.has(modality) ? "negative" : "positive"
-  ));
-  if (polarities.size !== 1) return "mixed";
-  return polarities.has("negative") ? "positive_proposition" : "controlled_complement";
-}
-
-function templatesMatchPositiveProposition(targetTemplate, falsifierTemplate) {
-  return targetTemplate.operator === falsifierTemplate.operator &&
-    canonical(targetTemplate.operands) === canonical(falsifierTemplate.operands);
-}
-
-function validateControlledComplementPolicy(profile) {
-  if (profile.verification_falsifier_policy !== "controlled_complement_per_target") {
-    return [];
-  }
-  const diagnostics = [];
-  const claimPatternById = new Map(
-    profile.claim_patterns.map((pattern) => [pattern.pattern_id, pattern])
-  );
-  const verifiesPatterns = profile.relation_patterns.filter(({ role }) => role === "verifies");
-  const conditionBindings = new Map();
-  for (const binding of profile.falsifier_condition_bindings ?? []) {
-    if (conditionBindings.has(binding.relation_pattern_id)) diagnostics.push({
-      code: "profile_falsifier_condition_binding_duplicate",
-      relation_pattern_id: binding.relation_pattern_id
-    });
-    conditionBindings.set(binding.relation_pattern_id, binding.applicability_context);
-  }
-  const targetedBehaviorPatternIds = new Set();
-  const targetingVerificationPatternIds = new Set();
-  for (const relation of verifiesPatterns) {
-    const source = claimPatternById.get(relation.source_claim_pattern_id);
-    const target = claimPatternById.get(relation.target_claim_pattern_id);
-    if (!source || !target) continue;
-    targetingVerificationPatternIds.add(source.pattern_id);
-    targetedBehaviorPatternIds.add(target.pattern_id);
-    const falsifier = source.falsifying_proposition_template;
-    const targetTemplate = target.proposition_template;
-    const complement = operatorByTerm.get(targetTemplate.operator)?.controlled_complement ?? {
-      kind: "none"
-    };
-    const falsifierMode = falsifierModeForTarget(target);
-    const reasons = [];
-    const conditionBinding = conditionBindings.get(relation.pattern_id);
-    if (source.claim_kind !== "verification") reasons.push("source_is_not_verification");
-    if (target.claim_kind !== "behavior") reasons.push("target_is_not_behavior");
-    if (!falsifier) reasons.push("source_has_no_falsifier");
-    if (falsifierMode === "mixed") reasons.push(
-      "target_modalities_mix_positive_and_negative"
-    );
-    if (falsifierMode === "controlled_complement") {
-      if (complement.kind === "none") reasons.push("target_has_no_controlled_complement");
-      if (falsifier && complement.kind !== "none" &&
-          !templatesHaveComplementaryOperands(targetTemplate, falsifier, complement)) {
-        reasons.push("proposition_is_not_controlled_complement");
-      }
-    }
-    if (falsifierMode === "positive_proposition" && falsifier &&
-        !templatesMatchPositiveProposition(targetTemplate, falsifier)) {
-      reasons.push("proposition_is_not_positive_form_of_negative_behavior");
-    }
-    if (falsifier && falsifier.subject_role !== targetTemplate.subject_role) {
-      reasons.push("subject_role_differs");
-    }
-    if (!conditionBinding) reasons.push("falsifier_condition_binding_missing");
-    else if (falsifier && canonical(falsifier.applicability_context) !==
-        canonical(conditionBinding)) reasons.push("falsifier_condition_differs");
-    if (reasons.length > 0) diagnostics.push({
-      code: "profile_verification_falsifier_not_complementary",
-      pattern_id: relation.pattern_id,
-      source_claim_pattern_id: relation.source_claim_pattern_id,
-      target_claim_pattern_id: relation.target_claim_pattern_id,
-      reasons
-    });
-  }
-  for (const relationPatternId of conditionBindings.keys()) {
-    if (!verifiesPatterns.some(({ pattern_id: patternId }) =>
-      patternId === relationPatternId
-    )) diagnostics.push({
-      code: "profile_falsifier_condition_binding_dangling",
-      relation_pattern_id: relationPatternId
-    });
-  }
-  for (const pattern of profile.claim_patterns) {
-    if (pattern.claim_kind === "verification" &&
-        !targetingVerificationPatternIds.has(pattern.pattern_id)) diagnostics.push({
-      code: "profile_verification_pattern_without_target",
-      pattern_id: pattern.pattern_id
-    });
-    if (pattern.claim_kind === "behavior" &&
-        !targetedBehaviorPatternIds.has(pattern.pattern_id)) diagnostics.push({
-      code: "profile_behavior_pattern_without_verification",
-      pattern_id: pattern.pattern_id
-    });
-  }
-  return diagnostics;
-}
-
-const roleCardinalityIntervals = Object.freeze({
-  exactly_one: { minimum: 1, maximum: 1 },
-  one_or_more: { minimum: 1, maximum: null },
-  zero_or_one: { minimum: 0, maximum: 1 },
-  zero_or_more: { minimum: 0, maximum: null }
 });
 
-function addMaximum(left, right) {
-  return left === null || right === null ? null : left + right;
-}
-
-function expansionInterval(referenceRoles, numberRoles, roleById, numberRoleById,
-  literalCount = 0, localReferenceRole = null) {
-  let minimum = literalCount;
-  let maximum = literalCount;
-  for (const role of referenceRoles) {
-    const interval = role === localReferenceRole
-      ? roleCardinalityIntervals.exactly_one
-      : roleCardinalityIntervals[roleById.get(role)?.cardinality];
-    if (!interval) continue;
-    minimum += interval.minimum;
-    maximum = addMaximum(maximum, interval.maximum);
-  }
-  for (const role of numberRoles) {
-    const interval = roleCardinalityIntervals[numberRoleById.get(role)?.cardinality];
-    if (!interval) continue;
-    minimum += interval.minimum;
-    maximum = addMaximum(maximum, interval.maximum);
-  }
-  return { minimum, maximum };
-}
-
-function intervalFits(actual, required) {
-  return actual.minimum >= required.minimum &&
-    (required.maximum === null ||
-      (actual.maximum !== null && actual.maximum <= required.maximum));
-}
-
-function validateRoleExpansionCardinality(profile) {
-  const diagnostics = [];
-  const roleById = new Map(profile.reference_roles.map((role) => [role.role, role]));
-  const numberRoleById = new Map(
-    (profile.number_roles ?? []).map((role) => [role.role, role])
-  );
-  const applicabilityByMode = new Map(
-    projection.applicability_mode_branches.map((branch) => [branch.mode, branch])
-  );
-  for (const pattern of profile.claim_patterns) {
-    for (const [templateKind, template] of [
-      ["proposition", pattern.proposition_template],
-      ["falsifier", pattern.falsifying_proposition_template]
-    ]) {
-      if (!template) continue;
-      const applicabilityRequired = applicabilityByMode.get(
-        template.applicability_context.mode
-      )?.context_reference_cardinality;
-      if (applicabilityRequired) {
-        const actual = expansionInterval(
-          template.applicability_context.operand_roles,
-          [], roleById, numberRoleById, 0, pattern.for_each?.member_role ?? null
-        );
-        if (!intervalFits(actual, applicabilityRequired)) diagnostics.push({
-          code: "profile_operator_position_cardinality_incompatible",
-          pattern_id: pattern.pattern_id,
-          template_kind: templateKind,
-          position: "applicability_context",
-          operator: template.operator,
-          applicability_mode: template.applicability_context.mode,
-          roles: [...template.applicability_context.operand_roles],
-          expansion_cardinality: actual,
-          required_cardinality: applicabilityRequired
-        });
-      }
-      const signature = projection.operator_signatures[template.operator];
-      if (!signature) continue;
-      const referenceRoles = template.operands
-        .filter(({ kind }) => kind === "reference")
-        .map(({ role }) => role);
-      const numberRoles = template.operands
-        .filter(({ kind, value_role: valueRole }) => kind === "number" && valueRole)
-        .map(({ value_role: valueRole }) => valueRole);
-      const literalCount = template.operands.filter(({ kind, value_role: valueRole }) =>
-        kind !== "reference" && !(kind === "number" && valueRole)
-      ).length;
-      const actual = expansionInterval(
-        referenceRoles, numberRoles, roleById, numberRoleById, literalCount,
-        pattern.for_each?.member_role ?? null
-      );
-      if (!intervalFits(actual, signature.operand_cardinality)) diagnostics.push({
-        code: "profile_operator_position_cardinality_incompatible",
-        pattern_id: pattern.pattern_id,
-        template_kind: templateKind,
-        position: "operands",
-        operator: template.operator,
-        reference_roles: referenceRoles,
-        number_roles: numberRoles,
-        literal_operand_count: literalCount,
-        expansion_cardinality: actual,
-        required_cardinality: signature.operand_cardinality
-      });
-    }
-  }
-  return diagnostics;
-}
-
-function validateProfileSemanticsV034(profile) {
-  const profileWithoutLegacyComplementPolicy = structuredClone(profile);
-  delete profileWithoutLegacyComplementPolicy.verification_falsifier_policy;
-  const diagnostics = [
-    ...validateProfileSemantics(profileWithoutLegacyComplementPolicy),
-    ...validateControlledComplementPolicy(profile),
-    ...validateRoleExpansionCardinality(profile)
-  ];
-  const completePopulationPatterns = (profile.reference_binding_patterns ?? [])
-    .filter(({ comparison }) => comparison === "complete_population");
-  for (const pattern of profile.claim_patterns ?? []) {
-    const iterationPopulationBindingCount = pattern.for_each
-      ? completePopulationPatterns.filter(({ roles }) =>
-        roles[1] === pattern.for_each.population_role
-      ).length
-      : 0;
-    if (pattern.for_each && iterationPopulationBindingCount !== 1) diagnostics.push({
-      code: "profile_for_each_population_not_complete_bound",
-      pattern_id: pattern.pattern_id,
-      population_role: pattern.for_each.population_role,
-      complete_binding_count: iterationPopulationBindingCount
-    });
-    for (const [templateField, template] of [
-      ["proposition_template", pattern.proposition_template],
-      ["falsifying_proposition_template", pattern.falsifying_proposition_template]
-    ]) {
-      if (!template || !["reference:subset_of", "reference:not_subset_of"].includes(
-        template.operator
-      )) continue;
-      const populationRoles = [
-        template.subject_role,
-        ...template.operands
-          .filter(({ kind }) => kind === "reference")
-          .map(({ role }) => role)
-      ];
-      for (const role of populationRoles) {
-        const completeBindingCount = completePopulationPatterns.filter(
-          ({ roles }) => roles[0] === role
-        ).length;
-        if (completeBindingCount !== 1) diagnostics.push({
-          code: "profile_population_relation_role_not_complete_bound",
-          pattern_id: pattern.pattern_id,
-          template_field: templateField,
-          role,
-          complete_binding_count: completeBindingCount
-        });
-      }
-    }
-  }
-  return diagnostics.sort((left, right) =>
-    compareCodeUnits(canonical(left), canonical(right))
-  );
-}
 
 function profileDigestV034(profile) {
-  return createHash("sha256").update(canonical(profile)).digest("hex");
+  return profileDigest(profile);
 }
 
 function enrichResultV034(result, profile) {
@@ -602,8 +518,9 @@ function enrichResultV034(result, profile) {
   return enriched;
 }
 
-function evaluateVerificationProfileV034(payload) {
+function evaluateVerificationProfileV034(payload, { graphSelectionSink = null } = {}) {
   const result = evaluateVerificationProfileWithRuntime(payload, {
+    graphSelectionSink,
     validateProfile: validateProfileSchemaV034,
     validateProfileSemanticsForRuntime: validateProfileSemanticsV034,
     validateEvaluationInput: validateEvaluationInputSchemaV034,
@@ -611,7 +528,14 @@ function evaluateVerificationProfileV034(payload) {
     purposeMatchedCollectionsAreCandidates: true,
     completePopulationBindingEvaluator: evaluateCompletePopulationBinding,
     referencesEquivalent: (contract, left, right, applicabilityContext) =>
-      referencesEquivalent(contract, left, right, applicabilityContext)
+      referencesEquivalent(contract, left, right, applicabilityContext),
+    normalizeReference: (contract, referenceId, applicabilityContext) =>
+      buildScopedEquality(contract, applicabilityContext).canonicalize(referenceId),
+    allowIteratedRelations: true,
+    allowIteratedCollections: true,
+    allowBindingPresenceConstraints: true,
+    globalRequiredBindingsAffectSatisfaction: true,
+    validateRuntimeResult: () => true
   });
   return enrichResultV034(result, payload.profile);
 }

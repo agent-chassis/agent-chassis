@@ -1,28 +1,15 @@
 
 
-import path from "node:path";
+import { createHash } from "node:crypto";
 import {
+  reconcileIntegratedSliceRecord,
   recoverZeroDeltaIntegratedSlice,
   resolveAuthenticatedExactSliceDeliveryBase,
   SliceIntegrationError
 } from "./slice-integration.mjs";
-import { isPlainObject } from "./backend-review-identity.mjs";
-import { EXACT_IMPLEMENTATION_SLICE_RE } from "./backend-constants.mjs";
 import {
-  deepFreezeCanonicalSnapshot,
-  groupTrustedReviewReceiptsByReviewedIdentity,
-  resolveCanonicalIntegratedSliceState,
-  resolveCanonicalSliceReviewUnit,
-  verifyFrozenSliceReviewTargetAgainstObjectStore,
-  resolveCanonicalSliceIntegrationUnit,
-  resolveFrozenSliceReviewReceiptContract
+  resolveCanonicalSliceIntegrationUnit
 } from "./backend-scope-authority.mjs";
-import {
-  digestTrustedExactReviewEvidence,
-  EXACT_SLICE_REVIEW_RECEIPT_SCHEMA_VERSION_V3,
-  validateExactSliceReviewReceipt,
-  receiptCarriesUsableReviewVerdict
-} from "./workspace-agent-dispatch-run-receipt.mjs";
 import {
   resolveUniqueManagedLifecycleBindingPairForRecovery
 } from "./worktree-substrate-identity.mjs";
@@ -33,21 +20,6 @@ export const AUTHENTICATED_INTEGRATION_CONTINUATION = Symbol(
 
 export const INTEGRATION_CONTINUATION_DIAGNOSTIC_CODE =
   "agent_launch.slice_integration.continuation_authority_refused.v1";
-
-const CANONICAL_CONTINUATION_REFUSAL_MESSAGES = new Set([
-  "exact slice review receipt frozen contract is not valid JSON",
-  "exact slice review receipt frozen contract is not a pre-integration review unit",
-  "exact slice review receipt parent and slice contracts disagree",
-  "canonical integrated contract projection is not a work record",
-  "canonical integrated contract projection carries no slices",
-  "canonical integrated slice is absent from the frozen receipt contract",
-  "integrated slice subject is not canonical",
-  "canonical integrated slice identity is unavailable",
-  "canonical corrective integrated slice state is inconsistent",
-  "canonical final integrated slice state is inconsistent",
-  "canonical non-final integrated slice state is inconsistent",
-  "canonical integrated state changed beyond the permitted lifecycle transition"
-]);
 
 export function continuationRefusal(reason, detail = null, cause = null) {
   throw new SliceIntegrationError(
@@ -66,6 +38,64 @@ function normalizedBranchRef(value) {
     : `refs/heads/${value ?? ""}`;
 }
 
+const SHA256_DIGEST_RE = /^sha256:[0-9a-f]{64}$/u;
+
+async function readPersistedGeneration({ runGit, repo, wkRef, expected }) {
+  const listing = await runGit({
+    repo,
+    args: ["ls-tree", "-r", "--full-tree", "--format=%(objectname) %(path)", wkRef,
+      "--", "wiki/contracts/.carrier-generations"]
+  });
+  if (listing?.ok !== true) continuationRefusal("controlled_contract_generation_unavailable");
+  const entries = String(listing.stdout ?? "").trim().split("\n").filter(Boolean)
+    .map((line) => {
+      const separator = line.indexOf(" ");
+      return separator < 1 ? null : { oid: line.slice(0, separator), path: line.slice(separator + 1) };
+    });
+  if (entries.some((entry) => entry === null)) {
+    continuationRefusal("controlled_contract_generation_malformed");
+  }
+  const expectedPath = expected?.path ?? expected?.generation_path ??
+    (expected?.id ? `.carrier-generations/${expected.id}` : null);
+  const manifests = entries.filter((entry) => /\/manifest\.json$/u.test(entry.path) &&
+    (expectedPath === null || entry.path === `wiki/contracts/${expectedPath}/manifest.json`));
+  if (manifests.length === 0) {
+    const absent = Object.freeze({ state: "absent", digest: "controlled-contract-generation:none",
+      carrier_count: 0, manifest_digest: null });
+    if (expected !== undefined && JSON.stringify({ state: expected.state ?? "absent", digest: expected.digest,
+      carrier_count: expected.carrier_count, manifest_digest: expected.manifest_digest }) !==
+      JSON.stringify(absent)) {
+      continuationRefusal("controlled_contract_generation_stale");
+    }
+    return absent;
+  }
+  if (manifests.length !== 1) continuationRefusal("controlled_contract_generation_malformed");
+  const manifest = await runGit({ repo, args: ["cat-file", "blob", manifests[0].oid] });
+  if (manifest?.ok !== true) continuationRefusal("controlled_contract_generation_unavailable");
+  let parsed;
+  try { parsed = JSON.parse(String(manifest.stdout ?? "")); } catch (error) {
+    continuationRefusal("controlled_contract_generation_malformed", null, error);
+  }
+  const bytes = Buffer.from(String(manifest.stdout ?? ""), "utf8");
+  const digest = parsed?.generation?.digest ?? parsed?.digest;
+  const carrierCount = parsed?.generation?.carrier_count ?? parsed?.carrier_count;
+  const manifestDigest = parsed?.generation?.manifest_digest ?? parsed?.manifest_digest ??
+    `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
+  if (!SHA256_DIGEST_RE.test(digest ?? "") || !Number.isInteger(carrierCount) || carrierCount < 1 ||
+      !SHA256_DIGEST_RE.test(manifestDigest)) {
+    continuationRefusal("controlled_contract_generation_malformed");
+  }
+  const current = Object.freeze({ state: "present", digest, carrier_count: carrierCount, manifest_digest: manifestDigest });
+  if (expected !== undefined && JSON.stringify({ state: expected.state ?? "present", digest: expected.digest,
+    carrier_count: expected.carrier_count, manifest_digest: expected.manifest_digest }) !==
+    JSON.stringify(current)) {
+    continuationRefusal("controlled_contract_generation_stale", {
+      expected_generation: expected?.digest ?? null, observed_generation: current.digest
+    });
+  }
+  return current;
+}
+
 export function brandedContinuation(fields) {
   const continuation = { ...fields };
   Object.defineProperty(continuation, AUTHENTICATED_INTEGRATION_CONTINUATION, {
@@ -81,12 +111,13 @@ export function createBackendIntegrationContinuation(ctx) {
   const {
     worktreeProvisioningConfig,
     reviewContextRunGit,
+    postWorkerLifecycleRunGit = reviewContextRunGit,
     frozenSliceReviewContexts,
     exactSliceReviewReceiptStore
   } = ctx;
 
-  function resolveLiveCommit(ref, reason) {
-    const result = reviewContextRunGit({
+  async function resolveLiveCommit(ref, reason) {
+    const result = await postWorkerLifecycleRunGit({
       repo: worktreeProvisioningConfig.mainRepo,
       args: ["rev-parse", "--verify", `${ref}^{commit}`]
     });
@@ -101,59 +132,74 @@ export function createBackendIntegrationContinuation(ctx) {
     continuationRefusal("canonical_record_repair_required");
   }
 
-  function authenticateCanonicalContinuationState({ receipt, integrationUnit, integration }) {
-    let frozenReviewUnit;
-    let canonicalState;
-    try {
-      frozenReviewUnit = resolveFrozenSliceReviewReceiptContract(receipt);
-      canonicalState = resolveCanonicalIntegratedSliceState(
-        worktreeProvisioningConfig.mainRepo,
-        receipt.unit_address,
-        frozenReviewUnit
-      );
-    } catch (error) {
+  async function resolveLiteralIntegrationBase(integration) {
+    if (integration?.empty_delivery === true) return integration.previous_wk_sha;
+    const oid = integration?.slice_sha;
+    const type = await postWorkerLifecycleRunGit({
+      repo: worktreeProvisioningConfig.mainRepo,
+      args: ["--no-replace-objects", "cat-file", "-t", oid]
+    });
+    const body = await postWorkerLifecycleRunGit({
+      repo: worktreeProvisioningConfig.mainRepo,
+      args: ["--no-replace-objects", "cat-file", "commit", oid]
+    });
+    if (type?.ok !== true || type.stdout !== "commit\n" || body?.ok !== true ||
+        typeof body.stdout !== "string" || body.stdout.includes("\0") ||
+        body.stdout.includes("\r") || body.stdout.includes("\uFFFD")) {
+      continuationRefusal("integration_result_invalid", { integration_result_sha: oid ?? null });
+    }
+    const separator = body.stdout.indexOf("\n\n");
+    const headers = separator < 0 ? [] : body.stdout.slice(0, separator).split("\n");
+    const parents = headers
+      .filter((line) => line.startsWith("parent "))
+      .map((line) => line.slice("parent ".length));
+    if (parents.length !== 1 ||
+        !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(parents[0]) ||
+        /^0+$/u.test(parents[0]) || parents[0].length !== oid.length) {
+      continuationRefusal("integration_result_invalid", { integration_result_sha: oid ?? null });
+    }
+    const parentType = await postWorkerLifecycleRunGit({
+      repo: worktreeProvisioningConfig.mainRepo,
+      args: ["--no-replace-objects", "cat-file", "-t", parents[0]]
+    });
+    if (parentType?.ok !== true || parentType.stdout !== "commit\n") {
+      continuationRefusal("integration_result_invalid", {
+        integration_result_sha: oid,
+        integration_base_sha: parents[0]
+      });
+    }
+    return parents[0];
+  }
 
-      if (!(error instanceof Error) ||
-          !CANONICAL_CONTINUATION_REFUSAL_MESSAGES.has(error.message)) {
-        throw error;
-      }
-      continuationRefusal("canonical_record_contract_disagreement", {
+  async function recoverDurableIntegratedSlice({ integrationUnit, pair, sliceRef, wkRef }) {
+    const args = {
+      mainRepo: worktreeProvisioningConfig.mainRepo,
+      unitAddress: pair.slice_binding.unit_address,
+      sliceRef,
+      wkRef,
+      deps: { runGit: postWorkerLifecycleRunGit }
+    };
+    const zeroDelta = await recoverZeroDeltaIntegratedSlice({
+      ...args,
+
+      writeRecordCas: refuseCanonicalRecordRepair
+    });
+    if (zeroDelta !== null) return zeroDelta;
+    const ordinary = await reconcileIntegratedSliceRecord(args);
+    if (ordinary === null) return null;
+    if (ordinary.empty_delivery !== false ||
+        ordinary.slice_ref !== sliceRef || ordinary.wk_ref !== wkRef) {
+      continuationRefusal("integration_result_invalid", {
         expected_subject: `${integrationUnit.record_id}#${integrationUnit.slice_id}`
-      }, error);
-    }
-    const expectedSubject = `${integrationUnit.record_id}#${integrationUnit.slice_id}`;
-    if (frozenReviewUnit.subject !== expectedSubject || receipt.unit_address !== expectedSubject ||
-        canonicalState.record_id !== integrationUnit.record_id ||
-        canonicalState.slice_id !== integrationUnit.slice_id ||
-        canonicalState.initiative !== integrationUnit.initiative) {
-      continuationRefusal("canonical_record_identity_disagreement", {
-        expected_subject: expectedSubject,
-        receipt_subject: receipt.unit_address,
-        frozen_subject: frozenReviewUnit.subject
-      });
-    }
-    if (canonicalState.corrective === true) {
-      continuationRefusal("canonical_record_corrective_state", {
-        expected_subject: expectedSubject,
-        parent_status: canonicalState.parent_status,
-        slice_status: canonicalState.slice_status
-      });
-    }
-    if (canonicalState.lifecycle_state !== integration.integrated_state) {
-      continuationRefusal("canonical_record_lifecycle_state_disagreement", {
-        expected_subject: expectedSubject,
-        canonical_integrated_state: canonicalState.lifecycle_state,
-        recovered_integrated_state: integration.integrated_state
       });
     }
     return Object.freeze({
-      parent_status: canonicalState.parent_status,
-      slice_status: canonicalState.slice_status,
-      integrated_state: canonicalState.lifecycle_state
+      ...ordinary,
+      previous_wk_sha: await resolveLiteralIntegrationBase(ordinary)
     });
   }
 
-  async function resolveDurableZeroDeltaIntegrationContinuation({ subject, status }) {
+  async function resolveDurableIntegrationContinuation({ subject, status }) {
     if (worktreeProvisioningConfig === null || status === null || status === undefined) {
       return null;
     }
@@ -199,24 +245,16 @@ export function createBackendIntegrationContinuation(ctx) {
       continuationRefusal("durable_worker_ref_mismatch", { slice_ref: sliceRef, wk_ref: wkRef });
     }
 
-    const integration = await recoverZeroDeltaIntegratedSlice({
-      mainRepo: worktreeProvisioningConfig.mainRepo,
-      unitAddress: pair.slice_binding.unit_address,
+    const integration = await recoverDurableIntegratedSlice({
+      integrationUnit,
+      pair,
       sliceRef,
-      wkRef,
-
-      writeRecordCas: refuseCanonicalRecordRepair,
-      deps: { runGit: reviewContextRunGit }
+      wkRef
     });
     if (integration === null) return null;
 
-    if (exactSliceReviewReceiptStore === null ||
-        typeof exactSliceReviewReceiptStore.loadAll !== "function") {
-      continuationRefusal("exact_v3_review_receipt_unavailable");
-    }
-
-    const deliveryBase = resolveAuthenticatedExactSliceDeliveryBase({
-      runGit: reviewContextRunGit,
+    const deliveryBase = await resolveAuthenticatedExactSliceDeliveryBase({
+      runGit: postWorkerLifecycleRunGit,
       mainRepo: worktreeProvisioningConfig.mainRepo,
       subject,
       deliverySha: integration.delivery_sha
@@ -228,50 +266,8 @@ export function createBackendIntegrationContinuation(ctx) {
       });
     }
 
-    let receipts;
-    try {
-      receipts = await exactSliceReviewReceiptStore.loadAll({ unit_address: subject });
-      if (!Array.isArray(receipts)) throw new TypeError("receipt store returned a non-array result");
-      receipts = receipts.map((receipt) => validateExactSliceReviewReceipt(receipt, {
-        unit_address: subject
-      }));
-    } catch (error) {
-      continuationRefusal("exact_v3_review_receipt_unavailable", {
-        source_code: typeof error?.code === "string" ? error.code : null
-      }, error);
-    }
-    const completeMatches = receipts.filter((receipt) =>
-      receipt.schema_version === EXACT_SLICE_REVIEW_RECEIPT_SCHEMA_VERSION_V3 &&
-      receiptCarriesUsableReviewVerdict(receipt) &&
-      receipt.review_admission_kind === "canonical_committed_slice" &&
-      receipt.initiative === integrationUnit.initiative &&
-      receipt.record_id === integrationUnit.record_id &&
-      receipt.slice_id === integrationUnit.slice_id &&
-      receipt.slice_ref === sliceRef &&
-      receipt.reviewed_sha === integration.delivery_sha &&
-      receipt.diff_base_sha === deliveryBase &&
-      receipt.worktree_path === pair.slice_binding.worktree_path &&
-      receipt.worktree_identity?.slice_ref === sliceRef &&
-      receipt.worktree_identity?.wk_ref === wkRef &&
-      receipt.worktree_identity?.reviewed_sha === integration.delivery_sha &&
-      receipt.worktree_identity?.diff_base_sha === deliveryBase &&
-      receipt.worktree_identity?.wk_sha === integration.previous_wk_sha);
-    if (completeMatches.length !== 1) {
-      continuationRefusal(
-        completeMatches.length === 0
-          ? "exact_v3_review_receipt_missing"
-          : "exact_v3_review_receipt_ambiguous",
-        { match_count: completeMatches.length, reviewed_sha: integration.delivery_sha }
-      );
-    }
-    const receipt = completeMatches[0];
-    authenticateCanonicalContinuationState({
-      receipt,
-      integrationUnit,
-      integration
-    });
-    const liveSliceTip = resolveLiveCommit(sliceRef, "live_slice_ref_unavailable");
-    const liveWkTip = resolveLiveCommit(wkRef, "live_wk_ref_unavailable");
+    const liveSliceTip = await resolveLiveCommit(sliceRef, "live_slice_ref_unavailable");
+    const liveWkTip = await resolveLiveCommit(wkRef, "live_wk_ref_unavailable");
     if (liveSliceTip !== integration.delivery_sha || liveWkTip !== integration.wk_sha) {
       continuationRefusal("live_ref_disagreement", {
         expected_slice_tip: integration.delivery_sha,
@@ -281,13 +277,23 @@ export function createBackendIntegrationContinuation(ctx) {
       });
     }
 
-    const confirmed = await recoverZeroDeltaIntegratedSlice({
-      mainRepo: worktreeProvisioningConfig.mainRepo,
-      unitAddress: pair.slice_binding.unit_address,
-      sliceRef,
+    const persistedGeneration = integration.contract_generation ??
+      integration.authority?.contract_generation;
+    if (integration.empty_delivery !== true && persistedGeneration === undefined) {
+      continuationRefusal("controlled_contract_generation_missing");
+    }
+    const contractGeneration = await readPersistedGeneration({
+      runGit: postWorkerLifecycleRunGit,
+      repo: worktreeProvisioningConfig.mainRepo,
       wkRef,
-      writeRecordCas: refuseCanonicalRecordRepair,
-      deps: { runGit: reviewContextRunGit }
+      expected: persistedGeneration
+    });
+
+    const confirmed = await recoverDurableIntegratedSlice({
+      integrationUnit,
+      pair,
+      sliceRef,
+      wkRef
     });
     if (confirmed === null ||
         confirmed.delivery_sha !== integration.delivery_sha ||
@@ -300,23 +306,13 @@ export function createBackendIntegrationContinuation(ctx) {
       continuationRefusal("continuation_authority_changed_during_lookup");
     }
 
-    const canonicalState = authenticateCanonicalContinuationState({
-      receipt,
-      integrationUnit,
-      integration: confirmed
-    });
-
     const authority = Object.freeze({
-      schema_version: "workspace-agent-zero-delta-integration-continuation-authority.v1",
+      schema_version: "workspace-agent-integration-continuation-authority.v1",
       repository: worktreeProvisioningConfig.mainRepo,
       subject,
       run_id: pair.run_id,
       launch_ref: status.monitor_handle,
       retry_id: pair.retry_id,
-      review_receipt_digest: receipt.receipt_digest,
-      review_run_id: receipt.review_run_id,
-      review_monitor_handle: receipt.review_monitor_handle,
-      committed_target_digest: receipt.committed_target_digest,
       reviewed_delivery_sha: integration.delivery_sha,
       delivery_base_sha: deliveryBase,
       integration_base_sha: integration.previous_wk_sha,
@@ -325,7 +321,7 @@ export function createBackendIntegrationContinuation(ctx) {
       slice_tip_sha: liveSliceTip,
       wk_ref: wkRef,
       wk_tip_sha: liveWkTip,
-      canonical_state: canonicalState
+      contract_generation: contractGeneration
     });
     return brandedContinuation({
       requested: true,
@@ -336,73 +332,7 @@ export function createBackendIntegrationContinuation(ctx) {
     });
   }
 
-  function isCanonicalCorrectiveContinuationTuple(subject) {
-    const unit = resolveCanonicalSliceIntegrationUnit(
-      worktreeProvisioningConfig.mainRepo,
-      subject
-    );
-
-    const slice = JSON.parse(unit.review_unit_contract);
-    return unit.parent_status === "active" && isPlainObject(slice) && slice.status === "todo";
-  }
-
-  async function resolveCorrectiveFindingsContext({ subject, workspace_dir: workspaceDir }) {
-    if (exactSliceReviewReceiptStore === null ||
-        path.resolve(workspaceDir ?? "") !== worktreeProvisioningConfig?.mainRepo ||
-        !EXACT_IMPLEMENTATION_SLICE_RE.test(subject ?? "")) return null;
-    const targetContext = frozenSliceReviewContexts.get(subject) ?? null;
-    if (targetContext === null) return null;
-    const receipts = await exactSliceReviewReceiptStore.loadAll({
-      unit_address: subject,
-      committed_target_digest: targetContext.committed_target_digest
-    });
-    const findingsReceipts = receipts.filter((receipt) =>
-      receiptCarriesUsableReviewVerdict(receipt) &&
-      receipt.structured_outcome?.outcome === "changes_requested"
-    );
-    if (findingsReceipts.length === 0) return null;
-
-    const groups = groupTrustedReviewReceiptsByReviewedIdentity(findingsReceipts);
-
-    if (isCanonicalCorrectiveContinuationTuple(subject)) return null;
-    const current = resolveCanonicalSliceReviewUnit(worktreeProvisioningConfig.mainRepo, subject);
-    const currentParentDigest = digestTrustedExactReviewEvidence(current.canonical_parent_wk_contract);
-    const currentSliceDigest = digestTrustedExactReviewEvidence(current.review_unit_contract);
-
-    const matched = groups.filter((group) =>
-      group.witness.canonical_parent_contract_digest === currentParentDigest &&
-      group.witness.slice_review_contract_digest === currentSliceDigest);
-
-    if (matched.length !== 1) return null;
-    const elected = matched[0];
-    const witness = elected.witness;
-    const context = {
-      slice_ref: witness.slice_ref,
-      reviewed_sha: witness.reviewed_sha,
-      diff_base_sha: witness.diff_base_sha
-    };
-    if (verifyFrozenSliceReviewTargetAgainstObjectStore({
-      mainRepo: worktreeProvisioningConfig.mainRepo,
-      context,
-      runGit: reviewContextRunGit
-    }).ok !== true) return null;
-    return deepFreezeCanonicalSnapshot({
-      schema_version: "workspace-agent-trusted-corrective-findings-context.v1",
-      authority: "launcher_exact_review_receipt",
-      unit_address: subject,
-      source_worker_run_id: targetContext.source_worker_run_id ?? null,
-      source_worker_monitor_handle: targetContext.source_worker_monitor_handle ?? null,
-      review_run_ids: elected.receipts.map((entry) => entry.review_run_id),
-      review_monitor_handles: elected.receipts.map((entry) => entry.review_monitor_handle),
-      reviewed_sha: witness.reviewed_sha,
-      diff_base_sha: witness.diff_base_sha,
-      findings: elected.receipts.flatMap((entry) => entry.structured_outcome.findings),
-      trusted_evidence_digests: elected.receipts.map((entry) => entry.trusted_evidence_digest)
-    });
-  }
-
   return {
-    resolveDurableZeroDeltaIntegrationContinuation,
-    resolveCorrectiveFindingsContext
+    resolveDurableIntegrationContinuation
   };
 }

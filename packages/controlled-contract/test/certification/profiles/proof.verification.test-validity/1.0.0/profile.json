@@ -1,0 +1,28 @@
+{
+  "schema_version": "controlled-contract-test-validity-profile.v1",
+  "profile_id": "proof.verification.test-validity",
+  "profile_version": "1.0.0",
+  "contract_schema_version": "controlled-acceptance-contract.experimental.v0.3",
+  "vocabulary_version": "cv.experimental.0.34",
+  "test_proof_version": "controlled-contract-test-proof.v1",
+  "evaluation_input_version": "controlled-contract-test-validity-evaluation-input.v1",
+  "evaluation_stages": ["pre_dispatch", "runtime_evidence"],
+  "verification_falsifier_policy": "controlled_complement_per_target",
+  "required_axes": [
+    "system_under_test_boundary",
+    "observable_result",
+    "execution_provider_binding",
+    "launcher_owned_structured_observation",
+    "launcher_applied_falsifier_mutation",
+    "falsifier_execution",
+    "executed_test_inventory",
+    "coverage_disposition",
+    "prohibited_shortcuts",
+    "boundary_traversal"
+  ],
+  "traversal_results": ["proven", "review_only"],
+  "satisfaction_expression": {
+    "all_required_axes": "evaluated_by_package_owned_test_validity_evaluator"
+  },
+  "semantic_judgment": "not_performed_coordinator_owned"
+}

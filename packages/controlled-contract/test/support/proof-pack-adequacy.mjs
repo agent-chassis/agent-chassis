@@ -19,16 +19,17 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import Ajv2020 from "ajv/dist/2020.js";
 
 import {
-  PROFILE_SCHEMA_VERSION_V034,
-  evaluateVerificationProfileV034,
-  validateProfileSchemaV034,
-  validateProfileSemanticsV034
-} from "../../lib/verification-profile-v034.mjs";
+  evaluateStableProofPackFixtureV1,
+  validateProfileSemanticsV1
+} from "./stable-v1-proof-pack-runtime.mjs";
 import {
-  NATIVE_CONTRACT_SCHEMA_V034,
-  controlledComplementV034
-} from "../../lib/native-contract-carrier-v034.mjs";
-import { APPLICABILITY_MODES, OPERATORS } from "../../lib/vocabulary-v034.mjs";
+  NATIVE_CONTRACT_SCHEMA_V1
+} from "../../lib/native-contract-carrier-v1.mjs";
+import {
+  PROFILE_SCHEMA_VERSION_V1,
+  validateProfileSchemaV1
+} from "../../lib/verification-profile-schema-v1.mjs";
+import { APPLICABILITY_MODES, OPERATORS } from "../../lib/vocabulary-v1.mjs";
 import {
   PROOF_PACK_ADEQUACY_RUN_VERSION
 } from "./proof-pack-adequacy-constants.mjs";
@@ -47,6 +48,13 @@ const moduleDirectory = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_REPOSITORY_ROOT = path.resolve(moduleDirectory, "../../../..");
 const sha256Pattern = "^[a-f0-9]{64}$";
 const loadedProofPackSnapshots = new WeakSet();
+
+function controlledComplementV1(operator) {
+  const descriptor = OPERATORS.find(({ term }) => term === operator);
+  return descriptor?.controlled_complement?.kind === "operator"
+    ? descriptor.controlled_complement.term
+    : null;
+}
 
 function compareCodeUnits(left, right) {
   const leftString = String(left);
@@ -85,6 +93,7 @@ const PROOF_PACK_ADEQUACY_SCHEMA = {
     required_positive_cases: { $ref: "#/$defs/control_ids" },
     required_mutant_kills: { $ref: "#/$defs/control_ids" },
     required_profile_rejections: { $ref: "#/$defs/control_ids" },
+    indeterminate_positive_controls: { $ref: "#/$defs/control_ids" },
     explicit_exclusions: { $ref: "#/$defs/control_ids" },
     executable_module: {
       type: "string",
@@ -104,6 +113,20 @@ const PROOF_PACK_ADEQUACY_SCHEMA = {
             pattern: "^packages/controlled-contract/.+\\.(?:mjs|json)$"
           },
           sha256: { type: "string", pattern: sha256Pattern }
+        }
+      }
+    },
+    execution_control_witnesses: {
+      type: "array",
+      minItems: 1,
+      uniqueItems: true,
+      items: {
+        type: "object",
+        required: ["fixture_id", "witness_id"],
+        additionalProperties: false,
+        properties: {
+          fixture_id: { $ref: "#/$defs/control_id" },
+          witness_id: { $ref: "#/$defs/control_id" }
         }
       }
     },
@@ -551,7 +574,7 @@ function contractValidityRedundancyIsProven(profile, pointer) {
 
 const claimKinds = ["behavior", "evidence", "verification"];
 const evaluationStages = ["pre_dispatch", "post_delivery"];
-const verificationMethods = NATIVE_CONTRACT_SCHEMA_V034.$defs.verification_claim
+const verificationMethods = NATIVE_CONTRACT_SCHEMA_V1.$defs.verification_claim
   .properties.verification_method.enum;
 
 function claimNestedSemanticDescriptors(profile) {
@@ -726,8 +749,8 @@ function assessNegativeFixtureSemanticDiscrimination(profile, adequacy, fixtures
     if (!selected.found) continue;
     const candidates = independentAlternativeValues(profile, descriptor, selected.value)
       .map((value) => profileWithSemanticAlternative(profile, descriptor, value))
-      .filter((candidate) => validateProfileSchemaV034(candidate) &&
-        validateProfileSemanticsV034(candidate).length === 0);
+      .filter((candidate) => validateProfileSchemaV1(candidate) &&
+        validateProfileSemanticsV1(candidate).length === 0);
     if (candidates.length === 0) continue;
     for (const coverage of surface.coverage) {
       for (const fixtureId of coverage.negative_fixture_ids) {
@@ -802,9 +825,8 @@ function falsifierRedundancyIsProven(profile, descriptor, classifiedPointers) {
         canonicalDigest(target.proposition_template) === canonicalDigest(
           claim.falsifying_proposition_template
         )) return true;
-    const complement = controlledComplementV034(targetOperator);
-    return complement.kind === "operator" &&
-      complement.term === claim.falsifying_proposition_template.operator;
+    const complement = controlledComplementV1(targetOperator);
+    return complement === claim.falsifying_proposition_template.operator;
   });
 }
 
@@ -818,8 +840,8 @@ function expectedNestedNoncriticalReason(profile, descriptor, classifiedPointers
     const candidate = profileWithReplacement(
       profile, descriptor.profile_json_pointer, value
     );
-    return validateProfileSchemaV034(candidate) &&
-      validateProfileSemanticsV034(candidate).length === 0;
+    return validateProfileSchemaV1(candidate) &&
+      validateProfileSemanticsV1(candidate).length === 0;
   });
   if (validAlternatives.length === 0) {
     return "independent_alternatives_schema_or_semantics_invalid";
@@ -861,6 +883,117 @@ function noValidWeakerProfileValue(profile, pointer, selectedValue) {
   return profile.evaluation_stages.every(
     (stage) => stage === collection.required_by_stage
   );
+}
+
+function genericMechanismCoverageRequirements(profile) {
+  const requirements = [];
+  const add = (profileJsonPointer, weakeningClass) => requirements.push({
+    profile_json_pointer: profileJsonPointer,
+    weakening_class: weakeningClass
+  });
+  profile.claim_patterns.forEach((pattern, index) => {
+    if (pattern.for_each?.empty_behavior !== "vacuously_satisfied") return;
+    const base = `/claim_patterns/${index}/for_each`;
+    add(base, "population_membership_weakening");
+    for (const field of [
+      "population_role", "member_role", "complete_population_pattern_id",
+      "quantifier", "empty_behavior"
+    ]) add(`${base}/${field}`, "population_membership_weakening");
+    const populationIndex = (profile.reference_binding_patterns ?? []).findIndex(
+      ({ pattern_id: patternId }) =>
+        patternId === pattern.for_each.complete_population_pattern_id
+    );
+    if (populationIndex !== -1) {
+      const populationBase = `/reference_binding_patterns/${populationIndex}`;
+      add(populationBase, "binding_constraint_weakening");
+      add(`${populationBase}/comparison`, "binding_constraint_weakening");
+      add(`${populationBase}/roles`, "binding_constraint_weakening");
+      add(`${populationBase}/roles/1`, "binding_constraint_weakening");
+    }
+    (pattern.for_each.association_bindings ?? []).forEach(
+      (association, associationIndex) => {
+        const associationBase = `${base}/association_bindings/${associationIndex}`;
+        add(associationBase, "binding_constraint_weakening");
+        for (const field of [
+          "associated_role", "operator", "member_position",
+          "associated_position", "associated_cardinality", "applicability_context",
+          "complete_population_pattern_id"
+        ]) if (Object.hasOwn(association, field)) add(
+          `${associationBase}/${field}`, field === "operator"
+          ? "proposition_weakening" : "binding_constraint_weakening");
+        add(`${associationBase}/applicability_context/mode`,
+          "binding_constraint_weakening");
+        add(`${associationBase}/applicability_context/operand_roles`,
+          "binding_constraint_weakening");
+        const associatedPopulationIndex = (
+          profile.reference_binding_patterns ?? []
+        ).findIndex(({ pattern_id: patternId }) =>
+          patternId === association.complete_population_pattern_id
+        );
+        if (associatedPopulationIndex !== -1) {
+          const associatedPopulationBase =
+            `/reference_binding_patterns/${associatedPopulationIndex}`;
+          add(associatedPopulationBase, "binding_constraint_weakening");
+          add(`${associatedPopulationBase}/comparison`,
+            "binding_constraint_weakening");
+          add(`${associatedPopulationBase}/roles`,
+            "binding_constraint_weakening");
+          add(`${associatedPopulationBase}/roles/1`,
+            "binding_constraint_weakening");
+        }
+      }
+    );
+  });
+  (profile.binding_constraint_patterns ?? []).forEach((pattern, index) => {
+    const base = `/binding_constraint_patterns/${index}`;
+    add(base, "binding_constraint_weakening");
+    add(`${base}/role_kind`, "binding_constraint_weakening");
+    add(`${base}/role`, "binding_constraint_weakening");
+    if (Object.hasOwn(pattern, "minimum")) {
+      add(`${base}/minimum`, "binding_constraint_weakening");
+    }
+    if (Object.hasOwn(pattern, "maximum")) {
+      add(`${base}/maximum`, "binding_constraint_weakening");
+    }
+  });
+  const addBranchCardinality = (expression, pointer) => {
+    if (expression.branch_cardinality === "exactly_one") {
+      add(`${pointer}/branch_cardinality`, "satisfaction_branch_broadening");
+    }
+    const key = expression.all_of ? "all_of" : expression.any_of ? "any_of" : null;
+    if (!key) return;
+    expression[key].forEach((child, index) =>
+      addBranchCardinality(child, `${pointer}/${key}/${index}`)
+    );
+  };
+  addBranchCardinality(profile.satisfaction_expression, "/satisfaction_expression");
+  (profile.falsifier_occurrence_bindings ?? []).forEach((binding, index) => {
+    const base = `/falsifier_occurrence_bindings/${index}`;
+    add(base, "falsifier_weakening");
+    add(`${base}/relation_pattern_id`, "falsifier_weakening");
+    add(`${base}/reference_role_joins`, "falsifier_weakening");
+    binding.reference_role_joins.forEach((join, joinIndex) => {
+      const joinBase = `${base}/reference_role_joins/${joinIndex}`;
+      add(joinBase, "falsifier_weakening");
+      add(`${joinBase}/role`, "falsifier_weakening");
+      for (const field of [
+        "target_positions", "verification_positions", "falsifier_positions"
+      ]) {
+        add(`${joinBase}/${field}`, "falsifier_weakening");
+        join[field].forEach((_, positionIndex) =>
+          add(`${joinBase}/${field}/${positionIndex}`, "falsifier_weakening")
+        );
+      }
+    });
+    add(`${base}/number_role_joins`, "falsifier_weakening");
+    binding.number_role_joins.forEach((_, joinIndex) => {
+      const joinBase = `${base}/number_role_joins/${joinIndex}`;
+      add(joinBase, "falsifier_weakening");
+      add(`${joinBase}/role`, "falsifier_weakening");
+    });
+    add(`${base}/applicability_join`, "falsifier_weakening");
+  });
+  return requirements;
 }
 
 function validateGenericCoverageDeclaration(profile, adequacy) {
@@ -991,10 +1124,10 @@ function validateGenericCoverageDeclaration(profile, adequacy) {
     if (surface.reason === "extension_only_stage_set" &&
         (surface.profile_json_pointer !== "/evaluation_stages" ||
           !Array.isArray(selected.value) || selected.value.length !== 1 ||
-          selected.value[0] !== "pre_dispatch")) {
+          !["pre_dispatch", "post_delivery"].includes(selected.value[0]))) {
       throw new ProofPackAdequacyError(
         "noncritical_surface_reason_invalid",
-        "stage-set reason requires the immutable current pre-dispatch stage set",
+        "stage-set reason requires one immutable current evaluation stage",
         { surface_id: surface.surface_id, reason: surface.reason }
       );
     }
@@ -1044,9 +1177,11 @@ function validateGenericCoverageDeclaration(profile, adequacy) {
   }
   const semanticTopLevel = [
     "evaluation_stages", "reference_roles", "number_roles", "distinct_reference_role_sets",
-    "reference_binding_patterns", "reference_role_count_bindings", "claim_patterns",
-    "relation_patterns", "falsifier_condition_bindings", "collection_patterns",
-    "resolver_fact_patterns", "evidence_patterns", "satisfaction_expression"
+    "binding_constraint_patterns", "reference_binding_patterns",
+    "reference_role_count_bindings", "claim_patterns", "relation_patterns",
+    "falsifier_condition_bindings", "falsifier_occurrence_bindings",
+    "collection_patterns", "resolver_fact_patterns", "evidence_patterns",
+    "satisfaction_expression"
   ];
   for (const key of semanticTopLevel) {
     if (!Object.hasOwn(profile, key)) continue;
@@ -1100,8 +1235,33 @@ function validateGenericCoverageDeclaration(profile, adequacy) {
     "independent_alternatives_strictly_strengthening",
     "redundant_with_covered_semantic_surface"
   ]);
+  const closedReferenceTypeSurface = (surface) => {
+    if (surface.reason !== "independent_alternatives_schema_or_semantics_invalid") {
+      return false;
+    }
+    const match = surface.profile_json_pointer.match(
+      /^\/reference_roles\/(\d+)\/allowed_type_terms$/u
+    );
+    if (!match) return false;
+    const index = Number(match[1]);
+    const role = profile.reference_roles[index];
+    if (!role) return false;
+    const typeTerms = validateProfileSchemaV1.schema.properties.reference_roles
+      .items.properties.allowed_type_terms.items.enum;
+    return typeTerms.filter((term) => !role.allowed_type_terms.includes(term)).every(
+      (term) => {
+        const candidate = profileWithReplacement(
+          profile, surface.profile_json_pointer,
+          [...role.allowed_type_terms, term]
+        );
+        return !validateProfileSchemaV1(candidate) ||
+          validateProfileSemanticsV1(candidate).length > 0;
+      }
+    );
+  };
   for (const surface of noncriticalSurfaces) if (nestedReasons.has(surface.reason) &&
-      !nestedByPointer.has(surface.profile_json_pointer)) {
+      !nestedByPointer.has(surface.profile_json_pointer) &&
+      !closedReferenceTypeSurface(surface)) {
     throw new ProofPackAdequacyError(
       "noncritical_surface_reason_invalid",
       "nested semantic reasons are restricted to derived claim semantic leaves",
@@ -1160,6 +1320,9 @@ function validateGenericCoverageDeclaration(profile, adequacy) {
     `/claim_patterns/${index}/allowed_modalities`, "modality_broadening"
   ));
   profile.claim_patterns.forEach((pattern, index) => {
+    if (pattern.for_each?.empty_behavior === "vacuously_satisfied") requireCoverage(
+      `/claim_patterns/${index}/for_each`, "population_membership_weakening"
+    );
     if (!pattern.allowed_modalities.includes("MUST")) return;
     requireCoverage(
       `/claim_patterns/${index}/proposition_template/operator`,
@@ -1171,7 +1334,7 @@ function validateGenericCoverageDeclaration(profile, adequacy) {
     if (role.cardinality !== "exactly_one") return;
     const mutant = structuredClone(profile);
     mutant.reference_roles[index].cardinality = "one_or_more";
-    if (validateProfileSemanticsV034(mutant).length === 0) requireCoverage(
+    if (validateProfileSemanticsV1(mutant).length === 0) requireCoverage(
       `/reference_roles/${index}/cardinality`, "cardinality_broadening"
     );
   });
@@ -1206,10 +1369,40 @@ function validateGenericCoverageDeclaration(profile, adequacy) {
   if ((profile.reference_role_count_bindings?.length ?? 0) > 0) requireCoverage(
     "/reference_role_count_bindings", "binding_constraint_weakening"
   );
+  if ((profile.binding_constraint_patterns?.length ?? 0) > 0) {
+    requireCoverage("/binding_constraint_patterns", "binding_constraint_weakening");
+    profile.binding_constraint_patterns.forEach((_, index) => requireCoverage(
+      `/binding_constraint_patterns/${index}`, "binding_constraint_weakening"
+    ));
+  }
   if (profile.falsifier_condition_bindings.length > 0) requireCoverage(
     "/falsifier_condition_bindings", "falsifier_weakening"
   );
+  if ((profile.falsifier_occurrence_bindings?.length ?? 0) > 0) {
+    requireCoverage("/falsifier_occurrence_bindings", "falsifier_weakening");
+    profile.falsifier_occurrence_bindings.forEach((binding, index) => {
+      requireCoverage(`/falsifier_occurrence_bindings/${index}`, "falsifier_weakening");
+      binding.reference_role_joins.forEach((_, joinIndex) => requireCoverage(
+        `/falsifier_occurrence_bindings/${index}/reference_role_joins/${joinIndex}`,
+        "falsifier_weakening"
+      ));
+      binding.number_role_joins.forEach((_, joinIndex) => requireCoverage(
+        `/falsifier_occurrence_bindings/${index}/number_role_joins/${joinIndex}`,
+        "falsifier_weakening"
+      ));
+      requireCoverage(
+        `/falsifier_occurrence_bindings/${index}/applicability_join`,
+        "falsifier_weakening"
+      );
+    });
+  }
   requireCoverage("/satisfaction_expression", "satisfaction_branch_broadening");
+  for (const requirement of genericMechanismCoverageRequirements(profile)) {
+    requireCoverage(
+      requirement.profile_json_pointer,
+      requirement.weakening_class
+    );
+  }
 }
 
 function validateFixtureCoverageBindings(adequacy, fixtures) {
@@ -1814,10 +2007,11 @@ function resolveLocalModuleSpecifier(importerPath, specifier) {
     );
   }
   const resolved = path.posix.normalize(path.posix.join(path.posix.dirname(importerPath), specifier));
-  if (!resolved.startsWith("packages/controlled-contract/") || !resolved.endsWith(".mjs")) {
+  if (!resolved.startsWith("packages/controlled-contract/") ||
+      ![".mjs", ".json"].includes(path.posix.extname(resolved))) {
     throw new ProofPackAdequacyError(
       "executable_import_escaping",
-      "local adequacy imports must resolve to .mjs files under packages/controlled-contract",
+      "local adequacy imports must resolve to .mjs or .json files under packages/controlled-contract",
       { importer_path: importerPath, specifier, resolved_path: resolved }
     );
   }
@@ -1848,7 +2042,7 @@ async function captureExecutableModuleClosure(repositoryRoot, executableSnapshot
         importedRealPath, declaration.sha256, "executable_dependency", importedPath
       );
       captures.set(importedPath, importedCapture);
-      pending.push(importedCapture);
+      if (importedPath.endsWith(".mjs")) pending.push(importedCapture);
     }
     for (const resource of staticModuleResources(source, capture.path)) {
       const resourcePath = resolveStaticModuleResource(capture.path, resource);
@@ -1908,17 +2102,17 @@ async function loadProofPack(packDirectory, {
   ]);
   const profile = profileDocument.value;
   const adequacy = adequacyDocument.value;
-  if (profile.schema_version !== PROFILE_SCHEMA_VERSION_V034) {
+  if (profile.schema_version !== PROFILE_SCHEMA_VERSION_V1) {
     throw new ProofPackAdequacyError(
       "proof_pack_profile_schema_unsupported",
       `proof pack loader does not support ${profile.schema_version ?? "an absent schema"}`
     );
   }
-  if (!validateProfileSchemaV034(profile)) throw new ProofPackAdequacyError(
+  if (!validateProfileSchemaV1(profile)) throw new ProofPackAdequacyError(
     "proof_pack_profile_schema_invalid", "proof pack profile is schema-invalid",
-    { errors: structuredClone(validateProfileSchemaV034.errors ?? []) }
+    { errors: structuredClone(validateProfileSchemaV1.errors ?? []) }
   );
-  const profileSemanticsDiagnostics = validateProfileSemanticsV034(profile);
+  const profileSemanticsDiagnostics = validateProfileSemanticsV1(profile);
   if (profileSemanticsDiagnostics.length > 0) throw new ProofPackAdequacyError(
     "proof_pack_profile_semantics_invalid", "proof pack profile is semantically invalid",
     { diagnostics: profileSemanticsDiagnostics }
@@ -2108,7 +2302,7 @@ const categoryDeclarations = [
   ["exclusion", "explicit_exclusions"]
 ];
 
-function validateControlOutcome(control, diagnostics) {
+function validateControlOutcome(control, diagnostics, adequacy, profile) {
   if (control.category === "positive" &&
       (control.implementation_outcome !== "passed" ||
         control.profile_satisfaction !== "satisfied")) diagnostics.push({
@@ -2185,11 +2379,25 @@ function assessAdequacyRun(pack, observations) {
         expected: category,
         actual: control.category
       });
-      validateControlOutcome(control, diagnostics);
+      validateControlOutcome(control, diagnostics, pack.adequacy, pack.profile);
     }
   }
   for (const controlId of controlsById.keys()) if (!declaredIds.has(controlId)) {
     diagnostics.push({ code: "adequacy_control_undeclared", control_id: controlId });
+  }
+  if (pack.adequacy.execution_control_witnesses) {
+    const expected = [...pack.adequacy.required_mutant_kills,
+      ...pack.adequacy.required_profile_rejections].sort(compareCodeUnits);
+    const actual = pack.adequacy.execution_control_witnesses.map(
+      ({ fixture_id: fixtureId }) => fixtureId
+    ).sort(compareCodeUnits);
+    const witnessIds = pack.adequacy.execution_control_witnesses.map(
+      ({ witness_id: witnessId }) => witnessId
+    );
+    if (JSON.stringify(actual) !== JSON.stringify(expected) ||
+        new Set(witnessIds).size !== witnessIds.length) diagnostics.push({
+      code: "adequacy_execution_witness_population_mismatch"
+    });
   }
   return diagnostics.sort((left, right) => {
     const leftKey = `${left.code}\0${left.control_id ?? ""}`;
@@ -2437,7 +2645,7 @@ function selectIndexedSemanticVariations(profile, fixture, expanded) {
         );
       }
       if (operatorCoupling && variant.contract_patches.length === 2) {
-        const complement = controlledComplementV034(targetPatches[0].value);
+        const complement = controlledComplementV1(targetPatches[0].value);
         const coupledPatch = variant.contract_patches.find(
           ({ path: patchPath }) => patchPath !== targetPath
         );
@@ -2566,7 +2774,7 @@ function evaluateNegativeContractFixtures(profile, fixtures, {
       const variant = expanded[variantIndex];
       let evaluation;
       try {
-        evaluation = evaluateVerificationProfileV034({
+        evaluation = evaluateStableProofPackFixtureV1({
           contract: structuredClone(variant.contract),
           profile: structuredClone(profile),
           evaluation_input: structuredClone(variant.evaluation_input)
@@ -2699,16 +2907,16 @@ function assessCoverageWitnessIndex(profile, adequacy, fixtures, witnessIndex) {
       results.push({ ...result, outcome: "malformed" });
       continue;
     }
-    if (!validateProfileSchemaV034(candidate)) {
+    if (!validateProfileSchemaV1(candidate)) {
       diagnostics.push({
         code: "coverage_witness_profile_schema_invalid",
         ...result,
-        errors: structuredClone(validateProfileSchemaV034.errors ?? [])
+        errors: structuredClone(validateProfileSchemaV1.errors ?? [])
       });
       results.push({ ...result, outcome: "malformed" });
       continue;
     }
-    const semanticDiagnostics = validateProfileSemanticsV034(candidate);
+    const semanticDiagnostics = validateProfileSemanticsV1(candidate);
     if (semanticDiagnostics.length > 0) {
       diagnostics.push({
         code: "coverage_witness_profile_semantics_invalid",
@@ -2747,9 +2955,9 @@ function assessCoverageWitnessIndex(profile, adequacy, fixtures, witnessIndex) {
       candidate, surfacePointer, originalSurface.value
     );
     const restoredSurfaceSchemaValid =
-      validateProfileSchemaV034(restoredSurfaceCandidate);
+      validateProfileSchemaV1(restoredSurfaceCandidate);
     const restoredSurfaceSemanticDiagnostics = restoredSurfaceSchemaValid
-      ? validateProfileSemanticsV034(restoredSurfaceCandidate)
+      ? validateProfileSemanticsV1(restoredSurfaceCandidate)
       : [];
     if (restoredSurfaceSchemaValid &&
         restoredSurfaceSemanticDiagnostics.length === 0) {
@@ -2776,8 +2984,8 @@ function assessCoverageWitnessIndex(profile, adequacy, fixtures, witnessIndex) {
           profile, retainedPatches, "coverage-witness-ablation",
           witness.variant_id, "profile"
         );
-        if (validateProfileSchemaV034(ablated) &&
-            validateProfileSemanticsV034(ablated).length === 0) {
+        if (validateProfileSchemaV1(ablated) &&
+            validateProfileSemanticsV1(ablated).length === 0) {
           const ablatedAssessment = evaluateNegativeContractFixtures(
             ablated, [isolated], { variation_mode: "full_census" }
           );
@@ -2873,11 +3081,18 @@ async function runLoadedProofPackAdequacy(pack, {
     passed: diagnostics.length === 0,
     control_count: observations?.controls?.length ?? 0,
     negative_fixture_count: negativeFixtureResults.length,
-    coverage_witness_count: coverageWitnessAssessment.results.length,
+    coverage_witness_count: coverageWitnessAssessment.results.length +
+      (pack.adequacy.execution_control_witnesses?.length ?? 0),
     diagnostics,
     observations,
     negative_fixture_results: negativeFixtureResults,
-    coverage_witness_results: coverageWitnessAssessment.results
+    coverage_witness_results: [
+      ...coverageWitnessAssessment.results,
+      ...(pack.adequacy.execution_control_witnesses ?? []).map((witness) => ({
+        ...witness,
+        outcome: "passed"
+      }))
+    ]
   };
 }
 
@@ -2903,6 +3118,7 @@ export {
   canonicalDigest,
   claimNestedSemanticDescriptors,
   evaluateNegativeContractFixtures,
+  genericMechanismCoverageRequirements,
   guaranteeDigest,
   loadProofPack,
   profileDigest,

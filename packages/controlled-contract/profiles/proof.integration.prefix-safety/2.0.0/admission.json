@@ -1,0 +1,52 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v2",
+  "profile_id": "proof.integration.prefix-safety",
+  "profile_version": "2.0.0",
+  "profile_digest": "f0ccdd91e638d72aa09c7e3e46dc4d16ae295d602dde297899ea88017729b32c",
+  "guarantee": "For one exact captured complete declared integration DAG, one exact complete integration-unit partition, and one exact declared execution-path and required-branch population, the package-owned integration-prefix-census.v1 transformer derives every independently integrable prefix crossed with every declared path and required branch; that exact derived case population is bound into the profile, every case is declared preserved, the aggregate result records that population, and one verification reads the exact sources, census, every case, and aggregate result with a positive non-preservation falsifier.",
+  "guarantee_digest": "77ffbca9bd9a063e667d13d48668f30e21236d4da2f2eb612db07cd7dc40754e",
+  "explicit_exclusions": [
+    "caller-supplied-dag-unit-path-and-branch-source-truth-or-authority",
+    "concurrency-rollback-and-rollout-orchestration",
+    "dishonest-authored-preservation-claims-or-reference-grounding",
+    "pack-applicability-evidence-authority-or-cce-consequence",
+    "production-path-or-branch-discovery-outside-captured-sources",
+    "runtime-or-deployment-behavior-outside-captured-artifacts"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "2f64d49e61b321c8a3b9336d99866cfd45300fd2ab611a3a34a1b915cc30bcca",
+    "adequacy_result_digest": "405cb4f7f6509dc24d1d16f1f2493f258fa321cfd6267eb13bc838ae98f8d970",
+    "executable_control_count": 18,
+    "negative_fixture_count": 44,
+    "coverage_witness_count": 44
+  },
+  "exact_binding": {
+    "declaration_digest": "8c4f564cdc15d70aa3755d46915daa425c5006ed798a9c99ba1d4e1e30b9fe19",
+    "certification_result_digest": "03a5faaeb5bf1fb73807122680391879cdd7b692fff67849f37202c3ade0850e",
+    "executable_control_count": 12,
+    "binding_kinds": [
+      "artifact_bytes"
+    ],
+    "relation_operators": [
+      "deterministic_projection"
+    ],
+    "corpus_id": "integration-prefix-safety-exact-binding",
+    "corpus_version": "1.0.0",
+    "corpus_digest": "b4483cf43cc1888e0f4fd1a46ca4d8466f22ed2bd377879a5d5dfbd839eb13c3",
+    "passed_control_ids": [
+      "atomic-codeployment-positive",
+      "case-population-duplicate-refused",
+      "case-population-omission-refused",
+      "case-population-substitution-refused",
+      "cross-domain-api-schema-positive",
+      "cross-domain-managed-repository-positive",
+      "cross-domain-message-codec-positive",
+      "missing-dag-source-refused",
+      "missing-path-source-refused",
+      "missing-unit-source-refused",
+      "projection-result-splice-refused",
+      "source-descriptor-splice-refused"
+    ]
+  }
+}

@@ -1,5 +1,5 @@
 import { PROOF_PACK_ADEQUACY_RUN_VERSION } from "../support/proof-pack-adequacy-constants.mjs";
-import { evaluateVerificationProfileV034 } from "../../lib/verification-profile-v034.mjs";
+import { evaluateStableProofPackFixtureV1 } from "../support/stable-v1-proof-pack-runtime.mjs";
 import {
   buildExactOwnershipIsolationFixture,
   collapseExactOwnershipRole,
@@ -14,11 +14,11 @@ import {
 } from "./exact-ownership-isolation-v1-harness.mjs";
 
 const PROFILE_DIGEST =
-  "10e439db9046be041aa269c2d30456cf4cce19597c49f2888682f303abbc1961";
+  "cd82bf41a005361a7f3cddbd32310bc3d2d1d0d3c725184bb525dd1715ecbebc";
 const GUARANTEE_DIGEST =
   "5a3b73c64e5fb0057b749b9cc0422bebd0118b282d213e251b7d43a9f2d41e5c";
 function evaluateFixture(profile, fixture) {
-  return evaluateVerificationProfileV034({ contract: fixture.contract, profile,
+  return evaluateStableProofPackFixtureV1({ contract: fixture.contract, profile,
     evaluation_input: fixture.input }).satisfaction;
 }
 function addDecoy(fixture, role, typeTerm) {

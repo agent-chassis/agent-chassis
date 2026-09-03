@@ -1,0 +1,615 @@
+{
+  "schema_version": "controlled-contract-proof-pack-negative-fixture.experimental.v0.1",
+  "fixture_id": "reject-claim-dormancy-verification-verification-methods",
+  "covers": [
+    {
+      "surface_id": "claim-dormancy-verification-verification-methods",
+      "weakening_class": "verification_method_broadening"
+    }
+  ],
+  "contract": {
+    "schema_version": "controlled-acceptance-contract.v1",
+    "vocabulary_version": "controlled-contract-vocabulary.v1",
+    "profile_id": "acceptance-contract.standard.v1",
+    "references": [
+      {
+        "reference_id": "ref-direct-construction",
+        "type_term": "cc:operation",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "dormancy-nonactivation:cancellation-survivor-window",
+          "value": "direct-construction"
+        }
+      },
+      {
+        "reference_id": "ref-direct-registration",
+        "type_term": "cc:operation",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "dormancy-nonactivation:cancellation-survivor-window",
+          "value": "direct-registration"
+        }
+      },
+      {
+        "reference_id": "ref-component-registry",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "dormancy-nonactivation:cancellation-survivor-window",
+          "value": "component-registry"
+        }
+      },
+      {
+        "reference_id": "ref-dormant-component",
+        "type_term": "cc:runtime_component",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "dormancy-nonactivation:cancellation-survivor-window",
+          "value": "dormant-component"
+        }
+      },
+      {
+        "reference_id": "ref-production-graph",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "dormancy-nonactivation:cancellation-survivor-window",
+          "value": "production-graph"
+        }
+      },
+      {
+        "reference_id": "ref-graph-node-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "dormancy-nonactivation:cancellation-survivor-window",
+          "value": "graph-node-population"
+        }
+      },
+      {
+        "reference_id": "ref-production-entry-a",
+        "type_term": "cc:operation",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "dormancy-nonactivation:cancellation-survivor-window",
+          "value": "production-entry-a"
+        }
+      },
+      {
+        "reference_id": "ref-production-entry-b",
+        "type_term": "cc:operation",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "dormancy-nonactivation:cancellation-survivor-window",
+          "value": "production-entry-b"
+        }
+      },
+      {
+        "reference_id": "ref-active-component",
+        "type_term": "cc:operation",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "dormancy-nonactivation:cancellation-survivor-window",
+          "value": "active-component"
+        }
+      },
+      {
+        "reference_id": "ref-production-entrypoint-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "dormancy-nonactivation:cancellation-survivor-window",
+          "value": "production-entrypoint-population"
+        }
+      },
+      {
+        "reference_id": "ref-activation-event-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "dormancy-nonactivation:cancellation-survivor-window",
+          "value": "activation-event-population"
+        }
+      },
+      {
+        "reference_id": "ref-activation-trace",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "dormancy-nonactivation:cancellation-survivor-window",
+          "value": "activation-trace"
+        }
+      },
+      {
+        "reference_id": "ref-default-config",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "dormancy-nonactivation:cancellation-survivor-window",
+          "value": "default-config"
+        }
+      },
+      {
+        "reference_id": "ref-inactive-state",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "dormancy-nonactivation:cancellation-survivor-window",
+          "value": "inactive-state"
+        }
+      },
+      {
+        "reference_id": "ref-dormancy-verification",
+        "type_term": "cc:process",
+        "identity": {
+          "kind": "code_symbol",
+          "repository": "fixture-cancellation-survivor-window",
+          "path": "tests/dormancy-nonactivation.test.mjs",
+          "symbol": "boundedStateStability"
+        }
+      },
+      {
+        "reference_id": "ref-condition-activation-detected",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "profile_term",
+          "term": "dormancy-nonactivation:condition-activation-detected"
+        }
+      }
+    ],
+    "propositions": [
+      {
+        "proposition_id": "prop-population-graph-node-population-cardinality",
+        "subject_reference_id": "ref-graph-node-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 4
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-population-graph-node-population-contains",
+        "subject_reference_id": "ref-graph-node-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-production-entry-a"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-production-entry-b"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-active-component"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-dormant-component"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-population-production-entrypoint-population-cardinality",
+        "subject_reference_id": "ref-production-entrypoint-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-population-production-entrypoint-population-contains",
+        "subject_reference_id": "ref-production-entrypoint-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-production-entry-a"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-production-entry-b"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-population-activation-event-population-cardinality",
+        "subject_reference_id": "ref-activation-event-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 0
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-component-is-a-graph-node",
+        "subject_reference_id": "ref-dormant-component",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-graph-node-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-entrypoints-are-graph-nodes",
+        "subject_reference_id": "ref-production-entrypoint-population",
+        "operator": "reference:subset_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-graph-node-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-default-configuration-is-inactive",
+        "subject_reference_id": "ref-default-config",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-inactive-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-activation-trace-records-complete-population",
+        "subject_reference_id": "ref-activation-trace",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-activation-event-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-activation-population-is-empty",
+        "subject_reference_id": "ref-activation-event-population",
+        "operator": "number:equals",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 0
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-dormancy-verification",
+        "subject_reference_id": "ref-activation-event-population",
+        "operator": "number:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-condition-activation-detected"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 0
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-dormancy-verification",
+        "subject_reference_id": "ref-dormancy-verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-production-graph"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-production-entrypoint-population"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-dormant-component"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-activation-trace"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-default-config"
+          }
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "claim_id": "claim-population-graph-node-population-cardinality",
+        "proposition_id": "prop-population-graph-node-population-cardinality",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-population-graph-node-population-contains",
+        "proposition_id": "prop-population-graph-node-population-contains",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-population-production-entrypoint-population-cardinality",
+        "proposition_id": "prop-population-production-entrypoint-population-cardinality",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-population-production-entrypoint-population-contains",
+        "proposition_id": "prop-population-production-entrypoint-population-contains",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-population-activation-event-population-cardinality",
+        "proposition_id": "prop-population-activation-event-population-cardinality",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-component-is-a-graph-node",
+        "proposition_id": "prop-component-is-a-graph-node",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-entrypoints-are-graph-nodes",
+        "proposition_id": "prop-entrypoints-are-graph-nodes",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-default-configuration-is-inactive",
+        "proposition_id": "prop-default-configuration-is-inactive",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-activation-trace-records-complete-population",
+        "proposition_id": "prop-activation-trace-records-complete-population",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-activation-population-is-empty",
+        "proposition_id": "prop-activation-population-is-empty",
+        "kind": "behavior",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-dormancy-verification",
+        "proposition_id": "prop-dormancy-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "verification_method": "audit",
+        "falsifying_proposition_id": "prop-falsifier-dormancy-verification"
+      }
+    ],
+    "relations": [
+      {
+        "relation_id": "rel-verification-targets-nonactivation",
+        "role": "verifies",
+        "source_claim_id": "claim-dormancy-verification",
+        "target_claim_id": "claim-activation-population-is-empty"
+      }
+    ],
+    "collections": [],
+    "residue": [],
+    "annotations": [],
+    "test_proof_version": "controlled-contract-test-proof.v1",
+    "test_proofs": []
+  },
+  "evaluation_input": {
+    "input_version": "controlled-contract-verification-profile-input.v1",
+    "evaluation_stage": "pre_dispatch",
+    "reference_bindings": [
+      {
+        "role": "construction_operation",
+        "reference_ids": [
+          "ref-direct-construction"
+        ]
+      },
+      {
+        "role": "registration_operation",
+        "reference_ids": [
+          "ref-direct-registration"
+        ]
+      },
+      {
+        "role": "registry",
+        "reference_ids": [
+          "ref-component-registry"
+        ]
+      },
+      {
+        "role": "dormant_component",
+        "reference_ids": [
+          "ref-dormant-component"
+        ]
+      },
+      {
+        "role": "production_graph",
+        "reference_ids": [
+          "ref-production-graph"
+        ]
+      },
+      {
+        "role": "graph_node_population",
+        "reference_ids": [
+          "ref-graph-node-population"
+        ]
+      },
+      {
+        "role": "graph_nodes",
+        "reference_ids": [
+          "ref-production-entry-a",
+          "ref-production-entry-b",
+          "ref-active-component",
+          "ref-dormant-component"
+        ]
+      },
+      {
+        "role": "production_entrypoint_population",
+        "reference_ids": [
+          "ref-production-entrypoint-population"
+        ]
+      },
+      {
+        "role": "production_entrypoints",
+        "reference_ids": [
+          "ref-production-entry-a",
+          "ref-production-entry-b"
+        ]
+      },
+      {
+        "role": "activation_event_population",
+        "reference_ids": [
+          "ref-activation-event-population"
+        ]
+      },
+      {
+        "role": "activation_events",
+        "reference_ids": []
+      },
+      {
+        "role": "activation_trace",
+        "reference_ids": [
+          "ref-activation-trace"
+        ]
+      },
+      {
+        "role": "default_configuration_artifact",
+        "reference_ids": [
+          "ref-default-config"
+        ]
+      },
+      {
+        "role": "default_inactive_state",
+        "reference_ids": [
+          "ref-inactive-state"
+        ]
+      },
+      {
+        "role": "verification",
+        "reference_ids": [
+          "ref-dormancy-verification"
+        ]
+      },
+      {
+        "role": "activation_detected_condition",
+        "reference_ids": [
+          "ref-condition-activation-detected"
+        ]
+      }
+    ],
+    "number_bindings": [
+      {
+        "role": "activation_event_count",
+        "value": 0
+      }
+    ],
+    "claim_pattern_bindings": [],
+    "resolver_facts": [
+      {
+        "resolver_kind": "direct-construction",
+        "fact_key": "succeeds",
+        "argument_reference_ids": [
+          "ref-direct-construction",
+          "ref-dormant-component"
+        ],
+        "satisfied": true
+      },
+      {
+        "resolver_kind": "direct-registration",
+        "fact_key": "succeeds",
+        "argument_reference_ids": [
+          "ref-direct-registration",
+          "ref-component-registry",
+          "ref-dormant-component"
+        ],
+        "satisfied": true
+      },
+      {
+        "resolver_kind": "code-reachability",
+        "fact_key": "no-path-from-declared-production-entrypoints",
+        "argument_reference_ids": [
+          "ref-production-graph",
+          "ref-production-entry-a",
+          "ref-production-entry-b",
+          "ref-dormant-component"
+        ],
+        "satisfied": true
+      },
+      {
+        "resolver_kind": "activation-observation",
+        "fact_key": "complete-population-is-empty",
+        "argument_reference_ids": [
+          "ref-activation-trace",
+          "ref-activation-event-population",
+          "ref-dormant-component"
+        ],
+        "satisfied": true
+      }
+    ],
+    "delivered_evidence": [],
+    "stable_evaluation": {}
+  }
+}

@@ -1,5 +1,6 @@
 import path from "node:path";
 import { existsSync } from "node:fs";
+import { createGitignoreMatcher } from "../lib/gitignore-matcher.mjs";
 import { deriveMarkdownBlastRadiusEvidence } from "../lib/work-record-policy.mjs";
 import { findUncheckedChecklistItems } from "./lint-markdown-projection.mjs";
 import {
@@ -62,7 +63,15 @@ export async function lintDocsBacklinks({
   targetDir,
   addFinding
 }) {
+
+  const gitignoreMatcher = createGitignoreMatcher(targetDir);
+
   for (const source of docsBacklinkSources.values()) {
+
+    if (isClosedStatus(source.status)) {
+      continue;
+    }
+
     for (const relatedRef of source.docs) {
 
       if (isDocsTreePath(relatedRef)) {
@@ -78,6 +87,9 @@ export async function lintDocsBacklinks({
       }
 
       if (!(await readScopeRefExists(targetDir, relatedRef))) {
+        if (gitignoreMatcher.isIgnored(String(relatedRef).replace(/#.*$/, ""))) {
+          continue;
+        }
         addFinding(
           "error",
           `${source.sourcePath}: referenced read_scope entry does not exist: ${relatedRef}`,

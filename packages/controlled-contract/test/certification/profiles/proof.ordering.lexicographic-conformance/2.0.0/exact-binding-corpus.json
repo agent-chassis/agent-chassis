@@ -1,0 +1,67 @@
+{
+  "controls": [
+    {
+      "control_id": "boolean-numeric-unicode-positive"
+    },
+    {
+      "control_id": "comparator-evidence-missing-refused"
+    },
+    {
+      "control_id": "conformance-report-fabrication-refused"
+    },
+    {
+      "control_id": "conformance-report-rebinding-refused"
+    },
+    {
+      "control_id": "declared-population-duplicate-refused"
+    },
+    {
+      "control_id": "declared-population-omission-refused"
+    },
+    {
+      "control_id": "declared-population-substitution-refused"
+    },
+    {
+      "control_id": "distinct-source-descriptor-alias-refused"
+    },
+    {
+      "control_id": "input-snapshot-missing-refused"
+    },
+    {
+      "control_id": "numeric-unicode-positive"
+    },
+    {
+      "control_id": "ordering-policy-missing-refused"
+    },
+    {
+      "control_id": "policy-population-duplicate-refused"
+    },
+    {
+      "control_id": "policy-population-omission-refused"
+    },
+    {
+      "control_id": "policy-population-substitution-refused"
+    },
+    {
+      "control_id": "result-population-duplicate-refused"
+    },
+    {
+      "control_id": "result-population-omission-refused"
+    },
+    {
+      "control_id": "result-population-substitution-refused"
+    },
+    {
+      "control_id": "result-snapshot-missing-refused"
+    },
+    {
+      "control_id": "source-result-shape-swap-refused"
+    },
+    {
+      "control_id": "timestamp-integer-positive"
+    }
+  ],
+  "corpus_id": "deterministic-lexicographic-conformance-exact-binding",
+  "corpus_version": "1.0.0",
+  "schema_version": "controlled-contract.lexicographic-conformance-exact-corpus.v1"
+}

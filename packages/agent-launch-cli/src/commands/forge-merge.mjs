@@ -1,6 +1,8 @@
 import { validateWorkRecord } from "@agent-chassis/wiki-core/src/lib/work-record-schema.mjs";
 import {
   buildDispatchRuntime,
+  createTerminalCandidateCoordinator,
+  createWkForgeHandoffPublicationStateResolver,
   resolveDispatchWorktreeProvisioningConfig
 } from "../../../wiki-mcp/src/lib/dispatch-launch-runtime.mjs";
 import { trustedWkForgeMerge } from "../lib/wk-forge-merge.mjs";
@@ -40,23 +42,18 @@ export function createProductionForgeMergeDependencies({ env = process.env } = {
       typeof runtime.dispatchBackend.resolveTerminalCandidatePublicationState !== "function") {
     throw new Error("forge merge trusted terminal-candidate resolver is unavailable");
   }
+  const terminalCandidateCoordinator = createTerminalCandidateCoordinator({
+    mainRepo: provisioning.mainRepo,
+    worktreeRoot: provisioning.worktreeRoot
+  });
   return {
     mainRepo: provisioning.mainRepo,
-    resolveTerminalCandidatePublicationState: async (wk) => {
-      const retained = runtime.dispatchBackend.resolveTerminalCandidatePublicationState(wk);
-      if (retained !== null) return retained;
 
-      if (typeof runtime.dispatchBackend.recoverTerminalCandidate !== "function") return null;
-      const recovered = await runtime.dispatchBackend.recoverTerminalCandidate(wk);
-      if (!recovered?.binding || !recovered?.materialization) return null;
-      return Object.freeze({
-        binding: recovered.binding,
-        materialization: recovered.materialization,
-        advisory_review_evidence: recovered.validation_evidence ?? null,
-        terminal_review_subject: recovered.binding.terminal_review_subject ?? null,
-        terminal_review_contract_digest: recovered.binding.terminal_review_contract_digest ?? null
-      });
-    },
+    resolveTerminalCandidatePublicationState:
+      createWkForgeHandoffPublicationStateResolver({
+        dispatchBackend: runtime.dispatchBackend,
+        terminalCandidateCoordinator
+      }),
     validateWorkRecord: (record, options = {}) => {
       const valid = validateWorkRecord(record, {
         sourcePath: `wiki/work-records/${options.id}.json`,

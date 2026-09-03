@@ -1,17 +1,29 @@
 import { readFile } from 'node:fs/promises';
 
 import { SLICE_ID_PATTERN } from '@agent-chassis/wiki-core/src/lib/work-record-schema-constants.mjs';
-import { validateAcceptanceCriterionEntry } from '@agent-chassis/wiki-core/src/lib/work-record-schema-validators.mjs';
+import {
+  validateAcceptanceCriterionEntry,
+} from '@agent-chassis/wiki-core/src/lib/work-record-schema-validators.mjs';
+import {
+  projectWorkRecordTestProofValidation,
+  renderWorkRecordValidationEntry,
+} from '@agent-chassis/wiki-core/src/lib/work-record-test-proof-bindings.mjs';
 
 import { LauncherRoleContractError } from './workspace-agent-role-contract.mjs';
+import { digestTrustedExactReviewEvidence } from
+  './workspace-agent-dispatch-run-receipt.mjs';
 
 const WK_ID_RE = /^WK-(\d{4})$/;
 const MAX_DIAGNOSTIC_ITEMS = 6;
 export const FROZEN_FINDINGS_ONLY_ACCEPTANCE_CONTRACT_SCHEMA_VERSION =
   'workspace-agent-frozen-findings-only-acceptance-contract.v1';
+export const FROZEN_STANDALONE_FINDINGS_ACCEPTANCE_CONTRACT_SCHEMA_VERSION =
+  'workspace-agent-frozen-standalone-findings-acceptance-contract.v1';
 
 export const FROZEN_SLICE_LEVEL_ACCEPTANCE_CONTRACT_SCHEMA_VERSION =
   'workspace-agent-frozen-slice-level-findings-only-acceptance-contract.v1';
+export const ADVISORY_REVIEW_PRESENTATION_SCHEMA_VERSION =
+  'workspace-agent-advisory-review-presentation.v1';
 
 function truncateList(values, limit = MAX_DIAGNOSTIC_ITEMS) {
   if (!Array.isArray(values)) {
@@ -180,23 +192,25 @@ function sameSelectedUnit(subject, selectedUnit) {
   return subject.address === selectedUnit.address;
 }
 
-function normalizeAcceptance(section, unitLabel) {
-  if (!isPlainObject(section)) {
-    return null;
+function resolveContextAcceptance(section, unitLabel) {
+  const classified = classifyFindingsAcceptanceSection(section);
+  if (classified.state !== 'valid') {
+    return {
+      value: null,
+      state: classified.state,
+      detail: classified.detail ?? 'acceptance_section_empty',
+    };
   }
 
-  const criteria = Array.isArray(section.criteria)
-    ? section.criteria.map(normalizeText).filter(Boolean)
-    : null;
-  const validation = Array.isArray(section.validation)
-    ? section.validation.map(normalizeText).filter(Boolean)
-    : null;
-
-  if (!criteria || !validation || criteria.length === 0 || validation.length === 0) {
-    return null;
-  }
-
-  return { unitLabel, criteria, validation };
+  return {
+    value: {
+      unitLabel,
+      criteria: classified.criteria,
+      validation: classified.validation,
+    },
+    state: classified.state,
+    detail: null,
+  };
 }
 
 function summarizeWorkRecord(record) {
@@ -296,10 +310,13 @@ function validateWorkRecordForSubject(record, subject) {
   }
 
   if (subject.kind === 'work_item') {
+    const acceptance = resolveContextAcceptance(record.acceptance, recordId);
     return {
       record,
       slice: null,
-      acceptance: normalizeAcceptance(record.acceptance, recordId),
+      acceptance: acceptance.value,
+      acceptanceState: acceptance.state,
+      acceptanceDetail: acceptance.detail,
       source: 'workRecord.acceptance',
     };
   }
@@ -314,10 +331,16 @@ function validateWorkRecordForSubject(record, subject) {
     return { record, slice: null, acceptance: null, source: 'workRecord.slices' };
   }
 
+  const acceptance = resolveContextAcceptance(
+    slice.acceptance,
+    `${recordId}#${subject.sliceId}`,
+  );
   return {
     record,
     slice,
-    acceptance: normalizeAcceptance(slice.acceptance, `${recordId}#${subject.sliceId}`),
+    acceptance: acceptance.value,
+    acceptanceState: acceptance.state,
+    acceptanceDetail: acceptance.detail,
     source: 'workRecord.slices[].acceptance',
   };
 }
@@ -369,9 +392,13 @@ function finalizeContext({ subject, selectedUnit, workRecord }) {
   }
 
   if (!resolved.acceptance) {
+    const acceptanceInvalid = resolved.acceptanceState === 'invalid';
+    const acceptanceDetail = resolved.acceptanceDetail ?? 'acceptance_section_empty';
     return fail(
       'record_invalid',
-      'The canonical work record is missing required acceptance criteria or validation.',
+      acceptanceInvalid
+        ? `The canonical work record acceptance section is invalid (${acceptanceDetail}).`
+        : 'The canonical work record is missing required acceptance criteria or validation.',
       buildDiagnostics({
         reason: 'record_invalid',
         subject,
@@ -379,7 +406,11 @@ function finalizeContext({ subject, selectedUnit, workRecord }) {
         record: workRecord,
         slice: resolved.slice,
         source: resolved.source,
-        details: ['acceptance_or_validation_missing_or_invalid'],
+        details: [
+          acceptanceInvalid
+            ? acceptanceDetail
+            : 'acceptance_or_validation_missing',
+        ],
       }),
     );
   }
@@ -548,7 +579,7 @@ function findingsAcceptanceCriterionText(entry) {
   return null;
 }
 
-function classifyFindingsAcceptanceSection(section) {
+export function classifyFindingsAcceptanceSection(section) {
   if (!isPlainObject(section) ||
       !Array.isArray(section.criteria) ||
       !Array.isArray(section.validation)) {
@@ -573,15 +604,38 @@ function classifyFindingsAcceptanceSection(section) {
     }
     criteria.push(text);
   }
-  const validation = [];
-  for (const entry of section.validation) {
-    const text = normalizeText(entry);
-    if (text === null) {
-      return { state: 'invalid', detail: 'acceptance_validation_invalid' };
-    }
-    validation.push(text);
+  const projectedValidation = projectWorkRecordTestProofValidation({
+    selectedUnit: { acceptance: section },
+  });
+  if (projectedValidation.status !== 'valid') {
+    return { state: 'invalid', detail: 'acceptance_validation_invalid' };
   }
+  const validation = projectedValidation.validation_entries
+    .map(renderWorkRecordValidationEntry);
   return { state: 'valid', criteria, validation };
+}
+
+function classifyStandaloneParentReviewMaterial(section) {
+  const classified = classifyFindingsAcceptanceSection(section);
+  if (classified.state !== 'invalid' ||
+      classified.detail !== 'acceptance_section_asymmetric' ||
+      !isPlainObject(section) ||
+      !Array.isArray(section.criteria) || section.criteria.length === 0 ||
+      !Array.isArray(section.validation) || section.validation.length !== 0) {
+    return classified;
+  }
+  const criteria = [];
+  for (const entry of section.criteria) {
+    if (!isCanonicalAcceptanceCriterion(entry)) {
+      return { state: 'invalid', detail: 'acceptance_criterion_not_canonical' };
+    }
+    const text = findingsAcceptanceCriterionText(entry);
+    if (text === null) {
+      return { state: 'invalid', detail: 'acceptance_criterion_not_renderable' };
+    }
+    criteria.push(text);
+  }
+  return { state: 'draft_review_material', criteria, validation: [] };
 }
 
 function resolveSliceLevelFindingsOnlyAcceptance({ role, subject, frozenReviewContract }) {
@@ -597,11 +651,9 @@ function resolveSliceLevelFindingsOnlyAcceptance({ role, subject, frozenReviewCo
     const reviewUnit = JSON.parse(frozenReviewContract.review_unit_contract);
     const parsedSubject = parseAddress(subject);
     if (!parsedSubject || parsedSubject.kind !== 'slice' || parent?.id !== parsedSubject.recordId ||
-        parent.status === 'review' ||
         reviewUnit?.id !== parsedSubject.sliceId ||
 
-        reviewUnit.work_kind !== 'implementation' ||
-        reviewUnit.status !== 'review') {
+        reviewUnit.work_kind !== 'implementation') {
       throw new Error('frozen slice-level findings-only acceptance contract identity is stale or malformed');
     }
     const parentReviewUnit = Array.isArray(parent.slices)
@@ -613,16 +665,17 @@ function resolveSliceLevelFindingsOnlyAcceptance({ role, subject, frozenReviewCo
 
     const parentAcceptance = classifyFindingsAcceptanceSection(parent.acceptance);
     const reviewAcceptance = classifyFindingsAcceptanceSection(reviewUnit.acceptance);
+
     if (parentAcceptance.state === 'invalid') {
       throw new Error(
-        `frozen parent acceptance is malformed or asymmetric (${parentAcceptance.detail})`,
+        `frozen parent acceptance is malformed or asymmetric (parent: ${parentAcceptance.detail})`,
       );
     }
     if (reviewAcceptance.state !== 'valid') {
       throw new Error(
         reviewAcceptance.state === 'empty'
-          ? 'frozen slice review unit acceptance and validation are empty'
-          : `frozen slice review unit acceptance is missing or malformed (${reviewAcceptance.detail})`,
+          ? 'frozen slice review unit acceptance and validation are empty (selected_review_unit: acceptance_section_empty)'
+          : `frozen slice review unit acceptance is missing or malformed (selected_review_unit: ${reviewAcceptance.detail})`,
       );
     }
     const inheritedCriteria = parentAcceptance.state === 'valid' ? parentAcceptance.criteria : [];
@@ -643,6 +696,293 @@ function resolveSliceLevelFindingsOnlyAcceptance({ role, subject, frozenReviewCo
   }
 }
 
+const STANDALONE_FINDINGS_CONTRACT_FIELDS = Object.freeze([
+  'canonical_parent_wk_contract',
+  'canonical_parent_wk_contract_digest',
+  'canonical_source_digest',
+  'contract_digest',
+  'initiative',
+  'intended_agent_role',
+  'record_id',
+  'repository',
+  'review_purpose',
+  'review_slice_id',
+  'review_subject',
+  'review_unit_contract',
+  'review_unit_contract_digest',
+  'schema_version',
+  'target_commit',
+  'target_ref',
+  'work_kind',
+  'write_scope',
+]);
+
+class StandaloneFindingsContractFailure extends Error {
+  constructor(contractSide, mismatchClass) {
+    super('frozen standalone findings acceptance contract is invalid');
+    this.contractSide = contractSide;
+    this.mismatchClass = mismatchClass;
+  }
+}
+
+function refuseStandaloneContract(contractSide, mismatchClass) {
+  throw new StandaloneFindingsContractFailure(contractSide, mismatchClass);
+}
+
+function exactOwnFields(value, fields) {
+  return isPlainObject(value) &&
+    Object.keys(value).sort().join('\u0000') === fields.slice().sort().join('\u0000');
+}
+
+function expectedStandaloneRole(workKind) {
+  if (workKind === 'review') return 'reviewer';
+  if (workKind === 'redteam') return 'redteam';
+  return null;
+}
+
+function resolveStandaloneFindingsOnlyAcceptance({ role, subject, frozenReviewContract }) {
+  try {
+    if (!exactOwnFields(frozenReviewContract, STANDALONE_FINDINGS_CONTRACT_FIELDS) ||
+        frozenReviewContract.schema_version !==
+          FROZEN_STANDALONE_FINDINGS_ACCEPTANCE_CONTRACT_SCHEMA_VERSION) {
+      refuseStandaloneContract('envelope', 'malformed');
+    }
+    if (frozenReviewContract.review_subject !== subject) {
+      refuseStandaloneContract('envelope', 'subject_mismatch');
+    }
+    if (typeof frozenReviewContract.canonical_parent_wk_contract !== 'string') {
+      refuseStandaloneContract('parent', 'malformed');
+    }
+    if (typeof frozenReviewContract.review_unit_contract !== 'string') {
+      refuseStandaloneContract('selected_unit', 'malformed');
+    }
+    if (typeof frozenReviewContract.repository !== 'string' ||
+        frozenReviewContract.repository.trim().length === 0 ||
+        !WK_ID_RE.test(frozenReviewContract.record_id) ||
+        typeof frozenReviewContract.initiative !== 'string' ||
+        !/^IN-\d{4}$/u.test(frozenReviewContract.initiative) ||
+        !(frozenReviewContract.review_slice_id === null ||
+          SLICE_ID_PATTERN.test(frozenReviewContract.review_slice_id)) ||
+        !new Set(['standalone', 'standalone_findings', 'exact_slice', 'terminal_whole_wk'])
+          .has(frozenReviewContract.review_purpose) ||
+        !Array.isArray(frozenReviewContract.write_scope) ||
+        frozenReviewContract.write_scope.length !== 0 ||
+        typeof frozenReviewContract.target_ref !== 'string' ||
+        frozenReviewContract.target_ref.length === 0 ||
+        typeof frozenReviewContract.target_commit !== 'string' ||
+        !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(frozenReviewContract.target_commit) ||
+        typeof frozenReviewContract.canonical_source_digest !== 'string' ||
+        !/^sha256:[0-9a-f]{64}$/u.test(frozenReviewContract.canonical_source_digest) ||
+        typeof frozenReviewContract.canonical_parent_wk_contract_digest !== 'string' ||
+        !/^sha256:[0-9a-f]{64}$/u.test(
+          frozenReviewContract.canonical_parent_wk_contract_digest,
+        ) ||
+        typeof frozenReviewContract.review_unit_contract_digest !== 'string' ||
+        !/^sha256:[0-9a-f]{64}$/u.test(frozenReviewContract.review_unit_contract_digest) ||
+        typeof frozenReviewContract.contract_digest !== 'string' ||
+        !/^sha256:[0-9a-f]{64}$/u.test(frozenReviewContract.contract_digest)) {
+      refuseStandaloneContract('envelope', 'malformed');
+    }
+    if (digestTrustedExactReviewEvidence(
+      frozenReviewContract.canonical_parent_wk_contract,
+    ) !== frozenReviewContract.canonical_parent_wk_contract_digest) {
+      refuseStandaloneContract('parent', 'contract_moved');
+    }
+    if (digestTrustedExactReviewEvidence(
+      frozenReviewContract.review_unit_contract,
+    ) !== frozenReviewContract.review_unit_contract_digest) {
+      refuseStandaloneContract('selected_unit', 'contract_moved');
+    }
+    const { contract_digest: contractDigest, ...contractBody } = frozenReviewContract;
+    if (digestTrustedExactReviewEvidence(contractBody) !== contractDigest) {
+      refuseStandaloneContract('envelope', 'binding_mismatch');
+    }
+
+    let parent;
+    try {
+      parent = JSON.parse(frozenReviewContract.canonical_parent_wk_contract);
+    } catch {
+      refuseStandaloneContract('parent', 'malformed');
+    }
+    let reviewUnit;
+    try {
+      reviewUnit = JSON.parse(frozenReviewContract.review_unit_contract);
+    } catch {
+      refuseStandaloneContract('selected_unit', 'malformed');
+    }
+    const parsedSubject = parseAddress(subject);
+    const wholeRecord = parsedSubject?.kind === 'work_item';
+    if (!parsedSubject ||
+        (parsedSubject.kind !== 'slice' && !wholeRecord) ||
+        parsedSubject.recordId !== frozenReviewContract.record_id ||
+        (wholeRecord
+          ? frozenReviewContract.review_slice_id !== null
+          : parsedSubject.sliceId !== frozenReviewContract.review_slice_id) ||
+        parent?.id !== frozenReviewContract.record_id ||
+        parent?.repo !== frozenReviewContract.repository ||
+        parent?.initiative !== frozenReviewContract.initiative) {
+      refuseStandaloneContract('parent', 'identity_mismatch');
+    }
+    const embeddedReviewUnit = wholeRecord
+      ? parent
+      : Array.isArray(parent.slices)
+        ? parent.slices.find(
+          (slice) => normalizeSliceId(slice?.id ?? slice?.slice_id) === parsedSubject.sliceId,
+        )
+        : null;
+    if (!embeddedReviewUnit ||
+        JSON.stringify(embeddedReviewUnit) !== frozenReviewContract.review_unit_contract) {
+      refuseStandaloneContract('selected_unit', 'contract_moved');
+    }
+    const intendedRole = expectedStandaloneRole(reviewUnit?.work_kind);
+    const canonicalReviewPurpose = reviewUnit?.review_purpose ?? 'standalone';
+    const roleCompatible = intendedRole === 'reviewer'
+      ? role === 'review' || role === 'reviewer'
+      : role === intendedRole;
+    if (reviewUnit?.id !== (wholeRecord
+      ? frozenReviewContract.record_id
+      : frozenReviewContract.review_slice_id) ||
+        reviewUnit.work_kind !== frozenReviewContract.work_kind ||
+        reviewUnit.dispatch_intent?.intended_agent_role !==
+          frozenReviewContract.intended_agent_role ||
+        intendedRole === null || frozenReviewContract.intended_agent_role !== intendedRole ||
+        canonicalReviewPurpose !== frozenReviewContract.review_purpose ||
+        !Array.isArray(reviewUnit.write_scope) || reviewUnit.write_scope.length !== 0 ||
+        !roleCompatible) {
+      refuseStandaloneContract('selected_unit', 'findings_shape_mismatch');
+    }
+
+    const parentAcceptance = wholeRecord
+      ? classifyFindingsAcceptanceSection(parent.acceptance)
+      : classifyStandaloneParentReviewMaterial(parent.acceptance);
+    const reviewAcceptance = classifyFindingsAcceptanceSection(reviewUnit.acceptance);
+    if (wholeRecord && parentAcceptance.state !== 'valid') {
+      refuseStandaloneContract('parent', 'acceptance_invalid');
+    }
+    if (!wholeRecord &&
+        !new Set(['valid', 'empty', 'draft_review_material']).has(parentAcceptance.state)) {
+      refuseStandaloneContract('parent', 'acceptance_invalid');
+    }
+    if (reviewAcceptance.state !== 'valid') {
+      refuseStandaloneContract('selected_unit', 'acceptance_invalid');
+    }
+    return wholeRecord
+      ? {
+          acceptanceCriteria: parentAcceptance.criteria,
+          acceptanceValidation: parentAcceptance.validation,
+        }
+      : {
+          acceptanceCriteria: [
+            ...(parentAcceptance.criteria ?? []),
+            ...reviewAcceptance.criteria,
+          ],
+          acceptanceValidation: [
+            ...(parentAcceptance.validation ?? []),
+            ...reviewAcceptance.validation,
+          ],
+        };
+  } catch (error) {
+    const contractSide = error instanceof StandaloneFindingsContractFailure
+      ? error.contractSide
+      : 'envelope';
+    const mismatchClass = error instanceof StandaloneFindingsContractFailure
+      ? error.mismatchClass
+      : 'malformed';
+    throw new LauncherRoleContractError(
+      'Frozen standalone findings acceptance contract is invalid ' +
+        '(frozen_standalone_findings_contract_invalid)',
+      {
+        code: 'frozen_standalone_findings_contract_invalid',
+        detail: {
+          role: role ?? null,
+          subject: subject ?? null,
+          contract_side: contractSide,
+          mismatch_class: mismatchClass,
+        },
+      },
+    );
+  }
+}
+
+function looksLikeStandaloneFindingsContract(contract) {
+  return isPlainObject(contract) && (
+    contract.schema_version === FROZEN_STANDALONE_FINDINGS_ACCEPTANCE_CONTRACT_SCHEMA_VERSION ||
+    Object.hasOwn(contract, 'canonical_source_digest') ||
+    Object.hasOwn(contract, 'target_commit') ||
+    Object.hasOwn(contract, 'review_purpose')
+  );
+}
+
+function resolveAdvisoryReviewPresentation({ role, subject, contract }) {
+  if (!isPlainObject(contract) ||
+      Object.keys(contract).sort().join('\u0000') !== [
+        'canonical_parent_wk_contract',
+        'review_subject',
+        'review_unit_contract',
+        'role',
+        'schema_version',
+      ].sort().join('\u0000') ||
+      contract.schema_version !== ADVISORY_REVIEW_PRESENTATION_SCHEMA_VERSION ||
+      contract.review_subject !== subject || contract.role !== role ||
+      typeof contract.canonical_parent_wk_contract !== 'string' ||
+      typeof contract.review_unit_contract !== 'string') {
+    throw new LauncherRoleContractError('Advisory review presentation is malformed.', {
+      code: 'advisory_review_presentation_invalid',
+    });
+  }
+  let parent;
+  let selected;
+  try {
+    parent = JSON.parse(contract.canonical_parent_wk_contract);
+    selected = JSON.parse(contract.review_unit_contract);
+  } catch {
+    throw new LauncherRoleContractError('Advisory review presentation is malformed.', {
+      code: 'advisory_review_presentation_invalid',
+    });
+  }
+  const parsed = parseAddress(subject);
+  const embedded = parsed?.kind === 'work_item'
+    ? parent
+    : parent?.slices?.find((slice) => slice?.id === parsed?.sliceId) ?? null;
+  if (!parsed || parent?.id !== parsed.recordId || embedded === null ||
+      canonicalizeComparable(embedded) !== canonicalizeComparable(selected)) {
+    throw new LauncherRoleContractError('Advisory review presentation identity mismatched.', {
+      code: 'advisory_review_presentation_invalid',
+    });
+  }
+  const parentAcceptance = classifyFindingsAcceptanceSection(parent.acceptance);
+  const selectedAcceptance = classifyFindingsAcceptanceSection(selected.acceptance);
+  if (selectedAcceptance.state !== 'valid') {
+    throw new LauncherRoleContractError('Advisory review acceptance is invalid.', {
+      code: 'advisory_review_presentation_invalid',
+    });
+  }
+  return parsed.kind === 'work_item'
+    ? {
+        acceptanceCriteria: selectedAcceptance.criteria,
+        acceptanceValidation: selectedAcceptance.validation,
+      }
+    : {
+        acceptanceCriteria: [
+          ...(parentAcceptance.state === 'valid' ? parentAcceptance.criteria : []),
+          ...selectedAcceptance.criteria,
+        ],
+        acceptanceValidation: [
+          ...(parentAcceptance.state === 'valid' ? parentAcceptance.validation : []),
+          ...selectedAcceptance.validation,
+        ],
+      };
+}
+
+function canonicalizeComparable(value) {
+  if (Array.isArray(value)) return `[${value.map(canonicalizeComparable).join(',')}]`;
+  if (isPlainObject(value)) {
+    return `{${Object.keys(value).sort().map((key) =>
+      `${JSON.stringify(key)}:${canonicalizeComparable(value[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
 export async function resolveFindingsOnlyAcceptanceContract({
   role,
   subject,
@@ -655,6 +995,16 @@ export async function resolveFindingsOnlyAcceptanceContract({
   }
 
   if (frozenReviewContract !== null && frozenReviewContract !== undefined) {
+    if (frozenReviewContract?.schema_version === ADVISORY_REVIEW_PRESENTATION_SCHEMA_VERSION) {
+      return resolveAdvisoryReviewPresentation({
+        role,
+        subject,
+        contract: frozenReviewContract,
+      });
+    }
+    if (looksLikeStandaloneFindingsContract(frozenReviewContract)) {
+      return resolveStandaloneFindingsOnlyAcceptance({ role, subject, frozenReviewContract });
+    }
 
     if (isPlainObject(frozenReviewContract) &&
         frozenReviewContract.schema_version === FROZEN_SLICE_LEVEL_ACCEPTANCE_CONTRACT_SCHEMA_VERSION) {
@@ -681,10 +1031,16 @@ export async function resolveFindingsOnlyAcceptanceContract({
       if (!parentReviewUnit || JSON.stringify(parentReviewUnit) !== frozenReviewContract.review_unit_contract) {
         throw new Error('frozen review unit is not the exact selected unit in the frozen parent contract');
       }
-      const parentAcceptance = normalizeAcceptance(parent.acceptance, parsedSubject.recordId);
-      const reviewAcceptance = normalizeAcceptance(reviewUnit.acceptance, subject);
-      if (!parentAcceptance || !reviewAcceptance) {
-        throw new Error('frozen parent or review unit acceptance/validation is missing or invalid');
+
+      const parentAcceptance = classifyFindingsAcceptanceSection(parent.acceptance);
+      const reviewAcceptance = classifyFindingsAcceptanceSection(reviewUnit.acceptance);
+      if (parentAcceptance.state !== 'valid' || reviewAcceptance.state !== 'valid') {
+        const failed = parentAcceptance.state !== 'valid' ? parentAcceptance : reviewAcceptance;
+        const contributor = parentAcceptance.state !== 'valid' ? 'parent' : 'selected_review_unit';
+        throw new Error(
+          'frozen parent or review unit acceptance/validation is missing or invalid ' +
+            `(${contributor}: ${failed.detail ?? 'acceptance_section_empty'})`,
+        );
       }
       return {
         acceptanceCriteria: [...parentAcceptance.criteria, ...reviewAcceptance.criteria],

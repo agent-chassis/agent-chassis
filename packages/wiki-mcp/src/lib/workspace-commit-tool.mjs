@@ -2,6 +2,13 @@
 
 import path from "node:path";
 import {
+  resolveLauncherRunCredential,
+  resolveAssignedUnit,
+  WIKI_MCP_ASSIGNED_UNIT_ENV_VAR,
+  WIKI_MCP_COMMIT_LAUNCH_REF_ENV_VAR,
+  WIKI_MCP_COMMIT_RUN_ID_ENV_VAR
+} from "./launcher-run-credential.mjs";
+import {
   advanceWkRef,
   materializeCommitObject
 } from "../../../agent-launch-cli/src/lib/commit-object-primitive.mjs";
@@ -39,15 +46,8 @@ export const WORKSPACE_CLOSED_INPUT_COMMIT_COMPOSITION = Object.freeze({
   binding_authority: "server_resolved"
 });
 
-const WIKI_MCP_COMMIT_LAUNCH_REF_ENV_VAR = "WIKI_MCP_COMMIT_LAUNCH_REF";
-const WIKI_MCP_COMMIT_RUN_ID_ENV_VAR = "WIKI_MCP_COMMIT_RUN_ID";
-const WIKI_MCP_COMMIT_RETRY_ID_ENV_VAR = "WIKI_MCP_COMMIT_RETRY_ID";
 function isPlainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function trimmed(value) {
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }
 
 function createCommitRefusal(decisionCode, reasons, extra = {}) {
@@ -151,29 +151,6 @@ function createSubmitForReviewResponse(workspaceRepo, assignedUnit, result, crea
   };
 }
 
-function parseNonNegativeIntegerString(value, label) {
-  const text = trimmed(value);
-  if (!text) return null;
-  if (!/^(0|[1-9]\d*)$/u.test(text)) {
-    throw new Error(`${label} must be a non-negative integer string`);
-  }
-  return Number.parseInt(text, 10);
-}
-
-function resolveCommitCredentialFromEnv(env) {
-  const launchRef = trimmed(env[WIKI_MCP_COMMIT_LAUNCH_REF_ENV_VAR]);
-  const runId = trimmed(env[WIKI_MCP_COMMIT_RUN_ID_ENV_VAR]);
-  if (!launchRef || !runId) {
-    return null;
-  }
-  return Object.freeze({
-    kind: "identity_store_tuple",
-    launchRef,
-    runId,
-    retryId: parseNonNegativeIntegerString(env[WIKI_MCP_COMMIT_RETRY_ID_ENV_VAR], WIKI_MCP_COMMIT_RETRY_ID_ENV_VAR) ?? 0
-  });
-}
-
 function resolveCommitBindingFromCredential(credential, mainRepo, assignedUnit) {
   if (!isPlainObject(credential)) {
     throw new Error("commit credential must be a launcher-provided object");
@@ -217,8 +194,8 @@ export function registerWorkspaceCommitTool({
     },
     async (args) => {
       try {
-        const rawAssignedUnit = env.WIKI_MCP_ASSIGNED_UNIT;
-        const assignedUnit = trimmed(rawAssignedUnit);
+        const rawAssignedUnit = env?.[WIKI_MCP_ASSIGNED_UNIT_ENV_VAR];
+        const assignedUnit = resolveAssignedUnit(env);
         if (!assignedUnit) {
           return jsonContent(
             createCommitRefusal("commit.missing_assigned_unit.v1", [
@@ -227,7 +204,7 @@ export function registerWorkspaceCommitTool({
           );
         }
 
-        const credential = resolveCommitCredentialFromEnv(env);
+        const credential = resolveLauncherRunCredential(env);
         if (!credential) {
           return jsonContent(
             createCommitRefusal("commit.missing_launcher_binding.v1", [
@@ -289,7 +266,14 @@ export function registerWorkspaceCommitTool({
           );
         }
 
-        let advanced;
+        let advanced = {
+          base_sha: materialized.base_sha,
+          commit: materialized.commit,
+          tree: materialized.tree,
+          ref: commitTarget.ref,
+          prior_tip: materialized.base_sha,
+          ref_advanced: false
+        };
         let exactSlicePrimitives = null;
         if (commitTarget.kind === "slice") {
 

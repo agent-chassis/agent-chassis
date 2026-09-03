@@ -1,4 +1,4 @@
-import Ajv2020 from "ajv/dist/2020.js";
+import { compiledValidators } from "./compiled-validator-cache.mjs";
 
 const PARTITIONER_VERSION = "controlled-contract-anonymous-partitioner.experimental.v0.3";
 const INPUT_VERSION = "controlled-contract-anonymous-planning-input.experimental.v0.1";
@@ -112,9 +112,14 @@ const ANONYMOUS_COARSENING_POLICY_SCHEMA = {
   }
 };
 
-const ajv = new Ajv2020({ strict: true, allErrors: true });
-const validateInput = ajv.compile(ANONYMOUS_PLANNING_INPUT_SCHEMA);
-const validatePolicy = ajv.compile(ANONYMOUS_COARSENING_POLICY_SCHEMA);
+const { validateInput, validatePolicy } = await compiledValidators(
+  "controlled-contract.anonymous-structural-partitioner", {
+    validators: {
+      validateInput: ANONYMOUS_PLANNING_INPUT_SCHEMA,
+      validatePolicy: ANONYMOUS_COARSENING_POLICY_SCHEMA
+    }
+  }
+);
 
 function compareIds(left, right) {
   const leftString = String(left);

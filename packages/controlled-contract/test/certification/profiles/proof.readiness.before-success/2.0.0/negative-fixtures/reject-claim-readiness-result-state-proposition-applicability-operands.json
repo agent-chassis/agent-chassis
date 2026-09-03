@@ -1,0 +1,748 @@
+{
+  "schema_version": "controlled-contract-proof-pack-negative-fixture.experimental.v0.1",
+  "fixture_id": "reject-claim-readiness-result-state-proposition-applicability-operands",
+  "covers": [
+    {
+      "surface_id": "claim-readiness-result-state-proposition-applicability-operands",
+      "weakening_class": "proposition_weakening"
+    }
+  ],
+  "contract": {
+    "schema_version": "controlled-acceptance-contract.v1",
+    "vocabulary_version": "controlled-contract-vocabulary.v1",
+    "profile_id": "acceptance-contract.standard.v1",
+    "references": [
+      {
+        "reference_id": "ref-initialization-operation",
+        "type_term": "cc:operation",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "readiness-message_broker",
+          "value": "message_broker:initialization_operation"
+        }
+      },
+      {
+        "reference_id": "ref-readiness-operation",
+        "type_term": "cc:operation",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "readiness-message_broker",
+          "value": "message_broker:readiness_operation"
+        }
+      },
+      {
+        "reference_id": "ref-capability",
+        "type_term": "cc:capability",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "readiness-message_broker",
+          "value": "message_broker:capability"
+        }
+      },
+      {
+        "reference_id": "ref-initialization-attempt",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "profile_term",
+          "term": "message_broker:initialization_attempt"
+        }
+      },
+      {
+        "reference_id": "ref-readiness-probe",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "profile_term",
+          "term": "message_broker:readiness_probe"
+        }
+      },
+      {
+        "reference_id": "ref-readiness-result",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "profile_term",
+          "term": "message_broker:readiness_result"
+        }
+      },
+      {
+        "reference_id": "ref-completion-report",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "profile_term",
+          "term": "message_broker:completion_report"
+        }
+      },
+      {
+        "reference_id": "ref-expected-ready-state",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "profile_term",
+          "term": "message_broker:expected_ready_state"
+        }
+      },
+      {
+        "reference_id": "ref-observed-ready-state",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "profile_term",
+          "term": "message_broker:observed_ready_state"
+        }
+      },
+      {
+        "reference_id": "ref-readiness-observation",
+        "type_term": "cc:evidence",
+        "identity": {
+          "kind": "profile_term",
+          "term": "message_broker:readiness_observation"
+        }
+      },
+      {
+        "reference_id": "ref-readiness-state-verification",
+        "type_term": "cc:test",
+        "identity": {
+          "kind": "profile_term",
+          "term": "message_broker:readiness_state_verification"
+        }
+      },
+      {
+        "reference_id": "ref-readiness-order-verification",
+        "type_term": "cc:test",
+        "identity": {
+          "kind": "profile_term",
+          "term": "message_broker:readiness_order_verification"
+        }
+      },
+      {
+        "reference_id": "ref-success-criterion",
+        "type_term": "cc:criterion",
+        "identity": {
+          "kind": "profile_term",
+          "term": "message_broker:success_criterion"
+        }
+      },
+      {
+        "reference_id": "ref-not-ready-condition",
+        "type_term": "cc:invariant",
+        "identity": {
+          "kind": "profile_term",
+          "term": "message_broker:not_ready_condition"
+        }
+      },
+      {
+        "reference_id": "ref-premature-completion-condition",
+        "type_term": "cc:invariant",
+        "identity": {
+          "kind": "profile_term",
+          "term": "message_broker:premature_completion_condition"
+        }
+      }
+    ],
+    "propositions": [
+      {
+        "proposition_id": "prop-initialization-attempt-performs-operation",
+        "subject_reference_id": "ref-initialization-attempt",
+        "operator": "reference:performs",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-initialization-operation"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-initialization-attempt-targets-capability",
+        "subject_reference_id": "ref-initialization-attempt",
+        "operator": "reference:targets",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-capability"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-initialization-precedes-readiness-probe",
+        "subject_reference_id": "ref-initialization-attempt",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-readiness-probe"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-readiness-probe-performs-operation",
+        "subject_reference_id": "ref-readiness-probe",
+        "operator": "reference:performs",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-initialization-attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-readiness-operation"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-readiness-probe-targets-capability",
+        "subject_reference_id": "ref-readiness-probe",
+        "operator": "reference:targets",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-initialization-attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-capability"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-readiness-result-accepts-probe",
+        "subject_reference_id": "ref-readiness-result",
+        "operator": "reference:accepts",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-readiness-probe"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-readiness-probe"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-readiness-probe-precedes-result",
+        "subject_reference_id": "ref-readiness-probe",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-readiness-result"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-completion-report-completes-initialization",
+        "subject_reference_id": "ref-completion-report",
+        "operator": "reference:completes",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-initialization-attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-initialization-attempt"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-initialization-precedes-completion-report",
+        "subject_reference_id": "ref-initialization-attempt",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-completion-report"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-expected-ready-state-conforms-to-criterion",
+        "subject_reference_id": "ref-expected-ready-state",
+        "operator": "reference:conforms_to",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-success-criterion"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-readiness-result-state",
+        "subject_reference_id": "ref-readiness-result",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-success-criterion"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-observed-ready-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-readiness-observation-records-state",
+        "subject_reference_id": "ref-readiness-observation",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-readiness-probe"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-observed-ready-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-state-verification-reads-proof-subjects",
+        "subject_reference_id": "ref-readiness-state-verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-readiness-probe"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-capability"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-readiness-probe"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-readiness-result"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-readiness-observation"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-readiness-result-matches-expected-state",
+        "subject_reference_id": "ref-observed-ready-state",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-readiness-probe"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-expected-ready-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-readiness-state-verification",
+        "subject_reference_id": "ref-readiness-state-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-readiness-result"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-readiness-state-verification",
+        "subject_reference_id": "ref-observed-ready-state",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-not-ready-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-expected-ready-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-completion-does-not-precede-readiness-result",
+        "subject_reference_id": "ref-completion-report",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-readiness-result"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-order-verification-reads-proof-subjects",
+        "subject_reference_id": "ref-readiness-order-verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-initialization-attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-initialization-attempt"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-readiness-probe"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-readiness-result"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-completion-report"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-readiness-order-verification",
+        "subject_reference_id": "ref-readiness-order-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-completion-report"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-readiness-order-verification",
+        "subject_reference_id": "ref-completion-report",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-premature-completion-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-readiness-result"
+          }
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "claim_id": "claim-initialization-attempt-performs-operation",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-initialization-attempt-performs-operation"
+      },
+      {
+        "claim_id": "claim-initialization-attempt-targets-capability",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-initialization-attempt-targets-capability"
+      },
+      {
+        "claim_id": "claim-initialization-precedes-readiness-probe",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-initialization-precedes-readiness-probe"
+      },
+      {
+        "claim_id": "claim-readiness-probe-performs-operation",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-readiness-probe-performs-operation"
+      },
+      {
+        "claim_id": "claim-readiness-probe-targets-capability",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-readiness-probe-targets-capability"
+      },
+      {
+        "claim_id": "claim-readiness-result-accepts-probe",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-readiness-result-accepts-probe"
+      },
+      {
+        "claim_id": "claim-readiness-probe-precedes-result",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-readiness-probe-precedes-result"
+      },
+      {
+        "claim_id": "claim-completion-report-completes-initialization",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-completion-report-completes-initialization"
+      },
+      {
+        "claim_id": "claim-initialization-precedes-completion-report",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-initialization-precedes-completion-report"
+      },
+      {
+        "claim_id": "claim-expected-ready-state-conforms-to-criterion",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-expected-ready-state-conforms-to-criterion"
+      },
+      {
+        "claim_id": "claim-readiness-result-state",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-readiness-result-state"
+      },
+      {
+        "claim_id": "claim-readiness-observation-records-state",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-readiness-observation-records-state"
+      },
+      {
+        "claim_id": "claim-state-verification-reads-proof-subjects",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-state-verification-reads-proof-subjects"
+      },
+      {
+        "claim_id": "claim-readiness-result-matches-expected-state",
+        "kind": "behavior",
+        "modality": "MUST",
+        "proposition_id": "prop-readiness-result-matches-expected-state"
+      },
+      {
+        "claim_id": "claim-readiness-state-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-readiness-state-verification",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-readiness-state-verification"
+      },
+      {
+        "claim_id": "claim-completion-does-not-precede-readiness-result",
+        "kind": "behavior",
+        "modality": "MUST_NOT",
+        "proposition_id": "prop-completion-does-not-precede-readiness-result"
+      },
+      {
+        "claim_id": "claim-order-verification-reads-proof-subjects",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-order-verification-reads-proof-subjects"
+      },
+      {
+        "claim_id": "claim-readiness-order-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-readiness-order-verification",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-readiness-order-verification"
+      }
+    ],
+    "relations": [
+      {
+        "relation_id": "rel-verification-target-ready-state",
+        "role": "verifies",
+        "source_claim_id": "claim-readiness-state-verification",
+        "target_claim_id": "claim-readiness-result-matches-expected-state"
+      },
+      {
+        "relation_id": "rel-verification-target-readiness-order",
+        "role": "verifies",
+        "source_claim_id": "claim-readiness-order-verification",
+        "target_claim_id": "claim-completion-does-not-precede-readiness-result"
+      }
+    ],
+    "collections": [
+      {
+        "collection_id": "set-readiness-proof-population",
+        "collection_kind": "closed_set",
+        "purpose": "proof_readiness_before_success_population",
+        "member_claim_ids": [
+          "claim-initialization-attempt-performs-operation",
+          "claim-initialization-attempt-targets-capability",
+          "claim-initialization-precedes-readiness-probe",
+          "claim-readiness-probe-performs-operation",
+          "claim-readiness-probe-targets-capability",
+          "claim-readiness-result-accepts-probe",
+          "claim-readiness-probe-precedes-result",
+          "claim-completion-report-completes-initialization",
+          "claim-initialization-precedes-completion-report",
+          "claim-expected-ready-state-conforms-to-criterion",
+          "claim-readiness-result-state",
+          "claim-readiness-observation-records-state",
+          "claim-state-verification-reads-proof-subjects",
+          "claim-readiness-result-matches-expected-state",
+          "claim-readiness-state-verification",
+          "claim-completion-does-not-precede-readiness-result",
+          "claim-order-verification-reads-proof-subjects",
+          "claim-readiness-order-verification"
+        ]
+      }
+    ],
+    "residue": [],
+    "annotations": [],
+    "test_proof_version": "controlled-contract-test-proof.v1",
+    "test_proofs": []
+  },
+  "evaluation_input": {
+    "input_version": "controlled-contract-verification-profile-input.v1",
+    "evaluation_stage": "pre_dispatch",
+    "reference_bindings": [
+      {
+        "role": "initialization_operation",
+        "reference_ids": [
+          "ref-initialization-operation"
+        ]
+      },
+      {
+        "role": "readiness_operation",
+        "reference_ids": [
+          "ref-readiness-operation"
+        ]
+      },
+      {
+        "role": "capability",
+        "reference_ids": [
+          "ref-capability"
+        ]
+      },
+      {
+        "role": "initialization_attempt",
+        "reference_ids": [
+          "ref-initialization-attempt"
+        ]
+      },
+      {
+        "role": "readiness_probe",
+        "reference_ids": [
+          "ref-readiness-probe"
+        ]
+      },
+      {
+        "role": "readiness_result",
+        "reference_ids": [
+          "ref-readiness-result"
+        ]
+      },
+      {
+        "role": "completion_report",
+        "reference_ids": [
+          "ref-completion-report"
+        ]
+      },
+      {
+        "role": "expected_ready_state",
+        "reference_ids": [
+          "ref-expected-ready-state"
+        ]
+      },
+      {
+        "role": "observed_ready_state",
+        "reference_ids": [
+          "ref-observed-ready-state"
+        ]
+      },
+      {
+        "role": "readiness_observation",
+        "reference_ids": [
+          "ref-readiness-observation"
+        ]
+      },
+      {
+        "role": "readiness_state_verification",
+        "reference_ids": [
+          "ref-readiness-state-verification"
+        ]
+      },
+      {
+        "role": "readiness_order_verification",
+        "reference_ids": [
+          "ref-readiness-order-verification"
+        ]
+      },
+      {
+        "role": "success_criterion",
+        "reference_ids": [
+          "ref-success-criterion"
+        ]
+      },
+      {
+        "role": "not_ready_condition",
+        "reference_ids": [
+          "ref-not-ready-condition"
+        ]
+      },
+      {
+        "role": "premature_completion_condition",
+        "reference_ids": [
+          "ref-premature-completion-condition"
+        ]
+      }
+    ],
+    "number_bindings": [],
+    "claim_pattern_bindings": [],
+    "resolver_facts": [],
+    "delivered_evidence": [],
+    "stable_evaluation": {}
+  }
+}

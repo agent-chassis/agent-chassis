@@ -11,9 +11,9 @@ import {
   validateProofPackAdequacy
 } from "./proof-pack-adequacy.mjs";
 import {
-  validateProfileSchemaV034,
-  validateProfileSemanticsV034
-} from "../../lib/verification-profile-v034.mjs";
+  validateProfileSchemaV1,
+  validateProfileSemanticsV1
+} from "./stable-v1-proof-pack-runtime.mjs";
 
 const repositoryRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -153,7 +153,7 @@ function retargetCoverageDeclaration(originalProfile, candidateProfile, adequacy
     if (candidateProfile.reference_roles[index].cardinality !== "exactly_one") continue;
     const mutant = structuredClone(candidateProfile);
     mutant.reference_roles[index].cardinality = "one_or_more";
-    if (validateProfileSemanticsV034(mutant).length > 0) continue;
+    if (validateProfileSemanticsV1(mutant).length > 0) continue;
     const pointer = `/reference_roles/${index}/cardinality`;
     if (declaration.guarantee_critical_profile_surfaces.some(
       ({ profile_json_pointer: declared }) => declared === pointer
@@ -328,9 +328,9 @@ async function assertFixedNegativeCorpus({
     if (fixture.variations !== undefined) continue;
     mutationCount += 1;
     const candidate = inferFixtureMutation(profile, fixture, relationMutation);
-    assert.equal(validateProfileSchemaV034(candidate), true,
-      `${fixture.fixture_id}: ${JSON.stringify(validateProfileSchemaV034.errors)}`);
-    assert.deepEqual(validateProfileSemanticsV034(candidate), [], fixture.fixture_id);
+    assert.equal(validateProfileSchemaV1(candidate), true,
+      `${fixture.fixture_id}: ${JSON.stringify(validateProfileSchemaV1.errors)}`);
+    assert.deepEqual(validateProfileSemanticsV1(candidate), [], fixture.fixture_id);
     if (mutationCount === 1) retargetCoverageDeclaration(profile, candidate, adequacy);
     const assessment = evaluateNegativeContractFixtures(candidate, [fixture]);
     if (assessment.results[0]?.outcome !== "survived") materialSurvivors += 1;

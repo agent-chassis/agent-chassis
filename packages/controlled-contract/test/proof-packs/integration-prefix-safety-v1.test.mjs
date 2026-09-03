@@ -6,7 +6,7 @@ import test from "node:test";
 
 import { assessExactBoundContractFiles } from "../../lib/contract-assessment.mjs";
 import { canonicalJsonBytes, sha256 } from "../../lib/exact-binding-common.mjs";
-import { evaluateVerificationProfileV034 } from "../../lib/verification-profile-v034.mjs";
+import { evaluateStableProofPackFixtureV1 } from "../support/stable-v1-proof-pack-runtime.mjs";
 import { runProofPackAdequacy } from "../support/proof-pack-adequacy.mjs";
 import {
   buildPrefixSafetyFixture,
@@ -15,9 +15,9 @@ import {
 
 const packageRoot = path.resolve(import.meta.dirname, "../..");
 const packDirectory = path.join(packageRoot,
-  "test/certification/profiles/proof.integration.prefix-safety/1.0.0");
+  "test/certification/profiles/proof.integration.prefix-safety/2.0.0");
 const admittedDirectory = path.join(packageRoot,
-  "profiles/proof.integration.prefix-safety/1.0.0");
+  "profiles/proof.integration.prefix-safety/2.0.0");
 const profile = JSON.parse(await readFile(path.join(packDirectory, "profile.json"), "utf8"));
 const descriptors = Object.freeze({
   "dag-source": { kind: "artifact_file", relative_path: "dag.json" },
@@ -155,7 +155,7 @@ test("exact admission carriers remain canonical and bound", async () => {
 
 test("profile evaluation and projection populations are deterministic", () => {
   const fixture = buildPrefixSafetyFixture({ profile, domain: "api-schema-rollout" });
-  const evaluate = (contract, input) => evaluateVerificationProfileV034({
+  const evaluate = (contract, input) => evaluateStableProofPackFixtureV1({
     contract, profile, evaluation_input: input
   });
   const baseline = canonicalJsonBytes(evaluate(fixture.contract, fixture.input));

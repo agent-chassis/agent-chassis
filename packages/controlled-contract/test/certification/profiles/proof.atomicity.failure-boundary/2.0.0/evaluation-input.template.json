@@ -1,0 +1,137 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.v1",
+  "evaluation_stage": "pre_dispatch",
+  "reference_bindings": [
+    {
+      "role": "compound_operation",
+      "reference_ids": [
+        "REPLACE"
+      ]
+    },
+    {
+      "role": "operation_attempt",
+      "reference_ids": [
+        "REPLACE"
+      ]
+    },
+    {
+      "role": "constituent_effect_population",
+      "reference_ids": [
+        "REPLACE"
+      ]
+    },
+    {
+      "role": "constituent_effects",
+      "reference_ids": [
+        "REPLACE_EFFECT_1",
+        "REPLACE_EFFECT_2"
+      ]
+    },
+    {
+      "role": "earlier_constituent_effect",
+      "reference_ids": [
+        "REPLACE"
+      ]
+    },
+    {
+      "role": "later_constituent_effect",
+      "reference_ids": [
+        "REPLACE"
+      ]
+    },
+    {
+      "role": "failure_boundary",
+      "reference_ids": [
+        "REPLACE"
+      ]
+    },
+    {
+      "role": "injected_failure",
+      "reference_ids": [
+        "REPLACE"
+      ]
+    },
+    {
+      "role": "settlement_event",
+      "reference_ids": [
+        "REPLACE"
+      ]
+    },
+    {
+      "role": "earlier_effect_settled_state",
+      "reference_ids": [
+        "REPLACE"
+      ]
+    },
+    {
+      "role": "later_effect_settled_state",
+      "reference_ids": [
+        "REPLACE"
+      ]
+    },
+    {
+      "role": "settled_result",
+      "reference_ids": [
+        "REPLACE"
+      ]
+    },
+    {
+      "role": "earlier_effect_observation",
+      "reference_ids": [
+        "REPLACE"
+      ]
+    },
+    {
+      "role": "later_effect_observation",
+      "reference_ids": [
+        "REPLACE"
+      ]
+    },
+    {
+      "role": "allowed_settlement_states",
+      "reference_ids": [
+        "REPLACE"
+      ]
+    },
+    {
+      "role": "fully_committed_state",
+      "reference_ids": [
+        "REPLACE"
+      ]
+    },
+    {
+      "role": "fully_uncommitted_state",
+      "reference_ids": [
+        "REPLACE"
+      ]
+    },
+    {
+      "role": "forbidden_partial_state",
+      "reference_ids": [
+        "REPLACE"
+      ]
+    },
+    {
+      "role": "verification",
+      "reference_ids": [
+        "REPLACE"
+      ]
+    },
+    {
+      "role": "partial_commit_condition",
+      "reference_ids": [
+        "REPLACE"
+      ]
+    }
+  ],
+  "number_bindings": [
+    {
+      "role": "constituent_effect_count",
+      "value": 2
+    }
+  ],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": [],
+  "stable_evaluation": {}
+}

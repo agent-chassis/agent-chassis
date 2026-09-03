@@ -264,7 +264,7 @@ export function normalizeStructuredRoleResult(evidence) {
     : Object.freeze([]);
   const diagnostics = normalizeStructuredRoleResultDiagnostics(evidence.diagnostics);
 
-  return Object.freeze({
+  const projection = {
     schema_version: WORKSPACE_AGENT_DISPATCH_STRUCTURED_ROLE_RESULT_SCHEMA_VERSION,
     valid,
     claims,
@@ -272,7 +272,11 @@ export function normalizeStructuredRoleResult(evidence) {
     reviewed_controls: reviewedControls,
     diagnostics,
     authority: "child_evidence_only"
-  });
+  };
+  if (valid && result && result.summary_budget !== undefined) {
+    projection.summary_budget = result.summary_budget;
+  }
+  return Object.freeze(projection);
 }
 
 function buildInvalidStructuredRoleResult(diagnostics) {

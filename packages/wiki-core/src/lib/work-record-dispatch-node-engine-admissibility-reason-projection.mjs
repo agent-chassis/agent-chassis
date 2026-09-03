@@ -1,50 +1,29 @@
 
 
 import { isNonEmptyString, isObject } from "./work-record-dispatch-shared.mjs";
+import {
+  WORKER_ADMISSION_RECOVERY_PUBLIC_REASON_CODES,
+  WORKER_ADMISSION_RECOVERY_REASON_CONTROL_IDS,
+  WORKER_ADMISSION_RECOVERY_REASON_FAMILIES,
+  WORKER_ADMISSION_RECOVERY_REASON_FIELDS,
+  WORKER_ADMISSION_RECOVERY_REVIEW_THRESHOLD_REASON_CODES
+} from "./node-engine-worker-admission-recovery.mjs";
 
-export const REVIEW_THRESHOLD_REASON_CODES = new Set([
-  "review_threshold_exceeded",
-  "worker_admission.work_unit_atomicity.review_threshold_exceeded.v1"
-]);
+export const REVIEW_THRESHOLD_REASON_CODES = new Set(
+  WORKER_ADMISSION_RECOVERY_REVIEW_THRESHOLD_REASON_CODES
+);
 
-const ALLOWED_NEEDS_REVIEW_REASON_CODES = new Set([
-  ...REVIEW_THRESHOLD_REASON_CODES,
-  "request_schema_unrecognized"
-]);
+const ALLOWED_PUBLIC_REASON_CODES = new Set(WORKER_ADMISSION_RECOVERY_PUBLIC_REASON_CODES);
 
-const ALLOWED_PUBLIC_REASON_CODES = new Set([
-  ...ALLOWED_NEEDS_REVIEW_REASON_CODES,
-  "worker_admission.work_unit_atomicity.write_scope_count_denied.v1"
-]);
+const ALLOWED_NEEDS_REVIEW_REASON_CODES = new Set(
+  WORKER_ADMISSION_RECOVERY_PUBLIC_REASON_CODES.filter(
+    (code) => code !== "worker_admission.work_unit_atomicity.write_scope_count_denied.v1"
+  )
+);
 
-const ALLOWED_NEEDS_REVIEW_CONTROL_IDS = new Set([
-  "write_scope_total_loc",
-  "max_write_file_loc",
-  "write_scope_count",
-
-  "write_scope_test_count",
-  "acceptance_criteria_count",
-  "validation_command_count",
-  "expected_changed_line_budget",
-  "expected_edit_targets",
-  "declared_runtime_mode_count",
-  "artifact_kind_count"
-]);
-
-const ALLOWED_NEEDS_REVIEW_REASON_FIELDS = new Set([
-  ...ALLOWED_NEEDS_REVIEW_CONTROL_IDS,
-  "accepted_authority",
-  "accepted_authorities",
-  "review_attestation",
-  "review_attestations",
-  "request_schema",
-  "request_contract_digest"
-]);
-
-const NEEDS_REVIEW_REASON_FAMILIES = Object.freeze([
-  ["accepted_authority_", "accepted_authority_failure"],
-  ["review_attestation_", "review_attestation_failure"]
-]);
+const ALLOWED_NEEDS_REVIEW_CONTROL_IDS = new Set(WORKER_ADMISSION_RECOVERY_REASON_CONTROL_IDS);
+const ALLOWED_NEEDS_REVIEW_REASON_FIELDS = new Set(WORKER_ADMISSION_RECOVERY_REASON_FIELDS);
+const NEEDS_REVIEW_REASON_FAMILIES = WORKER_ADMISSION_RECOVERY_REASON_FAMILIES;
 
 const SAFE_REASON_TOKEN_PATTERN = /^[a-z][a-z0-9_]{0,119}$/u;
 const SAFE_EVIDENCE_KEY_PATTERN = /^[A-Za-z][A-Za-z0-9_.:-]{0,119}$/u;

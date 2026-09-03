@@ -1,5 +1,12 @@
-import { generateViews } from "./generate.mjs";
-import { lintRepo } from "./lint.mjs";
+import path from "node:path";
+import { createWorkRecordCorpusSnapshot } from "../lib/work-record-corpus-snapshot.mjs";
+import { loadCanonicalState, resolveContractContext } from "../lib/wiki.mjs";
+import {
+  buildGeneratedViewsFromCanonicalState,
+  generateViewsFromBuild,
+  resolveOperationDate
+} from "./generate.mjs";
+import { lintRepoFromCapturedCorpus } from "./lint.mjs";
 import { buildLintNextAction } from "./lint-shared.mjs";
 
 export const LINT_COMPACT_FINDINGS_LIMIT = 20;
@@ -67,7 +74,16 @@ export function buildLintFindingsResponse(
   return result;
 }
 
-export async function generateAndLint({
+const DEFAULT_DEPENDENCIES = Object.freeze({
+  createWorkRecordCorpusSnapshot,
+  resolveContractContext,
+  loadCanonicalState,
+  buildGeneratedViewsFromCanonicalState,
+  generateViewsFromBuild,
+  lintRepoFromCapturedCorpus
+});
+
+async function generateAndLintImpl({
   dir = ".",
   profile = null,
   extensionNamespaces = null,
@@ -75,36 +91,77 @@ export async function generateAndLint({
   includeAllFindings = false,
   include_all_findings = false,
   max_findings = null,
-  maxFindings = null
-} = {}) {
-  const generated = await generateViews({
-    dir,
+  maxFindings = null,
+  clock = null,
+  instrumentation = null
+} = {}, dependencies = DEFAULT_DEPENDENCIES) {
+  const targetDir = path.resolve(String(dir));
+  const context = await dependencies.resolveContractContext(targetDir, {
     profile,
     extensionNamespaces
   });
-
-  const lint = await lintRepo({
-    dir,
-    profile,
-    extensionNamespaces,
-    includeAllFindings: true
+  const operationDate = resolveOperationDate(clock);
+  const snapshot = await dependencies.createWorkRecordCorpusSnapshot({
+    dir: targetDir,
+    instrumentation
   });
+  try {
+    if (typeof instrumentation?.increment === "function") {
+      instrumentation.increment("canonical_state_load_count", 1);
+    }
+    const canonicalState = await dependencies.loadCanonicalState(targetDir, {
+      extensionNamespaces: context.extensionNamespaces,
+      workRecords: snapshot.loads
+    });
+    const generatedBuild = await dependencies.buildGeneratedViewsFromCanonicalState({
+      targetDir,
+      context,
+      canonicalState,
+      operationDate,
+      instrumentation
+    });
+    const generated = await dependencies.generateViewsFromBuild(generatedBuild);
 
-  const includeFullOutput =
-    verbose === true || includeAllFindings === true || include_all_findings === true;
+    const lint = await dependencies.lintRepoFromCapturedCorpus({
+      dir: targetDir,
+      profile,
+      extensionNamespaces,
+      includeAllFindings: true,
+      instrumentation
+    }, {
+      context,
+      operationDate,
+      workRecordSnapshot: snapshot,
+      canonicalState,
+      generatedBuild
+    });
 
-  const compactResult = buildLintFindingsResponse(lint, {
-    maxFindings: maxFindings ?? max_findings
-  });
+    const includeFullOutput =
+      verbose === true || includeAllFindings === true || include_all_findings === true;
 
-  if (includeFullOutput) {
-    return {
-      ...compactResult,
-      targetDir: generated.targetDir,
-      generated,
-      lint
-    };
+    const compactResult = buildLintFindingsResponse(lint, {
+      maxFindings: maxFindings ?? max_findings
+    });
+
+    if (includeFullOutput) {
+      return {
+        ...compactResult,
+        targetDir: generated.targetDir,
+        generated,
+        lint
+      };
+    }
+
+    return compactResult;
+  } finally {
+    snapshot.release();
   }
+}
 
-  return compactResult;
+export async function generateAndLint(options = {}) {
+  return generateAndLintImpl(options, DEFAULT_DEPENDENCIES);
+}
+
+export async function generateAndLintWithDependencies(options = {}, dependencies = {}) {
+  return generateAndLintImpl(options, { ...DEFAULT_DEPENDENCIES, ...dependencies });
 }

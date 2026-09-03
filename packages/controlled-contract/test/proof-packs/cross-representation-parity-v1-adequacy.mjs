@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
-import { evaluateVerificationProfileV034
-} from "../../lib/verification-profile-v034.mjs";
+import { evaluateStableProofPackFixtureV1
+} from "../support/stable-v1-proof-pack-runtime.mjs";
 import { PROOF_PACK_ADEQUACY_RUN_VERSION
 } from "../support/proof-pack-adequacy-constants.mjs";
 
@@ -166,11 +166,11 @@ function buildCrossRepresentationParityFixture({
     };
   });
   const contract = {
-    schema_version: "controlled-acceptance-contract.experimental.v0.2",
-    vocabulary_version: "cv.experimental.0.34",
-    profile_id: "acceptance-contract.standard.experimental.v0.2",
+    schema_version: "controlled-acceptance-contract.v1",
+    vocabulary_version: "controlled-contract-vocabulary.v1",
+    profile_id: "acceptance-contract.standard.v1",
     references, propositions: [], claims: [], relations: [], collections: [],
-    residue: [], annotations: []
+    residue: [], annotations: [], test_proof_version: "controlled-contract-test-proof.v1", test_proofs: []
   };
   const addClaim = (id, proposition, kind = "evidence", modality = "MUST",
     verificationMethod = null, falsifierId = null) => {
@@ -237,7 +237,7 @@ function buildCrossRepresentationParityFixture({
     target_claim_id: `claim-${relation.target_claim_pattern_id}`
   });
   const input = {
-    input_version: "controlled-contract-verification-profile-input.experimental.v0.2",
+    input_version: "controlled-contract-verification-profile-input.v1",
     evaluation_stage: "pre_dispatch",
     reference_bindings: profile.reference_roles.map(({ role }) => ({
       role, reference_ids: [...(roleValues[role] ?? [])]
@@ -245,7 +245,7 @@ function buildCrossRepresentationParityFixture({
     number_bindings: profile.number_roles.map(({ role }) => ({
       role, value: numberValues[role]
     })),
-    claim_pattern_bindings: [], resolver_facts: [], delivered_evidence: []
+    claim_pattern_bindings: [], resolver_facts: [], delivered_evidence: [], stable_evaluation: {}
   };
   mutateContract?.(contract, input, roleValues);
   mutateInput?.(input, contract, roleValues);
@@ -253,7 +253,7 @@ function buildCrossRepresentationParityFixture({
 }
 
 function satisfaction(fixture) {
-  return evaluateVerificationProfileV034({ contract: fixture.contract,
+  return evaluateStableProofPackFixtureV1({ contract: fixture.contract,
     profile: fixture.profile, evaluation_input: fixture.input }).satisfaction;
 }
 

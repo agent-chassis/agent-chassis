@@ -1,0 +1,1187 @@
+{
+  "schema_version": "controlled-contract-proof-pack-negative-fixture.experimental.v0.1",
+  "fixture_id": "fixed-claim-verify-ordered-sequences-identical-proposition-operand-0-role",
+  "covers": [
+    {
+      "surface_id": "claim-verify-ordered-sequences-identical-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening"
+    }
+  ],
+  "contract": {
+    "schema_version": "controlled-acceptance-contract.v1",
+    "vocabulary_version": "controlled-contract-vocabulary.v1",
+    "profile_id": "acceptance-contract.standard.v1",
+    "references": [
+      {
+        "reference_id": "ref-a-trace",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-a-trace"
+        }
+      },
+      {
+        "reference_id": "ref-f-projection",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-f-projection"
+        }
+      },
+      {
+        "reference_id": "ref-b-primary-before",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-b-primary-before"
+        }
+      },
+      {
+        "reference_id": "ref-c-primary-after",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-c-primary-after"
+        }
+      },
+      {
+        "reference_id": "ref-d-control-before",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-d-control-before"
+        }
+      },
+      {
+        "reference_id": "ref-e-control-after",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-e-control-after"
+        }
+      },
+      {
+        "reference_id": "ref-traversal-snapshot",
+        "type_term": "cc:process",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-traversal-snapshot"
+        }
+      },
+      {
+        "reference_id": "ref-live-source",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-live-source"
+        }
+      },
+      {
+        "reference_id": "ref-snapshot-frozen",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-snapshot-frozen"
+        }
+      },
+      {
+        "reference_id": "ref-snapshot-state-frozen",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-snapshot-state-frozen"
+        }
+      },
+      {
+        "reference_id": "ref-source-version-initial",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-source-version-initial"
+        }
+      },
+      {
+        "reference_id": "ref-source-version-later",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-source-version-later"
+        }
+      },
+      {
+        "reference_id": "ref-pop-page-attempt-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-pop-page-attempt-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd"
+        }
+      },
+      {
+        "reference_id": "ref-occ-12e8e53773376aae5df4015682622d466f6b89565de0c0179be77289305fce12",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-occ-12e8e53773376aae5df4015682622d466f6b89565de0c0179be77289305fce12"
+        }
+      },
+      {
+        "reference_id": "ref-occ-694f6a63d905ff3fd0b8e1d5d3ec10942e6bb7e05b808e17883482d6944f84cb",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-occ-694f6a63d905ff3fd0b8e1d5d3ec10942e6bb7e05b808e17883482d6944f84cb"
+        }
+      },
+      {
+        "reference_id": "ref-pop-returned-page-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-pop-returned-page-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd"
+        }
+      },
+      {
+        "reference_id": "ref-occ-7b6363cb5518e5047daca4fe3b1741ecb5da920900281e9d81ef3eabca0e09cf",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-occ-7b6363cb5518e5047daca4fe3b1741ecb5da920900281e9d81ef3eabca0e09cf"
+        }
+      },
+      {
+        "reference_id": "ref-occ-ed882e874d6a8634b118b1c8ae1ac764a380ec5bda64ad71d5a9ca7208bbbb0e",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-occ-ed882e874d6a8634b118b1c8ae1ac764a380ec5bda64ad71d5a9ca7208bbbb0e"
+        }
+      },
+      {
+        "reference_id": "ref-pop-member-occurrence-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-pop-member-occurrence-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd"
+        }
+      },
+      {
+        "reference_id": "ref-occ-a0f95a18c2f29d38d5083df9b01034164ad4e91cab92c124c0b89f7a0ce406fa",
+        "type_term": "cc:evidence",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-occ-a0f95a18c2f29d38d5083df9b01034164ad4e91cab92c124c0b89f7a0ce406fa"
+        }
+      },
+      {
+        "reference_id": "ref-occ-e2eba6fe19012cf389cb970431499ab5e96bd5ea7e1aa26f82d5507093f87242",
+        "type_term": "cc:evidence",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-occ-e2eba6fe19012cf389cb970431499ab5e96bd5ea7e1aa26f82d5507093f87242"
+        }
+      },
+      {
+        "reference_id": "ref-occ-fe19dad7b41f740d82de008a2a70325e9cee09f109e1e3230809e222ca7d3f08",
+        "type_term": "cc:evidence",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-occ-fe19dad7b41f740d82de008a2a70325e9cee09f109e1e3230809e222ca7d3f08"
+        }
+      },
+      {
+        "reference_id": "ref-pop-stable-member-occurrence-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-pop-stable-member-occurrence-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd"
+        }
+      },
+      {
+        "reference_id": "ref-occ-0fc747b502efc00fce945738be1e6fda221eabd11fb709f47a5e6886455a46c6",
+        "type_term": "cc:evidence",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-occ-0fc747b502efc00fce945738be1e6fda221eabd11fb709f47a5e6886455a46c6"
+        }
+      },
+      {
+        "reference_id": "ref-occ-4068b3d532716faff21f4508cf4ce843efafd11bb21d205681e0abf821971d77",
+        "type_term": "cc:evidence",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-occ-4068b3d532716faff21f4508cf4ce843efafd11bb21d205681e0abf821971d77"
+        }
+      },
+      {
+        "reference_id": "ref-occ-e23b376fed730b0053277c44926934d64f554bf0cf4c8cf7a6f1e72fb41e981c",
+        "type_term": "cc:evidence",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-occ-e23b376fed730b0053277c44926934d64f554bf0cf4c8cf7a6f1e72fb41e981c"
+        }
+      },
+      {
+        "reference_id": "ref-pop-mutation-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-pop-mutation-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd"
+        }
+      },
+      {
+        "reference_id": "ref-occ-bd3cd6afc7aca13cc7f9fdc950198e93d3b8a91e1d7013095105a6d3a61b1a80",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-occ-bd3cd6afc7aca13cc7f9fdc950198e93d3b8a91e1d7013095105a6d3a61b1a80"
+        }
+      },
+      {
+        "reference_id": "ref-sequence-comparison-result",
+        "type_term": "cc:evidence",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-sequence-comparison-result"
+        }
+      },
+      {
+        "reference_id": "ref-identical-sequence-state",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-identical-sequence-state"
+        }
+      },
+      {
+        "reference_id": "ref-snapshot-pagination-verification",
+        "type_term": "cc:test",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-snapshot-pagination-verification"
+        }
+      },
+      {
+        "reference_id": "ref-sequence-failure-condition",
+        "type_term": "cc:criterion",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "mutation-pagination",
+          "value": "ref-sequence-failure-condition"
+        }
+      }
+    ],
+    "propositions": [
+      {
+        "proposition_id": "prop-complete-page-attempt-population-members",
+        "subject_reference_id": "ref-pop-page-attempt-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-12e8e53773376aae5df4015682622d466f6b89565de0c0179be77289305fce12"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-694f6a63d905ff3fd0b8e1d5d3ec10942e6bb7e05b808e17883482d6944f84cb"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-page-attempt-population-count",
+        "subject_reference_id": "ref-pop-page-attempt-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-returned-page-population-members",
+        "subject_reference_id": "ref-pop-returned-page-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-7b6363cb5518e5047daca4fe3b1741ecb5da920900281e9d81ef3eabca0e09cf"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-ed882e874d6a8634b118b1c8ae1ac764a380ec5bda64ad71d5a9ca7208bbbb0e"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-returned-page-population-count",
+        "subject_reference_id": "ref-pop-returned-page-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-member-occurrence-population-members",
+        "subject_reference_id": "ref-pop-member-occurrence-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-a0f95a18c2f29d38d5083df9b01034164ad4e91cab92c124c0b89f7a0ce406fa"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-e2eba6fe19012cf389cb970431499ab5e96bd5ea7e1aa26f82d5507093f87242"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-fe19dad7b41f740d82de008a2a70325e9cee09f109e1e3230809e222ca7d3f08"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-member-occurrence-population-count",
+        "subject_reference_id": "ref-pop-member-occurrence-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 3
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-stable-member-occurrence-population-members",
+        "subject_reference_id": "ref-pop-stable-member-occurrence-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-0fc747b502efc00fce945738be1e6fda221eabd11fb709f47a5e6886455a46c6"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-4068b3d532716faff21f4508cf4ce843efafd11bb21d205681e0abf821971d77"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-e23b376fed730b0053277c44926934d64f554bf0cf4c8cf7a6f1e72fb41e981c"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-stable-member-occurrence-population-count",
+        "subject_reference_id": "ref-pop-stable-member-occurrence-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 3
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-mutation-population-members",
+        "subject_reference_id": "ref-pop-mutation-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-bd3cd6afc7aca13cc7f9fdc950198e93d3b8a91e1d7013095105a6d3a61b1a80"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-complete-mutation-population-count",
+        "subject_reference_id": "ref-pop-mutation-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 1
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-attempt-resolves-selected-snapshot-001",
+        "subject_reference_id": "ref-occ-12e8e53773376aae5df4015682622d466f6b89565de0c0179be77289305fce12",
+        "operator": "reference:resolves_to",
+        "applicability_context": {
+          "mode": "where",
+          "operand_reference_ids": [
+            "ref-traversal-snapshot"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-snapshot-frozen"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-attempt-resolves-selected-snapshot-002",
+        "subject_reference_id": "ref-occ-694f6a63d905ff3fd0b8e1d5d3ec10942e6bb7e05b808e17883482d6944f84cb",
+        "operator": "reference:resolves_to",
+        "applicability_context": {
+          "mode": "where",
+          "operand_reference_ids": [
+            "ref-traversal-snapshot"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-snapshot-frozen"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-returned-page-resolves-selected-snapshot-001",
+        "subject_reference_id": "ref-occ-7b6363cb5518e5047daca4fe3b1741ecb5da920900281e9d81ef3eabca0e09cf",
+        "operator": "reference:resolves_to",
+        "applicability_context": {
+          "mode": "where",
+          "operand_reference_ids": [
+            "ref-traversal-snapshot"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-snapshot-frozen"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-each-returned-page-resolves-selected-snapshot-002",
+        "subject_reference_id": "ref-occ-ed882e874d6a8634b118b1c8ae1ac764a380ec5bda64ad71d5a9ca7208bbbb0e",
+        "operator": "reference:resolves_to",
+        "applicability_context": {
+          "mode": "where",
+          "operand_reference_ids": [
+            "ref-traversal-snapshot"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-snapshot-frozen"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-snapshot-state-at-first-page",
+        "subject_reference_id": "ref-snapshot-frozen",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "where",
+          "operand_reference_ids": [
+            "ref-occ-694f6a63d905ff3fd0b8e1d5d3ec10942e6bb7e05b808e17883482d6944f84cb"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-snapshot-state-frozen"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-snapshot-state-at-later-page",
+        "subject_reference_id": "ref-snapshot-frozen",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "where",
+          "operand_reference_ids": [
+            "ref-occ-12e8e53773376aae5df4015682622d466f6b89565de0c0179be77289305fce12"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-snapshot-state-frozen"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-first-page-precedes-mutation",
+        "subject_reference_id": "ref-occ-7b6363cb5518e5047daca4fe3b1741ecb5da920900281e9d81ef3eabca0e09cf",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-bd3cd6afc7aca13cc7f9fdc950198e93d3b8a91e1d7013095105a6d3a61b1a80"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-mutation-precedes-later-page",
+        "subject_reference_id": "ref-occ-bd3cd6afc7aca13cc7f9fdc950198e93d3b8a91e1d7013095105a6d3a61b1a80",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-12e8e53773376aae5df4015682622d466f6b89565de0c0179be77289305fce12"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-relevant-mutation-mutates-live-source",
+        "subject_reference_id": "ref-occ-bd3cd6afc7aca13cc7f9fdc950198e93d3b8a91e1d7013095105a6d3a61b1a80",
+        "operator": "reference:mutates",
+        "applicability_context": {
+          "mode": "where",
+          "operand_reference_ids": [
+            "ref-traversal-snapshot"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-live-source"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-live-source-initial-state",
+        "subject_reference_id": "ref-live-source",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "where",
+          "operand_reference_ids": [
+            "ref-occ-694f6a63d905ff3fd0b8e1d5d3ec10942e6bb7e05b808e17883482d6944f84cb"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-version-initial"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-live-source-later-state",
+        "subject_reference_id": "ref-live-source",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "where",
+          "operand_reference_ids": [
+            "ref-occ-12e8e53773376aae5df4015682622d466f6b89565de0c0179be77289305fce12"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-version-later"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-comparison-records-ordered-sequences",
+        "subject_reference_id": "ref-sequence-comparison-result",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-pop-stable-member-occurrence-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-pop-member-occurrence-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-ordered-sequences-identical",
+        "subject_reference_id": "ref-sequence-comparison-result",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-identical-sequence-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-verification-reads-exact-pagination-captures",
+        "subject_reference_id": "ref-snapshot-pagination-verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-a-trace"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-b-primary-before"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-c-primary-after"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-d-control-before"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-e-control-after"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-f-projection"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-traversal-snapshot"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-12e8e53773376aae5df4015682622d466f6b89565de0c0179be77289305fce12"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-694f6a63d905ff3fd0b8e1d5d3ec10942e6bb7e05b808e17883482d6944f84cb"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-7b6363cb5518e5047daca4fe3b1741ecb5da920900281e9d81ef3eabca0e09cf"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-ed882e874d6a8634b118b1c8ae1ac764a380ec5bda64ad71d5a9ca7208bbbb0e"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-pop-member-occurrence-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-pop-stable-member-occurrence-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-occ-bd3cd6afc7aca13cc7f9fdc950198e93d3b8a91e1d7013095105a6d3a61b1a80"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-snapshot-frozen"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-snapshot-state-frozen"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-version-initial"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-source-version-later"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-sequence-comparison-result"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-verify-ordered-sequences-identical",
+        "subject_reference_id": "ref-snapshot-pagination-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-a-trace"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-verify-ordered-sequences-identical",
+        "subject_reference_id": "ref-sequence-comparison-result",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-sequence-failure-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-identical-sequence-state"
+          }
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "claim_id": "claim-complete-page-attempt-population-members",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-complete-page-attempt-population-members"
+      },
+      {
+        "claim_id": "claim-complete-page-attempt-population-count",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-complete-page-attempt-population-count"
+      },
+      {
+        "claim_id": "claim-complete-returned-page-population-members",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-complete-returned-page-population-members"
+      },
+      {
+        "claim_id": "claim-complete-returned-page-population-count",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-complete-returned-page-population-count"
+      },
+      {
+        "claim_id": "claim-complete-member-occurrence-population-members",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-complete-member-occurrence-population-members"
+      },
+      {
+        "claim_id": "claim-complete-member-occurrence-population-count",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-complete-member-occurrence-population-count"
+      },
+      {
+        "claim_id": "claim-complete-stable-member-occurrence-population-members",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-complete-stable-member-occurrence-population-members"
+      },
+      {
+        "claim_id": "claim-complete-stable-member-occurrence-population-count",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-complete-stable-member-occurrence-population-count"
+      },
+      {
+        "claim_id": "claim-complete-mutation-population-members",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-complete-mutation-population-members"
+      },
+      {
+        "claim_id": "claim-complete-mutation-population-count",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-complete-mutation-population-count"
+      },
+      {
+        "claim_id": "claim-each-attempt-resolves-selected-snapshot-001",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-each-attempt-resolves-selected-snapshot-001"
+      },
+      {
+        "claim_id": "claim-each-attempt-resolves-selected-snapshot-002",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-each-attempt-resolves-selected-snapshot-002"
+      },
+      {
+        "claim_id": "claim-each-returned-page-resolves-selected-snapshot-001",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-each-returned-page-resolves-selected-snapshot-001"
+      },
+      {
+        "claim_id": "claim-each-returned-page-resolves-selected-snapshot-002",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-each-returned-page-resolves-selected-snapshot-002"
+      },
+      {
+        "claim_id": "claim-snapshot-state-at-first-page",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-snapshot-state-at-first-page"
+      },
+      {
+        "claim_id": "claim-snapshot-state-at-later-page",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-snapshot-state-at-later-page"
+      },
+      {
+        "claim_id": "claim-first-page-precedes-mutation",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-first-page-precedes-mutation"
+      },
+      {
+        "claim_id": "claim-mutation-precedes-later-page",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-mutation-precedes-later-page"
+      },
+      {
+        "claim_id": "claim-relevant-mutation-mutates-live-source",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-relevant-mutation-mutates-live-source"
+      },
+      {
+        "claim_id": "claim-live-source-initial-state",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-live-source-initial-state"
+      },
+      {
+        "claim_id": "claim-live-source-later-state",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-live-source-later-state"
+      },
+      {
+        "claim_id": "claim-comparison-records-ordered-sequences",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-comparison-records-ordered-sequences"
+      },
+      {
+        "claim_id": "claim-ordered-sequences-identical",
+        "kind": "behavior",
+        "modality": "MUST",
+        "proposition_id": "prop-ordered-sequences-identical"
+      },
+      {
+        "claim_id": "claim-verification-reads-exact-pagination-captures",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-verification-reads-exact-pagination-captures"
+      },
+      {
+        "claim_id": "claim-verify-ordered-sequences-identical",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-verify-ordered-sequences-identical",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-verify-ordered-sequences-identical"
+      }
+    ],
+    "relations": [
+      {
+        "relation_id": "rel-verification-targets-sequence-equality",
+        "role": "verifies",
+        "source_claim_id": "claim-verify-ordered-sequences-identical",
+        "target_claim_id": "claim-ordered-sequences-identical"
+      }
+    ],
+    "collections": [],
+    "residue": [],
+    "annotations": [],
+    "test_proof_version": "controlled-contract-test-proof.v1",
+    "test_proofs": []
+  },
+  "evaluation_input": {
+    "input_version": "controlled-contract-verification-profile-input.v1",
+    "evaluation_stage": "pre_dispatch",
+    "reference_bindings": [
+      {
+        "role": "mutation_trace",
+        "reference_ids": [
+          "ref-a-trace"
+        ]
+      },
+      {
+        "role": "projection_result",
+        "reference_ids": [
+          "ref-f-projection"
+        ]
+      },
+      {
+        "role": "primary_before_capture",
+        "reference_ids": [
+          "ref-b-primary-before"
+        ]
+      },
+      {
+        "role": "primary_after_capture",
+        "reference_ids": [
+          "ref-c-primary-after"
+        ]
+      },
+      {
+        "role": "control_before_capture",
+        "reference_ids": [
+          "ref-d-control-before"
+        ]
+      },
+      {
+        "role": "control_after_capture",
+        "reference_ids": [
+          "ref-e-control-after"
+        ]
+      },
+      {
+        "role": "traversal",
+        "reference_ids": [
+          "ref-traversal-snapshot"
+        ]
+      },
+      {
+        "role": "live_source",
+        "reference_ids": [
+          "ref-live-source"
+        ]
+      },
+      {
+        "role": "snapshot",
+        "reference_ids": [
+          "ref-snapshot-frozen"
+        ]
+      },
+      {
+        "role": "snapshot_state",
+        "reference_ids": [
+          "ref-snapshot-state-frozen"
+        ]
+      },
+      {
+        "role": "initial_source_version",
+        "reference_ids": [
+          "ref-source-version-initial"
+        ]
+      },
+      {
+        "role": "later_source_version",
+        "reference_ids": [
+          "ref-source-version-later"
+        ]
+      },
+      {
+        "role": "page_attempt_population",
+        "reference_ids": [
+          "ref-pop-page-attempt-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd"
+        ]
+      },
+      {
+        "role": "page_attempts",
+        "reference_ids": [
+          "ref-occ-12e8e53773376aae5df4015682622d466f6b89565de0c0179be77289305fce12",
+          "ref-occ-694f6a63d905ff3fd0b8e1d5d3ec10942e6bb7e05b808e17883482d6944f84cb"
+        ]
+      },
+      {
+        "role": "returned_page_population",
+        "reference_ids": [
+          "ref-pop-returned-page-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd"
+        ]
+      },
+      {
+        "role": "returned_pages",
+        "reference_ids": [
+          "ref-occ-7b6363cb5518e5047daca4fe3b1741ecb5da920900281e9d81ef3eabca0e09cf",
+          "ref-occ-ed882e874d6a8634b118b1c8ae1ac764a380ec5bda64ad71d5a9ca7208bbbb0e"
+        ]
+      },
+      {
+        "role": "member_occurrence_population",
+        "reference_ids": [
+          "ref-pop-member-occurrence-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd"
+        ]
+      },
+      {
+        "role": "member_occurrences",
+        "reference_ids": [
+          "ref-occ-a0f95a18c2f29d38d5083df9b01034164ad4e91cab92c124c0b89f7a0ce406fa",
+          "ref-occ-e2eba6fe19012cf389cb970431499ab5e96bd5ea7e1aa26f82d5507093f87242",
+          "ref-occ-fe19dad7b41f740d82de008a2a70325e9cee09f109e1e3230809e222ca7d3f08"
+        ]
+      },
+      {
+        "role": "stable_member_occurrence_population",
+        "reference_ids": [
+          "ref-pop-stable-member-occurrence-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd"
+        ]
+      },
+      {
+        "role": "stable_member_occurrences",
+        "reference_ids": [
+          "ref-occ-0fc747b502efc00fce945738be1e6fda221eabd11fb709f47a5e6886455a46c6",
+          "ref-occ-4068b3d532716faff21f4508cf4ce843efafd11bb21d205681e0abf821971d77",
+          "ref-occ-e23b376fed730b0053277c44926934d64f554bf0cf4c8cf7a6f1e72fb41e981c"
+        ]
+      },
+      {
+        "role": "mutation_population",
+        "reference_ids": [
+          "ref-pop-mutation-population-9b296fe09797cef70fb06b7fcb2f4169551116314711c773cf6990239bc94ccd"
+        ]
+      },
+      {
+        "role": "mutations",
+        "reference_ids": [
+          "ref-occ-bd3cd6afc7aca13cc7f9fdc950198e93d3b8a91e1d7013095105a6d3a61b1a80"
+        ]
+      },
+      {
+        "role": "first_page_attempt",
+        "reference_ids": [
+          "ref-occ-694f6a63d905ff3fd0b8e1d5d3ec10942e6bb7e05b808e17883482d6944f84cb"
+        ]
+      },
+      {
+        "role": "later_page_attempt",
+        "reference_ids": [
+          "ref-occ-12e8e53773376aae5df4015682622d466f6b89565de0c0179be77289305fce12"
+        ]
+      },
+      {
+        "role": "first_returned_page",
+        "reference_ids": [
+          "ref-occ-7b6363cb5518e5047daca4fe3b1741ecb5da920900281e9d81ef3eabca0e09cf"
+        ]
+      },
+      {
+        "role": "later_returned_page",
+        "reference_ids": [
+          "ref-occ-ed882e874d6a8634b118b1c8ae1ac764a380ec5bda64ad71d5a9ca7208bbbb0e"
+        ]
+      },
+      {
+        "role": "relevant_mutation",
+        "reference_ids": [
+          "ref-occ-bd3cd6afc7aca13cc7f9fdc950198e93d3b8a91e1d7013095105a6d3a61b1a80"
+        ]
+      },
+      {
+        "role": "sequence_comparison_result",
+        "reference_ids": [
+          "ref-sequence-comparison-result"
+        ]
+      },
+      {
+        "role": "identical_sequence_state",
+        "reference_ids": [
+          "ref-identical-sequence-state"
+        ]
+      },
+      {
+        "role": "verification",
+        "reference_ids": [
+          "ref-snapshot-pagination-verification"
+        ]
+      },
+      {
+        "role": "sequence_failure_condition",
+        "reference_ids": [
+          "ref-sequence-failure-condition"
+        ]
+      }
+    ],
+    "number_bindings": [],
+    "claim_pattern_bindings": [],
+    "resolver_facts": [],
+    "delivered_evidence": [],
+    "stable_evaluation": {}
+  }
+}

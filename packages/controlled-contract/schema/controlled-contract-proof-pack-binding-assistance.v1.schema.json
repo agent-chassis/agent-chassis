@@ -114,6 +114,7 @@
               "category": {
                 "enum": [
                   "claim_patterns", "reference_binding_patterns",
+                  "binding_constraint_patterns",
                   "relation_patterns", "collection_patterns",
                   "resolver_fact_patterns", "evidence_patterns"
                 ]
@@ -141,7 +142,8 @@
         "constraints": {
           "type": "object",
           "required": [
-            "distinct_reference_role_sets", "reference_role_count_bindings"
+            "distinct_reference_role_sets", "reference_role_count_bindings",
+            "falsifier_occurrence_bindings"
           ],
           "additionalProperties": false,
           "properties": {
@@ -154,6 +156,10 @@
               }
             },
             "reference_role_count_bindings": {
+              "type": "array", "maxItems": 256,
+              "items": { "type": "object" }
+            },
+            "falsifier_occurrence_bindings": {
               "type": "array", "maxItems": 256,
               "items": { "type": "object" }
             }

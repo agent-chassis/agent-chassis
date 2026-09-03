@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-proof-pack-adequacy.experimental.v0.1",
   "profile_id": "proof.compatibility.behavioral-preservation",
   "profile_version": "1.0.0",
-  "profile_digest": "fedc131cdb3739d10ca9143708a3419f6ac4f7eb004a6d1d5ce0e13b43493761",
+  "profile_digest": "4056a01541f7f6c32d4de3ed9c6a257ff9adbfdc2ee153c7032dba7aa0655294",
   "guarantee": "For one declared logical behavior source, two distinct baseline and candidate behavior-report artifacts expose equal complete populations of typed observable descriptors by mutual subset, bind one shared exact nonnegative observable count, emit count signals equal to that count, and expose one explicitly selected canonical observable-value pair that is exactly equal. One verification reads both full reports and each verified equality has its controlled complement as a separate falsifier. Exact-bound admission additionally requires two distinct caller-selected source descriptors for the full report artifacts whose complete captured bytes have the same SHA-256.",
   "guarantee_digest": "85c6d4e5fd97c4cb01ad7fc5f81d15b7519d174eb130895291118e5c69947ae8",
   "required_positive_cases": [
@@ -58,12 +58,20 @@
   "executable_module_digest": "46c21afb99a5ec340f8790ebc38f03f34bb665b6cbff20557cfddcc0d0036d1b",
   "executable_dependency_digests": [
     {
+      "path": "packages/controlled-contract/lib/deterministic-projection-primitives.mjs",
+      "sha256": "8f0cd3dfa2f4c7dc6da5ca0b667156723929184e0c3f8abf973fe54630db28b5"
+    },
+    {
+      "path": "packages/controlled-contract/lib/equality-normalization-v034.mjs",
+      "sha256": "a7cfdf3d0a5d62b3c6cb7ec7cc74d458e4775541d33b39d92236d8bcb5ec8eb4"
+    },
+    {
       "path": "packages/controlled-contract/lib/native-contract-carrier-v034.mjs",
-      "sha256": "39d1b01fc19379762f68f79679925ee9767a47780b9e95ed80dda9da53a256af"
+      "sha256": "b0cb0ed42b8feb9b87fcfb914cfe124869efbe2875f0368eeb7b5fe8bef74027"
     },
     {
       "path": "packages/controlled-contract/lib/native-contract-carrier.mjs",
-      "sha256": "d66af02e8de4214cb2623dad624b48b243e445e7a6b70ee7ba244397dcc9b67a"
+      "sha256": "87b3b56f9478a25bcefb36f3a0917a20e3d1f8dd79810a91fa9288ef73e6a248"
     },
     {
       "path": "packages/controlled-contract/lib/native-contract-dag.mjs",
@@ -71,23 +79,27 @@
     },
     {
       "path": "packages/controlled-contract/lib/native-contract-runtime.mjs",
-      "sha256": "99802fbcb40c48c9976ea3fc141e85cc531d40cba2861e273aff1c80611729df"
+      "sha256": "154ee7614793ae6da2851834532f63d0bea91fc1c6b310d5ca35258d80eeadad"
     },
     {
       "path": "packages/controlled-contract/lib/population-semantics-v034.mjs",
-      "sha256": "adf234cd61cce8b8fc25358b2aecd5f996198a976652a85b698d993cb809d5ac"
+      "sha256": "101c3a5c3385ec519db32cf299e8e2567270e87a5c22be801fb400c6f86b9fe7"
+    },
+    {
+      "path": "packages/controlled-contract/lib/projected-contract-graph.mjs",
+      "sha256": "f3d4c985f31b74aef5581c6148a0a4e516ce5bf1f6785190a9805dc1c24ab5fe"
     },
     {
       "path": "packages/controlled-contract/lib/verification-profile-v034.mjs",
-      "sha256": "d0bf11ef4a41c0d24e89f4641c2bd5fb669d265993967964f1287d4af6187d87"
+      "sha256": "9f4d5cc43bc1d02c6f5d5b558e4f697d3396bedeaac0811d643140d08d943e85"
     },
     {
       "path": "packages/controlled-contract/lib/verification-profile.mjs",
-      "sha256": "80ed26da14823a639460053a25a6dbd99de010ab0cbe669bfd40d71a294aa03d"
+      "sha256": "b542e7a2872ad29f719bd1b7472bd5239d1ed8f31289e32642e19ec8480889be"
     },
     {
       "path": "packages/controlled-contract/lib/vocabulary-v034.mjs",
-      "sha256": "0685d29caed0c39c846f67552c99f30469647d0f81e9f8cf8394d2823e0ba0a0"
+      "sha256": "af06b8100e1d856136fa045beed45829b8c1ca4de8346e8715dfffa4c5e8feeb"
     },
     {
       "path": "packages/controlled-contract/test/support/proof-pack-adequacy-constants.mjs",
@@ -95,7 +107,7 @@
     },
     {
       "path": "packages/controlled-contract/vocabulary/cv.experimental.0.34.mjs",
-      "sha256": "cc7ba4aa6278640348d274c4095a494f55762de6034c98596d65df7a36a54779"
+      "sha256": "1eb6937a4c314e33a44c3f2ebe415893e937593f0e5a0089829c504f12deaee2"
     }
   ],
   "negative_contract_fixtures": [
@@ -537,7 +549,7 @@
   ],
   "coverage_witness_index": {
     "path": "packages/controlled-contract/test/certification/profiles/proof.compatibility.behavioral-preservation/1.0.0/witness-profile-weakenings.json",
-    "sha256": "2f982439c28fa08b47075746557c170ed139a6a4150c995be8573db8a48b835a"
+    "sha256": "b7cf359cd2618b86e20f9c12e7ddd06315c37b6a9f0c26bce3dbcb501b819750"
   },
   "guarantee_critical_profile_surfaces": [
     {
@@ -1700,25 +1712,25 @@
     {
       "surface_id": "artifact-vocabulary-algebra-digest",
       "profile_json_pointer": "/vocabulary_algebra_digest",
-      "surface_digest": "2b8dc00de4f88bac72d10838a026512dd7504c6dc9578560e09bb11f835b22c4",
+      "surface_digest": "e4be35f83d73f8b8decea2d050870931bde9992f78c57d021478eae45809a877",
       "reason": "artifact_binding_not_guarantee_semantics"
     },
     {
       "surface_id": "artifact-vocabulary-complete-digest",
       "profile_json_pointer": "/vocabulary_complete_digest",
-      "surface_digest": "393f6b7b6aa09373e4fcfbbbec720fa0077c5a2f9017036327da566e76ce47f3",
+      "surface_digest": "3972150f31adaaeb83e453564b61132109f63d22c718f297643aa783db9a41c6",
       "reason": "artifact_binding_not_guarantee_semantics"
     },
     {
       "surface_id": "artifact-vocabulary-definitions-digest",
       "profile_json_pointer": "/vocabulary_definitions_digest",
-      "surface_digest": "5ae98c7d3d662df4fa66ab0eeba95eeaaec09e62149297ffd4be9137a61519e4",
+      "surface_digest": "5712c8ef917cb4a92f2c25a33725896a3db54e59e29bdc780686fd1b54bedaff",
       "reason": "artifact_binding_not_guarantee_semantics"
     },
     {
       "surface_id": "artifact-vocabulary-signature-digest",
       "profile_json_pointer": "/vocabulary_signature_digest",
-      "surface_digest": "d621fc2daa14a098fe406813a764f3f70181d693d6ed33db736ca3ff55ce9e27",
+      "surface_digest": "6440a56630c8f4b72052f1680c972161b28ae1a7fcd8795435cc6986e060e6f8",
       "reason": "artifact_binding_not_guarantee_semantics"
     },
     {

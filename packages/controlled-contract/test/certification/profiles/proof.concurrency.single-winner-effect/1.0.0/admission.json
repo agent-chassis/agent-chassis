@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-admitted-proof-pack.v1",
   "profile_id": "proof.concurrency.single-winner-effect",
   "profile_version": "1.0.0",
-  "profile_digest": "cef87caccfe055e2343e1ed5140eb11afce7c5ade24c1e3ffbb25d14dddf9e95",
+  "profile_digest": "b1ab7e9521f359a1d6ee0edf9f74c55e966e47e02be15dfe9dadab4dd21fb22c",
   "guarantee": "Exactly two distinct attempts for one grounded operation and scoped key overlap because both starts precede both terminal events; one elected winner is accepted and creates the sole member of the complete effect population, one elected loser is rejected and creates no such effect, and post-terminal observations read the elected durable resource with loser state equal to winner state.",
   "guarantee_digest": "defcedac8d42c9dde51822e911be1f334993db004b4bb9f174e6b0f1ddc38e4c",
   "explicit_exclusions": [
@@ -14,8 +14,8 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "3e332cbb4392e4f675e94dfb2845eab2ed886bdaea704bbb8386a006fcf9beab",
-    "adequacy_result_digest": "aa08747dfecbcd5e37587e055b210457552a06e2c871dc04fd5c6b2ccf0b9204",
+    "adequacy_declaration_digest": "ec0138ad1dddc5a55d3c557fc6d7811ee92d3dcd9e7794113da8372119f314cc",
+    "adequacy_result_digest": "1ac68c78fbaddfaefd35dcda2a48da6f533f3d6614eb77eacb48fbcf84c45e28",
     "executable_control_count": 36,
     "negative_fixture_count": 3,
     "coverage_witness_count": 178

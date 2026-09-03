@@ -1,6 +1,6 @@
 
 
-import { createHash } from "node:crypto";
+import { createHash, createHmac, randomBytes } from "node:crypto";
 import { readFileSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { types as utilTypes } from "node:util";
@@ -18,9 +18,9 @@ import {
   materializeTerminalCandidateCheckout
 } from "@agent-chassis/agent-launch-cli/src/lib/terminal-review-materialization.mjs";
 import {
+  assertTerminalWkCandidateVersionDecision,
+  inspectTerminalReviewCandidateAuthority,
   assertTerminalWkCandidateInputsUnmoved,
-  casTerminalCandidateCurrentRef,
-  constructTerminalWkCandidate,
   deriveTerminalCandidateCurrentRef,
   deriveTerminalCandidateDurableRefs,
   deriveRecoveredTerminalWkCandidateIdentity,
@@ -29,706 +29,950 @@ import {
   freezeReconstructedTerminalWkCandidateInputs,
   freezeRecoveredTerminalWkCandidateInputs,
   freezeTerminalWkCandidateInputs,
+  publishTerminalWkCandidateVersion,
+  readExactWkRecordBlobObservation,
   readTerminalCandidateCurrentRef,
   readTerminalWkCandidateMetadata,
   TERMINAL_WK_CANDIDATE_CODES,
+  TERMINAL_WK_CANDIDATE_SCHEMA_VERSION,
   TERMINAL_WK_CANDIDATE_SCHEMA_VERSION_V3,
   TerminalWkCandidateError,
   verifyTerminalWkCandidateObjectBinding
 } from "@agent-chassis/agent-launch-cli/src/lib/terminal-wk-candidate.mjs";
 import {
+  assertAdmissibleLiveTerminalReviewCoordination,
+  decideAuthenticatedTerminalReviewLifecycleDelta
+} from "@agent-chassis/agent-launch-cli/src/lib/backend-terminal-review-lifecycle-authority.mjs";
+import {
+  authenticateControlledContractGenerationAtW,
+  resolveControlledContractGenerationBinding
+} from "@agent-chassis/agent-launch-cli/src/lib/controlled-carrier-attachment-primitive.mjs";
+import { resolveControlledContractAttachmentGeneration } from
+  "@agent-chassis/wiki-core/src/lib/controlled-contract-tools.mjs";
+import {
+  assertAuthenticatedControlledContractGeneration,
+  authenticatedControlledContractGenerationsEqual
+} from
+  "@agent-chassis/wiki-core/src/lib/controlled-contract-generation-authentication.mjs";
+import {
   runAllTerminalCandidateValidations,
   runTerminalCandidateValidation,
   verifyTerminalCandidateDependencies
 } from "@agent-chassis/agent-launch-cli/src/lib/terminal-wk-candidate-validation.mjs";
+import {
+  CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES,
+  canonicalCurrentTerminalReviewContract,
+  projectTerminalReviewUnit,
+  TERMINAL_REVIEW_UNIT_PROJECTION_CODES
+} from "./dispatch-terminal-candidate-coordinator.mjs";
 
-function declaredValidationTargets(record) {
-  const allowed = Array.isArray(record?.sections?.structured_validation?.allowed)
-    ? record.sections.structured_validation.allowed
-    : [];
-  const targets = allowed
-    .filter((entry) => entry?.command === "node_test" && typeof entry.target === "string")
-    .map((entry) => entry.target);
-  return Object.freeze([...new Set(targets)].sort());
-}
+export {
+  CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES,
+  TERMINAL_CANDIDATE_FAILURE_PROJECTION_SCHEMA_VERSION,
+  TERMINAL_CANDIDATE_RECOVERY_DIAGNOSTIC_SCHEMA_VERSION,
+  TERMINAL_CANDIDATE_RECOVERY_REASONS,
+  TERMINAL_CANDIDATE_TYPED_FAILURE_MESSAGE,
+  TERMINAL_CANDIDATE_UNKNOWN_FAILURE_MESSAGE,
+  TERMINAL_REVIEW_CONTRACT_BINDING_SCHEMA_VERSION,
+  TERMINAL_REVIEW_UNIT_PROJECTION_CODES,
+  TERMINAL_TEST_PROOF_RUNTIME_REFUSAL_CODES,
+  bindTerminalTestProofVerificationIds,
+  createTerminalCandidateCoordinator,
+  projectAuthenticatedTerminalCandidateFailure,
+  projectTerminalCandidateRecoveryDiagnostic,
+  projectTerminalCandidateRecoveryReason,
+  projectTerminalWkCandidateFailure
+} from "./dispatch-terminal-candidate-coordinator.mjs";
 
-export const TERMINAL_REVIEW_UNIT_PROJECTION_CODES = Object.freeze({
-  PARENT_LIFECYCLE_CONTRACT_INCOMPLETE: "parent_lifecycle_contract_incomplete",
-  SLICE_REVIEW_CONTRACT_ABSENT: "slice_review_contract_absent"
+export const TERMINAL_CANDIDATE_STATUS_SCHEMA_VERSION =
+  "agent_launch.terminal_candidate_status.v1";
+export const TERMINAL_CANDIDATE_ADVANCE_SCHEMA_VERSION =
+  "agent_launch.terminal_candidate_advance.v1";
+export const TERMINAL_CANDIDATE_RUNTIME_CODES = Object.freeze({
+  TERMINAL_REVIEW_WORKFLOW_NOT_SELECTED:
+    "agent_launch.terminal_candidate.status.workflow_not_selected.v1",
+  CANDIDATE_ABSENT: "agent_launch.terminal_candidate.status.candidate_absent.v1",
+  CANDIDATE_IDENTITY_INVALID_OR_MOVED:
+    "agent_launch.terminal_candidate.status.candidate_identity_invalid_or_moved.v1",
+  CANDIDATE_BOUND: "agent_launch.terminal_candidate.status.candidate_bound.v1",
+  LIVE_COORDINATION_INADMISSIBLE:
+    "agent_launch.terminal_candidate.status.live_coordination_inadmissible.v1",
+  CANDIDATE_STALE_W: "agent_launch.terminal_candidate.status.candidate_stale_w.v1",
+  CANDIDATE_AUTHORED_CONTRACT_DIVERGENT:
+    "agent_launch.terminal_candidate.status.candidate_authored_contract_divergent.v1",
+  CANDIDATE_HEALTHY: "agent_launch.terminal_candidate.status.candidate_healthy.v1",
+  CANONICAL_ROOT_INVALID:
+    "agent_launch.terminal_candidate.canonical_root_invalid.v1",
+  CANONICAL_RECORD_UNREADABLE:
+    "agent_launch.terminal_candidate.canonical_record_unreadable.v1",
+  TRANSPORT_FAILURE: "agent_launch.terminal_candidate.transport_failure.v1",
+  CONTINUATION_INVALID: "agent_launch.terminal_candidate.continuation_invalid.v1",
+  CONTINUATION_STALE: "agent_launch.terminal_candidate.continuation_stale.v1",
+  ROUTE_FAILURE: "agent_launch.terminal_candidate.route_failure.v1",
+  ADVANCE_NOT_STALE: "agent_launch.terminal_candidate.advance_not_stale.v1",
+  ADVANCE_SCHEMA_REFUSED: "agent_launch.terminal_candidate.advance_schema_refused.v1",
+  ADVANCE_INPUT_MOVED: "agent_launch.terminal_candidate.advance_input_moved.v1",
+  ADVANCE_FINAL_RECHECK_FAILED:
+    "agent_launch.terminal_candidate.advance_final_recheck_failed.v1",
+  ADVANCE_GENERATION_ABSENT:
+    "agent_launch.terminal_candidate.advance_generation_absent.v1"
 });
 
-const PARENT_LIFECYCLE_CONTRACT_FACT_ORDER = Object.freeze(
-  Object.values(PARENT_LIFECYCLE_CONTRACT_FACTS)
-);
-const NO_LIFECYCLE_FACTS = Object.freeze([]);
-
-function closedLifecycleFacts(facts) {
-  if (!Array.isArray(facts) || facts.length === 0) return NO_LIFECYCLE_FACTS;
-  const present = new Set(facts);
-  const closed = PARENT_LIFECYCLE_CONTRACT_FACT_ORDER.filter((fact) => present.has(fact));
-  return closed.length === 0 ? NO_LIFECYCLE_FACTS : Object.freeze(closed);
-}
-
-function terminalReviewUnitProjectionFailure(code, parentLifecycle = null) {
-  return Object.freeze({
-    ok: false,
-    cause: Object.freeze({
-      code,
-      missing_facts: closedLifecycleFacts(parentLifecycle?.missing_facts),
-      ambiguous_facts: closedLifecycleFacts(parentLifecycle?.ambiguous_facts)
-    })
-  });
-}
-
-function projectTerminalReviewUnit(record) {
-  const parentLifecycle = evaluateWorkRecordParentLifecycleContract(record);
-  if (parentLifecycle.complete !== true) {
-    return terminalReviewUnitProjectionFailure(
-      TERMINAL_REVIEW_UNIT_PROJECTION_CODES.PARENT_LIFECYCLE_CONTRACT_INCOMPLETE,
-      parentLifecycle
-    );
-  }
-  const slice = parentLifecycle.terminal_review_contract_unit;
-  const contracts = projectSliceReviewReceiptContracts(record, slice.id);
-  if (contracts.slice_review_contract === null) {
-    return terminalReviewUnitProjectionFailure(
-      TERMINAL_REVIEW_UNIT_PROJECTION_CODES.SLICE_REVIEW_CONTRACT_ABSENT
-    );
-  }
-  return Object.freeze({ ok: true, slice_id: slice.id, contracts });
-}
-
-function exactWkBoundContract({ recordId, initiative = null, mainRepo, wkSha }) {
-  let record;
-  try {
-    const result = defaultTerminalCandidateRunGit({
-      repo: mainRepo,
-      args: ["show", `${wkSha}:wiki/work-records/${recordId}.json`],
-      env: null
-    });
-    if (!result || result.ok !== true) {
-      throw new Error("exact WK record blob is unavailable");
-    }
-    record = JSON.parse(result.stdout);
-  } catch (error) {
-    throw new Error(`terminal candidate exact WK-bound contract is not parseable: ${error?.message ?? String(error)}`);
-  }
-  if (record?.id !== recordId || !/^IN-\d{4}$/u.test(record?.initiative ?? "") ||
-      (initiative !== null && record.initiative !== initiative)) {
-    throw new Error("terminal candidate exact WK-bound contract identity disagrees");
-  }
-  const projected = projectTerminalReviewUnit(record);
-  const reviewUnit = projected.ok !== true ? null : Object.freeze({
-    record_id: recordId,
-    slice_id: projected.slice_id,
-    subject: `${recordId}#${projected.slice_id}`,
-    initiative: record.initiative,
-    parent_status: record.status ?? null,
-
-    contract_source: "exact_candidate_tree",
-    canonical_parent_wk_contract: projected.contracts.canonical_parent_wk_contract,
-    review_unit_contract: projected.contracts.slice_review_contract
-  });
-  return Object.freeze({
-    initiative: record.initiative,
-    digest: computeWorkRecordSourceDigest(record),
-    targets: declaredValidationTargets(record),
-    review_unit: reviewUnit,
-
-    review_unit_absence: projected.ok === true ? null : projected.cause
-  });
-}
-
-export const TERMINAL_REVIEW_CONTRACT_BINDING_SCHEMA_VERSION =
-  "agent_launch.terminal_review_contract_binding.v1";
-
-export const CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES = Object.freeze({
-  REPOSITORY_ROOT_NOT_CANONICAL: "canonical_repository_root_not_canonical",
-  RECORD_UNREADABLE: "canonical_record_unreadable",
-  RECORD_IDENTITY_DISAGREES: "canonical_record_identity_disagrees",
-  TERMINAL_REVIEW_UNIT_UNPROJECTABLE: "terminal_review_unit_unprojectable",
-  REVIEW_SUBJECT_MOVED: "canonical_review_subject_moved",
-  REVIEW_CONTRACT_DIGEST_MOVED: "canonical_review_contract_digest_moved"
+const STATUS_CODE_BY_STATE = Object.freeze({
+  terminal_review_workflow_not_selected:
+    TERMINAL_CANDIDATE_RUNTIME_CODES.TERMINAL_REVIEW_WORKFLOW_NOT_SELECTED,
+  candidate_absent: TERMINAL_CANDIDATE_RUNTIME_CODES.CANDIDATE_ABSENT,
+  candidate_identity_invalid_or_moved:
+    TERMINAL_CANDIDATE_RUNTIME_CODES.CANDIDATE_IDENTITY_INVALID_OR_MOVED,
+  candidate_bound: TERMINAL_CANDIDATE_RUNTIME_CODES.CANDIDATE_BOUND,
+  live_coordination_inadmissible:
+    TERMINAL_CANDIDATE_RUNTIME_CODES.LIVE_COORDINATION_INADMISSIBLE,
+  candidate_stale_w: TERMINAL_CANDIDATE_RUNTIME_CODES.CANDIDATE_STALE_W,
+  candidate_authored_contract_divergent:
+    TERMINAL_CANDIDATE_RUNTIME_CODES.CANDIDATE_AUTHORED_CONTRACT_DIVERGENT,
+  candidate_healthy: TERMINAL_CANDIDATE_RUNTIME_CODES.CANDIDATE_HEALTHY
 });
+const STATUS_CONTINUATION_SECRET = randomBytes(32);
+const statusAuthoritySnapshots = new WeakMap();
 
-function canonicalCurrentTerminalReviewFailure(code, projectionCause = null) {
-  return Object.freeze({
-    ok: false,
-    cause: Object.freeze({
-      code,
-      projection_code: projectionCause?.code ?? null,
-      missing_facts: projectionCause?.missing_facts ?? NO_LIFECYCLE_FACTS,
-      ambiguous_facts: projectionCause?.ambiguous_facts ?? NO_LIFECYCLE_FACTS
-    })
-  });
+export class TerminalCandidateRuntimeError extends Error {
+  constructor(code, message, detail = null) {
+    super(message);
+    this.name = "TerminalCandidateRuntimeError";
+    this.code = code;
+    this.detail = detail;
+  }
 }
 
-function canonicalCurrentTerminalReviewContract({ mainRepo, recordId }) {
-  let requested;
-  try {
-    requested = path.resolve(mainRepo);
-
-    if (realpathSync(requested) !== requested) {
-      return canonicalCurrentTerminalReviewFailure(
-        CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.REPOSITORY_ROOT_NOT_CANONICAL);
-    }
-  } catch {
-    return canonicalCurrentTerminalReviewFailure(
-      CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.REPOSITORY_ROOT_NOT_CANONICAL);
-  }
-  let record;
-  try {
-    record = JSON.parse(readFileSync(
-      path.join(requested, "wiki", "work-records", `${recordId}.json`),
-      "utf8"
-    ));
-  } catch {
-    return canonicalCurrentTerminalReviewFailure(
-      CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.RECORD_UNREADABLE);
-  }
-  if (record?.id !== recordId || !/^IN-\d{4}$/u.test(record?.initiative ?? "")) {
-    return canonicalCurrentTerminalReviewFailure(
-      CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.RECORD_IDENTITY_DISAGREES);
-  }
-  const projected = projectTerminalReviewUnit(record);
-  if (projected.ok !== true) {
-    return canonicalCurrentTerminalReviewFailure(
-      CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.TERMINAL_REVIEW_UNIT_UNPROJECTABLE,
-      projected.cause);
-  }
-  const subject = `${recordId}#${projected.slice_id}`;
-
-  const binding = {
-    schema_version: TERMINAL_REVIEW_CONTRACT_BINDING_SCHEMA_VERSION,
-    record_id: recordId,
-    initiative: record.initiative,
-    review_slice_id: projected.slice_id,
-    review_subject: subject,
-    review_unit_contract: projected.contracts.slice_review_contract
-  };
-  return Object.freeze({ ok: true, contract: Object.freeze({
-    initiative: record.initiative,
-    digest: computeWorkRecordSourceDigest(record),
-    targets: declaredValidationTargets(record),
-    review_subject: subject,
-    review_contract_digest: `sha256:${createHash("sha256")
-      .update(canonicalizeWorkRecordJson(binding))
-      .digest("hex")}`,
-    review_unit: Object.freeze({
-      record_id: recordId,
-      slice_id: projected.slice_id,
-      subject,
-      initiative: record.initiative,
-      parent_status: record.status ?? null,
-
-      contract_source: "canonical_current_record",
-      canonical_parent_wk_contract: projected.contracts.canonical_parent_wk_contract,
-      review_unit_contract: projected.contracts.slice_review_contract
-    })
-  }) });
-}
-
-export const TERMINAL_CANDIDATE_FAILURE_PROJECTION_SCHEMA_VERSION =
-  "agent_launch.terminal_candidate_failure_projection.v1";
-export const TERMINAL_CANDIDATE_TYPED_FAILURE_MESSAGE =
-  "terminal WK candidate: typed construction or recovery failure";
-export const TERMINAL_CANDIDATE_UNKNOWN_FAILURE_MESSAGE =
-  "terminal WK candidate: unknown construction or recovery failure";
-
-const TERMINAL_CANDIDATE_GIT_OPERATIONS = Object.freeze(new Set([
-  "rev-parse",
-  "rev-list",
-  "cat-file",
-  "commit-tree",
-  "for-each-ref",
-  "update-ref",
-  "merge-base"
-]));
-const TERMINAL_CANDIDATE_FAILURE_CODES = Object.freeze(
-  new Set(Object.values(TERMINAL_WK_CANDIDATE_CODES))
-);
-const UNKNOWN_TERMINAL_CANDIDATE_FAILURE_PROJECTION = Object.freeze({
-  schema_version: TERMINAL_CANDIDATE_FAILURE_PROJECTION_SCHEMA_VERSION,
-  kind: "unknown_cause",
-  code: null,
-  message: TERMINAL_CANDIDATE_UNKNOWN_FAILURE_MESSAGE,
-  detail: null
-});
-const PRODUCTION_TERMINAL_CANDIDATE_RUN_GIT = defaultTerminalCandidateRunGit;
-const TERMINAL_CANDIDATE_UNTRUSTED_RUNNER_FAILURE_CODE =
-  "terminal_candidate_recovery_construction_failed";
-const TERMINAL_CANDIDATE_UNTRUSTED_RUNNER_FAILURE_MESSAGE =
-  "terminal candidate recovery construction failed";
-
-function ownDataValue(value, key) {
-  const descriptor = Object.getOwnPropertyDescriptor(value, key);
-  if (descriptor === undefined ||
-      !Object.prototype.hasOwnProperty.call(descriptor, "value")) return undefined;
-  return descriptor.value;
+function runtimeRefusal(code, message, detail = null) {
+  throw new TerminalCandidateRuntimeError(code, message, detail);
 }
 
 function plainNonProxyObject(value) {
   if (typeof value !== "object" || value === null || Array.isArray(value) ||
       utilTypes.isProxy(value)) return false;
-  try {
-    const prototype = Object.getPrototypeOf(value);
-    return prototype === Object.prototype || prototype === null;
-  } catch {
-    return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+export function appendAcceptedRepository(nextCall, acceptedRepository) {
+  if (nextCall === null || acceptedRepository === undefined) return nextCall;
+  if (!plainNonProxyObject(nextCall) || !plainNonProxyObject(nextCall.arguments) ||
+      Object.hasOwn(nextCall.arguments, "repo")) {
+    runtimeRefusal(TERMINAL_WK_CANDIDATE_CODES.INVALID_ARGUMENT,
+      "terminal candidate continuation repository projection is invalid");
   }
-}
-
-function closedGitStatus(detail) {
-  const status = ownDataValue(detail, "status");
-  return status === null ||
-    (Number.isInteger(status) && status >= 0 && status <= 255)
-    ? status
-    : undefined;
-}
-
-function gitOperationFromInternalDetail(detail) {
-  const args = ownDataValue(detail, "args");
-  if (Array.isArray(args) && !utilTypes.isProxy(args)) {
-    const operation = ownDataValue(args, "0");
-    return typeof operation === "string" && TERMINAL_CANDIDATE_GIT_OPERATIONS.has(operation)
-      ? operation
-      : null;
-  }
-
-  return typeof ownDataValue(detail, "ref") === "string"
-    ? "for-each-ref"
-    : null;
-}
-
-function projectTypedTerminalCandidateDetail(code, detail) {
-  if (code !== TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED &&
-      code !== TERMINAL_WK_CANDIDATE_CODES.BASE_INVALID) return null;
-  if (!plainNonProxyObject(detail)) return null;
-  const gitStatus = closedGitStatus(detail);
-  if (gitStatus === undefined) return null;
-  const inferredOperation = gitOperationFromInternalDetail(detail);
-  const baseOperationEvidence = inferredOperation === "merge-base" ||
-    (typeof ownDataValue(detail, "base") === "string" &&
-      typeof ownDataValue(detail, "wk_tip") === "string");
-  const gitOperation = code === TERMINAL_WK_CANDIDATE_CODES.BASE_INVALID
-    ? baseOperationEvidence ? "merge-base" : null
-    : inferredOperation;
-  if (gitOperation === null) return null;
   return Object.freeze({
-    git_operation: gitOperation,
-    git_status: gitStatus
+    ...nextCall,
+    arguments: Object.freeze({ ...nextCall.arguments, repo: acceptedRepository })
   });
 }
 
-export function projectTerminalWkCandidateFailure(error) {
-  try {
-    if (!utilTypes.isNativeError(error) ||
-        !(error instanceof TerminalWkCandidateError)) {
-      return UNKNOWN_TERMINAL_CANDIDATE_FAILURE_PROJECTION;
-    }
-    const code = ownDataValue(error, "code");
-    if (!TERMINAL_CANDIDATE_FAILURE_CODES.has(code)) {
-      return UNKNOWN_TERMINAL_CANDIDATE_FAILURE_PROJECTION;
-    }
-    return Object.freeze({
-      schema_version: TERMINAL_CANDIDATE_FAILURE_PROJECTION_SCHEMA_VERSION,
-      kind: "typed_candidate_error",
-      code,
-      message: TERMINAL_CANDIDATE_TYPED_FAILURE_MESSAGE,
-      detail: projectTypedTerminalCandidateDetail(code, ownDataValue(error, "detail"))
-    });
-  } catch {
-    return UNKNOWN_TERMINAL_CANDIDATE_FAILURE_PROJECTION;
-  }
+function statusResult({ state, cause = null, nextCall = null, candidate = null, divergence = null,
+  versionLifecycle = null, decidingFacts = null, workflowGuidance = null },
+  snapshot = null, acceptedRepository = undefined) {
+  const result = Object.freeze({
+    schema_version: TERMINAL_CANDIDATE_STATUS_SCHEMA_VERSION,
+    state,
+    code: STATUS_CODE_BY_STATE[state],
+    cause,
+    next_call: appendAcceptedRepository(nextCall, acceptedRepository),
+    candidate,
+    divergence,
+    version_lifecycle: versionLifecycle,
+    ...(decidingFacts === null ? {} : { deciding_facts: decidingFacts }),
+    ...(workflowGuidance === null ? {} : { workflow_guidance: workflowGuidance })
+  });
+  if (snapshot !== null) statusAuthoritySnapshots.set(result, snapshot);
+  return result;
 }
 
-const terminalCandidateRecoveryFailures = new WeakMap();
-
-export const TERMINAL_CANDIDATE_RECOVERY_REASONS = Object.freeze({
-  FAILED: "terminal_candidate_recovery_failed",
-  CONSTRUCTION_FAILED: "terminal_candidate_recovery_construction_failed",
-  CANONICAL_REVIEW_CONTRACT_UNAVAILABLE:
-    "terminal_candidate_recovery_canonical_review_contract_unavailable",
-  CURRENT_REF_ABSENT: "terminal_candidate_recovery_current_ref_absent",
-  REVIEW_CONTRACT_MOVED: "terminal_candidate_recovery_review_contract_moved",
-  CURRENT_REF_PUBLICATION_DISAGREES:
-    "terminal_candidate_recovery_current_ref_publication_disagrees",
-  CANONICAL_WK_BINDING_DISAGREES:
-    "terminal_candidate_recovery_canonical_wk_binding_disagrees",
-  REVIEW_CONTRACT_BINDING_DISAGREES:
-    "terminal_candidate_recovery_review_contract_binding_disagrees",
-  NO_DETERMINISTIC_MATCH: "terminal_candidate_recovery_no_deterministic_match",
-  VALIDATION_EVIDENCE_UNAVAILABLE:
-    "terminal_candidate_recovery_validation_evidence_unavailable"
+const TERMINAL_WORKFLOW_NOT_SELECTED_CAUSE = "zero_eligible_terminal_review_units";
+const TERMINAL_WORKFLOW_NOT_SELECTED_DECIDING_FACTS = Object.freeze([
+  Object.freeze({ field: "canonical_record.valid", value: true }),
+  Object.freeze({ field: "canonical_parent_identity.complete", value: true }),
+  Object.freeze({ field: "canonical_parent_acceptance.complete", value: true }),
+  Object.freeze({ field: "terminal_review_designation.eligible_count", value: 0 })
+]);
+const TERMINAL_WORKFLOW_NOT_SELECTED_GUIDANCE = Object.freeze({
+  applies_only_to: "launcher_built_managed_terminal_candidate",
+  summary:
+    "This status route applies only to launcher-built managed terminal candidates.",
+  direct_to_main: Object.freeze({
+    lifecycle: "operator_authorized_direct_to_main",
+    first_step: "commit_the_exact_scoped_implementation_candidate",
+    review_tool: "workspace_agent_dispatch",
+    review_request: Object.freeze({
+      role: "reviewer",
+      subject: "canonical_WK_or_review_slice",
+      required_additional_fields: Object.freeze(["diff_base_sha", "reviewed_sha"]),
+      sha_pair_requirement: "complete_landed_commit_diff_base_sha_and_reviewed_sha"
+    }),
+    reviewer_git_posture: "read_only_and_never_creates_git_objects"
+  }),
+  excluded_operations: Object.freeze([
+    "workspace_terminal_review_candidate_status",
+    "workspace_terminal_review_candidate_advance",
+    "workspace_wk_forge_handoff",
+    "external_review",
+    "shell_review"
+  ])
 });
 
-export const TERMINAL_CANDIDATE_RECOVERY_DIAGNOSTIC_SCHEMA_VERSION =
-  "agent_launch.terminal_candidate_recovery_diagnostic.v1";
+function isTerminalWorkflowNotSelected(cause) {
+  return cause?.code ===
+      CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.TERMINAL_REVIEW_UNIT_UNPROJECTABLE &&
+    cause?.projection_code ===
+      TERMINAL_REVIEW_UNIT_PROJECTION_CODES.PARENT_LIFECYCLE_CONTRACT_INCOMPLETE &&
+    cause.missing_facts?.length === 1 &&
+    cause.missing_facts[0] === PARENT_LIFECYCLE_CONTRACT_FACTS.TERMINAL_REVIEW_CONTRACT_UNIT &&
+    cause.ambiguous_facts?.length === 0;
+}
 
-function terminalCandidateRecoveryDiagnostic(cause) {
-  if (cause === null || cause === undefined) return null;
+function canonicalTerminalCoordinationFailureCause(cause) {
+  if (cause?.projection_code ===
+      TERMINAL_REVIEW_UNIT_PROJECTION_CODES.PARENT_LIFECYCLE_CONTRACT_INCOMPLETE) {
+    if (cause.missing_facts?.length === 0 && cause.ambiguous_facts?.length === 1 &&
+        cause.ambiguous_facts[0] ===
+          PARENT_LIFECYCLE_CONTRACT_FACTS.TERMINAL_REVIEW_CONTRACT_UNIT) {
+      return "ambiguous_terminal_review_coordination";
+    }
+    return TERMINAL_REVIEW_UNIT_PROJECTION_CODES.PARENT_LIFECYCLE_CONTRACT_INCOMPLETE;
+  }
+  return cause?.projection_code ?? cause?.code ?? "canonical_terminal_review_contract_invalid";
+}
+
+function continuationMac(encodedPayload) {
+  return createHmac("sha256", STATUS_CONTINUATION_SECRET)
+    .update(encodedPayload)
+    .digest("base64url");
+}
+
+function encodeStatusContinuation(payload) {
+  const encoded = Buffer.from(canonicalizeWorkRecordJson(payload), "utf8").toString("base64url");
+  return `${encoded}.${continuationMac(encoded)}`;
+}
+
+function decodeStatusContinuation(token) {
+  if (typeof token !== "string" || token.length === 0 || token.length > 8192) {
+    runtimeRefusal(TERMINAL_CANDIDATE_RUNTIME_CODES.CONTINUATION_INVALID,
+      "terminal candidate status continuation is invalid");
+  }
+  const [encoded, mac, extra] = token.split(".");
+  if (extra !== undefined || typeof encoded !== "string" || typeof mac !== "string" ||
+      continuationMac(encoded) !== mac) {
+    runtimeRefusal(TERMINAL_CANDIDATE_RUNTIME_CODES.CONTINUATION_INVALID,
+      "terminal candidate status continuation is invalid");
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8"));
+  } catch {
+    runtimeRefusal(TERMINAL_CANDIDATE_RUNTIME_CODES.CONTINUATION_INVALID,
+      "terminal candidate status continuation is invalid");
+  }
+  if (!plainNonProxyObject(parsed) || !Number.isInteger(parsed.offset) || parsed.offset < 1) {
+    runtimeRefusal(TERMINAL_CANDIDATE_RUNTIME_CODES.CONTINUATION_INVALID,
+      "terminal candidate status continuation is invalid");
+  }
+  return parsed;
+}
+
+function statusCandidateProjection(snapshot) {
+  if (snapshot === null) return null;
   return Object.freeze({
-    schema_version: TERMINAL_CANDIDATE_RECOVERY_DIAGNOSTIC_SCHEMA_VERSION,
-    contract_code: cause.code ?? null,
-    projection_code: cause.projection_code ?? null,
-    missing_facts: cause.missing_facts ?? NO_LIFECYCLE_FACTS,
-    ambiguous_facts: cause.ambiguous_facts ?? NO_LIFECYCLE_FACTS
+    candidate: snapshot.candidate,
+    schema_version: snapshot.schema,
+    base: snapshot.base,
+    embedded_w: snapshot.embeddedW,
+    current_w: snapshot.currentW,
+    version_identity: snapshot.versionDecision?.version_identity ?? null,
+    immutable_version_ref: snapshot.versionDecision?.immutable_version_ref ?? null,
+    current_selection_ref: snapshot.versionDecision?.current_selection_ref ?? null,
+    current_selection_observation:
+      snapshot.versionDecision?.current_selection_observation ?? null
   });
 }
 
-function failTerminalCandidateRecovery(reason, diagnostic = null) {
-  const error = new Error(reason);
-  error.code = reason;
-  terminalCandidateRecoveryFailures.set(error, Object.freeze({
-    reason,
-    failure: UNKNOWN_TERMINAL_CANDIDATE_FAILURE_PROJECTION,
-    diagnostic
-  }));
-  throw error;
+function objectFormatForOid(oid) {
+  return oid?.length === 64 ? "sha256" : "sha1";
 }
 
-function failTerminalCandidateConstruction(failure) {
-  const reason = "terminal_candidate_recovery_construction_failed";
-  const error = new Error(failure.message);
-  error.code = reason;
-
-  error.terminal_candidate_failure = failure;
-  terminalCandidateRecoveryFailures.set(error, Object.freeze({
-    reason,
-    failure,
-
-    diagnostic: null
-  }));
-  throw error;
-}
-
-function failUntrustedTerminalCandidateRunner() {
-  const error = new Error(TERMINAL_CANDIDATE_UNTRUSTED_RUNNER_FAILURE_MESSAGE);
-  error.code = TERMINAL_CANDIDATE_UNTRUSTED_RUNNER_FAILURE_CODE;
-  throw error;
-}
-
-function failUntrustedTerminalCandidatePreparation() {
-  const error = new Error(TERMINAL_CANDIDATE_UNTRUSTED_RUNNER_FAILURE_MESSAGE);
-  error.code = TERMINAL_CANDIDATE_UNTRUSTED_RUNNER_FAILURE_CODE;
-  error.terminal_candidate_failure = UNKNOWN_TERMINAL_CANDIDATE_FAILURE_PROJECTION;
-  throw error;
-}
-
-export function projectAuthenticatedTerminalCandidateFailure(error) {
-  if ((typeof error !== "object" || error === null) && typeof error !== "function") {
-    return UNKNOWN_TERMINAL_CANDIDATE_FAILURE_PROJECTION;
+function parseExactRecordObservation(observation, wkId, refusalCode) {
+  if (observation?.state !== "present") return null;
+  let record;
+  try {
+    record = JSON.parse(observation.content);
+  } catch {
+    runtimeRefusal(refusalCode, "exact WK record blob is not parseable");
   }
-  return terminalCandidateRecoveryFailures.get(error)?.failure ??
-    UNKNOWN_TERMINAL_CANDIDATE_FAILURE_PROJECTION;
-}
-
-export function projectTerminalCandidateRecoveryReason(error) {
-  if ((typeof error !== "object" || error === null) && typeof error !== "function") {
-    return "terminal_candidate_recovery_failed";
+  if (record?.id !== wkId || !/^IN-\d{4}$/u.test(record?.initiative ?? "")) {
+    runtimeRefusal(refusalCode, "exact WK record blob identity disagrees");
   }
-  return terminalCandidateRecoveryFailures.get(error)?.reason ??
-    "terminal_candidate_recovery_failed";
+  return record;
 }
 
-export function projectTerminalCandidateRecoveryDiagnostic(error) {
-  if ((typeof error !== "object" || error === null) && typeof error !== "function") {
-    return null;
+function currentCanonicalContractForStatus(mainRepo, wkId) {
+  const resolved = canonicalCurrentTerminalReviewContract({ mainRepo, recordId: wkId });
+  if (resolved.ok === true) return resolved;
+  if (resolved.cause.code === CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.REPOSITORY_ROOT_NOT_CANONICAL) {
+    runtimeRefusal(TERMINAL_CANDIDATE_RUNTIME_CODES.CANONICAL_ROOT_INVALID,
+      "canonical repository root is not readable under its exact identity");
   }
-  return terminalCandidateRecoveryFailures.get(error)?.diagnostic ?? null;
+  if (resolved.cause.code === CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.RECORD_UNREADABLE) {
+    runtimeRefusal(TERMINAL_CANDIDATE_RUNTIME_CODES.CANONICAL_RECORD_UNREADABLE,
+      "canonical WK record is unreadable");
+  }
+  return resolved;
 }
 
-export function createTerminalCandidateCoordinator({
+function classifyThrownCandidateError(error) {
+  if (error?.code === TERMINAL_WK_CANDIDATE_CODES.GIT_FAILED) {
+    runtimeRefusal(TERMINAL_CANDIDATE_RUNTIME_CODES.TRANSPORT_FAILURE,
+      "terminal candidate Git observation failed");
+  }
+  return error;
+}
+
+async function readV2HistoricalContract({ mainRepo, wkId, inspection, runGit }) {
+  let observation;
+  try {
+    observation = await readExactWkRecordBlobObservation({
+      mainRepo,
+      wkTip: inspection.candidate_oid,
+      canonicalWkId: wkId,
+      objectFormat: objectFormatForOid(inspection.candidate_oid),
+      runGit
+    });
+  } catch (error) {
+    classifyThrownCandidateError(error);
+    return Object.freeze({ ok: false, cause: error?.code ?? "historical_record_invalid" });
+  }
+  if (observation.state === "absent") {
+    return Object.freeze({ ok: false, cause: "historical_record_absent", observation });
+  }
+  let record;
+  try {
+    record = JSON.parse(observation.content);
+  } catch {
+    return Object.freeze({ ok: false, cause: "historical_record_unparseable" });
+  }
+  if (record?.id !== wkId || record?.initiative !== inspection.initiative) {
+    return Object.freeze({ ok: false, cause: "historical_record_identity_disagrees" });
+  }
+  const projected = projectTerminalReviewUnit(record);
+  if (projected.ok !== true) {
+    return Object.freeze({ ok: false, cause: projected.cause.code, observation: projected.cause });
+  }
+  return Object.freeze({
+    ok: true,
+    record,
+    digest: computeWorkRecordSourceDigest(record),
+    slice_id: projected.slice_id,
+    parent_contract: projected.contracts.canonical_parent_wk_contract
+  });
+}
+
+function divergenceBinding(snapshot) {
+  return Object.freeze({
+    repository: snapshot.repositoryDigest,
+    wk_id: snapshot.wkId,
+    candidate: snapshot.candidate,
+    embedded_w: snapshot.embeddedW,
+    current_w: snapshot.currentW,
+    historical_digest: snapshot.historicalDigest,
+    live_digest: snapshot.liveDigest
+  });
+}
+
+function projectDivergencePage(snapshot, differences, continuation) {
+  const expectedBinding = divergenceBinding(snapshot);
+  let offset = 0;
+  if (continuation !== null && continuation !== undefined) {
+    const decoded = decodeStatusContinuation(continuation);
+    const decodedBinding = { ...decoded };
+    delete decodedBinding.offset;
+    if (canonicalizeWorkRecordJson(decodedBinding) !== canonicalizeWorkRecordJson(expectedBinding)) {
+      runtimeRefusal(TERMINAL_CANDIDATE_RUNTIME_CODES.CONTINUATION_STALE,
+        "terminal candidate status continuation no longer binds current authority");
+    }
+    offset = decoded.offset;
+  }
+  if (offset >= differences.length) {
+    runtimeRefusal(TERMINAL_CANDIDATE_RUNTIME_CODES.CONTINUATION_INVALID,
+      "terminal candidate status continuation offset is exhausted");
+  }
+  const entries = Object.freeze(differences.slice(offset, offset + 128));
+  const nextOffset = offset + entries.length;
+  return Object.freeze({
+    historical_digest: snapshot.historicalDigest,
+    live_digest: snapshot.liveDigest,
+    total: differences.length,
+    returned: entries.length,
+    remaining: differences.length - nextOffset,
+    entries,
+    continuation: nextOffset < differences.length
+      ? encodeStatusContinuation({ ...expectedBinding, offset: nextOffset })
+      : null
+  });
+}
+
+export async function evaluateTerminalReviewCandidateStatus({
   mainRepo,
-  worktreeRoot,
-
-  runGit = defaultTerminalCandidateRunGit
+  wkId,
+  backend,
+  acceptedRepository,
+  continuation = null,
+  runGit = defaultTerminalCandidateRunGit,
+  dependencies = {}
 } = {}) {
-  if (typeof mainRepo !== "string" || !path.isAbsolute(mainRepo) ||
-      typeof worktreeRoot !== "string" || !path.isAbsolute(worktreeRoot) ||
-      typeof runGit !== "function") {
-    throw new Error("terminal candidate coordinator requires launcher-owned repository and worktree roots");
+  if (typeof mainRepo !== "string" || !path.isAbsolute(mainRepo) || path.normalize(mainRepo) !== mainRepo ||
+      !/^WK-\d{4}$/u.test(wkId ?? "") ||
+      typeof backend?.observeTerminalCandidateBoundState !== "function" ||
+      typeof runGit !== "function" ||
+      (acceptedRepository !== undefined &&
+        (typeof acceptedRepository !== "string" || acceptedRepository.length === 0))) {
+    runtimeRefusal(TERMINAL_WK_CANDIDATE_CODES.INVALID_ARGUMENT,
+      "terminal candidate status inputs are invalid");
+  }
+  const inspect = dependencies.inspectTerminalReviewCandidateAuthority ?? inspectTerminalReviewCandidateAuthority;
+  const readMetadata = dependencies.readTerminalWkCandidateMetadata ?? readTerminalWkCandidateMetadata;
+  const finishNonDivergent = (value, snapshot = null) => {
+    if (continuation !== null && continuation !== undefined) {
+      decodeStatusContinuation(continuation);
+      runtimeRefusal(TERMINAL_CANDIDATE_RUNTIME_CODES.CONTINUATION_STALE,
+        "terminal candidate status continuation no longer binds a divergence");
+    }
+    return statusResult(value, snapshot, acceptedRepository);
+  };
+  const liveResolved = currentCanonicalContractForStatus(mainRepo, wkId);
+  if (liveResolved.ok !== true) {
+    if (isTerminalWorkflowNotSelected(liveResolved.cause)) {
+      return finishNonDivergent({
+        state: "terminal_review_workflow_not_selected",
+        cause: TERMINAL_WORKFLOW_NOT_SELECTED_CAUSE,
+        decidingFacts: TERMINAL_WORKFLOW_NOT_SELECTED_DECIDING_FACTS,
+        workflowGuidance: TERMINAL_WORKFLOW_NOT_SELECTED_GUIDANCE
+      });
+    }
+    return finishNonDivergent({
+      state: "candidate_identity_invalid_or_moved",
+      cause: canonicalTerminalCoordinationFailureCause(liveResolved.cause)
+    });
+  }
+  const live = liveResolved.contract;
+  let generationAuthentication;
+  try {
+    generationAuthentication = await authenticateStatusGeneration({
+      mainRepo,
+      wkId,
+      runGit
+    });
+  } catch (error) {
+    classifyThrownCandidateError(error);
+    return finishNonDivergent({
+      state: "candidate_identity_invalid_or_moved",
+      cause: error?.code ?? "controlled_contract_generation_authentication_failed"
+    });
+  }
+  let inspection;
+  try {
+    inspection = await inspect({
+      mainRepo,
+      initiative: live.initiative,
+      canonicalWkId: wkId,
+      generationAuthentication,
+      runGit
+    });
+  } catch (error) {
+    classifyThrownCandidateError(error);
+    return finishNonDivergent({
+      state: "candidate_identity_invalid_or_moved",
+      cause: error?.code ?? "candidate_inspection_failed"
+    });
+  }
+  if (inspection.state === "absent") {
+    return finishNonDivergent({ state: "candidate_absent" });
+  }
+  const mechanicallyValid = inspection.state === "observed" &&
+    inspection.wk_identity_equal === true && inspection.repository_binding_equal === true &&
+    inspection.tree_equal === true && inspection.sole_parent_base === true &&
+    inspection.fork_equal_base === true && inspection.base_ancestor_current_w === true;
+  if (!mechanicallyValid) {
+    return finishNonDivergent({
+      state: "candidate_identity_invalid_or_moved",
+      cause: inspection.state === "incomplete"
+        ? inspection.absence_causes?.[0] ?? "candidate_authority_incomplete"
+        : inspection.invariant_causes?.[0] ?? "candidate_authority_invalid"
+    });
+  }
+  const bound = await backend.observeTerminalCandidateBoundState(wkId);
+  if (bound?.state === "transport_failure") {
+    runtimeRefusal(TERMINAL_CANDIDATE_RUNTIME_CODES.TRANSPORT_FAILURE,
+      "terminal candidate bound-state observation failed");
+  }
+  if (bound?.state === "invalid") {
+    return finishNonDivergent({
+      state: "candidate_identity_invalid_or_moved",
+      cause: bound.reason ?? "bound_state_invalid"
+    });
+  }
+  let publicationState = null;
+  if (bound?.state === "bound" &&
+      typeof backend.resolveTerminalCandidatePublicationState === "function") {
+    try {
+      publicationState = await backend.resolveTerminalCandidatePublicationState(wkId);
+    } catch (error) {
+      classifyThrownCandidateError(error);
+      return finishNonDivergent({
+        state: "candidate_identity_invalid_or_moved",
+        cause: error?.code ?? "candidate_publication_state_unavailable"
+      });
+    }
   }
 
-  const authenticatesTerminalCandidateFailures =
-    runGit === PRODUCTION_TERMINAL_CANDIDATE_RUN_GIT;
-  const cycles = new Map();
-
-  const prepareTerminalCandidate = async ({ integration, reviewUnit, wkId, wkRef, baseSha, baseRef = "main" }) => {
-    try {
-      if (integration?.wk_ref !== wkRef || integration?.wk_sha == null || reviewUnit?.record_id !== wkId) {
-        throw new Error("terminal candidate preparation does not match the exact integrated WK identity");
-      }
-
-      if (typeof baseSha !== "string" || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u.test(baseSha)) {
-        throw new Error("terminal candidate preparation requires the launcher-bound WK lifecycle base");
-      }
-      const canonical = exactWkBoundContract({
-        recordId: reviewUnit.record_id,
-        initiative: reviewUnit.initiative,
-        mainRepo,
-        wkSha: integration.wk_sha
-      });
-      const frozen = freezeTerminalWkCandidateInputs({
-        mainRepo,
-        baseSha,
-        baseRef,
-        wkRef,
-        canonicalWkId: wkId,
-        canonicalWkDigest: canonical.digest,
-        runGit
-      });
-      if (frozen.wk_tip !== integration.wk_sha) {
-        throw new Error("terminal candidate frozen WK tip disagrees with final integration");
-      }
-      const binding = constructTerminalWkCandidate({ frozen, runGit });
-      const candidateRoot = path.join(worktreeRoot, ".terminal-candidates", wkId, binding.candidate);
-      const materialization = materializeTerminalCandidateCheckout({
-        binding,
-        candidateRoot,
-        runGit
-      });
-      const dependencyProof = verifyTerminalCandidateDependencies({ binding, materialization });
-      const state = Object.freeze({
-        binding,
-        materialization,
-        dependency_proof: dependencyProof,
-        review_unit: canonical.review_unit,
-        canonical_targets: canonical.targets,
-        validation_runtime_root: path.join(worktreeRoot, ".terminal-validation", wkId, binding.candidate)
-      });
-      cycles.set(wkId, state);
-      return state;
-    } catch (error) {
-      if (!authenticatesTerminalCandidateFailures) {
-        failUntrustedTerminalCandidatePreparation();
-      }
-      if (terminalCandidateRecoveryFailures.has(error)) throw error;
-      failTerminalCandidateConstruction(projectTerminalWkCandidateFailure(error));
-    }
+  let metadata;
+  try {
+    metadata = await readMetadata({ mainRepo, candidate: inspection.candidate_oid, runGit });
+  } catch (error) {
+    classifyThrownCandidateError(error);
+    return finishNonDivergent({
+      state: "candidate_identity_invalid_or_moved",
+      cause: error?.code ?? "candidate_metadata_invalid"
+    });
+  }
+  const snapshotBase = {
+    wkId,
+    initiative: live.initiative,
+    candidate: inspection.candidate_oid,
+    schema: metadata.schema_version,
+    base: inspection.embedded_base,
+    embeddedW: inspection.embedded_wk,
+    currentW: inspection.current_wk,
+    candidateRef: inspection.candidate_ref,
+    forkRef: inspection.fork_ref,
+    wkRef: inspection.wk_ref,
+    repositoryDigest: metadata.repository_digest,
+    live,
+    metadata,
+    versionDecision: publicationState?.version_decision ?? bound?.version_decision ?? null
   };
+  const candidateProjection = statusCandidateProjection(snapshotBase);
+  if (bound.state === "bound") {
+    return finishNonDivergent({
+      state: "candidate_bound",
+      candidate: candidateProjection,
+      versionLifecycle: publicationState?.lifecycle ?? bound.lifecycle ?? Object.freeze({
+        state: "unreviewed",
+        version_decision: bound.version_decision,
+        next_call: Object.freeze({
+          tool: "workspace_agent_dispatch",
+          arguments: Object.freeze({ role: "reviewer", assigned_unit: live.review_subject })
+        })
+      })
+    });
+  }
+  if (new Set(["conflict", "recovery", "unpublished"]).has(bound.state)) {
+    return finishNonDivergent({
+      state: "candidate_identity_invalid_or_moved",
+      cause: `candidate_version_${bound.state}`,
+      candidate: candidateProjection,
+      versionLifecycle: Object.freeze({
+        state: "blocked",
+        cause: bound.state,
+        version_decision: bound.version_decision,
+        next_call: Object.freeze({
+          tool: "workspace_terminal_review_candidate_status",
+          arguments: Object.freeze({ wk_id: wkId })
+        })
+      })
+    });
+  }
 
-  const reconstructAbsentTerminalCandidate = ({ wkId, currentRef }) => {
-    const resolved = canonicalCurrentTerminalReviewContract({ mainRepo, recordId: wkId });
-    if (resolved.ok !== true) {
-      if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
-      failTerminalCandidateRecovery(
-        "terminal_candidate_recovery_canonical_review_contract_unavailable",
-        terminalCandidateRecoveryDiagnostic(resolved.cause));
-    }
-    const canonical = resolved.contract;
-    const frozen = freezeReconstructedTerminalWkCandidateInputs({
+  let historical = null;
+  if (metadata.schema_version === TERMINAL_WK_CANDIDATE_SCHEMA_VERSION) {
+    historical = await readV2HistoricalContract({
       mainRepo,
-      initiative: canonical.initiative,
-      canonicalWkId: wkId,
-      canonicalWkDigest: canonical.digest,
-      terminalReviewSubject: canonical.review_subject,
-      terminalReviewContractDigest: canonical.review_contract_digest,
+      wkId,
+      inspection: { ...inspection, initiative: live.initiative },
       runGit
     });
-    if (frozen === null) {
-      if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
-      failTerminalCandidateRecovery("terminal_candidate_recovery_current_ref_absent");
+    if (historical.ok !== true) {
+      return finishNonDivergent({
+        state: "candidate_identity_invalid_or_moved",
+        cause: historical.cause,
+        candidate: candidateProjection
+      });
     }
-
-    const derived = deriveTerminalWkCandidate({ frozen, runGit });
-
-    const republished = canonicalCurrentTerminalReviewContract({ mainRepo, recordId: wkId });
-
-    const republishedMovement = republished.ok !== true
-      ? republished.cause
-      : republished.contract.review_subject !== frozen.terminal_review_subject
-        ? { code: CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.REVIEW_SUBJECT_MOVED }
-        : republished.contract.review_contract_digest !== frozen.terminal_review_contract_digest
-          ? { code: CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.REVIEW_CONTRACT_DIGEST_MOVED }
-          : null;
-    if (republishedMovement !== null) {
-      if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
-      failTerminalCandidateRecovery("terminal_candidate_recovery_review_contract_moved",
-        terminalCandidateRecoveryDiagnostic(republishedMovement));
+    if (historical.digest !== metadata.canonical_wk_digest ||
+        historical.slice_id !== live.review_unit.slice_id) {
+      return finishNonDivergent({
+        state: "candidate_identity_invalid_or_moved",
+        cause: historical.digest !== metadata.canonical_wk_digest
+          ? "historical_contract_digest_disagrees"
+          : "historical_live_review_slice_identity_disagrees",
+        candidate: candidateProjection
+      });
     }
-    assertTerminalWkCandidateInputsUnmoved({ frozen, runGit });
-
-    const refState = casTerminalCandidateCurrentRef({
-      mainRepo,
-      canonicalWkId: wkId,
-      candidate: derived.candidate,
-      expectedOld: null,
-
-      verifyRefs: [
-        { ref: frozen.wk_ref, oid: frozen.wk_tip },
-        { ref: frozen.base_ref, oid: frozen.base }
-      ],
-      runGit
-    });
-
-    const published = readTerminalCandidateCurrentRef({ mainRepo, canonicalWkId: wkId, runGit });
-    if (published !== derived.candidate || refState.ref !== currentRef ||
-        (refState.state !== "created" && refState.state !== "converged")) {
-      if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
-      failTerminalCandidateRecovery("terminal_candidate_recovery_current_ref_publication_disagrees");
-    }
-    return published;
-  };
-
-  const recoveredCandidateReviewBinding = ({ wkId, candidate }) => {
-    const metadata = readTerminalWkCandidateMetadata({ mainRepo, candidate, runGit });
-    if (metadata.schema_version !== TERMINAL_WK_CANDIDATE_SCHEMA_VERSION_V3) {
-      const recoveredCanonical = exactWkBoundContract({ recordId: wkId, mainRepo, wkSha: candidate });
-      if (recoveredCanonical.review_unit === null) {
-        if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
-        failTerminalCandidateRecovery("terminal_candidate_recovery_canonical_wk_binding_disagrees",
-          terminalCandidateRecoveryDiagnostic(recoveredCanonical.review_unit_absence));
-      }
-      return {
-        canonical: recoveredCanonical,
-        canonicalWkDigest: null,
-        wkRef: `refs/heads/wk/${recoveredCanonical.initiative}/${wkId}`
-      };
-    }
-    const resolved = canonicalCurrentTerminalReviewContract({ mainRepo, recordId: wkId });
-    if (resolved.ok !== true) {
-      if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
-      failTerminalCandidateRecovery(
-        "terminal_candidate_recovery_canonical_review_contract_unavailable",
-        terminalCandidateRecoveryDiagnostic(resolved.cause));
-    }
-    const canonical = resolved.contract;
-
-    if (canonical.review_subject !== metadata.terminal_review_subject) {
-      if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
-      failTerminalCandidateRecovery(
-        "terminal_candidate_recovery_review_contract_binding_disagrees",
-        terminalCandidateRecoveryDiagnostic({
-          code: CANONICAL_CURRENT_TERMINAL_REVIEW_CONTRACT_CODES.REVIEW_SUBJECT_MOVED
-        }));
-    }
-    return {
-      canonical,
-      canonicalWkDigest: canonical.digest,
-      wkRef: deriveTerminalCandidateDurableRefs({
-        initiative: canonical.initiative,
-        canonicalWkId: wkId
-      }).wk_ref
-    };
-  };
-
-  const recoverTerminalCandidate = async (wkId) => {
-    if (typeof wkId !== "string" || !/^WK-\d{4}$/u.test(wkId)) return null;
-    try {
-      const currentRef = deriveTerminalCandidateCurrentRef({ canonicalWkId: wkId });
-      const observed = readTerminalCandidateCurrentRef({
-        mainRepo,
-        canonicalWkId: wkId,
-        runGit
-      });
-
-      const candidate = observed === null
-        ? reconstructAbsentTerminalCandidate({ wkId, currentRef })
-        : observed;
-      const { canonical: recoveredCanonical, canonicalWkDigest, wkRef } =
-        recoveredCandidateReviewBinding({ wkId, candidate });
-      const frozen = freezeRecoveredTerminalWkCandidateInputs({
-        mainRepo,
-        wkRef,
-        canonicalWkId: wkId,
-        candidate,
-        canonicalWkDigest,
-        runGit
-      });
-      const derived = deriveRecoveredTerminalWkCandidateIdentity({
-        frozen,
-        runGit
-      });
-      if (derived.candidate !== candidate || derived.candidate_ref !== currentRef) {
-        if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
-        failTerminalCandidateRecovery("terminal_candidate_recovery_no_deterministic_match");
-      }
-      const binding = Object.freeze({
-        ...derived,
-        candidate_ref_state: derived.candidate_ref_state === "derived"
-          ? "recovered"
-          : derived.candidate_ref_state
-      });
-      verifyTerminalWkCandidateObjectBinding({
-        binding,
-        runGit
-      });
-      const candidateRoot = path.join(worktreeRoot, ".terminal-candidates", wkId, binding.candidate);
-      const materialization = materializeTerminalCandidateCheckout({
-        binding,
-        candidateRoot,
-        runGit
-      });
-      const dependencyProof = verifyTerminalCandidateDependencies({ binding, materialization });
-      const recoveredState = {
-        binding,
-        materialization,
-        dependency_proof: dependencyProof,
-        review_unit: recoveredCanonical.review_unit,
-        canonical_targets: recoveredCanonical.targets,
-        validation_runtime_root: path.join(worktreeRoot, ".terminal-validation", wkId, binding.candidate)
-      };
-      const validations = await runAllTerminalCandidateValidations({
-        binding,
-        materialization,
-        targets: recoveredState.canonical_targets,
-        runtimeRoot: recoveredState.validation_runtime_root,
-        runGit
-      });
-      if (!Array.isArray(validations)) {
-        if (!authenticatesTerminalCandidateFailures) failUntrustedTerminalCandidateRunner();
-        failTerminalCandidateRecovery("terminal_candidate_recovery_validation_evidence_unavailable");
-      }
-      verifyTerminalWkCandidateObjectBinding({
-        binding,
-        runGit
-      });
-      const state = Object.freeze({
-        ...recoveredState,
-        validation_evidence: Object.freeze([...validations])
-      });
-      cycles.set(wkId, state);
-      return state;
-    } catch (error) {
-      if (!authenticatesTerminalCandidateFailures) {
-        failUntrustedTerminalCandidateRunner();
-      }
-
-      if (terminalCandidateRecoveryFailures.has(error)) throw error;
-
-      failTerminalCandidateConstruction(projectTerminalWkCandidateFailure(error));
-    }
-  };
-
-  const validateTerminalCandidate = async ({ terminalCandidate }) => runAllTerminalCandidateValidations({
-    binding: terminalCandidate.binding,
-    materialization: terminalCandidate.materialization,
-    targets: terminalCandidate.canonical_targets,
-    runtimeRoot: terminalCandidate.validation_runtime_root,
-    runGit
+  }
+  const snapshot = Object.freeze({
+    ...snapshotBase,
+    historical,
+    historicalDigest: historical?.digest ?? metadata.terminal_review_contract_digest,
+    liveDigest: live.digest
   });
-
-  const runTerminalCandidateValidationForUnit = async ({ unit, target }) => {
-    const state = cycles.get(unit) ?? null;
-    if (state === null) return null;
-    if (!state.canonical_targets.includes(target)) {
-      throw new Error("terminal candidate target is not present in the frozen canonical whole-WK contract");
+  if (inspection.embedded_w_equal_current_w !== true) {
+    const result = statusResult({
+      state: "candidate_stale_w",
+      nextCall: Object.freeze({
+        tool: "workspace_terminal_review_candidate_advance",
+        arguments: Object.freeze({ wk_id: wkId })
+      }),
+      candidate: candidateProjection
+    }, snapshot, acceptedRepository);
+    if (continuation !== null && continuation !== undefined) {
+      runtimeRefusal(TERMINAL_CANDIDATE_RUNTIME_CODES.CONTINUATION_STALE,
+        "terminal candidate status continuation no longer binds a divergence");
     }
-    return runTerminalCandidateValidation({
-      binding: state.binding,
-      materialization: state.materialization,
-      target,
-      runtimeRoot: state.validation_runtime_root,
+    return result;
+  }
+
+  if (metadata.schema_version === TERMINAL_WK_CANDIDATE_SCHEMA_VERSION) {
+    try {
+      const lifecycleInputs = {
+        historicalParentContract: historical.parent_contract,
+        liveParentContract: live.review_unit.canonical_parent_wk_contract,
+        recordId: wkId,
+        reviewSliceId: historical.slice_id
+      };
+      if (typeof backend.decideTerminalReviewLifecycle === "function") {
+        await backend.decideTerminalReviewLifecycle(lifecycleInputs);
+      } else {
+        decideAuthenticatedTerminalReviewLifecycleDelta(lifecycleInputs);
+      }
+    } catch (error) {
+      const differences = error?.terminal_review_lifecycle?.detail?.differences;
+      if (!Array.isArray(differences)) {
+        return finishNonDivergent({
+          state: "candidate_identity_invalid_or_moved",
+          cause: error?.terminal_review_lifecycle?.reason ?? "lifecycle_authentication_failed",
+          candidate: candidateProjection
+        });
+      }
+      return statusResult({
+        state: "candidate_authored_contract_divergent",
+        cause: error.terminal_review_lifecycle.reason,
+        candidate: candidateProjection,
+        divergence: projectDivergencePage(snapshot, differences, continuation)
+      }, snapshot, acceptedRepository);
+    }
+  } else {
+    try {
+      assertAdmissibleLiveTerminalReviewCoordination({
+        liveParentContract: live.review_unit.canonical_parent_wk_contract,
+        recordId: wkId,
+        reviewSliceId: live.review_unit.slice_id
+      });
+    } catch (error) {
+      return finishNonDivergent({
+        state: "live_coordination_inadmissible",
+        cause: error?.terminal_review_lifecycle?.reason ?? "live_coordination_inadmissible",
+        candidate: candidateProjection
+      });
+    }
+    if (continuation !== null && continuation !== undefined) {
+      runtimeRefusal(TERMINAL_CANDIDATE_RUNTIME_CODES.CONTINUATION_STALE,
+        "terminal candidate status continuation does not bind this candidate schema");
+    }
+  }
+
+  const reviewerDispatchAllowed = metadata.schema_version === TERMINAL_WK_CANDIDATE_SCHEMA_VERSION ||
+    metadata.terminal_review_subject === live.review_subject;
+  return finishNonDivergent({
+    state: "candidate_healthy",
+    nextCall: reviewerDispatchAllowed
+      ? Object.freeze({
+          tool: "workspace_agent_dispatch",
+          arguments: Object.freeze({ role: "reviewer", assigned_unit: live.review_subject })
+        })
+      : null,
+    candidate: candidateProjection,
+    versionLifecycle: Object.freeze({
+      state: bound.state === "superseded" ? "superseded" : "unreviewed",
+      version_decision: bound.version_decision ?? null,
+      next_call: reviewerDispatchAllowed
+        ? Object.freeze({
+            tool: "workspace_agent_dispatch",
+            arguments: Object.freeze({ role: "reviewer", assigned_unit: live.review_subject })
+          })
+        : null
+    })
+  }, snapshot);
+}
+
+async function authenticateStatusGeneration({ mainRepo, wkId, runGit }) {
+  const generation = await resolveControlledContractAttachmentGeneration({
+    repoRoot: mainRepo,
+    wkId
+  });
+  if (generation === null) {
+    runtimeRefusal(TERMINAL_CANDIDATE_RUNTIME_CODES.CANDIDATE_IDENTITY_INVALID_OR_MOVED,
+      "current controlled-contract generation is absent");
+  }
+  const binding = await resolveControlledContractGenerationBinding({
+    repoRoot: mainRepo,
+    wkId,
+    generation,
+    lifecycleBinding: null,
+    deps: { runGit }
+  });
+  const authenticated = await authenticateControlledContractGenerationAtW({
+    binding,
+    deps: { runGit }
+  });
+  return assertAuthenticatedControlledContractGeneration(authenticated, {
+    repository: binding.repository,
+    wkId,
+    wkTipSha: binding.wk_tip_sha,
+    requireManifest: true
+  });
+}
+
+async function selectAdvanceSchema({ mainRepo, wkId, snapshot, runGit }) {
+  let observed;
+  try {
+    observed = await readExactWkRecordBlobObservation({
+      mainRepo,
+      wkTip: snapshot.currentW,
+      canonicalWkId: wkId,
+      objectFormat: objectFormatForOid(snapshot.currentW),
       runGit
     });
-  };
+  } catch (error) {
+    classifyThrownCandidateError(error);
+    runtimeRefusal(TERMINAL_CANDIDATE_RUNTIME_CODES.ADVANCE_SCHEMA_REFUSED,
+      "current W record observation refused schema selection");
+  }
+  if (observed.state === "absent") return Object.freeze({ schema: "v3", record: null });
+  const record = parseExactRecordObservation(
+    observed,
+    wkId,
+    TERMINAL_CANDIDATE_RUNTIME_CODES.ADVANCE_SCHEMA_REFUSED
+  );
+  const evaluated = evaluateWorkRecordParentLifecycleContract(record);
+  if (evaluated.complete === true) {
+    const projected = projectTerminalReviewUnit(record);
+    if (projected.ok !== true || `${wkId}#${projected.slice_id}` !== snapshot.live.review_subject) {
+      runtimeRefusal(TERMINAL_CANDIDATE_RUNTIME_CODES.ADVANCE_SCHEMA_REFUSED,
+        "current W terminal-review subject disagrees");
+    }
+    return Object.freeze({
+      schema: "v2",
+      record,
+      digest: computeWorkRecordSourceDigest(record),
+      slice_id: projected.slice_id,
+      parent_contract: projected.contracts.canonical_parent_wk_contract
+    });
+  }
+  const onlyTerminalUnitMissing = evaluated.missing_facts.length === 1 &&
+    evaluated.missing_facts[0] === PARENT_LIFECYCLE_CONTRACT_FACTS.TERMINAL_REVIEW_CONTRACT_UNIT &&
+    evaluated.ambiguous_facts.length === 0;
+  if (onlyTerminalUnitMissing) return Object.freeze({ schema: "v3", record });
+  runtimeRefusal(TERMINAL_CANDIDATE_RUNTIME_CODES.ADVANCE_SCHEMA_REFUSED,
+    "current W record is not an exact supported candidate schema source");
+}
 
-  return Object.freeze({
-    prepareTerminalCandidate,
-    validateTerminalCandidate,
-    recoverTerminalCandidate,
-    runTerminalCandidateValidationForUnit,
-    resolve: (wkId) => cycles.get(wkId) ?? null
+function assertSameSnapshotFreeze(frozen, snapshot) {
+  if (frozen === null || frozen.base !== snapshot.base || frozen.wk_tip !== snapshot.currentW) {
+    runtimeRefusal(TERMINAL_CANDIDATE_RUNTIME_CODES.ADVANCE_INPUT_MOVED,
+      "candidate advance durable inputs moved or became absent");
+  }
+}
+
+async function normalizeAdvanceV2(snapshot, liveContract, backend) {
+  try {
+    const inputs = {
+      historicalParentContract: snapshot.historical.parent_contract,
+      liveParentContract: liveContract.review_unit.canonical_parent_wk_contract,
+      recordId: snapshot.wkId,
+      reviewSliceId: snapshot.historical.slice_id
+    };
+    return typeof backend.decideTerminalReviewLifecycle === "function"
+      ? await backend.decideTerminalReviewLifecycle(inputs)
+      : decideAuthenticatedTerminalReviewLifecycleDelta(inputs);
+  } catch {
+    runtimeRefusal(TERMINAL_CANDIDATE_RUNTIME_CODES.ADVANCE_FINAL_RECHECK_FAILED,
+      "candidate advance v2 lifecycle authentication refused");
+  }
+}
+
+async function authenticateAdvanceGeneration({ mainRepo, wkId, expectedW, runGit, refusalCode }) {
+  try {
+    const generation = await resolveControlledContractAttachmentGeneration({
+      repoRoot: mainRepo,
+      wkId
+    });
+    if (generation === null) {
+      runtimeRefusal(TERMINAL_CANDIDATE_RUNTIME_CODES.ADVANCE_GENERATION_ABSENT,
+        "current controlled-contract generation is absent");
+    }
+    const binding = await resolveControlledContractGenerationBinding({
+      repoRoot: mainRepo,
+      wkId,
+      generation,
+      lifecycleBinding: null,
+      deps: { runGit }
+    });
+    if (binding.wk_tip_sha !== expectedW) {
+      runtimeRefusal(TERMINAL_CANDIDATE_RUNTIME_CODES.ADVANCE_INPUT_MOVED,
+        "persistent WK ref moved before controlled generation authentication");
+    }
+    const authenticated = await authenticateControlledContractGenerationAtW({
+      binding,
+      deps: { runGit }
+    });
+    return assertAuthenticatedControlledContractGeneration(authenticated, {
+      repository: binding.repository,
+      wkId,
+      wkTipSha: expectedW,
+      requireManifest: true
+    });
+  } catch (error) {
+    if (error instanceof TerminalCandidateRuntimeError) throw error;
+    runtimeRefusal(refusalCode,
+      "controlled-contract generation authentication refused", { cause: error?.code ?? error?.message ?? null });
+  }
+}
+
+export async function advanceTerminalReviewCandidate({
+  mainRepo,
+  wkId,
+  backend,
+  acceptedRepository,
+  runGit = defaultTerminalCandidateRunGit,
+  dependencies = {}
+} = {}) {
+  if (typeof backend?.withTerminalCandidateAdvanceExclusion !== "function") {
+    runtimeRefusal(TERMINAL_WK_CANDIDATE_CODES.INVALID_ARGUMENT,
+      "terminal candidate advance backend authority is unavailable");
+  }
+  const evaluate = dependencies.evaluateTerminalReviewCandidateStatus ??
+    (() => evaluateTerminalReviewCandidateStatus({
+      mainRepo, wkId, backend, acceptedRepository, runGit, dependencies
+    }));
+  const derive = dependencies.deriveTerminalWkCandidate ?? deriveTerminalWkCandidate;
+  const publish = dependencies.publishTerminalWkCandidateVersion ??
+    publishTerminalWkCandidateVersion;
+  return backend.withTerminalCandidateAdvanceExclusion({
+    wkId,
+    evaluateTerminalReviewCandidateStatus: evaluate,
+    run: async (inside) => {
+      const snapshot = statusAuthoritySnapshots.get(inside) ?? dependencies.authoritySnapshot?.(inside) ?? null;
+      if (inside?.state !== "candidate_stale_w" || snapshot === null) {
+        runtimeRefusal(TERMINAL_CANDIDATE_RUNTIME_CODES.ADVANCE_NOT_STALE,
+          "candidate advance requires the evaluator-owned stale-W snapshot");
+      }
+      if (snapshot.versionDecision !== null) {
+        const selectedVersion = assertTerminalWkCandidateVersionDecision(
+          snapshot.versionDecision,
+          { requireSelected: true }
+        );
+        if (selectedVersion.candidate !== snapshot.candidate ||
+            selectedVersion.base !== snapshot.base ||
+            selectedVersion.wk !== snapshot.embeddedW ||
+            selectedVersion.current_selection_observation !== snapshot.candidate) {
+          runtimeRefusal(TERMINAL_CANDIDATE_RUNTIME_CODES.ADVANCE_INPUT_MOVED,
+            "candidate advance version snapshot disagrees");
+        }
+      }
+      const generationAuthentication = await authenticateAdvanceGeneration({
+        mainRepo, wkId, expectedW: snapshot.currentW, runGit,
+        refusalCode: TERMINAL_CANDIDATE_RUNTIME_CODES.ADVANCE_SCHEMA_REFUSED
+      });
+      const selection = await selectAdvanceSchema({ mainRepo, wkId, snapshot, runGit });
+      let frozen;
+      if (selection.schema === "v2") {
+        await normalizeAdvanceV2(snapshot, snapshot.live, backend);
+        frozen = await freezeTerminalWkCandidateInputs({
+          mainRepo,
+          baseSha: snapshot.base,
+          baseRef: "main",
+          wkRef: snapshot.wkRef,
+          canonicalWkId: wkId,
+          canonicalWkDigest: selection.digest,
+          generationAuthentication,
+          runGit
+        });
+      } else {
+        frozen = await freezeReconstructedTerminalWkCandidateInputs({
+          mainRepo,
+          initiative: snapshot.initiative,
+          canonicalWkId: wkId,
+          canonicalWkDigest: snapshot.live.digest,
+          terminalReviewSubject: snapshot.live.review_subject,
+          terminalReviewContractDigest: snapshot.live.review_contract_digest,
+          generationAuthentication,
+          runGit
+        });
+      }
+      assertSameSnapshotFreeze(frozen, snapshot);
+      const derived = await derive({ frozen, runGit });
+      const finalGenerationAuthentication = await authenticateAdvanceGeneration({
+        mainRepo, wkId, expectedW: snapshot.currentW, runGit,
+        refusalCode: TERMINAL_CANDIDATE_RUNTIME_CODES.ADVANCE_FINAL_RECHECK_FAILED
+      });
+      if (!authenticatedControlledContractGenerationsEqual(
+        finalGenerationAuthentication, generationAuthentication)) {
+        runtimeRefusal(TERMINAL_CANDIDATE_RUNTIME_CODES.ADVANCE_FINAL_RECHECK_FAILED,
+          "controlled-contract generation moved during candidate derivation");
+      }
+      const finalLive = currentCanonicalContractForStatus(mainRepo, wkId);
+      if (finalLive.ok !== true || finalLive.contract.review_subject !== snapshot.live.review_subject ||
+          finalLive.contract.review_contract_digest !== snapshot.live.review_contract_digest ||
+          (selection.schema === "v3" && finalLive.contract.digest !== snapshot.live.digest)) {
+        runtimeRefusal(TERMINAL_CANDIDATE_RUNTIME_CODES.ADVANCE_FINAL_RECHECK_FAILED,
+          "candidate advance canonical review contract moved");
+      }
+      if (selection.schema === "v2") {
+        await normalizeAdvanceV2(snapshot, finalLive.contract, backend);
+      }
+      const published = await publish({
+        binding: derived,
+        expectedOld: snapshot.candidate,
+        verifyRefs: [
+          { ref: snapshot.forkRef, oid: snapshot.base },
+          { ref: snapshot.wkRef, oid: snapshot.currentW }
+        ],
+        runGit
+      });
+      return Object.freeze({
+        schema_version: TERMINAL_CANDIDATE_ADVANCE_SCHEMA_VERSION,
+        wk_id: wkId,
+        old_candidate: snapshot.candidate,
+        new_candidate: derived.candidate,
+        candidate_ref: published.candidate_ref,
+        candidate_ref_state: published.selection.state,
+        version_identity: published.version_identity,
+        immutable_version_ref: published.version_ref,
+        current_selection_observation: published.current_selection_observation,
+        version_decision: published.version_decision,
+        candidate_schema: frozen.schema_version,
+        base: frozen.base,
+        wk: frozen.wk_tip,
+        tree: derived.candidate_tree,
+        contract_binding: selection.schema === "v2"
+          ? Object.freeze({ kind: "candidate_tree_record_digest", digest: selection.digest })
+          : Object.freeze({
+              kind: "canonical_terminal_review_contract",
+              subject: frozen.terminal_review_subject,
+              digest: frozen.terminal_review_contract_digest
+            }),
+        invariants: Object.freeze({ tree_equals_w: true, sole_parent_b: true }),
+        next_call: appendAcceptedRepository(Object.freeze({
+          tool: "workspace_terminal_review_candidate_status",
+          arguments: Object.freeze({ wk_id: wkId })
+        }), acceptedRepository)
+      });
+    }
   });
 }

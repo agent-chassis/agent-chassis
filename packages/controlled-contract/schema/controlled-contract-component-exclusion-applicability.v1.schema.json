@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-chassis.invalid/controlled-contract-component-exclusion-applicability.v1.schema.json",
+  "title": "controlled-contract-component-exclusion-applicability.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "profile_id",
+    "profile_version",
+    "profile_digest",
+    "admission_digest",
+    "components"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "controlled-contract-component-exclusion-applicability.v1"
+    },
+    "profile_id": {
+      "type": "string",
+      "pattern": "^proof\\.[a-z0-9]+(?:[.-][a-z0-9]+)*$"
+    },
+    "profile_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "profile_digest": { "$ref": "#/$defs/sha256" },
+    "admission_digest": { "$ref": "#/$defs/sha256" },
+    "components": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/component" }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:[a-z0-9._-]*[a-z0-9])?$"
+    },
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "selector",
+        "evaluation_stage",
+        "exclusion_ids",
+        "applicable_exclusion_ids"
+      ],
+      "properties": {
+        "selector": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "component_id"],
+          "properties": {
+            "kind": {
+              "enum": [
+                "reference_binding",
+                "claim",
+                "relation",
+                "collection",
+                "resolver_fact",
+                "evidence"
+              ]
+            },
+            "component_id": { "$ref": "#/$defs/id" }
+          }
+        },
+        "evaluation_stage": { "type": "string", "minLength": 1 },
+        "exclusion_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/id" }
+        },
+        "applicable_exclusion_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/id" }
+        }
+      }
+    }
+  }
+}

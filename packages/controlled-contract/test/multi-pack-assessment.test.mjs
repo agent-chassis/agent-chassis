@@ -3,10 +3,14 @@ import { execFile } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import test from "node:test";
 
 import { loadAdmittedProofPack } from "../lib/admitted-proof-packs.mjs";
+import { evaluateAcceptanceCoverage } from "../lib/acceptance-coverage.mjs";
+import { buildObligationGuaranteeSelectorIndex } from
+  "../lib/obligation-coverage-guarantee-selectors.mjs";
 import {
   PROOF_INTENT_DIGESTS
 } from "../lib/proof-intent-selection.mjs";
@@ -33,9 +37,25 @@ import { buildResultShapeConformanceFixture } from
   "./proof-packs/result-shape-conformance-v1-fixture.mjs";
 import { buildDormancyNonactivationFixture } from
   "./proof-packs/dormancy-nonactivation-v1-fixture.mjs";
+import { buildImplementationReadinessFixture } from
+  "./proof-packs/implementation-readiness-v1-adequacy.mjs";
 import { buildProofPlanFixture } from "./proof-plan-fixture.mjs";
+import { buildStableTestProofPopulation } from
+  "./support/stable-v1-proof-pack-runtime.mjs";
 
 const execFileAsync = promisify(execFile);
+
+function stabilizeFixture(value) {
+  const fixture = structuredClone(value);
+  fixture.contract.schema_version = "controlled-acceptance-contract.v1";
+  fixture.contract.profile_id = "acceptance-contract.standard.v1";
+  fixture.contract.vocabulary_version = "controlled-contract-vocabulary.v1";
+  fixture.contract.test_proof_version = "controlled-contract-test-proof.v1";
+  fixture.contract.test_proofs = buildStableTestProofPopulation(fixture.contract);
+  fixture.input.input_version = "controlled-contract-verification-profile-input.v1";
+  fixture.input.stable_evaluation = {};
+  return fixture;
+}
 
 function namespaceFixture(fixture, prefix) {
   const contract = structuredClone(fixture.contract);
@@ -67,17 +87,19 @@ function mergeContracts(fixtures) {
   const result = structuredClone(first.contract);
   for (const fixture of rest) for (const field of [
     "references", "propositions", "claims", "relations", "collections",
-    "residue", "annotations"
+    "residue", "annotations", "test_proofs"
   ]) result[field].push(...structuredClone(fixture.contract[field]));
+  result.test_proofs.sort((left, right) => left.verification_claim_id.localeCompare(
+    right.verification_claim_id));
   return result;
 }
 
 async function setupPassingPlan(count = 2) {
   const root = await mkdtemp(path.join(os.tmpdir(), "cc-multi-pack-"));
   const fixtures = [
-    namespaceFixture(buildRefusalBeforeEffectsFixture(), "refusal"),
-    namespaceFixture(buildRetryConvergenceFixture(), "retry"),
-    namespaceFixture(buildResultShapeConformanceFixture(), "shape")
+    namespaceFixture(stabilizeFixture(buildRefusalBeforeEffectsFixture()), "refusal"),
+    namespaceFixture(stabilizeFixture(buildRetryConvergenceFixture()), "retry"),
+    namespaceFixture(stabilizeFixture(buildResultShapeConformanceFixture()), "shape")
   ].slice(0, count);
   const contract = mergeContracts(fixtures);
   const contractPath = path.join(root, "contract.json");
@@ -109,7 +131,7 @@ async function setupPassingPlan(count = 2) {
 test("zero packs preserve structural-only proof axes as not assessed", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "cc-zero-pack-"));
   try {
-    const contract = buildRefusalBeforeEffectsFixture().contract;
+    const contract = stabilizeFixture(buildRefusalBeforeEffectsFixture()).contract;
     const contractPath = path.join(root, "contract.json");
     await writeFile(contractPath, canonicalJson(contract));
     const proofPlan = {
@@ -139,7 +161,7 @@ test("zero packs preserve structural-only proof axes as not assessed", async () 
 test("zero packs retain every structural diagnostic with structural provenance", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "cc-zero-invalid-"));
   try {
-    const contract = buildRefusalBeforeEffectsFixture().contract;
+    const contract = stabilizeFixture(buildRefusalBeforeEffectsFixture()).contract;
     delete contract.profile_id;
     const contractPath = path.join(root, "contract.json");
     await writeFile(contractPath, canonicalJson(contract));
@@ -254,9 +276,11 @@ test("mixed v1/v2 requests preserve independent missing exact inputs", async () 
 test("mixed v1/v2 packs each run their own admitted and exact-binding evaluation", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "cc-mixed-exact-"));
   try {
-    const refusal = namespaceFixture(buildRefusalBeforeEffectsFixture(), "refusal");
+    const refusal = namespaceFixture(
+      stabilizeFixture(buildRefusalBeforeEffectsFixture()), "refusal");
     const dormancy = namespaceFixture(
-      buildDormancyNonactivationFixture({ domain: "multi-pack" }), "dormancy"
+      stabilizeFixture(buildDormancyNonactivationFixture({ domain: "multi-pack" })),
+      "dormancy"
     );
     const contract = mergeContracts([refusal, dormancy]);
     const contractPath = path.join(root, "contract.json");
@@ -316,7 +340,8 @@ test("mixed v1/v2 packs each run their own admitted and exact-binding evaluation
     const projected = await assessProofPlan({
       inputPath: contractPath, proofPlan, planDirectory: root
     });
-    assert.equal(projected.assessment.profile_discrimination, "proven");
+    assert.equal(projected.assessment.profile_discrimination, "proven",
+      JSON.stringify(projected.assessment.diagnostics));
     assert.equal(projected.assessment.exact_binding, "proven");
     assert.deepEqual(projected.assessment.per_pack.map((pack) => [
       pack.profile_id, pack.profile_discrimination, pack.exact_binding
@@ -475,6 +500,137 @@ test("aggregation preserves every diagnostic and exclusion with pack provenance"
   }
 });
 
+test("assessment authenticates exact empty and nonempty component applicability", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "cc-applicability-"));
+  try {
+    const admitted = await loadAdmittedProofPack(
+      "proof.design.implementation-readiness"
+    );
+    const fixture = stabilizeFixture(buildImplementationReadinessFixture({
+      profile: admitted.profile
+    }));
+    const contractPath = path.join(root, "contract.json");
+    const evaluationPath = path.join(root, "evaluation.json");
+    await Promise.all([
+      writeFile(contractPath, canonicalJson(fixture.contract)),
+      writeFile(evaluationPath, canonicalJson(fixture.input))
+    ]);
+    const proofPlan = await buildProofPlanFixture({
+      contractPath,
+      packs: [{
+        profileId: admitted.profile.profile_id,
+        requestedIntents: ["controlled-proof-intent.implementation-readiness"],
+        evaluationInputPath: evaluationPath
+      }]
+    });
+    const projected = await assessProofPlan({
+      inputPath: contractPath, proofPlan, planDirectory: root
+    });
+    const [full] = projected.reports.proofPacks.packs;
+    const authenticated = full.authenticated_component_exclusion_applicability;
+    assert.equal(projected.assessment.profile_discrimination, "proven");
+    assert.deepEqual(full.component_exclusion_applicability,
+      admitted.component_exclusion_applicability);
+    assert.equal(full.component_exclusion_applicability_digest,
+      admitted.component_exclusion_applicability_digest);
+    assert.equal(full.source_digests.component_exclusion_applicability,
+      admitted.component_exclusion_applicability_digest);
+    assert.equal(authenticated.profile_id, admitted.profile.profile_id);
+    assert.equal(authenticated.profile_version, "2.1.0");
+    assert.equal(authenticated.profile_digest, admitted.profile_digest);
+    assert.equal(authenticated.admission_digest, admitted.admission_digest);
+    assert.equal(authenticated.component_exclusion_applicability_digest,
+      admitted.component_exclusion_applicability_digest);
+    assert.match(authenticated.assessment_cycle_digest, /^[a-f0-9]{64}$/u);
+    assert.deepEqual(authenticated.source_digests, full.source_digests);
+    assert.deepEqual(authenticated.components.map((component) => [
+      component.selector.component_id, component.exclusion_ids,
+      component.applicable_exclusion_ids
+    ]), [
+      ["design-names-grounded-loci", admitted.admission.explicit_exclusions, []],
+      ["warning-shape-verification", admitted.admission.explicit_exclusions,
+        ["warning-runtime-execution"]]
+    ]);
+    assert.equal("applicable" in authenticated.components[0], false);
+    assert.equal(projected.assessment.digests.proof_packs_result,
+      canonicalDigest(projected.reports.proofPacks.packs));
+
+    const selectorIndex = buildObligationGuaranteeSelectorIndex({
+      assessment: projected
+    });
+    const components = Object.fromEntries(selectorIndex.components.map((component) => [
+      component.selector.component_id, component
+    ]));
+    assert.equal(components["design-names-grounded-loci"].applicable_exclusion,
+      false);
+    assert.equal(components["warning-shape-verification"].applicable_exclusion,
+      true);
+    assert(components["design-names-grounded-loci"].matched_node_ids.length > 0);
+    assert(components["warning-shape-verification"].matched_node_ids.length > 0);
+    const obligations = [
+      ["OBL-001", "design-names-grounded-loci"],
+      ["OBL-002", "warning-shape-verification"]
+    ].map(([obligationId, componentId], index) => ({
+      obligation_id: obligationId,
+      source_locator: `/acceptance/criteria/${index}`,
+      source_locator_digest: `sha256:${"a".repeat(64)}`,
+      statement: `Discharge ${componentId}.`,
+      controlled_contract_node_ids: [components[componentId].matched_node_ids[0]],
+      mechanism: { owner: "packages/controlled-contract", kind: "code_symbol",
+        selector: componentId },
+      proof: {
+        kind: "pack_mapping", pack_id: admitted.profile.profile_id,
+        requested_intent: "controlled-proof-intent.implementation-readiness",
+        profile_id: admitted.profile.profile_id,
+        profile_version: admitted.profile.profile_version,
+        selector: { kind: "claim", component_id: componentId },
+        evaluation_stage: "pre_dispatch"
+      }
+    }));
+    const coverage = evaluateAcceptanceCoverage({
+      obligationCoverage: { schema_version:
+        "controlled-contract-obligation-coverage.v1", wk_id: "WK-2097", obligations },
+      guaranteeSelectorIndex: selectorIndex,
+      selectedPackIds: [admitted.profile.profile_id]
+    });
+    assert.deepEqual(coverage.obligation_outcomes.map(({ outcome }) => outcome), [
+      "mechanically_proven", "guarantee_incompatible"
+    ]);
+    assert.equal(coverage.obligation_outcomes[1].reason, "applicable_exclusion");
+
+    assert.throws(() => buildObligationGuaranteeSelectorIndex({
+      assessment: structuredClone(projected)
+    }), (error) => error.code ===
+      "obligation_guarantee_selector_assessment_unrecognized");
+
+    const spliced = structuredClone(projected);
+    spliced.reports.proofPacks.packs[0]
+      .authenticated_component_exclusion_applicability = authenticated;
+    assert.throws(() => multiPackBundleBytes(spliced), (error) =>
+      error.code === "assessment_projection_untrusted");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("legacy packs project missing applicability as unavailable, never empty", async () => {
+  const setup = await setupPassingPlan(1);
+  try {
+    const projected = await assessProofPlan({
+      inputPath: setup.contractPath,
+      proofPlan: setup.proofPlan,
+      planDirectory: setup.root
+    });
+    const [full] = projected.reports.proofPacks.packs;
+    assert.equal(full.component_exclusion_applicability, null);
+    assert.equal(full.component_exclusion_applicability_digest, null);
+    assert.equal(full.source_digests.component_exclusion_applicability, null);
+    assert.equal(full.authenticated_component_exclusion_applicability, null);
+  } finally {
+    await rm(setup.root, { recursive: true, force: true });
+  }
+});
+
 test("results are detached, immutable, contain no unqualified pass, and stay compact", async () => {
   const setup = await setupPassingPlan(2);
   try {
@@ -506,13 +662,20 @@ test("independent processes, locales, and timezones preserve compact identity", 
     const cli = path.resolve(
       import.meta.dirname, "../bin/assess-contract.mjs"
     );
-    const args = [cli, "--input", setup.contractPath, "--proof-plan", planPath];
+    const args = ["--input", setup.contractPath, "--proof-plan", planPath];
+    const childProgram = [
+      `import { main } from ${JSON.stringify(pathToFileURL(cli).href)};`,
+      `await main(${JSON.stringify(args)}, { repositoryRoot: ${
+        JSON.stringify(setup.root)} });`
+    ].join("\n");
     const outputs = [];
     for (const env of [
       { TZ: "UTC", LANG: "C" },
       { TZ: "Pacific/Auckland", LANG: "en_US.UTF-8" }
-    ]) outputs.push((await execFileAsync(process.execPath, args, {
-      cwd: path.resolve(import.meta.dirname, "../../.."),
+    ]) outputs.push((await execFileAsync(process.execPath, [
+      "--input-type=module", "--eval", childProgram
+    ], {
+      cwd: setup.root,
       env: { ...process.env, ...env }
     })).stdout);
     assert.equal(outputs[0], outputs[1]);

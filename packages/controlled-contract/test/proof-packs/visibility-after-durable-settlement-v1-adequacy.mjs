@@ -1,5 +1,5 @@
 import { PROOF_PACK_ADEQUACY_RUN_VERSION } from "../support/proof-pack-adequacy-constants.mjs";
-import { evaluateVerificationProfileV034 } from "../../lib/verification-profile-v034.mjs";
+import { evaluateStableProofPackFixtureV1 } from "../support/stable-v1-proof-pack-runtime.mjs";
 import { buildVisibilityAfterDurableSettlementFixture, findClaim, findProposition, ref }
   from "./visibility-after-durable-settlement-v1-fixture.mjs";
 import { DOMAINS, MUTATIONS, executeVisibilityAfterDurableSettlement,
@@ -7,13 +7,13 @@ import { DOMAINS, MUTATIONS, executeVisibilityAfterDurableSettlement,
   from "./visibility-after-durable-settlement-v1-harness.mjs";
 
 const VISIBILITY_AFTER_DURABLE_SETTLEMENT_V1_PROFILE_DIGEST =
-  "1c764fe711c13484c5c43a6600b79c29ecc3f5fb848262689fc313547583d6fc";
+  "b5df20bfbed017d124ef4ef778591b765f20480d801828e357fa4301f05fe3c9";
 const VISIBILITY_AFTER_DURABLE_SETTLEMENT_V1_GUARANTEE_DIGEST =
   "04ce2d798103d1c8c32829cffd34c148c3ca710c0c0f4a016ee1d1945863351c";
 
 const referenceId = (value) => `ref-${value.replaceAll(/[^a-zA-Z0-9-]/gu, "-")}`;
 const evaluateFixture = ({ contract, input, evaluation_input, profile }) =>
-  evaluateVerificationProfileV034({ contract, profile, evaluation_input: evaluation_input ?? input }).satisfaction;
+  evaluateStableProofPackFixtureV1({ contract, profile, evaluation_input: evaluation_input ?? input }).satisfaction;
 
 function fixtureForExecution(profile, execution, extra = {}) {
   const durable = execution.durable.map(referenceId);

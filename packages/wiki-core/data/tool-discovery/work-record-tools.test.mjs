@@ -21,6 +21,8 @@ const WORK_RECORD_FRAGMENTS = [
     file: 'work-record-core-mcp-tools.json',
     mcp: [
       'workspace_create_record',
+
+      'workspace_record_staleness_check',
       'workspace_work_record_set_closure',
       'workspace_work_record_set_status',
       'workspace_work_record_set_task',
@@ -228,7 +230,7 @@ test('hot work-record tools carry routing guidance metadata', async () => {
     authoritative_for: ['compact selected_work_record_context', 'compact selected_slice_detail'],
     recommended_first_call: {
       routing_intents: ['selected_work_record_context', 'selected_slice_detail'],
-      arguments: { unit: '$known_WK_or_slice_unit' },
+      arguments: { unit: '$unit_if_known' },
       omit_null_arguments: true,
     },
     requires_prior_state: ['known WK-* or WK-*#SLICE-*'],
@@ -264,6 +266,16 @@ test('hot work-record tools carry routing guidance metadata', async () => {
   ];
 
   for (const [toolName, operation, requires_prior_state, authoritative_for] of mutationTools) {
+    const argumentsByTool = {
+      workspace_create_record: { type: 'wk', title: '$title_if_known' },
+      workspace_work_record_set_acceptance: {
+        unit: '$unit_if_known',
+        criteria: '$criteria_if_known',
+        validation: '$validation_if_known',
+      },
+      workspace_work_record_set_closure: { unit: '$unit_if_known' },
+    };
+    const recommendedArguments = argumentsByTool[toolName];
     assertRoutingGuidance(familyTools, toolName, {
       use_when: ['work_record_mutation', `mutation_operation=${operation}`],
       do_not_use_when:
@@ -271,7 +283,14 @@ test('hot work-record tools carry routing guidance metadata', async () => {
           ? ['existing WK/slice update', 'read-only context']
           : ['read-only context', 'different mutation route'],
       authoritative_for,
-      recommended_first_call: { routing_intents: ['work_record_mutation'], operation },
+      recommended_first_call: {
+        routing_intents: ['work_record_mutation'],
+        operation,
+        ...(recommendedArguments ? {
+          arguments: recommendedArguments,
+          omit_null_arguments: true,
+        } : {}),
+      },
       requires_prior_state,
       replacement_for_misuse: [
         {
@@ -281,5 +300,79 @@ test('hot work-record tools carry routing guidance metadata', async () => {
         },
       ],
     });
+  }
+});
+
+const SUMMARY_ADVISORY_FACT_PHRASES = [
+
+  'normalized review_purpose',
+  'rows in review_state.review_slices',
+  'selected review-unit summaries',
+  'standalone and terminal_whole_wk',
+  'omitted one normalizes to standalone',
+  'no review_purpose key at all',
+
+  'terminal_review_designation',
+  'eligible_count',
+  'adding unit_id only when exactly one is eligible',
+  'state is missing',
+  'designated for exactly one',
+  'ambiguous for more than one',
+  'not_applicable for a closed parent',
+
+  'advisory, descriptive, fact-only',
+  'non-authorizing',
+];
+
+test('workspace_work_record_summary discovery publishes the advisory terminal-review facts and their boundary', async () => {
+  const familyTools = await readFamilyTools();
+  const summaryTool = familyTools.find(
+    (entry) => entry.tool_name === 'workspace_work_record_summary',
+  );
+  assert.ok(summaryTool, 'workspace_work_record_summary must be present in the family');
+
+  const notes = summaryTool.notes;
+  assert.equal(typeof notes === 'string' && notes.length > 0, true, 'summary notes must be prose');
+  for (const phrase of SUMMARY_ADVISORY_FACT_PHRASES) {
+    assert.ok(
+      notes.includes(phrase),
+      `workspace_work_record_summary notes must publish "${phrase}"`,
+    );
+  }
+
+  for (const claim of [
+    'authorizes dispatch',
+    'authorizes integration',
+    'authorizes handoff',
+    'blocks dispatch',
+    'blocks integration',
+    'gates admission',
+  ]) {
+    assert.equal(
+      notes.includes(claim),
+      false,
+      `workspace_work_record_summary notes must not claim "${claim}"`,
+    );
+  }
+
+  assert.deepEqual(summaryTool.side_effects, ['read_only']);
+  assert.equal(summaryTool.kind, 'mcp_tool');
+  assert.equal(summaryTool.install_state, 'installed');
+  assert.equal(summaryTool.runtime_posture, 'supported');
+  assert.equal(summaryTool.recommended_route, 'mcp');
+  assert.deepEqual(summaryTool.task_ids, ['summarize-work-record']);
+  assert.ok(
+    summaryTool.docs_refs.includes('docs/mcp-operation-reference.md'),
+    'the durable operation reference documenting these fields must be discoverable',
+  );
+  assert.ok(summaryTool.docs_refs.includes('docs/tool-discovery-surfaces.md'));
+
+  for (const tool of familyTools) {
+    if (tool.tool_name === 'workspace_work_record_summary') continue;
+    assert.equal(
+      String(tool.notes ?? '').includes('terminal_review_designation'),
+      false,
+      `${tool.tool_name} must not describe terminal_review_designation`,
+    );
   }
 });

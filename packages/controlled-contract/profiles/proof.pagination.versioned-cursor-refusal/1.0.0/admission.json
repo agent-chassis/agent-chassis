@@ -1,0 +1,55 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v2",
+  "profile_id": "proof.pagination.versioned-cursor-refusal",
+  "profile_version": "1.0.0",
+  "profile_digest": "3b5ba72c8664d7c08ac40335da90d99424526489504567bda0524af0a2c18e40",
+  "guarantee": "Every cursor and successful returned page in the complete declared traversal populations resolves to its traversal source version; after a relevant mutation the current version differs in identity and captured content from the selected stale cursor version, the exact next-page attempt using that cursor is refused, and before refusal and throughout that stale-attempt scope no page artifact or page-return event is returned, no cursor-advance event is emitted, and no complete declared protected effect is written or mutated; a non-stale control proves an unrelated-source mutation does not cause refusal.",
+  "guarantee_digest": "54fb6ac12173078ba025706e0c3a6d2626ee32d98c6e072256fbd0244af52081",
+  "explicit_exclusions": [
+    "capture-provenance",
+    "cross-pack-shared-role-identity",
+    "cursor-retention-or-isolation",
+    "evidence-authority-or-cce-consequence",
+    "runtime-truth",
+    "standalone-traversal-completeness",
+    "undeclared-mutation"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "d326e1f50cd3307e1debe9affe552a6bd853fd1dd59b9eec620bb9eebae73627",
+    "adequacy_result_digest": "daf455fba0e01e44c16a4092830a6b1f951dddfa99a266d3e687b8501f954b9b",
+    "executable_control_count": 33,
+    "negative_fixture_count": 232,
+    "coverage_witness_count": 232
+  },
+  "exact_binding": {
+    "declaration_digest": "2f2572d9234de5d11cd32bcaffce49da7abec9542877d7fe9d03a4f1bb19b8dd",
+    "certification_result_digest": "3ed966fe6064cea164389ef4f9addbcdc1f2ceab18e377d8a262be6accc70ecb",
+    "executable_control_count": 12,
+    "binding_kinds": [
+      "artifact_bytes"
+    ],
+    "relation_operators": [
+      "deterministic_projection",
+      "distinct_content_sha256",
+      "same_content_sha256"
+    ],
+    "corpus_id": "versioned-cursor-refusal-exact-binding",
+    "corpus_version": "1.0.0",
+    "corpus_digest": "b43b9176cfba0d534a793849f44ea5fe371412d0bf3365e8f1221b721f7d4a7f",
+    "passed_control_ids": [
+      "advance-before-refusal-refused",
+      "caller-selected-refusal-refused",
+      "empty-control-page-positive",
+      "identical-version-content-refused",
+      "missing-trace-refused",
+      "multiple-protected-effects-positive",
+      "projection-result-splice-refused",
+      "return-before-error-refused",
+      "stale-continuation-refused",
+      "stale-refusal-zero-effect-positive",
+      "unrelated-mutation-control-positive",
+      "wrong-cursor-refusal-refused"
+    ]
+  }
+}

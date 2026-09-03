@@ -1,5 +1,5 @@
 import { PROOF_PACK_ADEQUACY_RUN_VERSION } from "../support/proof-pack-adequacy-constants.mjs";
-import { evaluateVerificationProfileV034 } from "../../lib/verification-profile-v034.mjs";
+import { evaluateStableProofPackFixtureV1 } from "../support/stable-v1-proof-pack-runtime.mjs";
 import {
   BOUNDED_STATE_STABILITY_V1_PROFILE,
   buildBoundedStateStabilityFixture,
@@ -22,12 +22,12 @@ import {
 } from "./bounded-state-stability-v1-independent-negatives.mjs";
 
 const BOUNDED_STATE_STABILITY_V1_PROFILE_DIGEST =
-  "6de017604a8ea92ecb3e5cc4fae55e16eb6e2af328c8518878fbdd3e19a714c2";
+  "291b3db05293848c9cbbd7256fbff4c7e89df0522fccec436a183b421dfeebb9";
 const BOUNDED_STATE_STABILITY_V1_GUARANTEE_DIGEST =
   "f83f797c792540d6085598adc202a6f6fb603bc3bc7bd324245e454113d709cd";
 
 const evaluateFixture = ({ contract, input, evaluation_input, profile }) =>
-  evaluateVerificationProfileV034({ contract, profile,
+  evaluateStableProofPackFixtureV1({ contract, profile,
     evaluation_input: evaluation_input ?? input }).satisfaction;
 const baselineFixture = (profile = BOUNDED_STATE_STABILITY_V1_PROFILE, options = {}) =>
   buildBoundedStateStabilityFixture({ profile, ...options });

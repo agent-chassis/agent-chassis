@@ -1,0 +1,2377 @@
+{
+  "schema_version": "controlled-contract-proof-pack-coverage-witness-index.experimental.v0.1",
+  "profile_digest": "0b9b62d09bc5d01b743b5f8fa895fe9729fe05037863ec33f6fe46d6bbb1c42c",
+  "witnesses": [
+    {
+      "surface_id": "role-target-population-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-target-population-types",
+      "weakened_profile_digest": "1707d31c7c1cba8ba877e4669ac08e999c57e765b9f03fd3e8aad27228bee28a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/4/allowed_type_terms",
+          "value": [
+            "cc:population",
+            "cc:scope"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-source-population-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-source-population-types",
+      "weakened_profile_digest": "1fab10703037fa3495ad8de0821757bbd096be25e3aa844d676ac9f60dec1d14",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/5/allowed_type_terms",
+          "value": [
+            "cc:population",
+            "cc:scope"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-evidence-content-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-evidence-content-types",
+      "weakened_profile_digest": "e6a92e83d1a77881a8eaaecbcdcc344005b0ef23139c416e3e9d27791f4e082b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/6/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-evidence-content-cardinality",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-evidence-content-cardinality",
+      "weakened_profile_digest": "88c74bb16f046cb14c5268f28a56405c4bc8a2613f860697959945ec3c260278",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/6/cardinality",
+          "value": "one_or_more"
+        }
+      ]
+    },
+    {
+      "surface_id": "role-target-resolution-witness-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-target-resolution-witness-types",
+      "weakened_profile_digest": "bf14babb4dd243c706c891ca436c2b690ca08ff0ca6535da4a85cfb0ff8f58ef",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/7/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-target-resolution-witness-cardinality",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-target-resolution-witness-cardinality",
+      "weakened_profile_digest": "87b7d23d9122d74558451040e428d6d23cc9a0f25e86f6233ef40dc3290c1f43",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/7/cardinality",
+          "value": "one_or_more"
+        }
+      ]
+    },
+    {
+      "surface_id": "role-source-authentication-witness-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-source-authentication-witness-types",
+      "weakened_profile_digest": "03b78fc9fd95eb9cfb5eb13c7d1d4f29a2e6e84ca106df9059b893ab508907d7",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/8/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-source-authentication-witness-cardinality",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-source-authentication-witness-cardinality",
+      "weakened_profile_digest": "05d74154f658c55c9472b0a485969f3350f726cd73a0ffca7406b1283a6187c4",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/8/cardinality",
+          "value": "one_or_more"
+        }
+      ]
+    },
+    {
+      "surface_id": "role-source-of-record-witness-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-source-of-record-witness-types",
+      "weakened_profile_digest": "c07b30cb4231569b4e31f8a120b1a7d63e661a6d3b9b6ab171325549b7f06409",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/9/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-source-of-record-witness-cardinality",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-source-of-record-witness-cardinality",
+      "weakened_profile_digest": "fe20dd68049125748806eb4d5527248f39a07209bf607bcd987b32a50c738112",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/9/cardinality",
+          "value": "one_or_more"
+        }
+      ]
+    },
+    {
+      "surface_id": "role-attempt-binding-witness-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-attempt-binding-witness-types",
+      "weakened_profile_digest": "d439563d79c18bdabbc0022ab900a69321832f83fa8dde7716c52272a6a293c5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/10/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-attempt-binding-witness-cardinality",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-attempt-binding-witness-cardinality",
+      "weakened_profile_digest": "17df3b835d7e9d2e47657e3eccb3ed10ba358e8828f076a62f5f622f27543171",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/10/cardinality",
+          "value": "one_or_more"
+        }
+      ]
+    },
+    {
+      "surface_id": "role-authentication-witness-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-authentication-witness-types",
+      "weakened_profile_digest": "438205f88a10baf5612feb75249e51ac2563feda9c4f8c21f4206961b7cf3053",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/11/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-authentication-witness-cardinality",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-authentication-witness-cardinality",
+      "weakened_profile_digest": "749f20442ce65539f0178c7a3827ada2d80aa26a86c01c8129d48bf63e1a503f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/11/cardinality",
+          "value": "one_or_more"
+        }
+      ]
+    },
+    {
+      "surface_id": "role-occurrence-capture-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-occurrence-capture-types",
+      "weakened_profile_digest": "0f3f75a12175082e6daf911a0bebc82b359534c686583aa2a9cf06507d0c2603",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/12/allowed_type_terms",
+          "value": [
+            "cc:artifact",
+            "cc:evidence",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-occurrence-capture-cardinality",
+      "weakening_class": "cardinality_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-occurrence-capture-cardinality",
+      "weakened_profile_digest": "4ccf577b2a4379db368d79f97db2f6d3d40f874a0417cbb7aeb3271820a7756d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/12/cardinality",
+          "value": "one_or_more"
+        }
+      ]
+    },
+    {
+      "surface_id": "role-authentication-verification-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-authentication-verification-types",
+      "weakened_profile_digest": "a8c30c03704b93d7f002f934f044d209a2cae49c0837b300624d712064edbd1b",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/13/allowed_type_terms",
+          "value": [
+            "cc:process",
+            "cc:test",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-provenance-verification-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-provenance-verification-types",
+      "weakened_profile_digest": "80fbf0c437fc4ec027f11e83cc71c3711e29f3f4183c636e922cde99290351d4",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/14/allowed_type_terms",
+          "value": [
+            "cc:process",
+            "cc:test",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-source-record-verification-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-source-record-verification-types",
+      "weakened_profile_digest": "8c8d12f43c788702bf7c5d4361f85321594016b26d47313576e1059cbfc265e2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/15/allowed_type_terms",
+          "value": [
+            "cc:process",
+            "cc:test",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "role-observation-verification-types",
+      "weakening_class": "type_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-role-observation-verification-types",
+      "weakened_profile_digest": "4f13d02b82c1e7b0a315cf416c2d386af0cf449c73bca56120bc00e12dbe9bbc",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_roles/16/allowed_type_terms",
+          "value": [
+            "cc:process",
+            "cc:test",
+            "cc:entity"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-evidence-authenticates-target-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-evidence-authenticates-target-modalities",
+      "weakened_profile_digest": "3fbfe471324ee5f9cd78961a0c35a0ea1d0232c9af2b4f30432564ade7afd6d6",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-authenticates-target-modalities",
+      "weakened_profile_digest": "3ef046fcd3a55eac9a1abe2850f04f703d366cef70cbc99bd2b603763a77b16d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/0/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-authenticates-target-proposition-subject",
+      "weakened_profile_digest": "9ac8102bb3b604b5e8863bb420b8ff280092840be98470327adc0cfc5414c8e1",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/subject_role",
+          "value": "evidence_occurrence"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-authenticates-target-proposition-operator",
+      "weakened_profile_digest": "714b9c5167923fa6c6b01ea12ab182c357e274aab74865bed7ac9d19e91c23ca",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-authenticates-target-proposition-operand-0-role",
+      "weakened_profile_digest": "2f88ea55fd42549205eb6f410ea51e2df382f56f8f257f5110ffa8150613562d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/operands/0/role",
+          "value": "evidence_occurrence"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-authenticates-target-proposition-operand-1-role",
+      "weakened_profile_digest": "3b1eedc92e0738ca3ded9c36df8c6f7e939de52ffdda173a9593226122205730",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/operands/1/role",
+          "value": "evidence_occurrence"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-proposition-operand-2-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-authenticates-target-proposition-operand-2-role",
+      "weakened_profile_digest": "3b024e0d0312a0d705ba8f71d89f8c3324a997bd00101f1c13b04e67427937fa",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/operands/2/role",
+          "value": "evidence_occurrence"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-proposition-operand-3-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-authenticates-target-proposition-operand-3-role",
+      "weakened_profile_digest": "558a74acb5df2c4dd393a44b0bc067be3912302c6fa5ef2015576350af368b2e",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/operands/3/role",
+          "value": "evidence_occurrence"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-proposition-operand-4-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-authenticates-target-proposition-operand-4-role",
+      "weakened_profile_digest": "9d8e112584558400f35da12d4541e5591b641456d19500bef52c2fa2b6caa990",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/operands/4/role",
+          "value": "evidence_occurrence"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-proposition-operand-5-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-authenticates-target-proposition-operand-5-role",
+      "weakened_profile_digest": "b9761611e5f60aad491116c284f0b1355b1c6fe315b08e47550c6e30746011cf",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/operands/5/role",
+          "value": "evidence_occurrence"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-proposition-operand-6-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-authenticates-target-proposition-operand-6-role",
+      "weakened_profile_digest": "14a04e5ccaa24edf702a6f3089650850a959f37729a0178858d469f9bcb69ea2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/proposition_template/operands/6/role",
+          "value": "evidence_occurrence"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-authenticates-target-verification-methods",
+      "weakening_class": "verification_method_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-authenticates-target-verification-methods",
+      "weakened_profile_digest": "5b627ea1acb87eacccb616a41d09f92437dde0d06ed027c2b439313d26c7b8df",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/1/verification_methods",
+          "value": [
+            "analysis",
+            "demonstration",
+            "proof",
+            "test_execution",
+            "inspection"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-evidence-originates-from-source-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-evidence-originates-from-source-modalities",
+      "weakened_profile_digest": "6f05c3a957938df221be39ff91f3fd4d58d981e841a6e2447d240ac4815b70a9",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-originates-from-source-modalities",
+      "weakened_profile_digest": "759bdd72667dbb8f5a2708a6979fcf6f18e30a5e8603f8a5e4f719f24121476d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/2/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-originates-from-source-proposition-subject",
+      "weakened_profile_digest": "ddb1ed2d1ddc14195d9c470fed17802d8a6a21e2d94f8d0fd793867e9a93e5c3",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/subject_role",
+          "value": "evidence_occurrence"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-originates-from-source-proposition-operator",
+      "weakened_profile_digest": "f405307b4b3558bee86f3351ff38f13f61a0d243c3433f2acc9e238e21aa39ec",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-originates-from-source-proposition-operand-0-role",
+      "weakened_profile_digest": "f87a60c5e72d75e94e172490e7e4a9dc05fce081e78ed94b3dc939f40237abbc",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/operands/0/role",
+          "value": "evidence_occurrence"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-originates-from-source-proposition-operand-1-role",
+      "weakened_profile_digest": "2221a26ea9bb98b92617f89c59c59475abbec910ff5ec3f90ee5746bbaf472be",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/operands/1/role",
+          "value": "evidence_occurrence"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-proposition-operand-2-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-originates-from-source-proposition-operand-2-role",
+      "weakened_profile_digest": "227091c166d0d2f442486440cce50ae0396bed641af55b9f864e847c0b4a01d9",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/operands/2/role",
+          "value": "evidence_occurrence"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-proposition-operand-3-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-originates-from-source-proposition-operand-3-role",
+      "weakened_profile_digest": "6c4e8105a1a7d927a8fab4fd28a57a7e2ea619e3b92ad17610384ee20bb1e1a2",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/operands/3/role",
+          "value": "evidence_occurrence"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-proposition-operand-4-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-originates-from-source-proposition-operand-4-role",
+      "weakened_profile_digest": "0ad35986d9a8450e9639a1e16b299f79e86f0c34b3e522e7df71f0338456c183",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/operands/4/role",
+          "value": "evidence_occurrence"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-proposition-operand-5-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-originates-from-source-proposition-operand-5-role",
+      "weakened_profile_digest": "14916e7b811cac9cf1e6d619ab1ea8697073cada70f3faf22ebadaa75f04ebe6",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/operands/5/role",
+          "value": "evidence_occurrence"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-proposition-operand-6-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-originates-from-source-proposition-operand-6-role",
+      "weakened_profile_digest": "a36b2dbb5243700fbac996f83c77d25fb193c70af29f007dfe950fb2e98b5bf9",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/proposition_template/operands/6/role",
+          "value": "evidence_occurrence"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-originates-from-source-verification-methods",
+      "weakening_class": "verification_method_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-originates-from-source-verification-methods",
+      "weakened_profile_digest": "5448f66df417427778c22721b32bad02e32e18f519a2a8cc42c5d05f31e2fdbf",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/3/verification_methods",
+          "value": [
+            "analysis",
+            "demonstration",
+            "proof",
+            "test_execution",
+            "inspection"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-target-has-source-of-record-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-target-has-source-of-record-modalities",
+      "weakened_profile_digest": "f9bf8dba00f08a963e6df8e3fe8cf38745ed9d5457d8b1d7901ceea01e0b408c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-target-has-source-of-record-modalities",
+      "weakened_profile_digest": "0e28dcf06f1b0589ce39719e1ff678b74a138a4d17d412d919bb92b6f09823f8",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/4/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-target-has-source-of-record-proposition-subject",
+      "weakened_profile_digest": "54e47ee2eda111a7331c7446831e462b60762b0856867a06811ca240c0ebd4ad",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/subject_role",
+          "value": "evidence_occurrence"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-target-has-source-of-record-proposition-operator",
+      "weakened_profile_digest": "95ea51cdf7fc00dd3c334d0378baa9771338ee3268bdd59933fcb02f160450d5",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-target-has-source-of-record-proposition-operand-0-role",
+      "weakened_profile_digest": "969b9738eee53ef41ae77d07dfe36c2af7cffe81e53ad6688ad754bd17cee1e9",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/operands/0/role",
+          "value": "evidence_occurrence"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-target-has-source-of-record-proposition-operand-1-role",
+      "weakened_profile_digest": "9043dfff4dbe9ad49bb4dd7ab63488e20474ed7edfff2525d3988ce815e4b0f8",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/operands/1/role",
+          "value": "evidence_occurrence"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-proposition-operand-2-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-target-has-source-of-record-proposition-operand-2-role",
+      "weakened_profile_digest": "7b5cd25db00f9260c0fea5d715b45f9f106de5f01841fe0dc864129c44ca7ade",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/operands/2/role",
+          "value": "evidence_occurrence"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-proposition-operand-3-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-target-has-source-of-record-proposition-operand-3-role",
+      "weakened_profile_digest": "691520192e7089dba41589f2e732964ba8cbcdad5eac82e0ac2cef38bc5e0b8f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/operands/3/role",
+          "value": "evidence_occurrence"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-proposition-operand-4-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-target-has-source-of-record-proposition-operand-4-role",
+      "weakened_profile_digest": "ca9b697485ffc0cf838aad9244f7eedf76392624d43844afee9ddbf15d34b567",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/operands/4/role",
+          "value": "evidence_occurrence"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-proposition-operand-5-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-target-has-source-of-record-proposition-operand-5-role",
+      "weakened_profile_digest": "c99c40cad7712ec3a77138f348457f83e523dbdc017445c8fd0426c5249f4333",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/operands/5/role",
+          "value": "evidence_occurrence"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-proposition-operand-6-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-target-has-source-of-record-proposition-operand-6-role",
+      "weakened_profile_digest": "fb07a4c2d9d476d7aebc025edf0389e2cfea907dc0662e474758e3c464c3318f",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/proposition_template/operands/6/role",
+          "value": "evidence_occurrence"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-target-has-source-of-record-verification-methods",
+      "weakening_class": "verification_method_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-target-has-source-of-record-verification-methods",
+      "weakened_profile_digest": "241638dbe86e51c19a8b4c23a0fc3eaeb0c152e4c7cd686fee5f18be25abf8d1",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/5/verification_methods",
+          "value": [
+            "analysis",
+            "demonstration",
+            "proof",
+            "test_execution",
+            "inspection"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-evidence-observed-in-attempt-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-evidence-observed-in-attempt-modalities",
+      "weakened_profile_digest": "4a79373bf4e444522e6b70f978a675ff33d03a32e914d482833fa4944dd9d50a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-modalities",
+      "weakening_class": "modality_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-observed-in-attempt-modalities",
+      "weakened_profile_digest": "baeaf8379baac88ca1cdeb0ef0cefa904aacb58e2bc40b3362c77ba3822e3b33",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns/6/allowed_modalities",
+          "value": [
+            "MUST",
+            "SHOULD"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-proposition-subject",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-observed-in-attempt-proposition-subject",
+      "weakened_profile_digest": "46dc6eec7ba48e06deba4b7496c5503c3de7e792d8a2f61e1f93a2df6c902912",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/subject_role",
+          "value": "evidence_occurrence"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-proposition-operator",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-observed-in-attempt-proposition-operator",
+      "weakened_profile_digest": "217c104fde5af01ac862ef511ae8e2a91c91cbb91939987aa8e4a809724dd17d",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/operator",
+          "value": "reference:accepts"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-proposition-operand-0-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-observed-in-attempt-proposition-operand-0-role",
+      "weakened_profile_digest": "1cb1867d0ae25944416e2cdbc34ea758476e2888d3950c141e038c5551593204",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/operands/0/role",
+          "value": "evidence_occurrence"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-proposition-operand-1-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-observed-in-attempt-proposition-operand-1-role",
+      "weakened_profile_digest": "c058a45bbc13c5f2b33a038aab7763ad5cb4d0f804d1ce651f11bdb80288fb19",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/operands/1/role",
+          "value": "evidence_occurrence"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-proposition-operand-2-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-observed-in-attempt-proposition-operand-2-role",
+      "weakened_profile_digest": "340103ef5d2c5370dd5e3d7ca790c2da801b76ad54b75b0511d7d4f7e00e6c8c",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/operands/2/role",
+          "value": "evidence_occurrence"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-proposition-operand-3-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-observed-in-attempt-proposition-operand-3-role",
+      "weakened_profile_digest": "1a723acb62442eed90e675f6b053ddcbebed98f69c65563245ef6746623304fa",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/operands/3/role",
+          "value": "evidence_occurrence"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-proposition-operand-4-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-observed-in-attempt-proposition-operand-4-role",
+      "weakened_profile_digest": "0508b353bebea8e5406d01a46552a93ba5a6342ec6e4150a5b4df182402dcc74",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/operands/4/role",
+          "value": "evidence_occurrence"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-proposition-operand-5-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-observed-in-attempt-proposition-operand-5-role",
+      "weakened_profile_digest": "050ddcbae373a9051eebc504d3b956b1fb28fe3dec72f3d23183ab7a7c8724e6",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/operands/5/role",
+          "value": "evidence_occurrence"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-proposition-operand-6-role",
+      "weakening_class": "proposition_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-observed-in-attempt-proposition-operand-6-role",
+      "weakened_profile_digest": "fae9443f707459ce3254946b8fca4471d04e5c05d46b46b16968f3c06302be9a",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/proposition_template/operands/6/role",
+          "value": "evidence_occurrence"
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-verify-evidence-observed-in-attempt-verification-methods",
+      "weakening_class": "verification_method_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-verify-evidence-observed-in-attempt-verification-methods",
+      "weakened_profile_digest": "e14a5cf7120bc91f5678de628455ebeace8492049653debd973fe6c0314f8632",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns/7/verification_methods",
+          "value": [
+            "analysis",
+            "demonstration",
+            "proof",
+            "test_execution",
+            "inspection"
+          ]
+        }
+      ]
+    },
+    {
+      "surface_id": "claim-patterns",
+      "weakening_class": "deletion",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-claim-patterns",
+      "weakened_profile_digest": "32a2ce514f312ff1ab87e2e46379176d97d9a093a520acc3d59b7afea5f48ee3",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/claim_patterns",
+          "value": [
+            {
+              "pattern_id": "evidence-originates-from-source",
+              "required_by_stage": "post_delivery",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "evidence_occurrence",
+                "operator": "reference:originates_from",
+                "applicability_context": {
+                  "mode": "during",
+                  "operand_roles": [
+                    "observation_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "source"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verify-evidence-originates-from-source",
+              "required_by_stage": "post_delivery",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "provenance_verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "evidence_content"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "target_resolution_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "source_authentication_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "source_of_record_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "attempt_binding_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "authentication_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "occurrence_capture"
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "falsifying_proposition_template": {
+                "subject_role": "evidence_occurrence",
+                "operator": "reference:does_not_originate_from",
+                "applicability_context": {
+                  "mode": "during",
+                  "operand_roles": [
+                    "observation_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "source"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "target-has-source-of-record",
+              "required_by_stage": "post_delivery",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "target",
+                "operator": "reference:has_source_of_record",
+                "applicability_context": {
+                  "mode": "during",
+                  "operand_roles": [
+                    "observation_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "source"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verify-target-has-source-of-record",
+              "required_by_stage": "post_delivery",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "source_record_verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "evidence_content"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "target_resolution_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "source_authentication_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "source_of_record_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "attempt_binding_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "authentication_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "occurrence_capture"
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "falsifying_proposition_template": {
+                "subject_role": "target",
+                "operator": "reference:does_not_have_source_of_record",
+                "applicability_context": {
+                  "mode": "during",
+                  "operand_roles": [
+                    "observation_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "source"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "evidence-observed-in-attempt",
+              "required_by_stage": "post_delivery",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "evidence_occurrence",
+                "operator": "reference:observed_in",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "observation_attempt"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verify-evidence-observed-in-attempt",
+              "required_by_stage": "post_delivery",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "observation_verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "evidence_content"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "target_resolution_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "source_authentication_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "source_of_record_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "attempt_binding_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "authentication_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "occurrence_capture"
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "falsifying_proposition_template": {
+                "subject_role": "evidence_occurrence",
+                "operator": "reference:not_observed_in",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "observation_attempt"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/relation_patterns",
+          "value": [
+            {
+              "pattern_id": "verification-targets-evidence-originates-from-source",
+              "required_by_stage": "post_delivery",
+              "role": "verifies",
+              "source_claim_pattern_id": "verify-evidence-originates-from-source",
+              "target_claim_pattern_id": "evidence-originates-from-source"
+            },
+            {
+              "pattern_id": "verification-targets-target-has-source-of-record",
+              "required_by_stage": "post_delivery",
+              "role": "verifies",
+              "source_claim_pattern_id": "verify-target-has-source-of-record",
+              "target_claim_pattern_id": "target-has-source-of-record"
+            },
+            {
+              "pattern_id": "verification-targets-evidence-observed-in-attempt",
+              "required_by_stage": "post_delivery",
+              "role": "verifies",
+              "source_claim_pattern_id": "verify-evidence-observed-in-attempt",
+              "target_claim_pattern_id": "evidence-observed-in-attempt"
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings",
+          "value": [
+            {
+              "relation_pattern_id": "verification-targets-evidence-originates-from-source",
+              "applicability_context": {
+                "mode": "during",
+                "operand_roles": [
+                  "observation_attempt"
+                ]
+              }
+            },
+            {
+              "relation_pattern_id": "verification-targets-target-has-source-of-record",
+              "applicability_context": {
+                "mode": "during",
+                "operand_roles": [
+                  "observation_attempt"
+                ]
+              }
+            },
+            {
+              "relation_pattern_id": "verification-targets-evidence-observed-in-attempt",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression",
+          "value": {
+            "all_of": [
+              {
+                "pattern": "complete-selected-target-population"
+              },
+              {
+                "pattern": "complete-selected-source-population"
+              },
+              {
+                "pattern": "evidence-originates-from-source"
+              },
+              {
+                "pattern": "verify-evidence-originates-from-source"
+              },
+              {
+                "pattern": "target-has-source-of-record"
+              },
+              {
+                "pattern": "verify-target-has-source-of-record"
+              },
+              {
+                "pattern": "evidence-observed-in-attempt"
+              },
+              {
+                "pattern": "verify-evidence-observed-in-attempt"
+              },
+              {
+                "pattern": "verification-targets-evidence-originates-from-source"
+              },
+              {
+                "pattern": "verification-targets-target-has-source-of-record"
+              },
+              {
+                "pattern": "verification-targets-evidence-observed-in-attempt"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "surface_id": "relation-patterns",
+      "weakening_class": "relation_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-relation-patterns",
+      "weakened_profile_digest": "32a2ce514f312ff1ab87e2e46379176d97d9a093a520acc3d59b7afea5f48ee3",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/relation_patterns",
+          "value": [
+            {
+              "pattern_id": "verification-targets-evidence-originates-from-source",
+              "required_by_stage": "post_delivery",
+              "role": "verifies",
+              "source_claim_pattern_id": "verify-evidence-originates-from-source",
+              "target_claim_pattern_id": "evidence-originates-from-source"
+            },
+            {
+              "pattern_id": "verification-targets-target-has-source-of-record",
+              "required_by_stage": "post_delivery",
+              "role": "verifies",
+              "source_claim_pattern_id": "verify-target-has-source-of-record",
+              "target_claim_pattern_id": "target-has-source-of-record"
+            },
+            {
+              "pattern_id": "verification-targets-evidence-observed-in-attempt",
+              "required_by_stage": "post_delivery",
+              "role": "verifies",
+              "source_claim_pattern_id": "verify-evidence-observed-in-attempt",
+              "target_claim_pattern_id": "evidence-observed-in-attempt"
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns",
+          "value": [
+            {
+              "pattern_id": "evidence-originates-from-source",
+              "required_by_stage": "post_delivery",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "evidence_occurrence",
+                "operator": "reference:originates_from",
+                "applicability_context": {
+                  "mode": "during",
+                  "operand_roles": [
+                    "observation_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "source"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verify-evidence-originates-from-source",
+              "required_by_stage": "post_delivery",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "provenance_verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "evidence_content"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "target_resolution_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "source_authentication_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "source_of_record_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "attempt_binding_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "authentication_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "occurrence_capture"
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "falsifying_proposition_template": {
+                "subject_role": "evidence_occurrence",
+                "operator": "reference:does_not_originate_from",
+                "applicability_context": {
+                  "mode": "during",
+                  "operand_roles": [
+                    "observation_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "source"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "target-has-source-of-record",
+              "required_by_stage": "post_delivery",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "target",
+                "operator": "reference:has_source_of_record",
+                "applicability_context": {
+                  "mode": "during",
+                  "operand_roles": [
+                    "observation_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "source"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verify-target-has-source-of-record",
+              "required_by_stage": "post_delivery",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "source_record_verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "evidence_content"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "target_resolution_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "source_authentication_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "source_of_record_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "attempt_binding_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "authentication_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "occurrence_capture"
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "falsifying_proposition_template": {
+                "subject_role": "target",
+                "operator": "reference:does_not_have_source_of_record",
+                "applicability_context": {
+                  "mode": "during",
+                  "operand_roles": [
+                    "observation_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "source"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "evidence-observed-in-attempt",
+              "required_by_stage": "post_delivery",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "evidence_occurrence",
+                "operator": "reference:observed_in",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "observation_attempt"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verify-evidence-observed-in-attempt",
+              "required_by_stage": "post_delivery",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "observation_verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "evidence_content"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "target_resolution_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "source_authentication_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "source_of_record_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "attempt_binding_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "authentication_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "occurrence_capture"
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "falsifying_proposition_template": {
+                "subject_role": "evidence_occurrence",
+                "operator": "reference:not_observed_in",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "observation_attempt"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings",
+          "value": [
+            {
+              "relation_pattern_id": "verification-targets-evidence-originates-from-source",
+              "applicability_context": {
+                "mode": "during",
+                "operand_roles": [
+                  "observation_attempt"
+                ]
+              }
+            },
+            {
+              "relation_pattern_id": "verification-targets-target-has-source-of-record",
+              "applicability_context": {
+                "mode": "during",
+                "operand_roles": [
+                  "observation_attempt"
+                ]
+              }
+            },
+            {
+              "relation_pattern_id": "verification-targets-evidence-observed-in-attempt",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression",
+          "value": {
+            "all_of": [
+              {
+                "pattern": "complete-selected-target-population"
+              },
+              {
+                "pattern": "complete-selected-source-population"
+              },
+              {
+                "pattern": "evidence-originates-from-source"
+              },
+              {
+                "pattern": "verify-evidence-originates-from-source"
+              },
+              {
+                "pattern": "target-has-source-of-record"
+              },
+              {
+                "pattern": "verify-target-has-source-of-record"
+              },
+              {
+                "pattern": "evidence-observed-in-attempt"
+              },
+              {
+                "pattern": "verify-evidence-observed-in-attempt"
+              },
+              {
+                "pattern": "verification-targets-evidence-originates-from-source"
+              },
+              {
+                "pattern": "verification-targets-target-has-source-of-record"
+              },
+              {
+                "pattern": "verification-targets-evidence-observed-in-attempt"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "surface_id": "reference-binding-patterns",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-reference-binding-patterns",
+      "weakened_profile_digest": "c1fe3a87a4b3464186d9a5e177158a2fb421d5904b0f765da554ccc46d21c2a1",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/reference_binding_patterns",
+          "value": []
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression",
+          "value": {
+            "all_of": [
+              {
+                "pattern": "evidence-authenticates-target"
+              },
+              {
+                "pattern": "verify-evidence-authenticates-target"
+              },
+              {
+                "pattern": "evidence-originates-from-source"
+              },
+              {
+                "pattern": "verify-evidence-originates-from-source"
+              },
+              {
+                "pattern": "target-has-source-of-record"
+              },
+              {
+                "pattern": "verify-target-has-source-of-record"
+              },
+              {
+                "pattern": "evidence-observed-in-attempt"
+              },
+              {
+                "pattern": "verify-evidence-observed-in-attempt"
+              },
+              {
+                "pattern": "verification-targets-evidence-authenticates-target"
+              },
+              {
+                "pattern": "verification-targets-evidence-originates-from-source"
+              },
+              {
+                "pattern": "verification-targets-target-has-source-of-record"
+              },
+              {
+                "pattern": "verification-targets-evidence-observed-in-attempt"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "surface_id": "distinct-reference-role-sets",
+      "weakening_class": "binding_constraint_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-distinct-reference-role-sets",
+      "weakened_profile_digest": "16407c249526a3dc9ab070148b0af7b8bc6a7b3078bc58b0d90e97c098ca6987",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/distinct_reference_role_sets",
+          "value": []
+        }
+      ]
+    },
+    {
+      "surface_id": "falsifier-condition-bindings",
+      "weakening_class": "falsifier_weakening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-falsifier-condition-bindings",
+      "weakened_profile_digest": "32a2ce514f312ff1ab87e2e46379176d97d9a093a520acc3d59b7afea5f48ee3",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/falsifier_condition_bindings",
+          "value": [
+            {
+              "relation_pattern_id": "verification-targets-evidence-originates-from-source",
+              "applicability_context": {
+                "mode": "during",
+                "operand_roles": [
+                  "observation_attempt"
+                ]
+              }
+            },
+            {
+              "relation_pattern_id": "verification-targets-target-has-source-of-record",
+              "applicability_context": {
+                "mode": "during",
+                "operand_roles": [
+                  "observation_attempt"
+                ]
+              }
+            },
+            {
+              "relation_pattern_id": "verification-targets-evidence-observed-in-attempt",
+              "applicability_context": {
+                "mode": "unconditional",
+                "operand_roles": []
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/claim_patterns",
+          "value": [
+            {
+              "pattern_id": "evidence-originates-from-source",
+              "required_by_stage": "post_delivery",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "evidence_occurrence",
+                "operator": "reference:originates_from",
+                "applicability_context": {
+                  "mode": "during",
+                  "operand_roles": [
+                    "observation_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "source"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verify-evidence-originates-from-source",
+              "required_by_stage": "post_delivery",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "provenance_verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "evidence_content"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "target_resolution_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "source_authentication_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "source_of_record_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "attempt_binding_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "authentication_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "occurrence_capture"
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "falsifying_proposition_template": {
+                "subject_role": "evidence_occurrence",
+                "operator": "reference:does_not_originate_from",
+                "applicability_context": {
+                  "mode": "during",
+                  "operand_roles": [
+                    "observation_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "source"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "target-has-source-of-record",
+              "required_by_stage": "post_delivery",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "target",
+                "operator": "reference:has_source_of_record",
+                "applicability_context": {
+                  "mode": "during",
+                  "operand_roles": [
+                    "observation_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "source"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verify-target-has-source-of-record",
+              "required_by_stage": "post_delivery",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "source_record_verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "evidence_content"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "target_resolution_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "source_authentication_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "source_of_record_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "attempt_binding_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "authentication_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "occurrence_capture"
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "falsifying_proposition_template": {
+                "subject_role": "target",
+                "operator": "reference:does_not_have_source_of_record",
+                "applicability_context": {
+                  "mode": "during",
+                  "operand_roles": [
+                    "observation_attempt"
+                  ]
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "source"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "evidence-observed-in-attempt",
+              "required_by_stage": "post_delivery",
+              "claim_kind": "behavior",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "evidence_occurrence",
+                "operator": "reference:observed_in",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "observation_attempt"
+                  }
+                ]
+              }
+            },
+            {
+              "pattern_id": "verify-evidence-observed-in-attempt",
+              "required_by_stage": "post_delivery",
+              "claim_kind": "verification",
+              "allowed_modalities": [
+                "MUST"
+              ],
+              "proposition_template": {
+                "subject_role": "observation_verification",
+                "operator": "reference:reads",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "evidence_content"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "target_resolution_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "source_authentication_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "source_of_record_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "attempt_binding_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "authentication_witness"
+                  },
+                  {
+                    "kind": "reference",
+                    "role": "occurrence_capture"
+                  }
+                ]
+              },
+              "verification_methods": [
+                "analysis",
+                "demonstration",
+                "proof",
+                "test_execution"
+              ],
+              "falsifying_proposition_template": {
+                "subject_role": "evidence_occurrence",
+                "operator": "reference:not_observed_in",
+                "applicability_context": {
+                  "mode": "unconditional",
+                  "operand_roles": []
+                },
+                "operands": [
+                  {
+                    "kind": "reference",
+                    "role": "observation_attempt"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/relation_patterns",
+          "value": [
+            {
+              "pattern_id": "verification-targets-evidence-originates-from-source",
+              "required_by_stage": "post_delivery",
+              "role": "verifies",
+              "source_claim_pattern_id": "verify-evidence-originates-from-source",
+              "target_claim_pattern_id": "evidence-originates-from-source"
+            },
+            {
+              "pattern_id": "verification-targets-target-has-source-of-record",
+              "required_by_stage": "post_delivery",
+              "role": "verifies",
+              "source_claim_pattern_id": "verify-target-has-source-of-record",
+              "target_claim_pattern_id": "target-has-source-of-record"
+            },
+            {
+              "pattern_id": "verification-targets-evidence-observed-in-attempt",
+              "required_by_stage": "post_delivery",
+              "role": "verifies",
+              "source_claim_pattern_id": "verify-evidence-observed-in-attempt",
+              "target_claim_pattern_id": "evidence-observed-in-attempt"
+            }
+          ]
+        },
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression",
+          "value": {
+            "all_of": [
+              {
+                "pattern": "complete-selected-target-population"
+              },
+              {
+                "pattern": "complete-selected-source-population"
+              },
+              {
+                "pattern": "evidence-originates-from-source"
+              },
+              {
+                "pattern": "verify-evidence-originates-from-source"
+              },
+              {
+                "pattern": "target-has-source-of-record"
+              },
+              {
+                "pattern": "verify-target-has-source-of-record"
+              },
+              {
+                "pattern": "evidence-observed-in-attempt"
+              },
+              {
+                "pattern": "verify-evidence-observed-in-attempt"
+              },
+              {
+                "pattern": "verification-targets-evidence-originates-from-source"
+              },
+              {
+                "pattern": "verification-targets-target-has-source-of-record"
+              },
+              {
+                "pattern": "verification-targets-evidence-observed-in-attempt"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "surface_id": "satisfaction-expression",
+      "weakening_class": "satisfaction_branch_broadening",
+      "fixture_id": "authentication-provenance-profile-weakening-corpus",
+      "variant_id": "reject-satisfaction-expression",
+      "weakened_profile_digest": "023b6b122b54f8475f88facd45022eb4aa5da9a22299c0e457b384b9e04176be",
+      "profile_patches": [
+        {
+          "op": "replace",
+          "path": "/satisfaction_expression",
+          "value": {
+            "any_of": [
+              {
+                "pattern": "complete-selected-target-population"
+              },
+              {
+                "pattern": "complete-selected-source-population"
+              },
+              {
+                "pattern": "evidence-authenticates-target"
+              },
+              {
+                "pattern": "verify-evidence-authenticates-target"
+              },
+              {
+                "pattern": "evidence-originates-from-source"
+              },
+              {
+                "pattern": "verify-evidence-originates-from-source"
+              },
+              {
+                "pattern": "target-has-source-of-record"
+              },
+              {
+                "pattern": "verify-target-has-source-of-record"
+              },
+              {
+                "pattern": "evidence-observed-in-attempt"
+              },
+              {
+                "pattern": "verify-evidence-observed-in-attempt"
+              },
+              {
+                "pattern": "verification-targets-evidence-authenticates-target"
+              },
+              {
+                "pattern": "verification-targets-evidence-originates-from-source"
+              },
+              {
+                "pattern": "verification-targets-target-has-source-of-record"
+              },
+              {
+                "pattern": "verification-targets-evidence-observed-in-attempt"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

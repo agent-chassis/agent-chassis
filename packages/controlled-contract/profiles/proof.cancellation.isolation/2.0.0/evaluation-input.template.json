@@ -1,0 +1,197 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.v1",
+  "evaluation_stage": "pre_dispatch",
+  "reference_bindings": [
+    {
+      "role": "operation",
+      "reference_ids": [
+        "<operation-reference-id>"
+      ]
+    },
+    {
+      "role": "cancellation_operation",
+      "reference_ids": [
+        "<cancellation-operation-reference-id>"
+      ]
+    },
+    {
+      "role": "cancelled_generation",
+      "reference_ids": [
+        "<cancelled-generation-reference-id>"
+      ]
+    },
+    {
+      "role": "surviving_generation",
+      "reference_ids": [
+        "<surviving-generation-reference-id>"
+      ]
+    },
+    {
+      "role": "cancelled_attempt",
+      "reference_ids": [
+        "<cancelled-attempt-reference-id>"
+      ]
+    },
+    {
+      "role": "surviving_attempt",
+      "reference_ids": [
+        "<surviving-attempt-reference-id>"
+      ]
+    },
+    {
+      "role": "cancellation_request",
+      "reference_ids": [
+        "<cancellation-request-reference-id>"
+      ]
+    },
+    {
+      "role": "cancellation_result",
+      "reference_ids": [
+        "<cancellation-result-reference-id>"
+      ]
+    },
+    {
+      "role": "surviving_result",
+      "reference_ids": [
+        "<surviving-result-reference-id>"
+      ]
+    },
+    {
+      "role": "protected_resource",
+      "reference_ids": [
+        "<protected-resource-reference-id>"
+      ]
+    },
+    {
+      "role": "surviving_authority",
+      "reference_ids": [
+        "<surviving-authority-reference-id>"
+      ]
+    },
+    {
+      "role": "cancelled_expected_state",
+      "reference_ids": [
+        "<cancelled-expected-state-reference-id>"
+      ]
+    },
+    {
+      "role": "cancelled_observed_state",
+      "reference_ids": [
+        "<cancelled-observed-state-reference-id>"
+      ]
+    },
+    {
+      "role": "survivor_state_before",
+      "reference_ids": [
+        "<survivor-state-before-reference-id>"
+      ]
+    },
+    {
+      "role": "survivor_state_after",
+      "reference_ids": [
+        "<survivor-state-after-reference-id>"
+      ]
+    },
+    {
+      "role": "expected_success_state",
+      "reference_ids": [
+        "<expected-success-state-reference-id>"
+      ]
+    },
+    {
+      "role": "observed_success_state",
+      "reference_ids": [
+        "<observed-success-state-reference-id>"
+      ]
+    },
+    {
+      "role": "cancellation_observation",
+      "reference_ids": [
+        "<cancellation-observation-reference-id>"
+      ]
+    },
+    {
+      "role": "state_before_observation",
+      "reference_ids": [
+        "<state-before-observation-reference-id>"
+      ]
+    },
+    {
+      "role": "state_after_observation",
+      "reference_ids": [
+        "<state-after-observation-reference-id>"
+      ]
+    },
+    {
+      "role": "success_observation",
+      "reference_ids": [
+        "<success-observation-reference-id>"
+      ]
+    },
+    {
+      "role": "cancellation_verification",
+      "reference_ids": [
+        "<cancellation-verification-reference-id>"
+      ]
+    },
+    {
+      "role": "state_isolation_verification",
+      "reference_ids": [
+        "<state-isolation-verification-reference-id>"
+      ]
+    },
+    {
+      "role": "authority_isolation_verification",
+      "reference_ids": [
+        "<authority-isolation-verification-reference-id>"
+      ]
+    },
+    {
+      "role": "success_verification",
+      "reference_ids": [
+        "<success-verification-reference-id>"
+      ]
+    },
+    {
+      "role": "cancellation_criterion",
+      "reference_ids": [
+        "<cancellation-criterion-reference-id>"
+      ]
+    },
+    {
+      "role": "success_criterion",
+      "reference_ids": [
+        "<success-criterion-reference-id>"
+      ]
+    },
+    {
+      "role": "cancellation_failed_condition",
+      "reference_ids": [
+        "<cancellation-failed-condition-reference-id>"
+      ]
+    },
+    {
+      "role": "state_interference_condition",
+      "reference_ids": [
+        "<state-interference-condition-reference-id>"
+      ]
+    },
+    {
+      "role": "authority_interference_condition",
+      "reference_ids": [
+        "<authority-interference-condition-reference-id>"
+      ]
+    },
+    {
+      "role": "survivor_failure_condition",
+      "reference_ids": [
+        "<survivor-failure-condition-reference-id>"
+      ]
+    }
+  ],
+  "number_bindings": [],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": [],
+  "stable_evaluation": {}
+}

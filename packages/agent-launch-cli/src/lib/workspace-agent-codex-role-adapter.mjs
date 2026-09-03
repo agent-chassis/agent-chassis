@@ -20,9 +20,7 @@ import {
   ensureRefusalDependencyEvidence as ensureRefusalDependencyEvidenceImpl
 } from "./codex-role-adapter-orchestrator-plan.mjs";
 import {
-  buildCodexReviewerWriteScopeRefusal as buildCodexReviewerWriteScopeRefusalImpl,
-  buildReadOnlyPlan as buildReadOnlyPlanImpl,
-  enforceReviewerWriteScope as enforceReviewerWriteScopeImpl
+  buildReadOnlyPlan as buildReadOnlyPlanImpl
 } from "./codex-role-adapter-readonly-plan.mjs";
 import {
   buildHeadlessPlan as buildHeadlessPlanImpl
@@ -44,8 +42,6 @@ export const buildFastDecommissionedRefusalPlan = buildFastDecommissionedRefusal
 export const buildOrchestratorPlan = buildOrchestratorPlanImpl;
 export const ensureRefusalDependencyEvidence = ensureRefusalDependencyEvidenceImpl;
 export const buildReadOnlyPlan = buildReadOnlyPlanImpl;
-export const enforceReviewerWriteScope = enforceReviewerWriteScopeImpl;
-export const buildCodexReviewerWriteScopeRefusal = buildCodexReviewerWriteScopeRefusalImpl;
 export const buildHeadlessPlan = buildHeadlessPlanImpl;
 export const findRepoRoot = findRepoRootImpl;
 export const buildCodexReasoningEffortConfigOverrides = buildCodexReasoningEffortConfigOverridesImpl;

@@ -1,0 +1,27 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v1",
+  "profile_id": "proof.result-shape.conformance",
+  "profile_version": "2.0.0",
+  "profile_digest": "cd8215cefb6f89bffb879b7cdc446c247b534a261e480d612c02c302ccbf572a",
+  "guarantee": "When one declared operation returns one grounded result governed by one grounded schema, the declared observed-result, required-member, optional-member, allowed-member, forbidden-member, allowed-shape, and forbidden-shape populations are complete; every declared required typed member descriptor is present in the observed result population, every observed typed member descriptor belongs to the exact allowed population, every declared forbidden member descriptor is absent, the observed result shape belongs to the exact allowed-shape population and not to the exact forbidden-shape population, and the emitted result count equals the exact observed-member population cardinality.",
+  "guarantee_digest": "77dd35821e275dadeb0b82724b51343668e1b595860742aea18e6c3570f85e46",
+  "explicit_exclusions": [
+    "authored-schema-truthfulness",
+    "conditional-cross-member-invariants",
+    "delivered-test-implementation",
+    "identity-target-existence",
+    "member-value-business-semantics",
+    "nested-recursive-shape-validation",
+    "optional-member-presence",
+    "schema-version-negotiation",
+    "serialization-and-transport-media"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "60ea8001cd5435f9abc32d919ac3413b1059a96b35ad8589ff012f412df1e840",
+    "adequacy_result_digest": "7f8ce6b0a97b88de349377e98f599b76692d92d22f9885a236ab1b955b6a9f10",
+    "executable_control_count": 36,
+    "negative_fixture_count": 3,
+    "coverage_witness_count": 140
+  }
+}

@@ -1,0 +1,358 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.v1",
+  "evaluation_stage": "pre_dispatch",
+  "reference_bindings": [
+    {
+      "role": "mutation_trace",
+      "reference_ids": [
+        "ref-a-trace"
+      ]
+    },
+    {
+      "role": "projection_result",
+      "reference_ids": [
+        "ref-f-projection"
+      ]
+    },
+    {
+      "role": "primary_before_capture",
+      "reference_ids": [
+        "ref-b-primary-before"
+      ]
+    },
+    {
+      "role": "primary_after_capture",
+      "reference_ids": [
+        "ref-c-primary-after"
+      ]
+    },
+    {
+      "role": "control_before_capture",
+      "reference_ids": [
+        "ref-d-control-before"
+      ]
+    },
+    {
+      "role": "control_after_capture",
+      "reference_ids": [
+        "ref-e-control-after"
+      ]
+    },
+    {
+      "role": "traversal",
+      "reference_ids": [
+        "ref-traversal-stale"
+      ]
+    },
+    {
+      "role": "control_traversal",
+      "reference_ids": [
+        "ref-traversal-control"
+      ]
+    },
+    {
+      "role": "live_source",
+      "reference_ids": [
+        "ref-live-source-primary"
+      ]
+    },
+    {
+      "role": "control_source",
+      "reference_ids": [
+        "ref-live-source-control"
+      ]
+    },
+    {
+      "role": "unrelated_source",
+      "reference_ids": [
+        "ref-live-source-unrelated"
+      ]
+    },
+    {
+      "role": "traversal_source_version",
+      "reference_ids": [
+        "ref-source-version-stale"
+      ]
+    },
+    {
+      "role": "current_source_version",
+      "reference_ids": [
+        "ref-source-version-current"
+      ]
+    },
+    {
+      "role": "control_source_version",
+      "reference_ids": [
+        "ref-source-version-control"
+      ]
+    },
+    {
+      "role": "primary_cursor_population",
+      "reference_ids": [
+        "ref-pop-primary-cursor-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0"
+      ]
+    },
+    {
+      "role": "primary_cursors",
+      "reference_ids": [
+        "ref-cursor-stale"
+      ]
+    },
+    {
+      "role": "control_cursor_population",
+      "reference_ids": [
+        "ref-pop-control-cursor-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0"
+      ]
+    },
+    {
+      "role": "control_cursors",
+      "reference_ids": [
+        "ref-cursor-control"
+      ]
+    },
+    {
+      "role": "stale_cursor",
+      "reference_ids": [
+        "ref-cursor-stale"
+      ]
+    },
+    {
+      "role": "control_cursor",
+      "reference_ids": [
+        "ref-cursor-control"
+      ]
+    },
+    {
+      "role": "page_attempt_population",
+      "reference_ids": [
+        "ref-pop-page-attempt-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0"
+      ]
+    },
+    {
+      "role": "page_attempts",
+      "reference_ids": [
+        "ref-occ-5583e46718997c6b1950525c9765f89b8bfdd2b407977fd93ac8ca6eb804893f",
+        "ref-occ-8f4f621accf90a2a29a71aa32733cfa6709a40c10c047bfb93fba172d4ebb317",
+        "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c"
+      ]
+    },
+    {
+      "role": "primary_returned_page_population",
+      "reference_ids": [
+        "ref-pop-primary-returned-page-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0"
+      ]
+    },
+    {
+      "role": "primary_returned_pages",
+      "reference_ids": [
+        "ref-occ-0ee408d1eecb2f45d6b29c1825c98d96ce3a0f8a795264f82196def2ceebe0e0"
+      ]
+    },
+    {
+      "role": "control_returned_page_population",
+      "reference_ids": [
+        "ref-pop-control-returned-page-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0"
+      ]
+    },
+    {
+      "role": "control_returned_pages",
+      "reference_ids": [
+        "ref-occ-fcb18425d88ed3c9337dc66c50763c92c3dc96e56bf217e46e13d7dedbc6e6bf"
+      ]
+    },
+    {
+      "role": "mutation_population",
+      "reference_ids": [
+        "ref-pop-mutation-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0"
+      ]
+    },
+    {
+      "role": "mutations",
+      "reference_ids": [
+        "ref-occ-6861dc03b299f0d32bfabecafd1d1aacb8cd6431477d049b091832701461895b",
+        "ref-occ-9c7151655884c26ce51a5ee44be2e3c4782ef8434c92a3f314c5478c46e5306e"
+      ]
+    },
+    {
+      "role": "return_population",
+      "reference_ids": [
+        "ref-pop-return-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0"
+      ]
+    },
+    {
+      "role": "returns",
+      "reference_ids": [
+        "ref-occ-433fb768ef0b9bcfcf8bd935599ec5c2484fb33fec53be7d1636be06ff48a8f8",
+        "ref-occ-4a6da9946b3e2f668b6a39d5a99484113086abda39e6382b4a47b49b957cd99c"
+      ]
+    },
+    {
+      "role": "advancement_population",
+      "reference_ids": [
+        "ref-pop-advancement-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0"
+      ]
+    },
+    {
+      "role": "advancements",
+      "reference_ids": [
+        "ref-occ-74d1078c3adfa25a41efe4893dce8b5007d709fbf6c80fe956d5f44f18266abc"
+      ]
+    },
+    {
+      "role": "effect_occurrence_population",
+      "reference_ids": [
+        "ref-pop-effect-occurrence-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0"
+      ]
+    },
+    {
+      "role": "effect_occurrences",
+      "reference_ids": []
+    },
+    {
+      "role": "protected_effect_population",
+      "reference_ids": [
+        "ref-pop-protected-effect-population-08ef84d1d2f0867718196fb31b18c171453280e81a4ac9fd5b23ddb757e150d0"
+      ]
+    },
+    {
+      "role": "protected_effects",
+      "reference_ids": [
+        "ref-cursor-state",
+        "ref-extra-protected-effect",
+        "ref-page-result-artifact",
+        "ref-traversal-state"
+      ]
+    },
+    {
+      "role": "prior_page_attempt",
+      "reference_ids": [
+        "ref-occ-8f4f621accf90a2a29a71aa32733cfa6709a40c10c047bfb93fba172d4ebb317"
+      ]
+    },
+    {
+      "role": "stale_attempt",
+      "reference_ids": [
+        "ref-occ-e9f3ab1a18b8f1c37983b5c4db22acbbc21fc20da126a404ab3b57d8fc8d5d8c"
+      ]
+    },
+    {
+      "role": "control_attempt",
+      "reference_ids": [
+        "ref-occ-5583e46718997c6b1950525c9765f89b8bfdd2b407977fd93ac8ca6eb804893f"
+      ]
+    },
+    {
+      "role": "relevant_mutation",
+      "reference_ids": [
+        "ref-occ-6861dc03b299f0d32bfabecafd1d1aacb8cd6431477d049b091832701461895b"
+      ]
+    },
+    {
+      "role": "unrelated_mutation",
+      "reference_ids": [
+        "ref-occ-9c7151655884c26ce51a5ee44be2e3c4782ef8434c92a3f314c5478c46e5306e"
+      ]
+    },
+    {
+      "role": "refusal",
+      "reference_ids": [
+        "ref-occ-a40ea7ded4d5b67cce9f36fd897ccc252cec374fd1449bce8cd7938e7b762d5d"
+      ]
+    },
+    {
+      "role": "page_result_artifact",
+      "reference_ids": [
+        "ref-page-result-artifact"
+      ]
+    },
+    {
+      "role": "page_return_event",
+      "reference_ids": [
+        "ref-page-return-event"
+      ]
+    },
+    {
+      "role": "cursor_advance_event",
+      "reference_ids": [
+        "ref-cursor-advance-event"
+      ]
+    },
+    {
+      "role": "cursor_state",
+      "reference_ids": [
+        "ref-cursor-state"
+      ]
+    },
+    {
+      "role": "traversal_state",
+      "reference_ids": [
+        "ref-traversal-state"
+      ]
+    },
+    {
+      "role": "control_return",
+      "reference_ids": [
+        "ref-occ-433fb768ef0b9bcfcf8bd935599ec5c2484fb33fec53be7d1636be06ff48a8f8"
+      ]
+    },
+    {
+      "role": "control_advancement",
+      "reference_ids": [
+        "ref-occ-74d1078c3adfa25a41efe4893dce8b5007d709fbf6c80fe956d5f44f18266abc"
+      ]
+    },
+    {
+      "role": "control_returned_page",
+      "reference_ids": [
+        "ref-occ-fcb18425d88ed3c9337dc66c50763c92c3dc96e56bf217e46e13d7dedbc6e6bf"
+      ]
+    },
+    {
+      "role": "verification",
+      "reference_ids": [
+        "ref-versioned-cursor-verification"
+      ]
+    },
+    {
+      "role": "return_failure_condition",
+      "reference_ids": [
+        "ref-return-failure-condition"
+      ]
+    },
+    {
+      "role": "emission_failure_condition",
+      "reference_ids": [
+        "ref-emission-failure-condition"
+      ]
+    },
+    {
+      "role": "advancement_failure_condition",
+      "reference_ids": [
+        "ref-advancement-failure-condition"
+      ]
+    },
+    {
+      "role": "write_failure_condition",
+      "reference_ids": [
+        "ref-write-failure-condition"
+      ]
+    },
+    {
+      "role": "mutation_failure_condition",
+      "reference_ids": [
+        "ref-mutation-failure-condition"
+      ]
+    },
+    {
+      "role": "false_refusal_condition",
+      "reference_ids": [
+        "ref-false-refusal-condition"
+      ]
+    }
+  ],
+  "number_bindings": [],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": [],
+  "stable_evaluation": {}
+}

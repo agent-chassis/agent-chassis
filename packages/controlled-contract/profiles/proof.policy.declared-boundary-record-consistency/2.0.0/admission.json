@@ -1,0 +1,67 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v2",
+  "profile_id": "proof.policy.declared-boundary-record-consistency",
+  "profile_version": "2.0.0",
+  "profile_digest": "bdc2cbedef2d036489a4f84725d6680fafffb52563925bccc8fc6ce1f5427794",
+  "guarantee": "For one exact closed declared policy, one exact caller-supplied boundary observation record whose provenance is caller_asserted, and one exact captured subject set, the package-owned transformer measures every subject under the declared closed unit and measurement-class lexicon, derives the complete N-1/N/N+1 census for every nonzero limit and the exact N/N+1 census for a zero maximum, validates every recorded disposition against the complete declared table, and emits complete populations, exact counts, associations, and one canonical report bound to the exact source-set digest.",
+  "guarantee_digest": "40cad09248f1b450fdb4452c16befbc08163d451094a67cd30dd71fb69c9dcd9",
+  "explicit_exclusions": [
+    "artifact-acquisition-completeness-before-exact-capture",
+    "boundary-consistency-does-not-entail-guidance-propagation",
+    "caller-asserted-observation-execution-provenance",
+    "captured-execution-transcript-provenance",
+    "declared-policy-document-correspondence-to-enforced-limit-and-unit",
+    "evidence-authority-applicability-authority-or-cce-consequences",
+    "locally-redigested-or-unadmitted-profile-variants",
+    "nonboundary-input-space-behavior",
+    "runtime-truth-or-production-enforcement",
+    "shared-policy-identity-across-independently-assessed-packs"
+  ],
+  "certification": {
+    "method": "executable_semantic_adequacy",
+    "adequacy_declaration_digest": "59443e9fe4cb46252be7a8f99ff2ec27de3e0adaeef623b53ff4f20ec2b74093",
+    "adequacy_result_digest": "49bd78e84daf83454d7cf703a77f8662fb7b4196e25c4374d1594345a932b42f",
+    "executable_control_count": 53,
+    "negative_fixture_count": 0,
+    "coverage_witness_count": 0
+  },
+  "exact_binding": {
+    "declaration_digest": "74b8db6d02b5e3a402e5e0711d019c62210734dc5933b1f9a993247cc8077b08",
+    "certification_result_digest": "9954316117b1ed2e826f6d27f9478b0c326c37115a6d2488712b5085883b778f",
+    "executable_control_count": 22,
+    "binding_kinds": [
+      "artifact_bytes"
+    ],
+    "relation_operators": [
+      "deterministic_projection",
+      "distinct_source_descriptor"
+    ],
+    "corpus_id": "proof-policy-boundary-exact-binding",
+    "corpus_version": "1.0.0",
+    "corpus_digest": "e26257a1c48277d183cdd4c97f8886fbd0a7ede1febeb4ab16f6a88ba26c13ba",
+    "passed_control_ids": [
+      "admission-substitution",
+      "association-substitution",
+      "certification-substitution",
+      "declaration-source-order-substitution",
+      "declaration-substitution",
+      "evaluation-input-substitution",
+      "positive-exact-binding",
+      "profile-association-binding-omission",
+      "profile-cardinality-weakening",
+      "profile-complete-population-omission",
+      "profile-falsifier-omission",
+      "profile-mechanism-omission",
+      "profile-relation-omission",
+      "profile-satisfaction-weakening",
+      "profile-stage-weakening",
+      "profile-substitution",
+      "profile-verification-method-weakening",
+      "projected-evaluation-opt-in-removal",
+      "projection-result-substitution",
+      "result-as-source-splice",
+      "source-role-swap",
+      "source-substitution"
+    ]
+  }
+}

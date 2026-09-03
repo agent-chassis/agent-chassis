@@ -31,10 +31,10 @@ option grammar is
 
 Options:
   --profile <profile>            Canonical launcher profile (default: redteam)
-  --app codex|claude             Override the profile's default app binding
+  --app codex|claude             Assert the app derived from the selected model
                                  AGY is roadmap/WIP; use --app agy only for
                                  planning or experimental validation
-  --model <model>                Override the selected binding's default model
+  --model <model>                Select a registered model explicitly
   --family codex|claude          Deprecated alias for --app
                                  AGY is roadmap/WIP here as with --app
   --operator-config <path>       Launcher registry path override (claude/agy)
@@ -77,22 +77,14 @@ export async function runRedteam(argv, io = {}, { backend: injectedBackend } = {
     return;
   }
 
-  let resolution = resolveLauncherProfile({
+  const resolution = resolveLauncherProfile({
     role: "redteam",
     profileName: parsed.profileName,
     app: parsed.app,
     model: parsed.model,
-    env: process.env
+    env: process.env,
+    dir: process.cwd()
   });
-  if (!resolution.ok && shouldResolveRedteamLiveAppWithoutModelHint({ parsed, resolution })) {
-    resolution = resolveLauncherProfile({
-      role: "redteam",
-      profileName: parsed.profileName,
-      app: parsed.app,
-      model: null,
-      env: process.env
-    });
-  }
   if (!resolution.ok) {
 
     writeStderr(io.stderr, `${resolution.error.message}\n`);
@@ -132,15 +124,6 @@ export async function runRedteam(argv, io = {}, { backend: injectedBackend } = {
   }
 
   await dispatchRedteamSharedPipeline({ resolved, parsed, subject }, io, { backend: injectedBackend });
-}
-
-function shouldResolveRedteamLiveAppWithoutModelHint({ parsed, resolution }) {
-  return parsed.dryRunJson !== true
-    && typeof parsed.app === "string"
-    && parsed.app.length > 0
-    && typeof parsed.model === "string"
-    && parsed.model.length > 0
-    && resolution?.error?.path === "model";
 }
 
 function refuseAgyLiveRedteam(io) {

@@ -14,8 +14,7 @@ export function createBackendRecovery(ctx) {
   const {
     postWorkerSliceLifecycle,
     worktreeProvisioningConfig,
-    recoveredIntegratedRuns,
-    exactSliceReviewReceiptStore
+    recoveredIntegratedRuns
   } = ctx;
 
   const bindFrozenReviewContext = (args) => ctx.bindFrozenReviewContext(args);
@@ -128,7 +127,8 @@ export function createBackendRecovery(ctx) {
     }
     const pending = recoveredIntegratedRuns.get(key);
     const result = await pending;
-    if ((result === null || result.recovery_failure != null) &&
+    if ((result === null || result.recovery_failure != null ||
+        result?.lifecycle?.cleanup_pending === true) &&
         recoveredIntegratedRuns.get(key) === pending) {
 
       recoveredIntegratedRuns.delete(key);
@@ -139,44 +139,8 @@ export function createBackendRecovery(ctx) {
   const recoverIntegratedWorkerRun = (input = {}) =>
     recoverIntegratedWorkerRunInternal({ ...input, allowMissingSliceWorktree: true });
 
-  const recoverExactSliceReviewRun = async ({ workspace, monitor_handle, subject } = {}) => {
-    if (exactSliceReviewReceiptStore === null ||
-        !workspace || path.resolve(workspace.dir ?? "") !== worktreeProvisioningConfig?.mainRepo ||
-        typeof monitor_handle !== "string" || typeof subject !== "string" ||
-        !EXACT_IMPLEMENTATION_SLICE_RE.test(subject)) return null;
-    const receipt = await exactSliceReviewReceiptStore.load({
-      unit_address: subject,
-      monitor_handle
-    });
-    if (receipt === null) return null;
-    return Object.freeze({
-      status: Object.freeze({
-        accepted: true,
-        recovered: true,
-        run_id: receipt.review_run_id,
-        monitor_handle: receipt.review_monitor_handle,
-        role: receipt.reviewer_role,
-        subject,
-        status: receipt.terminal_run_status,
-        terminal: true,
-        ...(receipt.structured_outcome?.outcome === "clean"
-          ? { review_result: receipt.structured_outcome.review_result }
-          : {}),
-        final_result: null
-      }),
-      lifecycle: Object.freeze({
-        invoked: false,
-        integrated: false,
-        reason: "advisory_review_recovered_coordinator_continuation_required",
-        next_action: "call_workspace_integrate_committed_slice"
-      }),
-      review_evidence: receipt
-    });
-  };
-
   return {
     recoverIntegratedWorkerRunInternal,
-    recoverIntegratedWorkerRun,
-    recoverExactSliceReviewRun
+    recoverIntegratedWorkerRun
   };
 }

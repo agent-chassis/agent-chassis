@@ -1,0 +1,124 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.v1",
+  "evaluation_stage": "pre_dispatch",
+  "reference_bindings": [
+    {
+      "role": "operation",
+      "reference_ids": [
+        "ref-operation"
+      ]
+    },
+    {
+      "role": "operation_attempt",
+      "reference_ids": [
+        "ref-operation-attempt"
+      ]
+    },
+    {
+      "role": "failure_injection",
+      "reference_ids": [
+        "ref-failure-injection"
+      ]
+    },
+    {
+      "role": "injected_failure",
+      "reference_ids": [
+        "ref-injected-failure"
+      ]
+    },
+    {
+      "role": "failure_cause",
+      "reference_ids": [
+        "ref-failure-cause"
+      ]
+    },
+    {
+      "role": "original_cause_state",
+      "reference_ids": [
+        "ref-original-cause-state"
+      ]
+    },
+    {
+      "role": "settled_cause_state",
+      "reference_ids": [
+        "ref-settled-cause-state"
+      ]
+    },
+    {
+      "role": "cause_observation_at_failure",
+      "reference_ids": [
+        "ref-cause-observation-at-failure"
+      ]
+    },
+    {
+      "role": "cause_observation_at_settlement",
+      "reference_ids": [
+        "ref-cause-observation-at-settlement"
+      ]
+    },
+    {
+      "role": "cleanup_event",
+      "reference_ids": [
+        "ref-cleanup-event"
+      ]
+    },
+    {
+      "role": "settlement_event",
+      "reference_ids": [
+        "ref-settlement-event"
+      ]
+    },
+    {
+      "role": "residue_population",
+      "reference_ids": [
+        "ref-residue-population"
+      ]
+    },
+    {
+      "role": "residue_observation",
+      "reference_ids": [
+        "ref-residue-observation"
+      ]
+    },
+    {
+      "role": "settled_failure_record",
+      "reference_ids": [
+        "ref-settled-failure-record"
+      ]
+    },
+    {
+      "role": "cleanup_verification",
+      "reference_ids": [
+        "ref-cleanup-verification"
+      ]
+    },
+    {
+      "role": "cause_verification",
+      "reference_ids": [
+        "ref-cause-verification"
+      ]
+    },
+    {
+      "role": "cleanup_failure_condition",
+      "reference_ids": [
+        "ref-cleanup-failure-condition"
+      ]
+    },
+    {
+      "role": "cause_loss_condition",
+      "reference_ids": [
+        "ref-cause-loss-condition"
+      ]
+    }
+  ],
+  "number_bindings": [
+    {
+      "role": "residue_count",
+      "value": 0
+    }
+  ],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": [],
+  "stable_evaluation": {}
+}

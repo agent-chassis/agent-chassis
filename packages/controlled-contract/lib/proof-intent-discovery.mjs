@@ -1,7 +1,6 @@
 import { readFile } from "node:fs/promises";
 
-import Ajv2020 from "ajv/dist/2020.js";
-
+import { compiledValidators } from "./compiled-validator-cache.mjs";
 import {
   canonicalDigest,
   canonicalJsonBytes,
@@ -26,9 +25,21 @@ const [rawCatalog, catalogSchema, discoverySchema] = await Promise.all([
 const MAX_DISCOVERY_QUERY_BYTES = 1_024;
 const MAX_DISCOVERY_RESULT_BYTES = 65_536;
 const MAX_DISCOVERY_RETURNED_INTENTS = 256;
-const ajv = new Ajv2020({ strict: true, allErrors: true });
-const validateProofIntentCatalog = ajv.compile(catalogSchema);
-const validateProofIntentDiscoveryResult = ajv.compile(discoverySchema);
+const {
+  validateProofIntentCatalog,
+  validateProofIntentDiscoveryResult
+} = await compiledValidators("controlled-contract.proof-intent-discovery.v1", {
+  validators: {
+    validateProofIntentCatalog: catalogSchema,
+    validateProofIntentDiscoveryResult: discoverySchema
+  }
+});
+
+const PROOF_INTENT_DISCOVERY_QUERY_POLICY = deepFreeze({
+  measurement: "utf8_bytes",
+  maximum_bytes: MAX_DISCOVERY_QUERY_BYTES,
+  accepted_form: `nonempty query text of at most ${MAX_DISCOVERY_QUERY_BYTES} UTF-8 bytes`
+});
 
 class ProofIntentDiscoveryError extends Error {
   constructor(code, message, details = {}) {
@@ -56,6 +67,50 @@ function normalizeSearchText(value) {
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim()
     .replace(/\s+/gu, " ");
+}
+
+function truncateUtf8(value, maximumBytes) {
+  let result = "";
+  let byteLength = 0;
+  for (const character of value) {
+    const characterBytes = Buffer.byteLength(character, "utf8");
+    if (byteLength + characterBytes > maximumBytes) break;
+    result += character;
+    byteLength += characterBytes;
+  }
+  return result;
+}
+
+function smallerDiscoveryQuery(query) {
+  const normalized = normalizeSearchText(query);
+  const candidate = normalized.length === 0 ? "proof" : normalized;
+  return truncateUtf8(candidate, MAX_DISCOVERY_QUERY_BYTES);
+}
+
+function proofIntentDiscoveryQueryCause(query, { limit = null } = {}) {
+  const byteLength = typeof query === "string"
+    ? Buffer.byteLength(query, "utf8")
+    : null;
+  return deepFreeze({
+    field: "query",
+    cause: "proof_intent_discovery_query_too_large",
+    measurement: PROOF_INTENT_DISCOVERY_QUERY_POLICY.measurement,
+    byte_length: byteLength,
+    maximum_bytes: MAX_DISCOVERY_QUERY_BYTES,
+    rejected_query: "[bounded-oversized-query]",
+    replacement_call: {
+      tool: "workspace_controlled_proof_intents_discover",
+      arguments: {
+        query: smallerDiscoveryQuery(String(query ?? "")),
+        ...(Number.isSafeInteger(limit) ? { limit } : {})
+      }
+    }
+  });
+}
+
+function isProofIntentDiscoveryQueryWithinLimit(query) {
+  return typeof query === "string" &&
+    Buffer.byteLength(query, "utf8") <= MAX_DISCOVERY_QUERY_BYTES;
 }
 
 function normalizeProofIntentDiscoveryCatalog(value) {
@@ -159,12 +214,17 @@ function validateOptions(options, unexpectedArguments) {
 
 function prepareRequest(options) {
   const hasQuery = Object.hasOwn(options, "query");
-  if (!hasQuery) {
-    if (Object.hasOwn(options, "limit")) throw new ProofIntentDiscoveryError(
-      "proof_intent_discovery_list_limit_unsupported",
-      "list mode always returns the complete controlled intent catalog"
+  const hasLimit = Object.hasOwn(options, "limit");
+  const limit = hasLimit ? options.limit : null;
+  if (hasLimit && (!Number.isSafeInteger(limit) || limit < 1 ||
+      limit > MAX_DISCOVERY_RETURNED_INTENTS)) {
+    throw new ProofIntentDiscoveryError(
+      "proof_intent_discovery_limit_invalid",
+      `result limit must be an integer from 1 through ${MAX_DISCOVERY_RETURNED_INTENTS}`
     );
-    return { mode: "list", query: null, queryTerms: null, limit: null };
+  }
+  if (!hasQuery) {
+    return { mode: "list", query: null, queryTerms: null, limit };
   }
   if (typeof options.query !== "string" || options.query.length === 0) {
     throw new ProofIntentDiscoveryError(
@@ -172,11 +232,10 @@ function prepareRequest(options) {
       "search mode requires nonempty query text"
     );
   }
-  const queryBytes = Buffer.byteLength(options.query, "utf8");
-  if (queryBytes > MAX_DISCOVERY_QUERY_BYTES) throw new ProofIntentDiscoveryError(
+  if (!isProofIntentDiscoveryQueryWithinLimit(options.query)) throw new ProofIntentDiscoveryError(
     "proof_intent_discovery_query_too_large",
     "proof-intent discovery query exceeds the declared UTF-8 byte limit",
-    { byte_length: queryBytes, maximum_bytes: MAX_DISCOVERY_QUERY_BYTES }
+    proofIntentDiscoveryQueryCause(options.query, { limit })
   );
   const normalizedText = normalizeSearchText(options.query);
   if (normalizedText.length === 0) throw new ProofIntentDiscoveryError(
@@ -184,19 +243,12 @@ function prepareRequest(options) {
     "search query must contain at least one letter or number after normalization"
   );
   const queryTerms = sortedUnique(normalizedText.split(" "));
-  const limit = options.limit ?? MAX_DISCOVERY_RETURNED_INTENTS;
-  if (!Number.isSafeInteger(limit) || limit < 1 ||
-      limit > MAX_DISCOVERY_RETURNED_INTENTS) {
-    throw new ProofIntentDiscoveryError(
-      "proof_intent_discovery_limit_invalid",
-      `search-result limit must be an integer from 1 through ${MAX_DISCOVERY_RETURNED_INTENTS}`
-    );
-  }
+  const searchLimit = limit ?? MAX_DISCOVERY_RETURNED_INTENTS;
   return {
     mode: "search",
     query: { normalized_text: queryTerms.join(" "), terms: queryTerms },
     queryTerms,
-    limit
+    limit: searchLimit
   };
 }
 
@@ -285,8 +337,10 @@ function assertResultSemantics(result) {
       (result.status === "no_match") !== expectedNoMatch ||
       (result.status === "partial_match") !== expectedPartial ||
       (result.mode === "list" && (
-        result.query !== null || result.result_limit !== null || result.truncated ||
-        result.returned_count !== result.catalog_intent_count
+        result.query !== null ||
+        (result.result_limit === null && (
+          result.truncated || result.returned_count !== result.catalog_intent_count
+        ))
       )) ||
       (result.mode === "search" && (
         result.query === null || result.result_limit === null
@@ -331,7 +385,7 @@ function discoverProofIntents(options, ...unexpectedArguments) {
     matchKind === "exact_match");
   const matches = request.mode === "list" ? overlaps :
     exactMatches.length > 0 ? exactMatches : overlaps;
-  const returned = request.mode === "list" ? matches : matches.slice(0, request.limit);
+  const returned = request.limit === null ? matches : matches.slice(0, request.limit);
   const status = request.mode === "list" || exactMatches.length > 0 ? "match" :
     matches.length > 0 ? "partial_match" : "no_match";
   const result = canonicalValue({
@@ -372,11 +426,14 @@ export {
   MAX_DISCOVERY_RETURNED_INTENTS,
   PROOF_INTENT_DISCOVERY_CATALOG,
   PROOF_INTENT_DISCOVERY_CATALOG_DIGEST,
+  PROOF_INTENT_DISCOVERY_QUERY_POLICY,
   ProofIntentDiscoveryError,
   canonicalProofIntentDiscoveryJson,
   discoverProofIntents,
+  isProofIntentDiscoveryQueryWithinLimit,
   normalizeProofIntentDiscoveryCatalog,
   normalizeSearchText,
+  proofIntentDiscoveryQueryCause,
   validateProofIntentCatalog,
   validateProofIntentDiscoveryResult
 };

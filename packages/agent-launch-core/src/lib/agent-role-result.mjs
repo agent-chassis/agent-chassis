@@ -32,8 +32,7 @@ export const AGENT_ROLE_RESULT_COUNT_FIELDS = Object.freeze([
 ]);
 
 export const DEFAULT_AGENT_ROLE_RESULT_LIMITS = Object.freeze({
-  maxResponseBytes: 128 * 1024,
-  maxPayloadBytes: 64 * 1024,
+  summaryBudgetChars: 16_384,
   maxDiagnosticCount: 20
 });
 
@@ -121,10 +120,11 @@ function normalizeLimits(options) {
   return {
     maxResponseBytes: Number.isInteger(options.maxResponseBytes) && options.maxResponseBytes > 0
       ? options.maxResponseBytes
-      : DEFAULT_AGENT_ROLE_RESULT_LIMITS.maxResponseBytes,
+      : null,
     maxPayloadBytes: Number.isInteger(options.maxPayloadBytes) && options.maxPayloadBytes > 0
       ? options.maxPayloadBytes
-      : DEFAULT_AGENT_ROLE_RESULT_LIMITS.maxPayloadBytes,
+      : null,
+    summaryBudgetChars: DEFAULT_AGENT_ROLE_RESULT_LIMITS.summaryBudgetChars,
     maxDiagnosticCount:
       Number.isInteger(options.maxDiagnosticCount) && options.maxDiagnosticCount > 0
         ? options.maxDiagnosticCount
@@ -139,7 +139,7 @@ export function parseAgentRoleResult(finalResponseText, options = {}) {
     return invalid([diag("invalid_response_text", "final response text must be a string")], null, limits);
   }
 
-  if (byteLength(finalResponseText) > limits.maxResponseBytes) {
+  if (limits.maxResponseBytes !== null && byteLength(finalResponseText) > limits.maxResponseBytes) {
     return invalid([
       diag("response_oversized", "final response text exceeds the configured parser limit", null, {
         max_bytes: limits.maxResponseBytes
@@ -157,7 +157,7 @@ export function parseAgentRoleResult(finalResponseText, options = {}) {
     payload_bytes: byteLength(extraction.candidate.jsonText)
   });
 
-  if (candidate.payload_bytes > limits.maxPayloadBytes) {
+  if (limits.maxPayloadBytes !== null && candidate.payload_bytes > limits.maxPayloadBytes) {
     return invalid([
       diag("payload_oversized", "structured role-result JSON exceeds the configured payload limit", null, {
         max_bytes: limits.maxPayloadBytes
@@ -221,8 +221,6 @@ export function validateAgentRoleResult(payload, options = {}) {
   if (Object.prototype.hasOwnProperty.call(payload, "summary") && payload.summary !== null) {
     if (typeof payload.summary !== "string") {
       add("invalid_summary", "summary must be a string when present", "$.summary");
-    } else if (payload.summary.length > 4000) {
-      add("summary_oversized", "summary is too large for bounded diagnostic evidence", "$.summary");
     }
   }
 
@@ -249,7 +247,12 @@ export function validateAgentRoleResult(payload, options = {}) {
     return invalid(diagnostics, candidate, { maxDiagnosticCount });
   }
 
-  return evidence({ valid: true, result: normalizeResultPayload(payload), diagnostics: [], candidate });
+  return evidence({
+    valid: true,
+    result: normalizeResultPayload(payload, DEFAULT_AGENT_ROLE_RESULT_LIMITS.summaryBudgetChars),
+    diagnostics: [],
+    candidate
+  });
 }
 
 function validateExactKeys(value, required, optional, path, add, context) {
@@ -436,8 +439,8 @@ function extractExplicitSummaryTotal(summary) {
   return standaloneMatch ? Number.parseInt(standaloneMatch[1], 10) : null;
 }
 
-function normalizeResultPayload(payload) {
-  return {
+function normalizeResultPayload(payload, summaryBudgetChars) {
+  const result = {
     schema_version: AGENT_ROLE_RESULT_SCHEMA_VERSION,
     reported_role: payload.reported_role,
     reported_subject: payload.reported_subject,
@@ -448,6 +451,15 @@ function normalizeResultPayload(payload) {
     recomputed_finding_counts: recomputeFindingCounts(payload.findings),
     reviewed_controls: payload.reviewed_controls.map((entry) => ({ ...entry }))
   };
+  if (payload.reported_role === "reviewer" || payload.reported_role === "redteam") {
+    const actualChars = typeof payload.summary === "string" ? payload.summary.length : 0;
+    result.summary_budget = {
+      soft_limit_chars: summaryBudgetChars,
+      actual_chars: actualChars,
+      exceeded: actualChars > summaryBudgetChars
+    };
+  }
+  return result;
 }
 
 function recomputeFindingCounts(findings) {

@@ -1,13 +1,9 @@
 
 
 import path from "node:path";
+import { boundPublicSemanticCode } from "./refusal-payload.mjs";
 import { types as utilTypes } from "node:util";
 
-import {
-  CLIENT_DISPOSITIONS,
-  classifyConfigReadiness,
-  resolveClientConfig
-} from "./node-engine-api-client.mjs";
 import { getSidecarIndexStatus } from "./sidecar-status.mjs";
 import { SLICE_ID_PATTERN } from "./work-record-schema-constants.mjs";
 import { buildNextCall } from "./next-calls-descriptor.mjs";
@@ -276,55 +272,21 @@ function buildMissingInitiativeRefNamespaceRefusal({ record, unit, reportOnly })
   });
   return {
     ...readiness,
+
     next_calls: Object.freeze([
       Object.freeze(
         buildNextCall({
           tool: "assign_work_record_to_initiative",
           arguments: { unit: record.id },
           recommended: true,
-          required_arguments: ["initiative"]
+          required_arguments: ["initiative"],
+          success_predicate: {
+            fact: "wk.canonical_initiative",
+            operator: "is_present"
+          }
         })
       )
     ])
-  };
-}
-
-function resolveNodeEngineConfigReadiness(request) {
-  const bundle = isObject(request) ? request : {};
-  const config = isObject(bundle.config)
-    ? bundle.config
-    : resolveClientConfig(bundle.env ?? process.env);
-  return classifyConfigReadiness(config);
-}
-
-function isConfirmedNoNodeEngineConfig(request, configReadiness) {
-  if (isObject(request) && typeof request.resolver === "function") {
-    return false;
-  }
-  return configReadiness?.disposition === CLIENT_DISPOSITIONS.LOCAL_ONLY_FAIL_OPEN;
-}
-
-function foldConfirmedNoNodeEngineIntoReadiness(readiness, configReadiness) {
-  return {
-    ...readiness,
-    structural_readiness: {
-      dispatchable: readiness.dispatchable === true,
-      decision_code: readiness.decision_code
-    },
-    admissibility: {
-      evaluated: true,
-      authority: "local_only_config",
-      status: CLIENT_DISPOSITIONS.LOCAL_ONLY_FAIL_OPEN,
-      admissible: true,
-      effect: CLIENT_DISPOSITIONS.LOCAL_ONLY_FAIL_OPEN,
-      pack_backed: false,
-      node_engine_backed: false,
-      binding_status: null,
-      ratified: false,
-      diagnostic_code: configReadiness?.outcome ?? "node_engine_local_only_fail_open",
-      reasons: [],
-      authenticated_request_sent: false
-    }
   };
 }
 
@@ -729,11 +691,6 @@ export async function validateWorkRecordDispatchById(options = {}) {
     return readiness;
   }
 
-  const configReadiness = resolveNodeEngineConfigReadiness(node_engine_admissibility);
-  if (isConfirmedNoNodeEngineConfig(node_engine_admissibility, configReadiness)) {
-    return foldConfirmedNoNodeEngineIntoReadiness(readiness, configReadiness);
-  }
-
   const packResult = await resolveNodeEngineAdmissibility({
     request: node_engine_admissibility,
     record: loaded.record,
@@ -863,10 +820,11 @@ export async function revalidateWorkRecordDispatchPrivateHandoffById(options = {
       })) ?? classified.entry;
     evaluateWorkRecordAdmissionDerivedEvidence(evaluatedEvidence);
   } catch (error) {
+
     return {
       valid: false,
       reason: "canonical_carrier_revalidation_failed",
-      issue: error?.code ?? "malformed_worker_admission_derived_evidence"
+      issue: boundPublicSemanticCode(error?.code, "malformed_worker_admission_derived_evidence")
     };
   }
 

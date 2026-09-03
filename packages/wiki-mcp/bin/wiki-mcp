@@ -13,4 +13,10 @@ Options:
   process.exit(0);
 }
 
-await import("../src/server.mjs");
+// WK-2139: a standalone wiki-mcp launch carries NO package documentation
+// bundle, so it supplies no documentation carrier and advertises no
+// package-owned documentation reference it cannot read. Only a forwarding
+// package that actually owns a docs bundle (`@agent-chassis/core`) passes one.
+const { startWikiMcpServer } = await import("../src/server.mjs");
+
+await startWikiMcpServer();

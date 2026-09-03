@@ -16,8 +16,7 @@ export const MODEL_REGISTRY = Object.freeze([
       app: "codex",
       backend: "codex",
       codex_profile: "orchestrator",
-      default_effort: "high",
-      app_default: true
+      default_effort: "high"
     })
   ]),
   Object.freeze([
@@ -125,8 +124,7 @@ export const MODEL_REGISTRY = Object.freeze([
       app: "claude",
       backend: "claude",
       codex_profile: null,
-      default_effort: "max",
-      app_default: true
+      default_effort: "max"
     })
   ]),
   Object.freeze([
@@ -148,8 +146,6 @@ export const MODEL_REGISTRY = Object.freeze([
     })
   ])
 ]);
-
-const APP_DEFAULTS_BY_REGISTRY = new WeakMap();
 
 function assertSpecObject(model, spec) {
   if (spec === null || typeof spec !== "object" || Array.isArray(spec)) {
@@ -193,8 +189,6 @@ export function buildModelRegistry(entries) {
   }
 
   const registry = new Map();
-  const appDefaults = new Map();
-
   for (const entry of entries) {
     if (!Array.isArray(entry) || entry.length !== 2) {
       throw new Error("agent-launch-model-registry: each entry must be [model, spec]");
@@ -220,22 +214,14 @@ export function buildModelRegistry(entries) {
     const normalizedSpec = Object.freeze({
       app: spec.app,
       backend: spec.backend,
+      backend_profile: spec.backend_profile ?? spec.codex_profile,
       codex_profile: spec.codex_profile,
-      default_effort: spec.default_effort,
-      app_default: spec.app_default === true
+      default_effort: spec.default_effort
     });
-
-    if (normalizedSpec.app_default) {
-      if (appDefaults.has(normalizedSpec.app)) {
-        throw new Error(`agent-launch-model-registry: multiple app_default models for app ${normalizedSpec.app}`);
-      }
-      appDefaults.set(normalizedSpec.app, model);
-    }
 
     registry.set(model, normalizedSpec);
   }
 
-  APP_DEFAULTS_BY_REGISTRY.set(registry, appDefaults);
   return registry;
 }
 
@@ -249,13 +235,26 @@ export function resolveModel(model, registry = MODEL_REGISTRY_BY_NAME) {
   return registry.get(model) ?? null;
 }
 
+export function resolveModelRuntime(model, registry = MODEL_REGISTRY_BY_NAME) {
+  const spec = resolveModel(model, registry);
+  if (!spec) return null;
+  return Object.freeze({
+    model,
+    app: spec.app,
+    backend: spec.backend,
+    backend_profile: spec.backend_profile,
+    default_effort: spec.default_effort,
+    model_spec: spec
+  });
+}
+
 export function appDefault(app, registry = MODEL_REGISTRY_BY_NAME) {
   if (typeof app !== "string" || app.length === 0) {
     return null;
   }
-  const appDefaults = APP_DEFAULTS_BY_REGISTRY.get(registry);
-  if (!appDefaults) {
-    throw new Error("agent-launch-model-registry: appDefault requires a registry returned by buildModelRegistry");
+  if (!(registry instanceof Map)) {
+    throw new Error("agent-launch-model-registry: registry lookup requires a Map");
   }
-  return appDefaults.get(app) ?? null;
+
+  return null;
 }

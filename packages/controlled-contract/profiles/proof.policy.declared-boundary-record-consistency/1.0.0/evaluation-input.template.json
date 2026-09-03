@@ -1,0 +1,142 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.experimental.v0.2",
+  "evaluation_stage": "post_delivery",
+  "reference_bindings": [
+    {
+      "role": "bounded_subject",
+      "reference_ids": [
+        "ref-bpr-bounded-subject"
+      ]
+    },
+    {
+      "role": "policy_artifact",
+      "reference_ids": [
+        "ref-bpr-policy-artifact"
+      ]
+    },
+    {
+      "role": "observation_artifact",
+      "reference_ids": [
+        "ref-bpr-observation-artifact"
+      ]
+    },
+    {
+      "role": "subjects_artifact",
+      "reference_ids": [
+        "ref-bpr-subjects-artifact"
+      ]
+    },
+    {
+      "role": "conformance_report",
+      "reference_ids": [
+        "ref-bpr-conformance-report"
+      ]
+    },
+    {
+      "role": "verification",
+      "reference_ids": [
+        "ref-bpr-verification"
+      ]
+    },
+    {
+      "role": "mismatch_condition",
+      "reference_ids": [
+        "ref-bpr-mismatch-condition"
+      ]
+    },
+    {
+      "role": "limit_population",
+      "reference_ids": [
+        "ref-bpr-declared-limit-population"
+      ]
+    },
+    {
+      "role": "declared_limits",
+      "reference_ids": [
+        "ref-bpr-limit-1cf2462dbf783967e4408e886e4569a77da29314f99d4e6f78fed80de817b185",
+        "ref-bpr-limit-9ae507a9dd39ee5b7c7e285da2c0846521c8ae8d80feeae5504e0c981d53f5fa",
+        "ref-bpr-limit-b1211b244051d91c504a84830a4b36d4eab849edefaeba88c91b9b18b2c531ac",
+        "ref-bpr-limit-e6845188b1d2aebdf19d13c1613d7a49b5806a7fe336ec775fa182b36719bbc1"
+      ]
+    },
+    {
+      "role": "unit_population",
+      "reference_ids": [
+        "ref-bpr-measurement-unit-population"
+      ]
+    },
+    {
+      "role": "measurement_units",
+      "reference_ids": [
+        "ref-bpr-unit-55b36d3271d6431800df0b64022f3c2532c7d13bb4fe2d79706877e658daed7d",
+        "ref-bpr-unit-88a02a1340063f90354c9149d18dd9b86b5f4deb7be8cdc77c465a0c1577bbc6",
+        "ref-bpr-unit-8d956d4d1c2719f08b943a656e725873a09daec182ab2c173601f6e38c98385b"
+      ]
+    },
+    {
+      "role": "case_population",
+      "reference_ids": [
+        "ref-bpr-boundary-case-population"
+      ]
+    },
+    {
+      "role": "boundary_cases",
+      "reference_ids": [
+        "ref-bpr-case-0aee59b7e0d681bc31b1bc2096ef5c6e0db1b7d35445a7a5bb8dba6a0687d3b1",
+        "ref-bpr-case-13d7463153d5ac41c5afdc4ae33d213d7b56b1fc94bb5a8442b900d3be1891c2",
+        "ref-bpr-case-31e23d506027bd8fbcb041e9e46f005196b94542675721a7a4a9444c984e7b28",
+        "ref-bpr-case-98b69d8d80fbf5d2e41beee382671dbb647d6dc93d7c5569df985cf807ab17a5",
+        "ref-bpr-case-995ba20704d3c974f84cbbad1b34df8a44431448298947578590d02262d67bb5",
+        "ref-bpr-case-9a3744c926831a09613e258e6cfa6dcebd6f85bfdbfbc86afa1a9685e89e9201",
+        "ref-bpr-case-aa5332f392308fd51105ec21b14001067dd976fb2821aae071e7ce2e74d91abe",
+        "ref-bpr-case-d7ec7811d46142383539e1e2a12d68ee6f6c3934384e9df46fc704941b9a926f",
+        "ref-bpr-case-e0308a9673e571c08fb9266fbbc8ad77183d26aada21eb27351460f2ea29f840",
+        "ref-bpr-case-e6761595da1929cb4f671a24ccb8eadaa6895d96ee47dc9508277dc4d1a36e0f",
+        "ref-bpr-case-fe773ccd5a185a339eb84a094c3b557f180d9126fcb2d1f7ba79cf2be43d984d"
+      ]
+    },
+    {
+      "role": "subject_population",
+      "reference_ids": [
+        "ref-bpr-measured-subject-population"
+      ]
+    },
+    {
+      "role": "measured_subjects",
+      "reference_ids": [
+        "ref-bpr-subject-0eb75a19d300d6606733baabe801245871dba02aa4e19a056bc7a0d66e4ef6a3",
+        "ref-bpr-subject-112eebf31ad4d7c24e3d160cda88d5a0f79fe8d786b28174164a5f8c9d1d62d8",
+        "ref-bpr-subject-24c8f65004953f58b7bdaebf943c03e7928a9b28805f096f1f8099308df663d6",
+        "ref-bpr-subject-42e41216bfd34d077a7534a2624bf4fa10d663be733606004a2e1a55afa325ee",
+        "ref-bpr-subject-4d3cf39d37bdaf19419ee49582e749983a0bf0c0fcc87b3d154b18bd27d4981f",
+        "ref-bpr-subject-57e4812adc89e639e4d87652da9e43c94b2aa491e5c5a1fb89fbfd3d32c92dbf",
+        "ref-bpr-subject-6554a0199860e3ff26a0142e31b40043f1e2337a8fccd3da12c2f07a945d633e",
+        "ref-bpr-subject-74ffa9318db31f607bbcb0260f882d8005943112b307b504fd8c150ca9591bdf",
+        "ref-bpr-subject-aefb8adcfd132cb34778b7ecd20a956d42897b1b2de50bff71280cbe1a76327a",
+        "ref-bpr-subject-b06b2b88b576068418efb18d93769c66e11e82f8b1fb27a95d8fbe494dde4e1a",
+        "ref-bpr-subject-bb8e110370e3d366303835ccf6c6d25ba5f9787f23f8d6cb9c6f1983ca3b3365"
+      ]
+    }
+  ],
+  "number_bindings": [
+    {
+      "role": "declared_limits_count",
+      "value": 4
+    },
+    {
+      "role": "measurement_units_count",
+      "value": 3
+    },
+    {
+      "role": "boundary_cases_count",
+      "value": 11
+    },
+    {
+      "role": "measured_subjects_count",
+      "value": 11
+    }
+  ],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": []
+}

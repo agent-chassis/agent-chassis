@@ -13,10 +13,13 @@
     "corpus":{
       "type":"object","additionalProperties":false,
       "required":["corpus_id","corpus_version","corpus_digest","executable_control_count"],
+      "dependentRequired":{"executable_module":["executable_module_digest"],"executable_module_digest":["executable_module"]},
       "properties":{
         "corpus_id":{"$ref":"#/$defs/id"},
         "corpus_version":{"type":"string","pattern":"^[0-9]+\\.[0-9]+\\.[0-9]+$"},
         "corpus_digest":{"$ref":"#/$defs/sha256"},
+        "executable_module":{"type":"string","pattern":"^packages/controlled-contract/test/proof-packs/[a-z0-9._-]+\\.mjs$"},
+        "executable_module_digest":{"$ref":"#/$defs/sha256"},
         "executable_control_count":{"type":"integer","minimum":1}
       }
     },
@@ -34,5 +37,5 @@
     "sha256":{"type":"string","pattern":"^[0-9a-f]{64}$"},
     "id":{"type":"string","pattern":"^[a-z0-9]+(?:[a-z0-9._-]*[a-z0-9])?$"}
   },
-  "$comment":"The canonical file requires sorted unique passed_control_ids and count equality with corpus.executable_control_count. The loader enforces those semantic invariants and recomputes SHA-256 from the admitted canonical file bytes."
+  "$comment":"The canonical file requires sorted unique passed_control_ids and count equality with corpus.executable_control_count. When an executable module is declared, release admission verifies its digest and executes it before comparing the actual passed IDs. The loader enforces the carrier invariants and recomputes SHA-256 from the admitted canonical file bytes."
 }

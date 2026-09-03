@@ -1,6 +1,9 @@
 
 
 import path from "node:path";
+import {
+  deriveLauncherOwnedDispatchWorktreeRoot
+} from "@agent-chassis/agent-launch-core/src/lib/launcher-owned-worktree-root.mjs";
 
 import {
   WIKI_MCP_DISPATCH_WORKTREE_ROOT_ENV_VAR,
@@ -16,8 +19,14 @@ import {
   projectStdioMcpChannelClientRegistration
 } from "./stdio-mcp-conduit-contract.mjs";
 import {
-  mintTrustedStdioMcpConduitAuthority
+  mintTrustedManagedFindingsFrozenReviewBinding,
+  mintTrustedStdioMcpConduitAuthority,
+  resolveLauncherAgentSessionContract,
+  resolveLauncherAgentSessionContractFacts
 } from "./stdio-mcp-conduit-authority.mjs";
+import {
+  authenticateStdioMcpCompletionCredential
+} from "./stdio-mcp-conduit.mjs";
 
 export const CODEX_CONDUIT_BINDING_REFUSAL_REASON = "codex_conduit_binding_not_canonical";
 
@@ -66,6 +75,17 @@ function sameStringSet(left, right) {
   return a.length === b.length && a.every((entry, index) => entry === b[index]);
 }
 
+function authenticateCodexCompletionCredential({
+  completionCredential,
+  authority
+}) {
+  const contract = completionCredential ?? resolveLauncherAgentSessionContract(authority);
+  return authenticateStdioMcpCompletionCredential({
+    credential: contract,
+    expectedFacts: resolveLauncherAgentSessionContractFacts(authority)
+  });
+}
+
 function assertHintMatchesCanonical(label, hint, canonical) {
   if (hint === null || hint === undefined) return;
   if (!Array.isArray(hint)) {
@@ -102,12 +122,7 @@ function assertScalarHintMatches(label, hint, canonical) {
 
 export function deriveCanonicalDispatchWorktreeRoot(mainRepo) {
   if (typeof mainRepo !== "string" || !path.isAbsolute(mainRepo)) return null;
-  const canonicalMainRepo = path.resolve(mainRepo);
-  return path.join(
-    path.dirname(canonicalMainRepo),
-    ".agent-worktrees",
-    path.basename(canonicalMainRepo)
-  );
+  return deriveLauncherOwnedDispatchWorktreeRoot(mainRepo);
 }
 
 export function resolveCodexConduitServerEnvironment({
@@ -156,6 +171,12 @@ export function resolveCodexConduitInput({
   workerScopeAuthority = null,
   worktreeProvisioning = null,
   commitTuple = null,
+  completionCredential = null,
+  managedFindings = false,
+  findingsLifecycleContext = null,
+  reviewerLaunchRef = null,
+  reviewerRunId = null,
+  reviewerRetryId = 0,
   launcherEnv = process.env,
   responseStateDir = null,
   requested = null
@@ -168,6 +189,20 @@ export function resolveCodexConduitInput({
     refuse("a Codex conduit binding requires an absolute launcher-resolved workspace");
   }
   const provisioning = worktreeProvisioning ?? null;
+  let reviewerBinding = null;
+  if (managedFindings === true) {
+    reviewerBinding = mintTrustedManagedFindingsFrozenReviewBinding({
+      role: conduitRole,
+      assignedUnit,
+      findingsLifecycleContext,
+      launchRef: reviewerLaunchRef,
+      runId: reviewerRunId,
+      retryId: reviewerRetryId
+    });
+  } else if (findingsLifecycleContext !== null) {
+    refuse("unmanaged Codex launch cannot consume a findings lifecycle context");
+  }
+  const effectiveCommitTuple = reviewerBinding?.commitTuple ?? commitTuple;
 
   const authority = mintTrustedStdioMcpConduitAuthority({
     family: "codex",
@@ -176,8 +211,15 @@ export function resolveCodexConduitInput({
     workspaceDir,
     workerScopeAuthority: conduitRole === "worker" ? workerScopeAuthority : null,
     provisioning,
-    commitTuple
+    commitTuple: effectiveCommitTuple,
+    frozenReviewContractBinding: reviewerBinding?.binding ?? null
   });
+
+  const authenticatedCompletionCredential =
+    authenticateCodexCompletionCredential({
+      completionCredential,
+      authority
+    });
 
   assertHintMatchesCanonical("write_scope", requested?.write_scope ?? null,
     authority.writeScope);
@@ -202,14 +244,15 @@ export function resolveCodexConduitInput({
     authority,
     dispatchWorktreeRoot: serverEnvironment.dispatchWorktreeRoot
   };
+  conduitInput.sessionContract = authenticatedCompletionCredential;
   if (serverEnvironment.workspaceAlias !== null) {
     conduitInput.workspaceAlias = serverEnvironment.workspaceAlias;
   }
   if (serverEnvironment.responseStateDir !== null) {
     conduitInput.responseStateDir = serverEnvironment.responseStateDir;
   }
-  if (commitTuple !== null && commitTuple !== undefined) {
-    conduitInput.commitTuple = commitTuple;
+  if (effectiveCommitTuple !== null && effectiveCommitTuple !== undefined) {
+    conduitInput.commitTuple = effectiveCommitTuple;
   }
   return conduitInput;
 }

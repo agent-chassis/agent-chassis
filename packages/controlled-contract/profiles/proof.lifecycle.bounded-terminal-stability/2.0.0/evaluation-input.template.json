@@ -1,0 +1,119 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.v1",
+  "evaluation_stage": "pre_dispatch",
+  "reference_bindings": [
+    {
+      "role": "lifecycle_entity",
+      "reference_ids": [
+        "ref-lifecycle-entity"
+      ]
+    },
+    {
+      "role": "terminal_event",
+      "reference_ids": [
+        "ref-terminal-event"
+      ]
+    },
+    {
+      "role": "terminal_state",
+      "reference_ids": [
+        "ref-terminal-state"
+      ]
+    },
+    {
+      "role": "bounded_horizon",
+      "reference_ids": [
+        "ref-bounded-horizon"
+      ]
+    },
+    {
+      "role": "observation_population",
+      "reference_ids": [
+        "ref-observation-population"
+      ]
+    },
+    {
+      "role": "observations",
+      "reference_ids": [
+        "ref-observation-1",
+        "ref-observation-2"
+      ]
+    },
+    {
+      "role": "terminal_state_population",
+      "reference_ids": [
+        "ref-terminal-state-population"
+      ]
+    },
+    {
+      "role": "terminal_states",
+      "reference_ids": [
+        "ref-terminal-state"
+      ]
+    },
+    {
+      "role": "observed_state_population",
+      "reference_ids": [
+        "ref-observed-state-population"
+      ]
+    },
+    {
+      "role": "observed_states",
+      "reference_ids": [
+        "ref-terminal-state"
+      ]
+    },
+    {
+      "role": "reactivation_population",
+      "reference_ids": [
+        "ref-reactivation-population"
+      ]
+    },
+    {
+      "role": "reactivation_events",
+      "reference_ids": []
+    },
+    {
+      "role": "reactivation_count_signal",
+      "reference_ids": [
+        "ref-reactivation-count-signal"
+      ]
+    },
+    {
+      "role": "verification",
+      "reference_ids": [
+        "ref-verification"
+      ]
+    },
+    {
+      "role": "state_regression_condition",
+      "reference_ids": [
+        "ref-state-regression-condition"
+      ]
+    },
+    {
+      "role": "reactivation_condition",
+      "reference_ids": [
+        "ref-reactivation-condition"
+      ]
+    }
+  ],
+  "number_bindings": [
+    {
+      "role": "observation_count",
+      "value": 2
+    },
+    {
+      "role": "state_count",
+      "value": 1
+    },
+    {
+      "role": "reactivation_count",
+      "value": 0
+    }
+  ],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": [],
+  "stable_evaluation": {}
+}

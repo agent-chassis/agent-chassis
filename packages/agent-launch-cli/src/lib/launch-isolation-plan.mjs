@@ -80,6 +80,7 @@ export function buildBubblewrapLaunchPlan({
     systemRoots,
     tmpfsDirsResolved,
     maskTmpfsDirsResolved,
+    privateReadOnlyMaskDirsResolved,
     familyRuntimeApprovedPrefixes,
     resolvedCommand
   } = prepareBubblewrapPlanCore({
@@ -190,7 +191,11 @@ export function buildBubblewrapLaunchPlan({
       writableRoots: writable,
       runtimeRoots: runtime,
       writableFiles: writableFileEntries,
-      sparseWorkerNamespace
+      sparseWorkerNamespace,
+
+      launchContext: {
+        role: normalizedFindingsRole ?? (sparseWorkerNamespace === null ? null : "worker")
+      }
     });
   } catch (error) {
     writableFilePreparation.cleanup.cleanup();
@@ -211,6 +216,7 @@ export function buildBubblewrapLaunchPlan({
     sparseWorkerNamespace,
     repoReal,
     maskTmpfsDirsResolved,
+    privateReadOnlyMaskDirsResolved,
     inRepoSecretFileMasks,
     readOnly,
     homeReads,
@@ -222,6 +228,10 @@ export function buildBubblewrapLaunchPlan({
     writableFileEntries,
     runtime,
     provisionedGitIsolation,
+    gitNamespaceDirectories: [
+      ...(findingsRoleGitMetadata?.namespaceDirectories ?? []),
+      ...(provisionedGitIsolation?.namespaceDirectories ?? [])
+    ].filter((entry, index, all) => all.indexOf(entry) === index),
     decisionsReadOnly,
     policedEnv,
     cwdNormalized,
@@ -257,6 +267,12 @@ export function buildBubblewrapLaunchPlan({
     findingsRoleGitMetadata,
     tmpfsDirs: Object.freeze([...tmpfsDirsResolved]),
     maskTmpfsDirs: Object.freeze([...maskTmpfsDirsResolved]),
+    privateReadOnlyMaskDirs: privateReadOnlyMaskDirsResolved,
+    filesystemConfidentiality: Object.freeze({
+      guaranteed: true,
+      enforcement_backend: "bwrap",
+      private_repository_path_enforced: true
+    }),
     readOnlyRoots: Object.freeze(readOnly.map((b) => Object.freeze({ ...b }))),
     ...(requiredReadOnlyFileEntries.length > 0
       ? { requiredReadOnlyFiles: requiredReadOnlyFileEntries }

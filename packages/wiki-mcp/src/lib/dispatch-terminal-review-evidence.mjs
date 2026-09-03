@@ -114,7 +114,7 @@ function hasExactLifecycleFields(value, fields) {
     fields.every((field) => Object.prototype.hasOwnProperty.call(value, field));
 }
 
-export function resolveTerminalReviewEvidence({ deps, integration, bindings, wkRef, runGit, workspaceDir }) {
+export async function resolveTerminalReviewEvidence({ deps, integration, bindings, wkRef, runGit, workspaceDir }) {
   const mode = deps.terminalReviewEvidenceMode ?? null;
   const materializer = deps.materializeTerminalReviewWorktree;
   const transported = integration.terminal_review_evidence ?? null;
@@ -147,7 +147,7 @@ export function resolveTerminalReviewEvidence({ deps, integration, bindings, wkR
       refusalDetail
     );
   }
-  const materialization = materializer({
+  const materialization = await materializer({
     mainRepo: workspaceDir,
     worktreePath: bindings.provisioning.validation_worktree_path,
     wkRef,
@@ -162,30 +162,7 @@ export function resolveTerminalReviewEvidence({ deps, integration, bindings, wkR
   return materialization;
 }
 
-export function createTerminalCandidateReviewTarget({ binding, materialization } = {}) {
-  assertTerminalCandidateMaterialization(materialization, binding);
-  return Object.freeze({
-    schema_version: "agent_launch.terminal_candidate_review_target.v1",
-    review_identity_kind: "terminal_candidate",
-    ref: binding.candidate_ref,
-    sha: binding.candidate,
-    candidate_ref: binding.candidate_ref,
-    candidate_sha: binding.candidate,
-    base_ref: binding.base_ref,
-    base_sha: binding.base,
-    wk_ref: binding.wk_ref,
-    wk_sha: binding.wk_tip,
-    worktree_path: materialization.checkout_path,
-    canonical_wk_digest: binding.canonical_wk_digest,
-    diff_base_sha: binding.base,
-    diff_head_sha: binding.candidate,
-    diff_range: `${binding.base}..${binding.candidate}`,
-    complete_parent_wk_contract: true,
-    accumulated_wk_diff: true
-  });
-}
-
-export function verifyTerminalCandidateCycle({ terminalCandidate, runGit }) {
+export async function verifyTerminalCandidateCycle({ terminalCandidate, runGit }) {
   if (!terminalCandidate || typeof terminalCandidate !== "object" ||
       !terminalCandidate.binding || !terminalCandidate.materialization) {
     throw lifecycleError(
@@ -193,9 +170,9 @@ export function verifyTerminalCandidateCycle({ terminalCandidate, runGit }) {
       "terminal candidate lifecycle state is absent or incomplete"
     );
   }
-  verifyTerminalWkCandidateObjectBinding({ binding: terminalCandidate.binding, runGit });
+  await verifyTerminalWkCandidateObjectBinding({ binding: terminalCandidate.binding, runGit });
   assertTerminalCandidateMaterialization(terminalCandidate.materialization, terminalCandidate.binding);
-  verifyTerminalCandidateCheckout({
+  await verifyTerminalCandidateCheckout({
     binding: terminalCandidate.binding,
     candidateRoot: terminalCandidate.materialization.candidate_root,
     runGit

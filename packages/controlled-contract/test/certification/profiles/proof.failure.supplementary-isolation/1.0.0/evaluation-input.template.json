@@ -1,0 +1,427 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.v1",
+  "evaluation_stage": "pre_dispatch",
+  "reference_bindings": [
+    {
+      "role": "operation",
+      "reference_ids": [
+        "ref-operation"
+      ]
+    },
+    {
+      "role": "attempt",
+      "reference_ids": [
+        "ref-attempt"
+      ]
+    },
+    {
+      "role": "attempt_start_event",
+      "reference_ids": [
+        "ref-attempt-start"
+      ]
+    },
+    {
+      "role": "core_computation",
+      "reference_ids": [
+        "ref-core-computation"
+      ]
+    },
+    {
+      "role": "supplementary_computation",
+      "reference_ids": [
+        "ref-supplementary-computation"
+      ]
+    },
+    {
+      "role": "core_result",
+      "reference_ids": [
+        "ref-core-result"
+      ]
+    },
+    {
+      "role": "core_settlement_event",
+      "reference_ids": [
+        "ref-core-settlement"
+      ]
+    },
+    {
+      "role": "core_settled_state",
+      "reference_ids": [
+        "ref-core-settled-state"
+      ]
+    },
+    {
+      "role": "core_settled_value",
+      "reference_ids": [
+        "ref-core-value"
+      ]
+    },
+    {
+      "role": "settlement_observation",
+      "reference_ids": [
+        "ref-settlement-observation"
+      ]
+    },
+    {
+      "role": "supplementary_component",
+      "reference_ids": [
+        "ref-supplementary-component"
+      ]
+    },
+    {
+      "role": "supplementary_failure_event",
+      "reference_ids": [
+        "ref-supplementary-failure"
+      ]
+    },
+    {
+      "role": "supplementary_failure_reason",
+      "reference_ids": [
+        "ref-failure-reason-selected"
+      ]
+    },
+    {
+      "role": "supplementary_unavailable_state",
+      "reference_ids": [
+        "ref-unavailable"
+      ]
+    },
+    {
+      "role": "final_result",
+      "reference_ids": [
+        "ref-final-result"
+      ]
+    },
+    {
+      "role": "final_result_event",
+      "reference_ids": [
+        "ref-final-result-event"
+      ]
+    },
+    {
+      "role": "final_core_portion",
+      "reference_ids": [
+        "ref-final-core-portion"
+      ]
+    },
+    {
+      "role": "final_core_state",
+      "reference_ids": [
+        "ref-final-core-state"
+      ]
+    },
+    {
+      "role": "final_core_value",
+      "reference_ids": [
+        "ref-core-value"
+      ]
+    },
+    {
+      "role": "final_observation",
+      "reference_ids": [
+        "ref-final-observation"
+      ]
+    },
+    {
+      "role": "verification",
+      "reference_ids": [
+        "ref-sfi-verification"
+      ]
+    },
+    {
+      "role": "projection_result",
+      "reference_ids": [
+        "ref-sfi-projection-result"
+      ]
+    },
+    {
+      "role": "attempt_record_capture",
+      "reference_ids": [
+        "ref-sfi-attempt-record-capture"
+      ]
+    },
+    {
+      "role": "core_settlement_record_capture",
+      "reference_ids": [
+        "ref-sfi-core-settlement-record-capture"
+      ]
+    },
+    {
+      "role": "final_result_record_capture",
+      "reference_ids": [
+        "ref-sfi-final-result-record-capture"
+      ]
+    },
+    {
+      "role": "supplementary_failure_record_capture",
+      "reference_ids": [
+        "ref-sfi-supplementary-failure-record-capture"
+      ]
+    },
+    {
+      "role": "core_member_count_signal",
+      "reference_ids": [
+        "ref-sfi-core-member-count-signal"
+      ]
+    },
+    {
+      "role": "disclosed_reason_count_signal",
+      "reference_ids": [
+        "ref-sfi-disclosed-reason-count-signal"
+      ]
+    },
+    {
+      "role": "failure_reason_count_signal",
+      "reference_ids": [
+        "ref-sfi-failure-reason-count-signal"
+      ]
+    },
+    {
+      "role": "final_core_member_count_signal",
+      "reference_ids": [
+        "ref-sfi-final-core-member-count-signal"
+      ]
+    },
+    {
+      "role": "final_result_member_count_signal",
+      "reference_ids": [
+        "ref-sfi-final-result-member-count-signal"
+      ]
+    },
+    {
+      "role": "supplementary_result_count_signal",
+      "reference_ids": [
+        "ref-sfi-supplementary-result-count-signal"
+      ]
+    },
+    {
+      "role": "attempt_occurrence_population",
+      "reference_ids": [
+        "ref-sfi-attempt-occurrences-population"
+      ]
+    },
+    {
+      "role": "attempt_occurrences",
+      "reference_ids": [
+        "ref-attempt-start",
+        "ref-core-member-a",
+        "ref-core-member-b",
+        "ref-core-result",
+        "ref-core-settled-state",
+        "ref-core-settlement",
+        "ref-core-value",
+        "ref-failure-reason-other",
+        "ref-failure-reason-selected",
+        "ref-final-core-portion",
+        "ref-final-core-state",
+        "ref-final-observation",
+        "ref-final-result",
+        "ref-final-result-event",
+        "ref-settlement-observation",
+        "ref-supplementary-component",
+        "ref-supplementary-failure",
+        "ref-unavailable"
+      ]
+    },
+    {
+      "role": "core_member_population",
+      "reference_ids": [
+        "ref-sfi-core-members-population"
+      ]
+    },
+    {
+      "role": "core_members",
+      "reference_ids": [
+        "ref-core-member-a",
+        "ref-core-member-b"
+      ]
+    },
+    {
+      "role": "attempt_core_settlement_population",
+      "reference_ids": [
+        "ref-sfi-core-settlements-population"
+      ]
+    },
+    {
+      "role": "attempt_core_settlements",
+      "reference_ids": [
+        "ref-core-settlement"
+      ]
+    },
+    {
+      "role": "core_valid_state_population",
+      "reference_ids": [
+        "ref-sfi-core-valid-states-population"
+      ]
+    },
+    {
+      "role": "core_valid_states",
+      "reference_ids": [
+        "ref-core-value"
+      ]
+    },
+    {
+      "role": "declared_supplementary_component_population",
+      "reference_ids": [
+        "ref-sfi-declared-components-population"
+      ]
+    },
+    {
+      "role": "declared_supplementary_components",
+      "reference_ids": [
+        "ref-supplementary-component"
+      ]
+    },
+    {
+      "role": "disclosed_omission_population",
+      "reference_ids": [
+        "ref-sfi-disclosed-omissions-population"
+      ]
+    },
+    {
+      "role": "disclosed_omissions",
+      "reference_ids": [
+        "ref-supplementary-component"
+      ]
+    },
+    {
+      "role": "disclosed_reason_population",
+      "reference_ids": [
+        "ref-sfi-disclosed-reasons-population"
+      ]
+    },
+    {
+      "role": "disclosed_reasons",
+      "reference_ids": [
+        "ref-failure-reason-selected"
+      ]
+    },
+    {
+      "role": "failure_reason_population",
+      "reference_ids": [
+        "ref-sfi-failure-reasons-population"
+      ]
+    },
+    {
+      "role": "failure_reasons",
+      "reference_ids": [
+        "ref-failure-reason-other",
+        "ref-failure-reason-selected"
+      ]
+    },
+    {
+      "role": "final_core_member_population",
+      "reference_ids": [
+        "ref-sfi-final-core-members-population"
+      ]
+    },
+    {
+      "role": "final_core_members",
+      "reference_ids": [
+        "ref-core-member-a",
+        "ref-core-member-b"
+      ]
+    },
+    {
+      "role": "attempt_final_result_population",
+      "reference_ids": [
+        "ref-sfi-final-result-events-population"
+      ]
+    },
+    {
+      "role": "attempt_final_results",
+      "reference_ids": [
+        "ref-final-result-event"
+      ]
+    },
+    {
+      "role": "final_result_member_population",
+      "reference_ids": [
+        "ref-sfi-final-result-members-population"
+      ]
+    },
+    {
+      "role": "final_result_members",
+      "reference_ids": [
+        "ref-core-member-a",
+        "ref-core-member-b"
+      ]
+    },
+    {
+      "role": "attempt_supplementary_failure_population",
+      "reference_ids": [
+        "ref-sfi-supplementary-failures-population"
+      ]
+    },
+    {
+      "role": "attempt_supplementary_failures",
+      "reference_ids": [
+        "ref-supplementary-failure"
+      ]
+    },
+    {
+      "role": "supplementary_result_population",
+      "reference_ids": [
+        "ref-sfi-supplementary-results-population"
+      ]
+    },
+    {
+      "role": "supplementary_results",
+      "reference_ids": []
+    },
+    {
+      "role": "unavailable_state_population",
+      "reference_ids": [
+        "ref-sfi-unavailable-states-population"
+      ]
+    },
+    {
+      "role": "unavailable_states",
+      "reference_ids": [
+        "ref-unavailable"
+      ]
+    }
+  ],
+  "number_bindings": [
+    {
+      "role": "attempt_core_settlement_count",
+      "value": 1
+    },
+    {
+      "role": "attempt_supplementary_failure_count",
+      "value": 1
+    },
+    {
+      "role": "attempt_final_result_count",
+      "value": 1
+    },
+    {
+      "role": "core_member_count",
+      "value": 2
+    },
+    {
+      "role": "final_core_member_count",
+      "value": 2
+    },
+    {
+      "role": "final_result_member_count",
+      "value": 2
+    },
+    {
+      "role": "failure_reason_count",
+      "value": 2
+    },
+    {
+      "role": "disclosed_reason_count",
+      "value": 1
+    },
+    {
+      "role": "supplementary_result_count",
+      "value": 0
+    }
+  ],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": [],
+  "stable_evaluation": {}
+}

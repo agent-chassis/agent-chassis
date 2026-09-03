@@ -30,6 +30,7 @@ import {
   sourcePathsFromArtifact
 } from "./sidecar-graph-impact-artifact.mjs";
 import { SIDECAR_GRAPH_SCHEMA_VERSION } from "./sidecar-graph-schema.mjs";
+import { resolveSidecarRepositoryIdentity } from "./sidecar-artifact-query-cache.mjs";
 import { projectSelectedUnitGraphBearingPaths } from "./work-record-dispatch-graph-projection.mjs";
 import { collectDirtyGraphOverlay, selectGraph } from "./sidecar-graph-impact-overlay.mjs";
 import {
@@ -152,7 +153,7 @@ function statusFailureOutcome(status) {
 }
 
 async function getCommittedHeadArtifactStatus({ dir, cacheDir }) {
-  const repoRoot = await runSidecarGit(dir, ["rev-parse", "--show-toplevel"]);
+  const repoRoot = await resolveSidecarRepositoryIdentity({ dir });
   const [indexHead, indexTree] = await Promise.all([
     runSidecarGit(repoRoot, ["rev-parse", "HEAD"]),
     runSidecarGit(repoRoot, ["rev-parse", "HEAD^{tree}"])
@@ -222,8 +223,9 @@ export async function getCommittedHeadGraphImpactPaths({
       });
     }
 
-    const repoRoot = status.repo_root ??
-      await runSidecarGit(targetDir, ["rev-parse", "--show-toplevel"]);
+    const repoRoot = await resolveSidecarRepositoryIdentity({
+      dir: status.repo_root ?? targetDir
+    });
     const artifactRead = await artifactReader({ repoRoot, status });
     if (!artifactRead.artifact || !artifactRead.identity) {
       const reason = artifactRead.evidence?.reason ?? "artifact_unavailable";
@@ -239,7 +241,9 @@ export async function getCommittedHeadGraphImpactPaths({
       });
     }
 
-    const verifiedArtifactRead = await artifactReader({ repoRoot, status });
+    const verifiedArtifactRead = artifactReader === readArtifact
+      ? artifactRead
+      : await artifactReader({ repoRoot, status });
     if (
       !verifiedArtifactRead.artifact ||
       !verifiedArtifactRead.identity ||
@@ -288,8 +292,13 @@ export async function getCommittedHeadGraphImpactPaths({
       subject,
       committedSourcePaths: sourcePathsFromArtifact(artifactRead.artifact)
     });
-    const sanitized = sanitizeGraphForbiddenPaths(artifactRead.artifact.graph);
-    const indexes = createGraphIndexes(sanitized.graph);
+    const sanitized = artifactRead.derived
+      ? {
+          graph: artifactRead.derived.sanitized_graph,
+          evidence: artifactRead.derived.sanitization_evidence
+        }
+      : sanitizeGraphForbiddenPaths(artifactRead.artifact.graph);
+    const indexes = artifactRead.derived?.graph_indexes ?? createGraphIndexes(sanitized.graph);
     const unavailablePaths = projection.graph_bearing_paths.filter(
       (relativePath) => !indexes.nodeIdsByPath.has(relativePath)
     );
@@ -344,7 +353,7 @@ export async function resolveCurrentGraphForImpact({
   artifactReader = readArtifact,
   headReader = async () => {
     try {
-      const repoRoot = await runSidecarGit(targetDir, ["rev-parse", "--show-toplevel"]);
+      const repoRoot = await resolveSidecarRepositoryIdentity({ dir: targetDir });
       return await runSidecarGit(repoRoot, ["rev-parse", "HEAD"]);
     } catch {
       return null;
@@ -380,7 +389,9 @@ export async function resolveCurrentGraphForImpact({
     const overlay = await collectDirtyGraphOverlay({ repoRoot: gitState.repoRoot, status });
     const graphSelection = selectGraph({ status, artifact: artifactRead.artifact, overlay });
 
-    const verifiedArtifactRead = await artifactReader({ repoRoot: gitState.repoRoot, status });
+    const verifiedArtifactRead = artifactReader === readArtifact
+      ? artifactRead
+      : await artifactReader({ repoRoot: gitState.repoRoot, status });
     const artifactIdentityStable =
       artifactMatchesPinnedHead &&
       verifiedArtifactRead.identity?.index_head === pinnedHead &&
@@ -412,7 +423,8 @@ export async function getSidecarGraphImpactPaths({
   includeSuppressed = false,
   profile = null,
   extensionNamespaces = null,
-  headReader = undefined
+  headReader = undefined,
+  joinOperationObserver = null
 } = {}) {
   const inputPaths = asStringList(paths);
   if (inputPaths.length === 0) {
@@ -422,7 +434,15 @@ export async function getSidecarGraphImpactPaths({
   const targetDir = path.resolve(String(dir || "."));
   const { gitState, status, artifactRead, overlay, graphSelection, rebuild } =
     await resolveCurrentGraphForImpact({ targetDir, cacheDir, headReader });
-  const sanitizedSelection = sanitizeGraphForbiddenPaths(graphSelection.graph);
+  const cachedDerived = graphSelection.graph === artifactRead.artifact?.graph
+    ? artifactRead.derived
+    : null;
+  const sanitizedSelection = cachedDerived
+    ? {
+        graph: cachedDerived.sanitized_graph,
+        evidence: cachedDerived.sanitization_evidence
+      }
+    : sanitizeGraphForbiddenPaths(graphSelection.graph);
 
   const validations = inputPaths.map(validateImpactPath);
   const validPaths = uniqueStrings(
@@ -433,7 +453,7 @@ export async function getSidecarGraphImpactPaths({
 
   const graphImportAdjacency = deriveDirectImportAdjacencyFromGraph(graphSelection.graph, validPaths);
 
-  const indexes = createGraphIndexes(sanitizedSelection.graph);
+  const indexes = cachedDerived?.graph_indexes ?? createGraphIndexes(sanitizedSelection.graph);
   const impacts = sanitizedSelection.graph
     ? validPaths.flatMap((inputPath) => connectedGraphImpact({ inputPath, indexes }))
     : [];
@@ -491,6 +511,7 @@ export async function getSidecarGraphImpactPaths({
       canonicalRecords,
       knownExistingPaths,
       includeSuppressed,
+      operationObserver: joinOperationObserver,
       envelope: {
         index_head: status.index_head,
         index_tree: status.index_tree,

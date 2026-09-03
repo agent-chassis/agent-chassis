@@ -228,7 +228,8 @@ function countIndent(line) {
 }
 
 function looksLikeKeyValue(content) {
-  return /^[A-Za-z0-9_-]+:\s*(.*)$/.test(content);
+
+  return /^[A-Za-z0-9_-]+:(\s|$)/.test(content);
 }
 
 function splitKeyValue(content) {

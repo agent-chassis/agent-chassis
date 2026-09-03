@@ -55,6 +55,35 @@ sampling individual `workspace_work_record_summary` results. Use work-record
 summaries only for the selected unit or narrow follow-up called for by the
 compact status row, not as the first pass across an initiative.
 
+A repository with no `wiki/work-records` directory is a fresh empty corpus, not
+an error and not a request to initialize storage. Initiative status returns the
+same zero-member counts as an existing empty directory and leaves the absent
+directory absent. For a `todo` or `in_progress` initiative, that empty frontier
+reports `allocation_required` and recommends the allocator-backed
+`workspace_create_record` route. Closed or inactive initiatives retain a
+no-action result. Only `ENOENT` from enumerating that exact corpus directory has
+this meaning: malformed records, non-directory paths, permission/I/O failures,
+and a record that disappears after enumeration remain loud read failures.
+
+That empty-corpus rule applies only after the requested initiative resolves to
+an existing, valid canonical `wiki/initiatives/IN-####.json` record whose loaded
+identity equals the selector. `loadKindRecordById` owns the grammar, contained
+path, equality, validation, and failure classification. Traversal-shaped,
+mistyped, missing, malformed, or identity-mismatched initiatives refuse before
+counts are projected; only initial `ENOENT` for the exact canonical initiative
+file is missing, while other I/O and a later disappearance remain loud. A valid
+initiative with no corpus or no matching WKs retains zero-member counts and
+creates nothing; the allocation action is advisory only.
+
+The action taxonomy and the runtime-blocker taxonomy the route projects against
+are PACKAGE-OWNED controlled vocabularies that ship inside
+`@agent-chassis/wiki-core`. They resolve from the package's own location, never
+from the repository being read, so a consuming repository is never expected to
+contain a copy of them and never sees a filesystem error for a file it does not
+own. A test or caller that injects a taxonomy is exercising a deterministic
+seam, not the installed product path: the zero-member behavior above must hold
+with nothing injected.
+
 ## Consistency Channel
 
 In initiative (scan) scope the response carries a `consistency` array alongside

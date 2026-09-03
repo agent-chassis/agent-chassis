@@ -1,0 +1,227 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.v1",
+  "evaluation_stage": "pre_dispatch",
+  "reference_bindings": [
+    {
+      "role": "tool",
+      "reference_ids": [
+        "ref-tool"
+      ]
+    },
+    {
+      "role": "compact_mode",
+      "reference_ids": [
+        "ref-compact-mode"
+      ]
+    },
+    {
+      "role": "complete_mode",
+      "reference_ids": [
+        "ref-complete-mode"
+      ]
+    },
+    {
+      "role": "mode_population",
+      "reference_ids": [
+        "ref-mode-population"
+      ]
+    },
+    {
+      "role": "tool_modes",
+      "reference_ids": [
+        "ref-compact-mode",
+        "ref-complete-mode"
+      ]
+    },
+    {
+      "role": "compact_result",
+      "reference_ids": [
+        "ref-compact-result"
+      ]
+    },
+    {
+      "role": "complete_result",
+      "reference_ids": [
+        "ref-complete-result"
+      ]
+    },
+    {
+      "role": "source_population",
+      "reference_ids": [
+        "ref-source-population"
+      ]
+    },
+    {
+      "role": "source_members",
+      "reference_ids": [
+        "ref-light-member",
+        "ref-heavy-member"
+      ]
+    },
+    {
+      "role": "compact_population",
+      "reference_ids": [
+        "ref-compact-population"
+      ]
+    },
+    {
+      "role": "compact_members",
+      "reference_ids": [
+        "ref-light-member"
+      ]
+    },
+    {
+      "role": "omission_population",
+      "reference_ids": [
+        "ref-omission-population"
+      ]
+    },
+    {
+      "role": "omitted_members",
+      "reference_ids": [
+        "ref-heavy-member"
+      ]
+    },
+    {
+      "role": "complete_result_population",
+      "reference_ids": [
+        "ref-complete-result-population"
+      ]
+    },
+    {
+      "role": "complete_result_members",
+      "reference_ids": [
+        "ref-light-member",
+        "ref-heavy-member"
+      ]
+    },
+    {
+      "role": "disclosed_population",
+      "reference_ids": [
+        "ref-disclosed-population"
+      ]
+    },
+    {
+      "role": "disclosed_members",
+      "reference_ids": [
+        "ref-heavy-member"
+      ]
+    },
+    {
+      "role": "accounted_population",
+      "reference_ids": [
+        "ref-accounted-population"
+      ]
+    },
+    {
+      "role": "accounted_members",
+      "reference_ids": [
+        "ref-light-member",
+        "ref-heavy-member"
+      ]
+    },
+    {
+      "role": "reason_catalog",
+      "reference_ids": [
+        "ref-reason-catalog"
+      ]
+    },
+    {
+      "role": "allowed_reasons",
+      "reference_ids": [
+        "ref-projection-reason",
+        "ref-security-reason"
+      ]
+    },
+    {
+      "role": "omission_reason",
+      "reference_ids": [
+        "ref-projection-reason"
+      ]
+    },
+    {
+      "role": "heavy_member_class",
+      "reference_ids": [
+        "ref-heavy-member-class"
+      ]
+    },
+    {
+      "role": "disclosure_signal",
+      "reference_ids": [
+        "ref-disclosure-signal"
+      ]
+    },
+    {
+      "role": "total_count_signal",
+      "reference_ids": [
+        "ref-total-count-signal"
+      ]
+    },
+    {
+      "role": "omission_count_signal",
+      "reference_ids": [
+        "ref-omission-count-signal"
+      ]
+    },
+    {
+      "role": "verification",
+      "reference_ids": [
+        "ref-verification"
+      ]
+    },
+    {
+      "role": "unrecoverable_loss_condition",
+      "reference_ids": [
+        "ref-condition-unrecoverable-loss"
+      ]
+    },
+    {
+      "role": "no_compact_omission_condition",
+      "reference_ids": [
+        "ref-condition-no-compact-omission"
+      ]
+    },
+    {
+      "role": "silent_omission_condition",
+      "reference_ids": [
+        "ref-condition-silent-omission"
+      ]
+    },
+    {
+      "role": "unaccounted_source_condition",
+      "reference_ids": [
+        "ref-condition-unaccounted-source"
+      ]
+    },
+    {
+      "role": "incomplete_total_condition",
+      "reference_ids": [
+        "ref-condition-incomplete-total"
+      ]
+    },
+    {
+      "role": "incomplete_omission_count_condition",
+      "reference_ids": [
+        "ref-condition-incomplete-omission-count"
+      ]
+    }
+  ],
+  "number_bindings": [
+    {
+      "role": "mode_count",
+      "value": 2
+    },
+    {
+      "role": "source_count",
+      "value": 2
+    },
+    {
+      "role": "omission_count",
+      "value": 1
+    }
+  ],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": [],
+  "stable_evaluation": {}
+}

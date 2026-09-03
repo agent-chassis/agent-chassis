@@ -1,0 +1,1222 @@
+{
+  "schema_version": "controlled-contract-proof-pack-negative-fixture.experimental.v0.1",
+  "fixture_id": "fixed-claim-verify-declared-within-result-proposition-operator",
+  "covers": [
+    {
+      "surface_id": "claim-verify-declared-within-result-proposition-operator",
+      "weakening_class": "proposition_weakening"
+    }
+  ],
+  "contract": {
+    "schema_version": "controlled-acceptance-contract.v1",
+    "vocabulary_version": "controlled-contract-vocabulary.v1",
+    "profile_id": "acceptance-contract.standard.v1",
+    "references": [
+      {
+        "reference_id": "ref-ordering-operation",
+        "type_term": "cc:operation",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "lexicographic-conformance",
+          "value": "ref-ordering-operation"
+        }
+      },
+      {
+        "reference_id": "ref-input-snapshot",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "lexicographic-conformance",
+          "value": "ref-input-snapshot"
+        }
+      },
+      {
+        "reference_id": "ref-result-snapshot",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "lexicographic-conformance",
+          "value": "ref-result-snapshot"
+        }
+      },
+      {
+        "reference_id": "ref-declared-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "lexicographic-conformance",
+          "value": "ref-declared-population"
+        }
+      },
+      {
+        "reference_id": "ref-ordering-item-2a2c17aaaf667385e2f79dad376d762134cfa7e1ae3375990e30c886747de667",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "lexicographic-conformance",
+          "value": "ref-ordering-item-2a2c17aaaf667385e2f79dad376d762134cfa7e1ae3375990e30c886747de667"
+        }
+      },
+      {
+        "reference_id": "ref-ordering-item-5821d4d89f00da541961189f553ad089783058ed1d0fad29284b9b60fe4898fc",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "lexicographic-conformance",
+          "value": "ref-ordering-item-5821d4d89f00da541961189f553ad089783058ed1d0fad29284b9b60fe4898fc"
+        }
+      },
+      {
+        "reference_id": "ref-ordering-item-7f4a3755c3ce27810bdeba747164227e5ec9d60309cf4a9cb7836d4cd38ede0f",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "lexicographic-conformance",
+          "value": "ref-ordering-item-7f4a3755c3ce27810bdeba747164227e5ec9d60309cf4a9cb7836d4cd38ede0f"
+        }
+      },
+      {
+        "reference_id": "ref-ordering-item-f09f429ea5f13c7bd923b721c377043cfb34fd9a0aed453eb929efe71dc2554b",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "lexicographic-conformance",
+          "value": "ref-ordering-item-f09f429ea5f13c7bd923b721c377043cfb34fd9a0aed453eb929efe71dc2554b"
+        }
+      },
+      {
+        "reference_id": "ref-result-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "lexicographic-conformance",
+          "value": "ref-result-population"
+        }
+      },
+      {
+        "reference_id": "ref-result-count-signal",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "lexicographic-conformance",
+          "value": "ref-result-count-signal"
+        }
+      },
+      {
+        "reference_id": "ref-ordering-policy",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "lexicographic-conformance",
+          "value": "ref-ordering-policy"
+        }
+      },
+      {
+        "reference_id": "ref-key-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "lexicographic-conformance",
+          "value": "ref-key-population"
+        }
+      },
+      {
+        "reference_id": "ref-ordering-key-1aca80e8b55c802f7b43740da2990e1b5735bbb323d93eb5ebda8395b04025e2",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "lexicographic-conformance",
+          "value": "ref-ordering-key-1aca80e8b55c802f7b43740da2990e1b5735bbb323d93eb5ebda8395b04025e2"
+        }
+      },
+      {
+        "reference_id": "ref-ordering-key-a575b79868a2336db378ac89cb6c7d93272b4bb8e74d1096e8630765cf480ef5",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "lexicographic-conformance",
+          "value": "ref-ordering-key-a575b79868a2336db378ac89cb6c7d93272b4bb8e74d1096e8630765cf480ef5"
+        }
+      },
+      {
+        "reference_id": "ref-stable-tie-breaker",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "lexicographic-conformance",
+          "value": "ref-stable-tie-breaker"
+        }
+      },
+      {
+        "reference_id": "ref-comparator",
+        "type_term": "cc:operation",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "lexicographic-conformance",
+          "value": "ref-comparator"
+        }
+      },
+      {
+        "reference_id": "ref-item-key-evidence",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "lexicographic-conformance",
+          "value": "ref-item-key-evidence"
+        }
+      },
+      {
+        "reference_id": "ref-conformance-report",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "lexicographic-conformance",
+          "value": "ref-conformance-report"
+        }
+      },
+      {
+        "reference_id": "ref-conformant-state",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "lexicographic-conformance",
+          "value": "ref-conformant-state"
+        }
+      },
+      {
+        "reference_id": "ref-verification",
+        "type_term": "cc:process",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "lexicographic-conformance",
+          "value": "ref-verification"
+        }
+      },
+      {
+        "reference_id": "ref-population-mismatch-condition",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "lexicographic-conformance",
+          "value": "ref-population-mismatch-condition"
+        }
+      },
+      {
+        "reference_id": "ref-reverse-population-mismatch-condition",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "lexicographic-conformance",
+          "value": "ref-reverse-population-mismatch-condition"
+        }
+      },
+      {
+        "reference_id": "ref-count-mismatch-condition",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "lexicographic-conformance",
+          "value": "ref-count-mismatch-condition"
+        }
+      },
+      {
+        "reference_id": "ref-nondeterminism-condition",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "lexicographic-conformance",
+          "value": "ref-nondeterminism-condition"
+        }
+      },
+      {
+        "reference_id": "ref-conformance-failure-condition",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "lexicographic-conformance",
+          "value": "ref-conformance-failure-condition"
+        }
+      },
+      {
+        "reference_id": "ref-harmless-unrelated-evidence",
+        "type_term": "cc:evidence",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "lexicographic-conformance",
+          "value": "ref-harmless-unrelated-evidence"
+        }
+      }
+    ],
+    "propositions": [
+      {
+        "proposition_id": "prop-population-complete-declared-population-count",
+        "subject_reference_id": "ref-declared-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 4
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-population-complete-declared-population-members",
+        "subject_reference_id": "ref-declared-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-ordering-item-2a2c17aaaf667385e2f79dad376d762134cfa7e1ae3375990e30c886747de667"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-ordering-item-5821d4d89f00da541961189f553ad089783058ed1d0fad29284b9b60fe4898fc"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-ordering-item-7f4a3755c3ce27810bdeba747164227e5ec9d60309cf4a9cb7836d4cd38ede0f"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-ordering-item-f09f429ea5f13c7bd923b721c377043cfb34fd9a0aed453eb929efe71dc2554b"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-population-complete-result-population-count",
+        "subject_reference_id": "ref-result-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 4
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-population-complete-result-population-members",
+        "subject_reference_id": "ref-result-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-ordering-item-2a2c17aaaf667385e2f79dad376d762134cfa7e1ae3375990e30c886747de667"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-ordering-item-5821d4d89f00da541961189f553ad089783058ed1d0fad29284b9b60fe4898fc"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-ordering-item-7f4a3755c3ce27810bdeba747164227e5ec9d60309cf4a9cb7836d4cd38ede0f"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-ordering-item-f09f429ea5f13c7bd923b721c377043cfb34fd9a0aed453eb929efe71dc2554b"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-population-complete-key-population-count",
+        "subject_reference_id": "ref-key-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-population-complete-key-population-members",
+        "subject_reference_id": "ref-key-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-ordering-key-1aca80e8b55c802f7b43740da2990e1b5735bbb323d93eb5ebda8395b04025e2"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-ordering-key-a575b79868a2336db378ac89cb6c7d93272b4bb8e74d1096e8630765cf480ef5"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-operation-reads-input",
+        "subject_reference_id": "ref-ordering-operation",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-input-snapshot"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-operation-returns-result",
+        "subject_reference_id": "ref-ordering-operation",
+        "operator": "reference:returns",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-result-snapshot"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-input-carries-population",
+        "subject_reference_id": "ref-input-snapshot",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-declared-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-result-carries-population",
+        "subject_reference_id": "ref-result-snapshot",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-result-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-result-emits-count",
+        "subject_reference_id": "ref-result-snapshot",
+        "operator": "reference:emits",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-result-count-signal"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-policy-carries-keys",
+        "subject_reference_id": "ref-ordering-policy",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-key-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-policy-carries-tie-breaker",
+        "subject_reference_id": "ref-ordering-policy",
+        "operator": "reference:includes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-stable-tie-breaker"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-comparator-uses-policy",
+        "subject_reference_id": "ref-comparator",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-ordering-policy"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-ordering-key-1aca80e8b55c802f7b43740da2990e1b5735bbb323d93eb5ebda8395b04025e2"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-ordering-key-a575b79868a2336db378ac89cb6c7d93272b4bb8e74d1096e8630765cf480ef5"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-stable-tie-breaker"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-item-key-evidence"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-operation-uses-comparator",
+        "subject_reference_id": "ref-ordering-operation",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-comparator"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-ordering-policy"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-verification-reads-artifacts",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-input-snapshot"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-result-snapshot"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-ordering-policy"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-item-key-evidence"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-conformance-report"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-declared-within-result",
+        "subject_reference_id": "ref-declared-population",
+        "operator": "reference:subset_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-result-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-result-within-declared",
+        "subject_reference_id": "ref-result-population",
+        "operator": "reference:subset_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-declared-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-result-count-exact",
+        "subject_reference_id": "ref-result-count-signal",
+        "operator": "number:equals",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 4
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-operation-deterministic",
+        "subject_reference_id": "ref-ordering-operation",
+        "operator": "boolean:deterministic",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": true
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-verify-declared-within-result",
+        "subject_reference_id": "ref-declared-population",
+        "operator": "reference:not_subset_of",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-population-mismatch-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-result-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-verify-declared-within-result",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:accepts",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-declared-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-verify-result-within-declared",
+        "subject_reference_id": "ref-result-population",
+        "operator": "reference:not_subset_of",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-reverse-population-mismatch-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-declared-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-verify-result-within-declared",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-result-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-verify-result-count",
+        "subject_reference_id": "ref-result-count-signal",
+        "operator": "number:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-count-mismatch-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 4
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-verify-result-count",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-result-count-signal"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-verify-determinism",
+        "subject_reference_id": "ref-ordering-operation",
+        "operator": "boolean:deterministic",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-nondeterminism-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": false
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-verify-determinism",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-ordering-operation"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-conformance-report-records-exact-sources-and-populations",
+        "subject_reference_id": "ref-conformance-report",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-input-snapshot"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-result-snapshot"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-ordering-policy"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-item-key-evidence"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-declared-population"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-result-population"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-key-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-lexicographic-conformance-established",
+        "subject_reference_id": "ref-conformance-report",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-conformant-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-verify-lexicographic-conformance",
+        "subject_reference_id": "ref-conformance-report",
+        "operator": "reference:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-conformance-failure-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-conformant-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-verify-lexicographic-conformance",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-conformance-report"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-harmless-unrelated-evidence",
+        "subject_reference_id": "ref-harmless-unrelated-evidence",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-input-snapshot"
+          }
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "claim_id": "claim-population-complete-declared-population-count",
+        "proposition_id": "prop-population-complete-declared-population-count",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-population-complete-declared-population-members",
+        "proposition_id": "prop-population-complete-declared-population-members",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-population-complete-result-population-count",
+        "proposition_id": "prop-population-complete-result-population-count",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-population-complete-result-population-members",
+        "proposition_id": "prop-population-complete-result-population-members",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-population-complete-key-population-count",
+        "proposition_id": "prop-population-complete-key-population-count",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-population-complete-key-population-members",
+        "proposition_id": "prop-population-complete-key-population-members",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-operation-reads-input",
+        "proposition_id": "prop-operation-reads-input",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-operation-returns-result",
+        "proposition_id": "prop-operation-returns-result",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-input-carries-population",
+        "proposition_id": "prop-input-carries-population",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-result-carries-population",
+        "proposition_id": "prop-result-carries-population",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-result-emits-count",
+        "proposition_id": "prop-result-emits-count",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-policy-carries-keys",
+        "proposition_id": "prop-policy-carries-keys",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-policy-carries-tie-breaker",
+        "proposition_id": "prop-policy-carries-tie-breaker",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-comparator-uses-policy",
+        "proposition_id": "prop-comparator-uses-policy",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-operation-uses-comparator",
+        "proposition_id": "prop-operation-uses-comparator",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-verification-reads-artifacts",
+        "proposition_id": "prop-verification-reads-artifacts",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-declared-within-result",
+        "proposition_id": "prop-declared-within-result",
+        "kind": "behavior",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-result-within-declared",
+        "proposition_id": "prop-result-within-declared",
+        "kind": "behavior",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-result-count-exact",
+        "proposition_id": "prop-result-count-exact",
+        "kind": "behavior",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-operation-deterministic",
+        "proposition_id": "prop-operation-deterministic",
+        "kind": "behavior",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-verify-declared-within-result",
+        "proposition_id": "prop-verify-declared-within-result",
+        "kind": "verification",
+        "modality": "MUST",
+        "verification_method": "analysis",
+        "falsifying_proposition_id": "prop-falsifier-verify-declared-within-result"
+      },
+      {
+        "claim_id": "claim-verify-result-within-declared",
+        "proposition_id": "prop-verify-result-within-declared",
+        "kind": "verification",
+        "modality": "MUST",
+        "verification_method": "analysis",
+        "falsifying_proposition_id": "prop-falsifier-verify-result-within-declared"
+      },
+      {
+        "claim_id": "claim-verify-result-count",
+        "proposition_id": "prop-verify-result-count",
+        "kind": "verification",
+        "modality": "MUST",
+        "verification_method": "analysis",
+        "falsifying_proposition_id": "prop-falsifier-verify-result-count"
+      },
+      {
+        "claim_id": "claim-verify-determinism",
+        "proposition_id": "prop-verify-determinism",
+        "kind": "verification",
+        "modality": "MUST",
+        "verification_method": "analysis",
+        "falsifying_proposition_id": "prop-falsifier-verify-determinism"
+      },
+      {
+        "claim_id": "claim-conformance-report-records-exact-sources-and-populations",
+        "proposition_id": "prop-conformance-report-records-exact-sources-and-populations",
+        "kind": "evidence",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-lexicographic-conformance-established",
+        "proposition_id": "prop-lexicographic-conformance-established",
+        "kind": "behavior",
+        "modality": "MUST"
+      },
+      {
+        "claim_id": "claim-verify-lexicographic-conformance",
+        "proposition_id": "prop-verify-lexicographic-conformance",
+        "kind": "verification",
+        "modality": "MUST",
+        "verification_method": "analysis",
+        "falsifying_proposition_id": "prop-falsifier-verify-lexicographic-conformance"
+      },
+      {
+        "claim_id": "claim-harmless-unrelated-evidence",
+        "proposition_id": "prop-harmless-unrelated-evidence",
+        "kind": "evidence",
+        "modality": "MUST"
+      }
+    ],
+    "relations": [
+      {
+        "relation_id": "rel-verification-target-declared-population",
+        "role": "verifies",
+        "source_claim_id": "claim-verify-declared-within-result",
+        "target_claim_id": "claim-declared-within-result"
+      },
+      {
+        "relation_id": "rel-verification-target-result-population",
+        "role": "verifies",
+        "source_claim_id": "claim-verify-result-within-declared",
+        "target_claim_id": "claim-result-within-declared"
+      },
+      {
+        "relation_id": "rel-verification-target-count",
+        "role": "verifies",
+        "source_claim_id": "claim-verify-result-count",
+        "target_claim_id": "claim-result-count-exact"
+      },
+      {
+        "relation_id": "rel-verification-target-determinism",
+        "role": "verifies",
+        "source_claim_id": "claim-verify-determinism",
+        "target_claim_id": "claim-operation-deterministic"
+      },
+      {
+        "relation_id": "rel-verification-target-lexicographic-conformance",
+        "role": "verifies",
+        "source_claim_id": "claim-verify-lexicographic-conformance",
+        "target_claim_id": "claim-lexicographic-conformance-established"
+      }
+    ],
+    "collections": [],
+    "residue": [],
+    "annotations": [],
+    "test_proof_version": "controlled-contract-test-proof.v1",
+    "test_proofs": []
+  },
+  "evaluation_input": {
+    "input_version": "controlled-contract-verification-profile-input.v1",
+    "evaluation_stage": "pre_dispatch",
+    "reference_bindings": [
+      {
+        "role": "ordering_operation",
+        "reference_ids": [
+          "ref-ordering-operation"
+        ]
+      },
+      {
+        "role": "input_snapshot",
+        "reference_ids": [
+          "ref-input-snapshot"
+        ]
+      },
+      {
+        "role": "result_snapshot",
+        "reference_ids": [
+          "ref-result-snapshot"
+        ]
+      },
+      {
+        "role": "declared_population",
+        "reference_ids": [
+          "ref-declared-population"
+        ]
+      },
+      {
+        "role": "declared_items",
+        "reference_ids": [
+          "ref-ordering-item-2a2c17aaaf667385e2f79dad376d762134cfa7e1ae3375990e30c886747de667",
+          "ref-ordering-item-5821d4d89f00da541961189f553ad089783058ed1d0fad29284b9b60fe4898fc",
+          "ref-ordering-item-7f4a3755c3ce27810bdeba747164227e5ec9d60309cf4a9cb7836d4cd38ede0f",
+          "ref-ordering-item-f09f429ea5f13c7bd923b721c377043cfb34fd9a0aed453eb929efe71dc2554b"
+        ]
+      },
+      {
+        "role": "result_population",
+        "reference_ids": [
+          "ref-result-population"
+        ]
+      },
+      {
+        "role": "result_items",
+        "reference_ids": [
+          "ref-ordering-item-2a2c17aaaf667385e2f79dad376d762134cfa7e1ae3375990e30c886747de667",
+          "ref-ordering-item-5821d4d89f00da541961189f553ad089783058ed1d0fad29284b9b60fe4898fc",
+          "ref-ordering-item-7f4a3755c3ce27810bdeba747164227e5ec9d60309cf4a9cb7836d4cd38ede0f",
+          "ref-ordering-item-f09f429ea5f13c7bd923b721c377043cfb34fd9a0aed453eb929efe71dc2554b"
+        ]
+      },
+      {
+        "role": "result_count_signal",
+        "reference_ids": [
+          "ref-result-count-signal"
+        ]
+      },
+      {
+        "role": "ordering_policy",
+        "reference_ids": [
+          "ref-ordering-policy"
+        ]
+      },
+      {
+        "role": "key_population",
+        "reference_ids": [
+          "ref-key-population"
+        ]
+      },
+      {
+        "role": "policy_keys",
+        "reference_ids": [
+          "ref-ordering-key-1aca80e8b55c802f7b43740da2990e1b5735bbb323d93eb5ebda8395b04025e2",
+          "ref-ordering-key-a575b79868a2336db378ac89cb6c7d93272b4bb8e74d1096e8630765cf480ef5"
+        ]
+      },
+      {
+        "role": "stable_tie_breaker",
+        "reference_ids": [
+          "ref-stable-tie-breaker"
+        ]
+      },
+      {
+        "role": "comparator",
+        "reference_ids": [
+          "ref-comparator"
+        ]
+      },
+      {
+        "role": "item_key_evidence",
+        "reference_ids": [
+          "ref-item-key-evidence"
+        ]
+      },
+      {
+        "role": "conformance_report",
+        "reference_ids": [
+          "ref-conformance-report"
+        ]
+      },
+      {
+        "role": "conformant_state",
+        "reference_ids": [
+          "ref-conformant-state"
+        ]
+      },
+      {
+        "role": "verification",
+        "reference_ids": [
+          "ref-verification"
+        ]
+      },
+      {
+        "role": "population_mismatch_condition",
+        "reference_ids": [
+          "ref-population-mismatch-condition"
+        ]
+      },
+      {
+        "role": "reverse_population_mismatch_condition",
+        "reference_ids": [
+          "ref-reverse-population-mismatch-condition"
+        ]
+      },
+      {
+        "role": "count_mismatch_condition",
+        "reference_ids": [
+          "ref-count-mismatch-condition"
+        ]
+      },
+      {
+        "role": "nondeterminism_condition",
+        "reference_ids": [
+          "ref-nondeterminism-condition"
+        ]
+      },
+      {
+        "role": "conformance_failure_condition",
+        "reference_ids": [
+          "ref-conformance-failure-condition"
+        ]
+      }
+    ],
+    "number_bindings": [
+      {
+        "role": "item_count",
+        "value": 4
+      },
+      {
+        "role": "policy_key_count",
+        "value": 2
+      }
+    ],
+    "claim_pattern_bindings": [],
+    "resolver_facts": [],
+    "delivered_evidence": [],
+    "stable_evaluation": {}
+  }
+}

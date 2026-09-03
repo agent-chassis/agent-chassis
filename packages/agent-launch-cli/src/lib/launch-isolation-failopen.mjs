@@ -299,27 +299,32 @@ function backendAvailabilityFromSandboxDecision(decision) {
   return legacyAvailabilityFromBackendSelection(selection);
 }
 
-function warningFromSandboxDecision({ decision, role, subject }) {
-  const warning = decision.warning ?? {};
+export function projectWorkspaceAgentFailOpenWarning({ decision, role, subject }) {
+  const warning = decision?.warning;
+  if (!isPlainObject(warning) ||
+      typeof warning.code !== "string" || warning.code.length === 0 ||
+      typeof warning.message !== "string" || warning.message.length === 0) {
+    throw new TypeError(
+      "accepted unenforced sandbox decision is missing its required warning"
+    );
+  }
   const enforcement = warning.enforcement ?? decision.enforcement ?? {};
+  const filesystemWarning =
+    "Filesystem enforcement is absent; no filesystem-confidentiality guarantee is provided.";
   return freeze({
     schema_version: WORKSPACE_AGENT_FAIL_OPEN_WARNING_SCHEMA_VERSION,
-    code:
-      warning.code
-      ?? (enforcement.reason
-        === WORKSPACE_AGENT_RUN_ENFORCEMENT_REASONS.NO_PAID_KEY_NO_BACKEND
-        ? "agent_launch.isolation.no_paid_key_no_backend.v1"
-        : "agent_launch.isolation.paid_key_operator_opt_out_no_backend.v1"),
+    code: warning.code,
     severity: warning.severity ?? "warning",
     role: warning.role ?? role ?? null,
     subject: warning.subject ?? subject ?? null,
-    message:
-      warning.message
-      ?? "filesystem isolation is NOT active; launcher-owned enforcement posture permits this worker-family role to run unenforced because backend selection could not produce an enforced launch",
+    message: warning.message.includes(filesystemWarning)
+      ? warning.message : `${warning.message} ${filesystemWarning}`,
     enforcement: freeze({
       ...enforcement,
       enforced: false,
-      isolation_backend: WORKSPACE_AGENT_RUN_ISOLATION_BACKENDS.NONE
+      isolation_backend: WORKSPACE_AGENT_RUN_ISOLATION_BACKENDS.NONE,
+      filesystem_confidentiality_guaranteed: false,
+      private_repository_path_enforced: false
     }),
     opt_in: freeze({ ...(warning.enforcement_posture?.opt_out ?? {}) }),
     enforcement_posture: freeze({ ...(warning.enforcement_posture ?? {}) }),
@@ -346,7 +351,7 @@ function buildClosedCompatibilityResult(decision) {
 
 function buildPlainCompatibilityResult({ decision, role, subject }) {
   const plainLaunch = decision.plain_launch ?? {};
-  const warning = warningFromSandboxDecision({ decision, role, subject });
+  const warning = projectWorkspaceAgentFailOpenWarning({ decision, role, subject });
   return freeze({
     schema_version: WORKSPACE_AGENT_FAIL_OPEN_SCHEMA_VERSION,
     disposition: WORKSPACE_AGENT_FAIL_OPEN_DISPOSITIONS.PLAIN_SPAWN,
@@ -358,10 +363,12 @@ function buildPlainCompatibilityResult({ decision, role, subject }) {
       env: plainLaunch.env
     }),
     warning,
-    enforcement: decision.enforcement ?? warning.enforcement,
+    enforcement: warning.enforcement,
     isolation: freeze({
       enforced: false,
       isolation_backend: WORKSPACE_AGENT_RUN_ISOLATION_BACKENDS.NONE,
+      filesystem_confidentiality_guaranteed: false,
+      private_repository_path_enforced: false,
       reason:
         decision.enforcement?.reason
         ?? warning.enforcement?.reason
@@ -448,5 +455,6 @@ export default {
   WORKSPACE_AGENT_FAIL_OPEN_CLOSED_REASONS,
   WORKSPACE_AGENT_BACKEND_AVAILABILITY_STATES,
   classifyLauncherIsolationBackendAvailability,
+  projectWorkspaceAgentFailOpenWarning,
   buildWorkspaceAgentFailOpenPlan
 };

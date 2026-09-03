@@ -81,6 +81,12 @@ written so far, stderr tails, and provenance metadata while a run is active.
 Those observations are runtime evidence only. Durable conclusions must still be
 promoted into the WK, initiative, decision, or docs after the run completes.
 
+The shared `agent-launch-core` provenance construction owner validates and
+serializes both reviewed-launch and direct-capture facts. Reviewed-launch
+observation ends at `launchReview` finalization, while direct role capture
+observes the child, heartbeat, and artifact facts and passes the complete
+fact set to that owner; neither path hand-builds a second envelope contract.
+
 Reviewed launcher runs already produce `metadata/state.json`,
 `metadata/meta.json`, `metadata/review.json`, `metadata/input-manifest.json`,
 and `response.md`. Those files are the reviewed-launcher projection of
@@ -233,4 +239,3 @@ This is runtime evidence only. Even after inspection, the result is not
 canonical wiki state. If the inspection changes what you know about a run,
 promote the durable conclusion into WK closure notes, IN notes, docs, or a
 decision record.
-

@@ -1,0 +1,2440 @@
+{
+  "schema_version": "controlled-contract-verification-profile.v1",
+  "profile_id": "proof.input.caller-authority-confinement",
+  "profile_version": "2.0.0",
+  "contract_schema_version": "controlled-acceptance-contract.v1",
+  "vocabulary_version": "controlled-contract-vocabulary.v1",
+  "vocabulary_signature_digest": "596a4c44d98aed1d31dd9ab3842fc054be6f8ffa3d62a3867a3966e75ecab742",
+  "vocabulary_algebra_digest": "0fbea1e7377baeef1869cbc55dc588ef5509ed40c768ce2a3c4f58be1133cf9c",
+  "vocabulary_definitions_digest": "bb3d2a63cb6fc8c62b9bc36d29d07549dea6ad85e32badb0cbb3cacfd6ad4759",
+  "vocabulary_complete_digest": "45484504f06968c6b4ac812c24b9f1b6e47e1d34ba21fefebde8dd85d1290fa9",
+  "verification_falsifier_policy": "controlled_complement_per_target",
+  "evaluation_stages": [
+    "post_delivery"
+  ],
+  "reference_roles": [
+    {
+      "role": "acceptance",
+      "allowed_type_terms": [
+        "cc:event",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "accepted_attempt",
+      "allowed_type_terms": [
+        "cc:event",
+        "cc:process"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "accepted_request",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:event",
+        "cc:resource"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "accepted_request_capture",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "capture_proof",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "forbidden_attempt",
+      "allowed_type_terms": [
+        "cc:event",
+        "cc:process"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "forbidden_request",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:event",
+        "cc:resource"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "forbidden_request_capture",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "interface",
+      "allowed_type_terms": [
+        "cc:entity"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "observation_cut",
+      "allowed_type_terms": [
+        "cc:event",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "observation_evidence_capture",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "parser",
+      "allowed_type_terms": [
+        "cc:process",
+        "cc:runtime_component"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "path_like_control",
+      "allowed_type_terms": [
+        "cc:evidence"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "policy_capture",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "projection_result",
+      "allowed_type_terms": [
+        "cc:artifact"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "refusal",
+      "allowed_type_terms": [
+        "cc:event",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "verification",
+      "allowed_type_terms": [
+        "cc:test"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "accepted_supply_pop",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "accepted_members",
+      "allowed_type_terms": [
+        "cc:configuration"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "allowed_members_pop",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "allowed_members",
+      "allowed_type_terms": [
+        "cc:configuration"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "authority_classes_pop",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "authority_classes",
+      "allowed_type_terms": [
+        "cc:criterion"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "coordinate_classes_pop",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "coordinate_classes",
+      "allowed_type_terms": [
+        "cc:criterion"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "declared_members_pop",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "declared_members",
+      "allowed_type_terms": [
+        "cc:configuration"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "forbidden_supply_pop",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "forbidden_supply",
+      "allowed_type_terms": [
+        "cc:configuration"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "forbidden_members_pop",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "forbidden_members",
+      "allowed_type_terms": [
+        "cc:configuration"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "family_classes_pop",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "family_classes",
+      "allowed_type_terms": [
+        "cc:criterion"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "mandatory_sources_pop",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "mandatory_sources",
+      "allowed_type_terms": [
+        "cc:actor",
+        "cc:entity",
+        "cc:process",
+        "cc:resource",
+        "cc:runtime_component"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "observed_sources_pop",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "observed_sources",
+      "allowed_type_terms": [
+        "cc:actor",
+        "cc:entity",
+        "cc:process",
+        "cc:resource",
+        "cc:runtime_component"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "pre_refusal_pop",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "pre_cut_occurrences",
+      "allowed_type_terms": [
+        "cc:evidence_occurrence"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "prohibited_families_pop",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "prohibited_families",
+      "allowed_type_terms": [
+        "cc:criterion"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "protected_effects_pop",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "protected_effects",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:configuration",
+        "cc:entity",
+        "cc:event",
+        "cc:resource",
+        "cc:state"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "resolution_coordinates_pop",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "resolution_coordinates",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:entity",
+        "cc:resource",
+        "cc:state"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "resolver_operations_pop",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "resolver_operations",
+      "allowed_type_terms": [
+        "cc:operation",
+        "cc:process",
+        "cc:runtime_component"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "selected_forbidden_pop",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "selected_forbidden",
+      "allowed_type_terms": [
+        "cc:configuration"
+      ],
+      "cardinality": "zero_or_more"
+    },
+    {
+      "role": "server_coordinates_pop",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one"
+    },
+    {
+      "role": "server_coordinates",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:entity",
+        "cc:resource",
+        "cc:state"
+      ],
+      "cardinality": "zero_or_more"
+    }
+  ],
+  "number_roles": [
+    {
+      "role": "accepted_members_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 0
+    },
+    {
+      "role": "allowed_members_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 0
+    },
+    {
+      "role": "authority_classes_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 0
+    },
+    {
+      "role": "coordinate_classes_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 0
+    },
+    {
+      "role": "declared_members_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 0
+    },
+    {
+      "role": "forbidden_supply_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 0
+    },
+    {
+      "role": "forbidden_members_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 0
+    },
+    {
+      "role": "family_classes_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 0
+    },
+    {
+      "role": "mandatory_sources_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 0
+    },
+    {
+      "role": "observed_sources_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 0
+    },
+    {
+      "role": "pre_cut_occurrences_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 0
+    },
+    {
+      "role": "prohibited_families_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 0
+    },
+    {
+      "role": "protected_effects_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 0
+    },
+    {
+      "role": "resolution_coordinates_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 0
+    },
+    {
+      "role": "resolver_operations_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 0
+    },
+    {
+      "role": "selected_forbidden_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 0
+    },
+    {
+      "role": "server_coordinates_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 0
+    }
+  ],
+  "distinct_reference_role_sets": [
+    {
+      "roles": [
+        "accepted_request",
+        "forbidden_request",
+        "accepted_attempt",
+        "forbidden_attempt",
+        "acceptance",
+        "refusal",
+        "observation_cut"
+      ]
+    }
+  ],
+  "reference_binding_patterns": [
+    {
+      "pattern_id": "p-9b84482a",
+      "required_by_stage": "post_delivery",
+      "comparison": "complete_population",
+      "roles": [
+        "accepted_supply_pop",
+        "accepted_members"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "forbidden_attempt"
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-3c30710c",
+      "required_by_stage": "post_delivery",
+      "comparison": "complete_population",
+      "roles": [
+        "allowed_members_pop",
+        "allowed_members"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "forbidden_attempt"
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-6f1020d2",
+      "required_by_stage": "post_delivery",
+      "comparison": "complete_population",
+      "roles": [
+        "authority_classes_pop",
+        "authority_classes"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "forbidden_attempt"
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-18c0199c",
+      "required_by_stage": "post_delivery",
+      "comparison": "complete_population",
+      "roles": [
+        "coordinate_classes_pop",
+        "coordinate_classes"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "forbidden_attempt"
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-8f4567c7",
+      "required_by_stage": "post_delivery",
+      "comparison": "complete_population",
+      "roles": [
+        "declared_members_pop",
+        "declared_members"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "forbidden_attempt"
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-9e3ac1e2",
+      "required_by_stage": "post_delivery",
+      "comparison": "complete_population",
+      "roles": [
+        "forbidden_supply_pop",
+        "forbidden_supply"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "forbidden_attempt"
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-722c10c4",
+      "required_by_stage": "post_delivery",
+      "comparison": "complete_population",
+      "roles": [
+        "forbidden_members_pop",
+        "forbidden_members"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "forbidden_attempt"
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-08c0e984",
+      "required_by_stage": "post_delivery",
+      "comparison": "complete_population",
+      "roles": [
+        "family_classes_pop",
+        "family_classes"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "forbidden_attempt"
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-9e6aeea2",
+      "required_by_stage": "post_delivery",
+      "comparison": "complete_population",
+      "roles": [
+        "mandatory_sources_pop",
+        "mandatory_sources"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "forbidden_attempt"
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-4e7df138",
+      "required_by_stage": "post_delivery",
+      "comparison": "complete_population",
+      "roles": [
+        "observed_sources_pop",
+        "observed_sources"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "forbidden_attempt"
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-5f191275",
+      "required_by_stage": "post_delivery",
+      "comparison": "complete_population",
+      "roles": [
+        "pre_refusal_pop",
+        "pre_cut_occurrences"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "forbidden_attempt"
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-bca5627a",
+      "required_by_stage": "post_delivery",
+      "comparison": "complete_population",
+      "roles": [
+        "prohibited_families_pop",
+        "prohibited_families"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "forbidden_attempt"
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-4a1bd05c",
+      "required_by_stage": "post_delivery",
+      "comparison": "complete_population",
+      "roles": [
+        "protected_effects_pop",
+        "protected_effects"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "forbidden_attempt"
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-a778fcc1",
+      "required_by_stage": "post_delivery",
+      "comparison": "complete_population",
+      "roles": [
+        "resolution_coordinates_pop",
+        "resolution_coordinates"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "forbidden_attempt"
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-e8c99b51",
+      "required_by_stage": "post_delivery",
+      "comparison": "complete_population",
+      "roles": [
+        "resolver_operations_pop",
+        "resolver_operations"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "forbidden_attempt"
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-aeeea06f",
+      "required_by_stage": "post_delivery",
+      "comparison": "complete_population",
+      "roles": [
+        "selected_forbidden_pop",
+        "selected_forbidden"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "forbidden_attempt"
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-69388a1d",
+      "required_by_stage": "post_delivery",
+      "comparison": "complete_population",
+      "roles": [
+        "server_coordinates_pop",
+        "server_coordinates"
+      ],
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "forbidden_attempt"
+        ]
+      }
+    }
+  ],
+  "reference_role_count_bindings": [
+    {
+      "reference_role": "accepted_members",
+      "number_role": "accepted_members_count"
+    },
+    {
+      "reference_role": "allowed_members",
+      "number_role": "allowed_members_count"
+    },
+    {
+      "reference_role": "authority_classes",
+      "number_role": "authority_classes_count"
+    },
+    {
+      "reference_role": "coordinate_classes",
+      "number_role": "coordinate_classes_count"
+    },
+    {
+      "reference_role": "declared_members",
+      "number_role": "declared_members_count"
+    },
+    {
+      "reference_role": "forbidden_supply",
+      "number_role": "forbidden_supply_count"
+    },
+    {
+      "reference_role": "forbidden_members",
+      "number_role": "forbidden_members_count"
+    },
+    {
+      "reference_role": "family_classes",
+      "number_role": "family_classes_count"
+    },
+    {
+      "reference_role": "mandatory_sources",
+      "number_role": "mandatory_sources_count"
+    },
+    {
+      "reference_role": "observed_sources",
+      "number_role": "observed_sources_count"
+    },
+    {
+      "reference_role": "pre_cut_occurrences",
+      "number_role": "pre_cut_occurrences_count"
+    },
+    {
+      "reference_role": "prohibited_families",
+      "number_role": "prohibited_families_count"
+    },
+    {
+      "reference_role": "protected_effects",
+      "number_role": "protected_effects_count"
+    },
+    {
+      "reference_role": "resolution_coordinates",
+      "number_role": "resolution_coordinates_count"
+    },
+    {
+      "reference_role": "resolver_operations",
+      "number_role": "resolver_operations_count"
+    },
+    {
+      "reference_role": "selected_forbidden",
+      "number_role": "selected_forbidden_count"
+    },
+    {
+      "reference_role": "server_coordinates",
+      "number_role": "server_coordinates_count"
+    }
+  ],
+  "binding_constraint_patterns": [
+    {
+      "pattern_id": "p-daf4e513",
+      "required_by_stage": "post_delivery",
+      "role_kind": "reference",
+      "role": "accepted_members",
+      "minimum": 1
+    },
+    {
+      "pattern_id": "p-a656cf43",
+      "required_by_stage": "post_delivery",
+      "role_kind": "reference",
+      "role": "allowed_members",
+      "minimum": 1
+    },
+    {
+      "pattern_id": "p-488bc7f0",
+      "required_by_stage": "post_delivery",
+      "role_kind": "reference",
+      "role": "authority_classes",
+      "minimum": 1
+    },
+    {
+      "pattern_id": "p-34948c40",
+      "required_by_stage": "post_delivery",
+      "role_kind": "reference",
+      "role": "coordinate_classes",
+      "minimum": 1
+    },
+    {
+      "pattern_id": "p-0302193b",
+      "required_by_stage": "post_delivery",
+      "role_kind": "reference",
+      "role": "declared_members",
+      "minimum": 1
+    },
+    {
+      "pattern_id": "p-9f40fca7",
+      "required_by_stage": "post_delivery",
+      "role_kind": "reference",
+      "role": "forbidden_supply",
+      "minimum": 1
+    },
+    {
+      "pattern_id": "p-14be148b",
+      "required_by_stage": "post_delivery",
+      "role_kind": "reference",
+      "role": "forbidden_members",
+      "minimum": 1
+    },
+    {
+      "pattern_id": "p-07e5a77e",
+      "required_by_stage": "post_delivery",
+      "role_kind": "reference",
+      "role": "family_classes",
+      "minimum": 1
+    },
+    {
+      "pattern_id": "p-b99b562b",
+      "required_by_stage": "post_delivery",
+      "role_kind": "reference",
+      "role": "mandatory_sources",
+      "minimum": 1
+    },
+    {
+      "pattern_id": "p-997275ac",
+      "required_by_stage": "post_delivery",
+      "role_kind": "reference",
+      "role": "observed_sources",
+      "minimum": 1
+    },
+    {
+      "pattern_id": "p-1fdc058b",
+      "required_by_stage": "post_delivery",
+      "role_kind": "reference",
+      "role": "pre_cut_occurrences",
+      "minimum": 0,
+      "maximum": 0
+    },
+    {
+      "pattern_id": "p-48aafa68",
+      "required_by_stage": "post_delivery",
+      "role_kind": "reference",
+      "role": "prohibited_families",
+      "minimum": 9
+    },
+    {
+      "pattern_id": "p-159ea7d6",
+      "required_by_stage": "post_delivery",
+      "role_kind": "reference",
+      "role": "protected_effects",
+      "minimum": 1
+    },
+    {
+      "pattern_id": "p-9efc6147",
+      "required_by_stage": "post_delivery",
+      "role_kind": "reference",
+      "role": "resolution_coordinates",
+      "minimum": 1
+    },
+    {
+      "pattern_id": "p-5a4b12fa",
+      "required_by_stage": "post_delivery",
+      "role_kind": "reference",
+      "role": "resolver_operations",
+      "minimum": 1
+    },
+    {
+      "pattern_id": "p-e7dc5404",
+      "required_by_stage": "post_delivery",
+      "role_kind": "reference",
+      "role": "selected_forbidden",
+      "minimum": 1
+    },
+    {
+      "pattern_id": "p-d2ff5f6e",
+      "required_by_stage": "post_delivery",
+      "role_kind": "reference",
+      "role": "server_coordinates",
+      "minimum": 1
+    }
+  ],
+  "claim_patterns": [
+    {
+      "pattern_id": "p-a66e3734",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "policy_capture",
+        "operator": "reference:authoritative_for",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "declared_members_pop"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-03246b4a",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "policy_capture",
+        "operator": "reference:authoritative_for",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "allowed_members_pop"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-b562a4f9",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "policy_capture",
+        "operator": "reference:authoritative_for",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "forbidden_members_pop"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-ed40f7f1",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "accepted_request_capture",
+        "operator": "reference:resolves_to",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "accepted_request"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-9d3e22e2",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "forbidden_request_capture",
+        "operator": "reference:resolves_to",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "forbidden_request"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-3d87d60d",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "accepted_request",
+        "operator": "reference:targets",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "interface"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-cbe070e7",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "forbidden_request",
+        "operator": "reference:targets",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "interface"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-7379de87",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "accepted_request",
+        "operator": "reference:depends_on",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "accepted_attempt"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-845426cb",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "forbidden_request",
+        "operator": "reference:depends_on",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "forbidden_attempt"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-a44bdad1",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "parser",
+        "operator": "reference:accepts",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "accepted_attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "accepted_request"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-52750e0e",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "refusal",
+        "operator": "reference:rejects",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "forbidden_attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "forbidden_request"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-c7a4b41c",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "observation_cut",
+        "operator": "reference:follows",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "forbidden_attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "refusal"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-e003b870",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "path_like_control",
+        "operator": "boolean:exists",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "accepted_request"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "boolean",
+            "value": true
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-86f04ce3",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "accepted_members",
+        "member_role": "accepted_supplied_member",
+        "complete_population_pattern_id": "p-9b84482a",
+        "quantifier": "universal",
+        "empty_behavior": "vacuously_satisfied"
+      },
+      "proposition_template": {
+        "subject_role": "accepted_supplied_member",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "accepted_request"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "allowed_members_pop"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-4110e562",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "allowed_members",
+        "member_role": "allowed_member",
+        "complete_population_pattern_id": "p-3c30710c",
+        "quantifier": "universal",
+        "empty_behavior": "vacuously_satisfied"
+      },
+      "proposition_template": {
+        "subject_role": "allowed_member",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "declared_members_pop"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-f13fc096",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "forbidden_members",
+        "member_role": "forbidden_member",
+        "complete_population_pattern_id": "p-722c10c4",
+        "quantifier": "universal",
+        "empty_behavior": "vacuously_satisfied"
+      },
+      "proposition_template": {
+        "subject_role": "forbidden_member",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "declared_members_pop"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-3abf8951",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "selected_forbidden",
+        "member_role": "selected_forbidden_member",
+        "complete_population_pattern_id": "p-aeeea06f",
+        "quantifier": "universal",
+        "empty_behavior": "vacuously_satisfied"
+      },
+      "proposition_template": {
+        "subject_role": "selected_forbidden_member",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "forbidden_attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "forbidden_members_pop"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-c0394007",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "selected_forbidden",
+        "member_role": "selected_forbidden_member",
+        "complete_population_pattern_id": "p-aeeea06f",
+        "quantifier": "universal",
+        "empty_behavior": "vacuously_satisfied"
+      },
+      "proposition_template": {
+        "subject_role": "selected_forbidden_member",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "forbidden_attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "forbidden_supply_pop"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-17d5b820",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "forbidden_members",
+        "member_role": "forbidden_member",
+        "complete_population_pattern_id": "p-722c10c4",
+        "quantifier": "universal",
+        "empty_behavior": "vacuously_satisfied",
+        "association_bindings": [
+          {
+            "associated_role": "resolution_coordinates",
+            "operator": "reference:targets",
+            "member_position": "subject",
+            "associated_position": "reference_operand",
+            "applicability_context": {
+              "mode": "unconditional",
+              "operand_roles": []
+            },
+            "complete_population_pattern_id": "p-a778fcc1",
+            "associated_cardinality": "one_or_more"
+          }
+        ]
+      },
+      "proposition_template": {
+        "subject_role": "forbidden_member",
+        "operator": "reference:targets",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "resolution_coordinates"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-7caabb56",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "resolution_coordinates",
+        "member_role": "resolution_coordinate",
+        "complete_population_pattern_id": "p-a778fcc1",
+        "quantifier": "universal",
+        "empty_behavior": "vacuously_satisfied",
+        "association_bindings": [
+          {
+            "associated_role": "resolver_operations",
+            "operator": "reference:uses",
+            "member_position": "subject",
+            "associated_position": "reference_operand",
+            "applicability_context": {
+              "mode": "unconditional",
+              "operand_roles": []
+            },
+            "complete_population_pattern_id": "p-e8c99b51",
+            "associated_cardinality": "one_or_more"
+          }
+        ]
+      },
+      "proposition_template": {
+        "subject_role": "resolution_coordinate",
+        "operator": "reference:uses",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "resolver_operations"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-191d1113",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "resolver_operations",
+        "member_role": "resolver_operation",
+        "complete_population_pattern_id": "p-e8c99b51",
+        "quantifier": "universal",
+        "empty_behavior": "vacuously_satisfied",
+        "association_bindings": [
+          {
+            "associated_role": "protected_effects",
+            "operator": "reference:targets",
+            "member_position": "subject",
+            "associated_position": "reference_operand",
+            "applicability_context": {
+              "mode": "unconditional",
+              "operand_roles": []
+            },
+            "complete_population_pattern_id": "p-4a1bd05c",
+            "associated_cardinality": "one_or_more"
+          }
+        ]
+      },
+      "proposition_template": {
+        "subject_role": "resolver_operation",
+        "operator": "reference:targets",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "protected_effects"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-9834bd9b",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "mandatory_sources",
+        "member_role": "mandatory_source",
+        "complete_population_pattern_id": "p-9e6aeea2",
+        "quantifier": "universal",
+        "empty_behavior": "vacuously_satisfied"
+      },
+      "proposition_template": {
+        "subject_role": "mandatory_source",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "forbidden_attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "observed_sources_pop"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-5e06b198",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "observed_sources",
+        "member_role": "observed_source",
+        "complete_population_pattern_id": "p-4e7df138",
+        "quantifier": "universal",
+        "empty_behavior": "vacuously_satisfied"
+      },
+      "proposition_template": {
+        "subject_role": "observed_source",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "forbidden_attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "mandatory_sources_pop"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-07b616ba",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "prohibited_families",
+        "member_role": "prohibited_family",
+        "complete_population_pattern_id": "p-bca5627a",
+        "quantifier": "universal",
+        "empty_behavior": "vacuously_satisfied",
+        "association_bindings": [
+          {
+            "associated_role": "mandatory_sources",
+            "operator": "reference:covers",
+            "member_position": "reference_operand",
+            "associated_position": "subject",
+            "applicability_context": {
+              "mode": "during",
+              "operand_roles": [
+                "forbidden_attempt"
+              ]
+            },
+            "complete_population_pattern_id": "p-9e6aeea2",
+            "associated_cardinality": "one_or_more"
+          }
+        ]
+      },
+      "proposition_template": {
+        "subject_role": "mandatory_sources",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "forbidden_attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "prohibited_family"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-e09d0cda",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "forbidden_members",
+        "member_role": "forbidden_member",
+        "complete_population_pattern_id": "p-722c10c4",
+        "quantifier": "universal",
+        "empty_behavior": "vacuously_satisfied",
+        "association_bindings": [
+          {
+            "associated_role": "authority_classes",
+            "operator": "reference:classifies_as",
+            "member_position": "subject",
+            "associated_position": "reference_operand",
+            "applicability_context": {
+              "mode": "unconditional",
+              "operand_roles": []
+            },
+            "complete_population_pattern_id": "p-6f1020d2"
+          }
+        ]
+      },
+      "proposition_template": {
+        "subject_role": "forbidden_member",
+        "operator": "reference:not_member_of",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "accepted_request",
+            "authority_classes"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "accepted_supply_pop"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-0821c6b6",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "forbidden_members",
+        "member_role": "forbidden_member",
+        "complete_population_pattern_id": "p-722c10c4",
+        "quantifier": "universal",
+        "empty_behavior": "vacuously_satisfied",
+        "association_bindings": [
+          {
+            "associated_role": "authority_classes",
+            "operator": "reference:classifies_as",
+            "member_position": "subject",
+            "associated_position": "reference_operand",
+            "applicability_context": {
+              "mode": "unconditional",
+              "operand_roles": []
+            },
+            "complete_population_pattern_id": "p-6f1020d2"
+          }
+        ]
+      },
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "accepted_request",
+            "authority_classes"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "projection_result"
+          },
+          {
+            "kind": "reference",
+            "role": "forbidden_member"
+          },
+          {
+            "kind": "reference",
+            "role": "accepted_supply_pop"
+          }
+        ]
+      },
+      "verification_methods": [
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "forbidden_member",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "accepted_request",
+            "authority_classes"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "accepted_supply_pop"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-83adfcfc",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "resolution_coordinates",
+        "member_role": "resolution_coordinate",
+        "complete_population_pattern_id": "p-a778fcc1",
+        "quantifier": "universal",
+        "empty_behavior": "vacuously_satisfied",
+        "association_bindings": [
+          {
+            "associated_role": "coordinate_classes",
+            "operator": "reference:classifies_as",
+            "member_position": "subject",
+            "associated_position": "reference_operand",
+            "applicability_context": {
+              "mode": "unconditional",
+              "operand_roles": []
+            },
+            "complete_population_pattern_id": "p-18c0199c"
+          }
+        ]
+      },
+      "proposition_template": {
+        "subject_role": "resolution_coordinate",
+        "operator": "reference:not_member_of",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "accepted_request",
+            "coordinate_classes"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "accepted_supply_pop"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-14a2fa17",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "resolution_coordinates",
+        "member_role": "resolution_coordinate",
+        "complete_population_pattern_id": "p-a778fcc1",
+        "quantifier": "universal",
+        "empty_behavior": "vacuously_satisfied",
+        "association_bindings": [
+          {
+            "associated_role": "coordinate_classes",
+            "operator": "reference:classifies_as",
+            "member_position": "subject",
+            "associated_position": "reference_operand",
+            "applicability_context": {
+              "mode": "unconditional",
+              "operand_roles": []
+            },
+            "complete_population_pattern_id": "p-18c0199c"
+          }
+        ]
+      },
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "accepted_request",
+            "coordinate_classes"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "projection_result"
+          },
+          {
+            "kind": "reference",
+            "role": "resolution_coordinate"
+          },
+          {
+            "kind": "reference",
+            "role": "accepted_supply_pop"
+          }
+        ]
+      },
+      "verification_methods": [
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "resolution_coordinate",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "during",
+          "operand_roles": [
+            "accepted_request",
+            "coordinate_classes"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "accepted_supply_pop"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-df4cf4bc",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST_NOT"
+      ],
+      "for_each": {
+        "population_role": "prohibited_families",
+        "member_role": "prohibited_family",
+        "complete_population_pattern_id": "p-bca5627a",
+        "quantifier": "universal",
+        "empty_behavior": "vacuously_satisfied",
+        "association_bindings": [
+          {
+            "associated_role": "family_classes",
+            "operator": "reference:classifies_as",
+            "member_position": "subject",
+            "associated_position": "reference_operand",
+            "applicability_context": {
+              "mode": "unconditional",
+              "operand_roles": []
+            },
+            "complete_population_pattern_id": "p-08c0e984"
+          }
+        ]
+      },
+      "proposition_template": {
+        "subject_role": "forbidden_attempt",
+        "operator": "reference:performs",
+        "applicability_context": {
+          "mode": "before",
+          "operand_roles": [
+            "refusal",
+            "family_classes"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "prohibited_family"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "p-0ef68dba",
+      "required_by_stage": "post_delivery",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "for_each": {
+        "population_role": "prohibited_families",
+        "member_role": "prohibited_family",
+        "complete_population_pattern_id": "p-bca5627a",
+        "quantifier": "universal",
+        "empty_behavior": "vacuously_satisfied",
+        "association_bindings": [
+          {
+            "associated_role": "family_classes",
+            "operator": "reference:classifies_as",
+            "member_position": "subject",
+            "associated_position": "reference_operand",
+            "applicability_context": {
+              "mode": "unconditional",
+              "operand_roles": []
+            },
+            "complete_population_pattern_id": "p-08c0e984"
+          }
+        ]
+      },
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "before",
+          "operand_roles": [
+            "refusal",
+            "family_classes"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "projection_result"
+          },
+          {
+            "kind": "reference",
+            "role": "forbidden_attempt"
+          },
+          {
+            "kind": "reference",
+            "role": "prohibited_family"
+          }
+        ]
+      },
+      "verification_methods": [
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "forbidden_attempt",
+        "operator": "reference:performs",
+        "applicability_context": {
+          "mode": "before",
+          "operand_roles": [
+            "refusal",
+            "family_classes"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "prohibited_family"
+          }
+        ]
+      }
+    }
+  ],
+  "relation_patterns": [
+    {
+      "pattern_id": "p-7c9bd5ff",
+      "required_by_stage": "post_delivery",
+      "role": "verifies",
+      "source_claim_pattern_id": "p-0821c6b6",
+      "target_claim_pattern_id": "p-e09d0cda"
+    },
+    {
+      "pattern_id": "p-2cad9f26",
+      "required_by_stage": "post_delivery",
+      "role": "verifies",
+      "source_claim_pattern_id": "p-14a2fa17",
+      "target_claim_pattern_id": "p-83adfcfc"
+    },
+    {
+      "pattern_id": "p-660d0615",
+      "required_by_stage": "post_delivery",
+      "role": "verifies",
+      "source_claim_pattern_id": "p-0ef68dba",
+      "target_claim_pattern_id": "p-df4cf4bc"
+    }
+  ],
+  "collection_patterns": [],
+  "resolver_fact_patterns": [],
+  "evidence_patterns": [],
+  "falsifier_condition_bindings": [
+    {
+      "relation_pattern_id": "p-7c9bd5ff",
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "accepted_request",
+          "authority_classes"
+        ]
+      }
+    },
+    {
+      "relation_pattern_id": "p-2cad9f26",
+      "applicability_context": {
+        "mode": "during",
+        "operand_roles": [
+          "accepted_request",
+          "coordinate_classes"
+        ]
+      }
+    },
+    {
+      "relation_pattern_id": "p-660d0615",
+      "applicability_context": {
+        "mode": "before",
+        "operand_roles": [
+          "refusal",
+          "family_classes"
+        ]
+      }
+    }
+  ],
+  "falsifier_occurrence_bindings": [
+    {
+      "relation_pattern_id": "p-7c9bd5ff",
+      "reference_role_joins": [
+        {
+          "role": "forbidden_member",
+          "target_positions": [
+            "subject"
+          ],
+          "verification_positions": [
+            "reference_operand"
+          ],
+          "falsifier_positions": [
+            "subject"
+          ]
+        },
+        {
+          "role": "accepted_supply_pop",
+          "target_positions": [
+            "reference_operand"
+          ],
+          "verification_positions": [
+            "reference_operand"
+          ],
+          "falsifier_positions": [
+            "reference_operand"
+          ]
+        },
+        {
+          "role": "accepted_request",
+          "target_positions": [
+            "applicability_operand"
+          ],
+          "verification_positions": [
+            "applicability_operand"
+          ],
+          "falsifier_positions": [
+            "applicability_operand"
+          ]
+        },
+        {
+          "role": "authority_classes",
+          "target_positions": [
+            "applicability_operand"
+          ],
+          "verification_positions": [
+            "applicability_operand"
+          ],
+          "falsifier_positions": [
+            "applicability_operand"
+          ]
+        }
+      ],
+      "number_role_joins": [],
+      "applicability_join": "exact_scope"
+    },
+    {
+      "relation_pattern_id": "p-2cad9f26",
+      "reference_role_joins": [
+        {
+          "role": "resolution_coordinate",
+          "target_positions": [
+            "subject"
+          ],
+          "verification_positions": [
+            "reference_operand"
+          ],
+          "falsifier_positions": [
+            "subject"
+          ]
+        },
+        {
+          "role": "accepted_supply_pop",
+          "target_positions": [
+            "reference_operand"
+          ],
+          "verification_positions": [
+            "reference_operand"
+          ],
+          "falsifier_positions": [
+            "reference_operand"
+          ]
+        },
+        {
+          "role": "accepted_request",
+          "target_positions": [
+            "applicability_operand"
+          ],
+          "verification_positions": [
+            "applicability_operand"
+          ],
+          "falsifier_positions": [
+            "applicability_operand"
+          ]
+        },
+        {
+          "role": "coordinate_classes",
+          "target_positions": [
+            "applicability_operand"
+          ],
+          "verification_positions": [
+            "applicability_operand"
+          ],
+          "falsifier_positions": [
+            "applicability_operand"
+          ]
+        }
+      ],
+      "number_role_joins": [],
+      "applicability_join": "exact_scope"
+    },
+    {
+      "relation_pattern_id": "p-660d0615",
+      "reference_role_joins": [
+        {
+          "role": "forbidden_attempt",
+          "target_positions": [
+            "subject"
+          ],
+          "verification_positions": [
+            "reference_operand"
+          ],
+          "falsifier_positions": [
+            "subject"
+          ]
+        },
+        {
+          "role": "prohibited_family",
+          "target_positions": [
+            "reference_operand"
+          ],
+          "verification_positions": [
+            "reference_operand"
+          ],
+          "falsifier_positions": [
+            "reference_operand"
+          ]
+        },
+        {
+          "role": "refusal",
+          "target_positions": [
+            "applicability_operand"
+          ],
+          "verification_positions": [
+            "applicability_operand"
+          ],
+          "falsifier_positions": [
+            "applicability_operand"
+          ]
+        },
+        {
+          "role": "family_classes",
+          "target_positions": [
+            "applicability_operand"
+          ],
+          "verification_positions": [
+            "applicability_operand"
+          ],
+          "falsifier_positions": [
+            "applicability_operand"
+          ]
+        }
+      ],
+      "number_role_joins": [],
+      "applicability_join": "exact_scope"
+    }
+  ],
+  "satisfaction_expression": {
+    "all_of": [
+      {
+        "pattern": "p-9b84482a"
+      },
+      {
+        "pattern": "p-3c30710c"
+      },
+      {
+        "pattern": "p-6f1020d2"
+      },
+      {
+        "pattern": "p-18c0199c"
+      },
+      {
+        "pattern": "p-8f4567c7"
+      },
+      {
+        "pattern": "p-9e3ac1e2"
+      },
+      {
+        "pattern": "p-722c10c4"
+      },
+      {
+        "pattern": "p-08c0e984"
+      },
+      {
+        "pattern": "p-9e6aeea2"
+      },
+      {
+        "pattern": "p-4e7df138"
+      },
+      {
+        "pattern": "p-5f191275"
+      },
+      {
+        "pattern": "p-bca5627a"
+      },
+      {
+        "pattern": "p-4a1bd05c"
+      },
+      {
+        "pattern": "p-a778fcc1"
+      },
+      {
+        "pattern": "p-e8c99b51"
+      },
+      {
+        "pattern": "p-aeeea06f"
+      },
+      {
+        "pattern": "p-69388a1d"
+      },
+      {
+        "pattern": "p-daf4e513"
+      },
+      {
+        "pattern": "p-a656cf43"
+      },
+      {
+        "pattern": "p-488bc7f0"
+      },
+      {
+        "pattern": "p-34948c40"
+      },
+      {
+        "pattern": "p-0302193b"
+      },
+      {
+        "pattern": "p-9f40fca7"
+      },
+      {
+        "pattern": "p-14be148b"
+      },
+      {
+        "pattern": "p-07e5a77e"
+      },
+      {
+        "pattern": "p-b99b562b"
+      },
+      {
+        "pattern": "p-997275ac"
+      },
+      {
+        "pattern": "p-1fdc058b"
+      },
+      {
+        "pattern": "p-48aafa68"
+      },
+      {
+        "pattern": "p-159ea7d6"
+      },
+      {
+        "pattern": "p-9efc6147"
+      },
+      {
+        "pattern": "p-5a4b12fa"
+      },
+      {
+        "pattern": "p-e7dc5404"
+      },
+      {
+        "pattern": "p-d2ff5f6e"
+      },
+      {
+        "pattern": "p-a66e3734"
+      },
+      {
+        "pattern": "p-03246b4a"
+      },
+      {
+        "pattern": "p-b562a4f9"
+      },
+      {
+        "pattern": "p-ed40f7f1"
+      },
+      {
+        "pattern": "p-9d3e22e2"
+      },
+      {
+        "pattern": "p-3d87d60d"
+      },
+      {
+        "pattern": "p-cbe070e7"
+      },
+      {
+        "pattern": "p-7379de87"
+      },
+      {
+        "pattern": "p-845426cb"
+      },
+      {
+        "pattern": "p-a44bdad1"
+      },
+      {
+        "pattern": "p-52750e0e"
+      },
+      {
+        "pattern": "p-c7a4b41c"
+      },
+      {
+        "pattern": "p-e003b870"
+      },
+      {
+        "pattern": "p-86f04ce3"
+      },
+      {
+        "pattern": "p-4110e562"
+      },
+      {
+        "pattern": "p-f13fc096"
+      },
+      {
+        "pattern": "p-3abf8951"
+      },
+      {
+        "pattern": "p-c0394007"
+      },
+      {
+        "pattern": "p-17d5b820"
+      },
+      {
+        "pattern": "p-7caabb56"
+      },
+      {
+        "pattern": "p-191d1113"
+      },
+      {
+        "pattern": "p-9834bd9b"
+      },
+      {
+        "pattern": "p-5e06b198"
+      },
+      {
+        "pattern": "p-07b616ba"
+      },
+      {
+        "pattern": "p-e09d0cda"
+      },
+      {
+        "pattern": "p-0821c6b6"
+      },
+      {
+        "pattern": "p-83adfcfc"
+      },
+      {
+        "pattern": "p-14a2fa17"
+      },
+      {
+        "pattern": "p-df4cf4bc"
+      },
+      {
+        "pattern": "p-0ef68dba"
+      },
+      {
+        "pattern": "p-7c9bd5ff"
+      },
+      {
+        "pattern": "p-2cad9f26"
+      },
+      {
+        "pattern": "p-660d0615"
+      }
+    ]
+  }
+}

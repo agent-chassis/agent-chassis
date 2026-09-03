@@ -13,17 +13,17 @@ import {
   executePositiveDomain
 } from "./refusal-before-effects-harness.mjs";
 import {
-  evaluateVerificationProfileV034,
-  validateProfileSemanticsV034
-} from "../../lib/verification-profile-v034.mjs";
+  evaluateStableProofPackFixtureV1,
+  validateProfileSemanticsV1
+} from "../support/stable-v1-proof-pack-runtime.mjs";
 
 const REFUSAL_BEFORE_EFFECTS_GUARANTEE_DIGEST =
   "f55adcfd21e759ad9f647d8d63aaefd8d0fc0d112d9b288ca7489077c5c508b8";
 const REFUSAL_BEFORE_EFFECTS_PROFILE_DIGEST =
-  "de10177afcb69a95f181bba4e48d320f6b34e0931c213ca044d70a882b5031ce";
+  "1e97b33590c2f7219b3fc73e12c3b8c510bea79e2578bb1a523c36f23e167f78";
 
 function evaluateFixture(fixture) {
-  return evaluateVerificationProfileV034({
+  return evaluateStableProofPackFixtureV1({
     contract: fixture.contract,
     profile: fixture.profile,
     evaluation_input: fixture.input
@@ -571,7 +571,7 @@ function profileRejectionControls(profile) {
     category: "profile_rejection",
     implementation_outcome: "not_applicable",
     profile_satisfaction: complementAttackPattern &&
-      validateProfileSemanticsV034(invalidComplementProfile).length > 0
+      validateProfileSemanticsV1(invalidComplementProfile).length > 0
       ? "invalid"
       : "satisfied"
   });

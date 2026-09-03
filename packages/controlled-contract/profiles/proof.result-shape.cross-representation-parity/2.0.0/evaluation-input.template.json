@@ -1,0 +1,120 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.v1",
+  "evaluation_stage": "pre_dispatch",
+  "reference_bindings": [
+    {
+      "role": "logical_source",
+      "reference_ids": [
+        "ref-logical-source"
+      ]
+    },
+    {
+      "role": "left_result",
+      "reference_ids": [
+        "ref-left-result"
+      ]
+    },
+    {
+      "role": "right_result",
+      "reference_ids": [
+        "ref-right-result"
+      ]
+    },
+    {
+      "role": "left_population",
+      "reference_ids": [
+        "ref-left-population"
+      ]
+    },
+    {
+      "role": "left_members",
+      "reference_ids": [
+        "ref-member-id-string",
+        "ref-member-total-decimal"
+      ]
+    },
+    {
+      "role": "right_population",
+      "reference_ids": [
+        "ref-right-population"
+      ]
+    },
+    {
+      "role": "right_members",
+      "reference_ids": [
+        "ref-member-id-string",
+        "ref-member-total-decimal"
+      ]
+    },
+    {
+      "role": "left_count_signal",
+      "reference_ids": [
+        "ref-left-count"
+      ]
+    },
+    {
+      "role": "right_count_signal",
+      "reference_ids": [
+        "ref-right-count"
+      ]
+    },
+    {
+      "role": "left_selected_canonical_value",
+      "reference_ids": [
+        "ref-left-value"
+      ]
+    },
+    {
+      "role": "right_selected_canonical_value",
+      "reference_ids": [
+        "ref-right-value"
+      ]
+    },
+    {
+      "role": "verification",
+      "reference_ids": [
+        "ref-verification"
+      ]
+    },
+    {
+      "role": "left_population_not_subset_condition",
+      "reference_ids": [
+        "ref-left-population-not-subset-condition"
+      ]
+    },
+    {
+      "role": "right_population_not_subset_condition",
+      "reference_ids": [
+        "ref-right-population-not-subset-condition"
+      ]
+    },
+    {
+      "role": "left_count_mismatch_condition",
+      "reference_ids": [
+        "ref-left-count-mismatch-condition"
+      ]
+    },
+    {
+      "role": "right_count_mismatch_condition",
+      "reference_ids": [
+        "ref-right-count-mismatch-condition"
+      ]
+    },
+    {
+      "role": "canonical_value_mismatch_condition",
+      "reference_ids": [
+        "ref-canonical-value-mismatch-condition"
+      ]
+    }
+  ],
+  "number_bindings": [
+    {
+      "role": "member_count",
+      "value": 2
+    }
+  ],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": [],
+  "stable_evaluation": {}
+}

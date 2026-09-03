@@ -1,111 +1,282 @@
+
 # MCP dispatch terminal review
 
 Part of the [MCP dispatch runtime contract](mcp-dispatch-runtime-contract.md),
 which remains the canonical entry page. This page carries the canonical text for
 the authenticated per-attempt terminal review contract, active managed
 composition, spawned-server lifecycle, post-spawn conduit failure, cleanup-only
-terminal failure, plural exact-slice review evidence, the exact-slice
-review-surface state budget, and safe postcheck diagnostics.
+terminal failure, canonical `acceptance.validation` admission across the
+findings-only surfaces, plural exact-slice review evidence, the exact-slice
+review-surface state budget, and bounded postcheck diagnostics.
 
 Sibling pages: [launch and admission](mcp-dispatch-launch-and-admission.md),
 [managed run lifecycle](mcp-dispatch-managed-run-lifecycle.md),
 [slice integration](mcp-dispatch-slice-integration.md),
 [monitoring and ownership](mcp-dispatch-monitoring-and-ownership.md).
 
+## Terminal candidates select material, not review execution
+
+A launcher-built terminal candidate contributes its already-selected immutable
+material to the single advisory-review pipeline used by ordinary reviewer and
+redteam dispatch. Terminal coordination continues to own candidate construction
+and publication, but it owns no separate reviewer executor, run, monitor,
+settlement, receipt, recovery, or replay path. The review action remains
+read-only and action-local, and its output creates no lifecycle authority.
+
 ## The authenticated per-attempt terminal review contract
 
-Candidate `C` freezes `tree(W)`, so the work-record blob inside `C` is the
-WK-branch snapshot. An exact terminal candidate may freeze the addressed parent
-work item at `todo`, `active`, or `review`, while live parent review remains
-mandatory. Trusted integration then moves the canonical landing record to
-`review` when terminality is established. Re-deriving the reviewer's
-findings-only acceptance contract from the candidate-embedded snapshot therefore
-authenticates the lifecycle coordination difference without treating the frozen
-snapshot as current review authority.
+Terminal-candidate authority includes one owner-produced
+`controlled-contract-authenticated-generation.v1` envelope. The envelope binds the
+canonical repository and WK, the canonical record blob observed in exact `W`, the
+exact direct `W` commit, the complete ordered carrier census and bytes, and the
+complete ordered visible-manifest census and its deterministically derived identity.
+The manifest resolver cannot produce this envelope or its identity: it supplies only
+selection facts, while the launcher attachment primitive performs one asynchronous
+exact-`W` observation and delegates construction to
+`wiki-core`'s controlled-generation authentication owner. Both synchronous and
+asynchronous injected Git runners cross that same awaited boundary.
 
-Coordination ordering is part of this boundary: independent blueteam tracking
-for implementation-review output must be created and settled before the final
-implementation delivery and terminal candidate construction. Once `C` is
-constructed, creating or closing a review-tracking unit is authored drift, not a
-review-state transition that can be admitted after the fact.
+Hot preparation, cold reconstruction, candidate advance, and forge handoff consume
+that envelope unchanged. Terminal paths reject a null manifest identity, incomplete
+or contradictory observations, a proper subset, and any resolver-, caller-, fixture-,
+metadata-, or coordinator-supplied identity. Candidate CAS remains inside the shared
+same-WK authority exclusion, and forge retains that exclusion through branch and
+pull-request mutation, so generation-only, `W`-only, or simultaneous movement cannot
+authorize a stale effect.
+
+### Plural immutable candidate versions and current selection
+
+Frozen means immutable per candidate version, not singleton per WK. The primitive
+owner is
+`packages/agent-launch-cli/src/lib/terminal-wk-candidate.mjs`. It alone defines the
+canonical candidate-version tuple, serializes and digests its identity, derives its
+refs, constructs and verifies candidate commits, and performs current-selection CAS.
+The tuple binds the canonical repository and WK, exact `B`, exact `W`, authenticated
+controlled-generation identity, `tree(W)`, candidate format, and deterministic
+candidate `C`. No coordinator, runtime route, status projection, caller, metadata
+field, or prose may reconstruct any part of that protocol.
+
+The immutable version ref is
+`refs/agent-launch/terminal-candidates-v1/<WK>/<version-identity>`. Its final component
+is the lowercase SHA-256 digest of the canonical candidate-version tuple. The ref may
+be created only as part of the owner-controlled publication transaction and must
+resolve to the tuple's exact verified `C`; it is never updated or deleted. Exact
+authenticated replay of the same tuple converges on the same identity, ref, and
+candidate without mutation. A later authenticated `W` or controlled generation
+produces a different identity, immutable ref, and candidate even when other inputs
+remain equal.
+
+`refs/agent-launch/terminal-current-v2/<WK>` remains one launcher-authenticated
+selection pointer, not the candidate artifact or its history. The owner publishes a
+new immutable version ref and advances current selection through one expected-old
+transaction under the durable same-WK exclusion after rechecking `B`, `W`, generation,
+tree, candidate, and both refs. Same-input contenders converge; a moved expected-old
+or any contradictory winner refuses without rewriting either candidate. All prior
+version refs remain addressable. A valid version whose ref is not selected is
+`superseded`, not invalid, and its review evidence remains immutable evidence for that
+version only.
+
+The terminal-candidate coordinator owns hot preparation and cold reconstruction
+sequencing under the exclusion. The terminal-candidate runtime owns public status and
+explicit advance sequencing. Both consume the primitive owner and may add no local
+tuple, ref, construction, verification, or CAS implementation. Hot retry, cold
+recovery, status, reviewer spawn, receipt publication, and forge handoff resolve one
+explicit candidate version and return consistent current or superseded state.
+
+Forge mutation has no versionless compatibility path. Branch publication, pull-request
+mutation, closeout, and merge require one launcher-authenticated selected version
+decision, its immutable version ref and current-selection observation, and at least
+one matching authenticated reviewer receipt. A historical state without that version
+decision remains readable through observation surfaces only and cannot authorize a
+forge effect. Merge consumes the exact authenticated handoff result and never
+re-resolves a candidate when that result is absent.
+
+When forge cold recovery crosses into the terminal-candidate coordinator, the
+exclusion owner passes an opaque callback-scoped context bound to that exact
+repository and WK. The coordinator authenticates the context before recovery and
+does not reacquire the non-reentrant lock. The context expires before the forge
+callback returns; missing, copied, stale, or mismatched contexts refuse. Ordinary
+recovery entrypoints receive no context and continue to acquire the durable lock.
+
+Each candidate `C` freezes `tree(W)`, so the work-record blob inside that version is
+the WK-branch snapshot. Trusted integration may later move canonical status and
+coordination fields without changing the version's `C/B/W`. The lifecycle-difference
+decision records those facts without treating either the frozen snapshot or live
+status as candidate or review authority.
+
+The original `workspace_agent_dispatch` review result is the complete review
+observation. It returns the captured advisory text directly, a bounded schema
+observation, and `formal_attestation`. Ordinary reviews report
+`requested:false`. When the launcher-selected canonical result contract is
+`schema_constrained`, settlement reports `requested:true` and derives and durably
+publishes the existing formal attestation in that same call, or returns a precise
+unavailable annotation. The text remains usable in either case. There is no
+second review-evidence/provenance/attestation append, settlement replay,
+historical monitor reauthentication, or post-restart repair.
+
+Forge closeout authenticates candidate and publication mechanics only. Review
+text informs coordinator disposition but review schema, receipts, provenance,
+history, and formal-attestation availability grant no candidate or forge authority
+and cannot veto publication. Formal attestations retain their narrow admission
+consumer semantics. Historical `review_provenance` fields remain parseable archival
+bytes only. work record retains candidate and forge ownership, work record retains landed
+publication identity, work record retains recovery ownership, and forge remains the
+sole merge-readiness boundary. Findings remain advisory under decision and
+decision.
+
+Cold reconstruction binds the current designated terminal-review unit through one
+pure owner:
+`packages/agent-launch-cli/src/lib/terminal-review-contract-binding.mjs`. It alone
+defines, validates, canonically serializes, digests, and compares
+`agent_launch.terminal_review_contract_binding.v1`. The coordinator supplies the
+facts from its single canonical-record projection. Forge does not reuse that object
+or trust candidate metadata as current state: it independently reads and projects
+the local canonical record, supplies those facts to the same owner, and compares the
+resulting identity. Subject, slice, initiative, or authored review-unit movement
+therefore changes or invalidates the binding before forge mutation. Forge's
+work-record closeout comparisons likewise use wiki-core's canonical source digest,
+whose projection excludes generated `derived_evidence` and `projections` but not
+authored contract changes.
 
 Historical frozen contracts and checkpoints are immutable evidence. They are never
-rewritten, never deleted to force a recovery, and never served as current review
-authority. Instead, one central normalization compares the frozen historical
-contract with the live canonical contract as **whole canonical byte strings**. The
-base lifecycle exemption covers exactly two fields: the addressed parent work
-item's own `status` and the exact designated terminal review unit's `status`,
-neutralized identically on both sides. For each identically declared same-record
-implementation dependency whose status transition is already authenticated, its
-`status` is also neutralized. Its `sections.closure` is neutralized only when that
-path is absent or `null` on the historical frozen side; this frozen-absence gate
-admits the normal status-then-closure completion write, including when `sections`
-itself must be materialized symmetrically, while refusing a rewrite of an existing
-closure. The values those fields carried are then checked against a closed
-transition table:
+rewritten, deleted to force recovery, or served as current review authority. The
+launcher instead classifies the exact historical and live canonical bytes through
+`agent_launch.terminal_review_lifecycle.invariant_bound_decision.v1`. A positive
+decision means every authority-bearing byte stayed exact and every admitted
+difference was either a non-authorizing coordination fact or carried exact
+producer-authenticated evidence. It does not mean that a lifecycle order was
+approved.
 
-- parent: `todo -> review`, `active -> review`, or an already-`review` zero delta.
-  The live parent must be in `review`; `todo`, `active`, `done`, `blocked`,
-  `cancelled`, `parked`, unknown, and malformed live values all refuse. The
-  `active -> review` case is producer-legitimate: before final-slice integration
-  establishes terminality, the integration producer may still keep the parent
-  `active`, then atomically advance canonical coordination to `review` as part
-  of that final integration.
-- designated terminal review unit: `todo -> todo`, `todo -> review`, or an
-  already-`review` zero delta. Both `todo` and `review` are admissible live states,
-  which is what keeps sequential and concurrent plural advisory attempts possible;
-  the backwards `review -> todo` regression and every other value refuse.
+Parent, slice, and designated-review status values, server-managed `updated`, and
+`sections.closure` are schema-owned coordination facts. Their canonical path, change
+kind, and addressed unit remain visible in `non_authorizing_coordination_facts`, but
+their order and content neither authorize nor veto candidate movement. Findings,
+review result, challenge, disposition, and closure therefore cannot supply
+terminal-candidate, delivery, dispatch, or policy authority. Lifecycle ordering that
+matters to an organization is CCE policy; absence from a local transition allowlist
+is not a mechanical refusal.
 
-The landed `AUTHENTICATED_DEPENDENCY_TRANSITIONS` exception from
-work record admits an authenticated dependency moving `todo -> done`,
-`review -> done`, or `done -> done`; it must be a same-record implementation slice named by a
-byte-identical `depends_on` declaration on both sides. A moved declaration,
-undeclared or non-derived sibling, different work kind, or any other dependency
-transition remains byte-compared.
+Parent and slice titles plus `sections.agent_notes` are authored contract
+constituents. They are compared byte-for-byte and are never neutralized as
+coordination prose. Moving any of them invalidates the prior execution generation,
+candidate lifecycle decision, reviewer attempt, receipt, and forge evidence; the
+old immutable candidate remains readable only as historical evidence.
 
-Only one newly added canonical closure is admitted, and only as the closure
-coupled to `review -> done`; a second new closure, a changed declaration, a
-standalone closure, or any unrelated authored change stays in the whole-byte
-comparison and fails closed.
+Executable and dependency authority remains exact. The whole-byte comparison still
+binds authored titles and agent notes, implementation and review acceptance,
+`read_scope`, `repo_paths`, `write_scope`, expected targets, dispatch intent, work
+kind, and the exact dependency declarations.
+Repository identity, base `B`,
+accumulated tip `W`, candidate-version identity, candidate `C`, immutable version ref,
+current-selection ref, tree, sole parent, private checkout, and controlled generation
+remain independently authenticated by their existing owners and are not reconstructed
+by lifecycle normalization.
 
-Forge recovery is narrower: it authenticates exactly one review-to-done
-dependency closeout with its previously absent canonical closure on the
-candidate-to-closeout WK-only commit (or its exact composed review/closeout
-form). The record-level `updated` date may differ only as the server-managed
-consequence coupled to that exact forge closeout; it is not an independent
-allowance for authored drift. Added or closed review-tracking units remain
-inadmissible, including when they are introduced after candidate construction.
-Both paths preserve the same exact `C/B/W`, immutable-candidate,
-advisory-review, and forge-confirmed completion boundaries.
+### Producer-authenticated integrated-delivery evidence
 
-Every other difference refuses: another unit, another transition, unrelated
-authored drift (including `slices[].sections.agent_notes`), an existing closure
-rewritten to a different value, an added, removed, or substituted field, a
-projection difference that is not the exact authorized transition, an ambiguous
-or unresolvable live terminal unit, and a mis-addressed or non-canonical unit
-identity. This normalization does not recover work record's already-drifted
-candidate. Normalization inputs are the launcher's canonical serialized
-contracts only; a caller-shaped object is not an input, and no caller, prompt,
-environment, or reviewer output selects one.
+An `integrated_delivery_sha` difference is not authenticated by the live canonical
+field, a SHA-shaped string, caller input, or a copied object. The integration
+authority owner reads the exact historical receipt contract and live canonical
+projection, then authenticates the immutable Git receipt produced by
+`packages/agent-launch-cli/src/lib/slice-integration-delivery.mjs`. The proof binds:
 
-The parent-status normalization is coordination evidence only. It is
-non-authorizing and grants no candidate, `C/B/W`, terminality, reviewer-spawn,
-integration, dispatch, or forge authority. Those authorities remain gated by
-the independently authenticated candidate, repository identity, exact addressed
-identities, whole-contract comparison, and live terminal-review coordination
-checks.
+- the exact repository and canonical WK ref;
+- the addressed same-record implementation dependency and its canonical
+  `/slices/<index>/integrated_delivery_sha` path;
+- change kind `add` or `replace`, limited to historical absence or `null` becoming
+  one exact integrated commit;
+- the reviewed delivery and its exact base, producer message/tree/delta (or exact
+  zero-delta evidence), reachability from current `W`, and the exact current `W`;
+- producer module and receipt schema, plus the failure consequence when any bound
+  fact is unavailable or disagrees.
+
+`authenticateCanonicalIntegratedDeliveryTransition` returns the opaque branded
+proof; `decideAuthenticatedTerminalReviewLifecycleDelta` consumes that exact proof.
+Copying its enumerable fields loses provenance. A plain receipt-shaped object,
+live-field lookalike, stale proof bound to another `W`, wrong dependency/path,
+changed pre-existing value, mismatched reviewed delivery, malformed commit, or
+unreachable integrated commit cannot authenticate the transition.
+
+The positive decision reports `integrated_delivery: producer_authenticated` only
+for that exact evidence. Without it, a delivery-field difference refuses as
+`integrated_delivery_receipt_required`. An unbranded or mismatched proof refuses as
+`integrated_delivery_receipt_unauthenticated`; wrong dependency, path, and value
+bindings use `integrated_delivery_dependency_identity_mismatch`,
+`integrated_delivery_canonical_path_mismatch`, and
+`integrated_delivery_transition_mismatch` respectively. Changed executable or
+dependency authority refuses as `executable_or_dependency_authority_changed`, and
+other unexplained authored bytes refuse as
+`canonical_authored_bytes_unauthenticated`.
+
+Every refusal carries its named identity, authentication, integrity, or operability
+invariant and the concrete consequence: candidate or delivery authority would be
+unverifiable, or the addressed terminal-review operation could not execute. Input
+identity/readability failures likewise remain typed. These causes do not invalidate
+unchanged `C/B/W`; they prevent using unauthenticated differences as recovery
+authority.
+
+work record remains the sole owner of candidate-status `generationAuthentication`
+registration. work record remains the sole owner of terminal-review target construction
+and validation. work record tracks that decomposition. The lifecycle decision and
+integrated-delivery proof create no substitute generation authority, target owner,
+constructor, validator, registration route, candidate reset, or ref rewrite.
+
+Terminal-candidate status and advance continuations preserve repository
+selection without creating repository authority. When the public request
+explicitly supplies `repo`, `resolveWorkspaceRepo` accepts it and the route
+passes only that resolved alias to the runtime; the runtime appends it to every
+returned `next_call` and neither derives nor overrides it. When `repo` is
+omitted, continuations omit it as well, so default-repository behavior is not
+pinned. Candidate/ref/CAS/authorization identity remains launcher-owned and is
+unchanged by this transport projection.
+
+### Workflow-not-selected status and direct-to-main review
+
+`workspace_terminal_review_candidate_status` applies only to a launcher-built
+managed terminal candidate. When the canonical WK identity and parent acceptance
+are complete but the eligible `terminal_whole_wk` unit count is zero, the route
+returns the non-candidate state
+`terminal_review_workflow_not_selected` with code
+`agent_launch.terminal_candidate.status.workflow_not_selected.v1`,
+`candidate:null`, and `next_call:null`. Its bounded deciding facts report the
+valid canonical record, complete parent identity and acceptance, and eligible
+count zero. This decision occurs before controlled-generation authentication,
+backend state, candidate refs, metadata, or Git candidate identity are inspected.
+Plural eligible units remain `ambiguous_terminal_review_coordination`; malformed
+canonical contracts retain their precise projection cause; a real candidate that
+moved or fails identity checks remains `candidate_identity_invalid_or_moved`.
+
+An operator-authorized direct-to-main lifecycle does not use terminal-candidate
+status, terminal-candidate advance, forge handoff, external review, or shell
+review. The operator first commits the exact scoped implementation candidate.
+The coordinator then calls the same registered `workspace_agent_dispatch`
+reviewer route with the canonical WK or review-slice `subject` and the landed
+commit's complete `diff_base_sha` and `reviewed_sha`. The reviewer is read-only
+and never creates Git objects.
 
 An admissible attempt derives an immutable per-attempt review contract keyed by the
-exact `C/B/W` and repository identity, the candidate ref/tree/parent and the private
-candidate checkout, the exact addressed parent and designated review-unit
-identities, the historical and live canonical contract digests, and the
-authenticated transitions. Its identity is the SHA-256 of that canonical key, so
-identical concurrent derivations converge on one contract and a differing snapshot
-yields a different identity that rechecks or refuses. Nothing process-local — a
-monitor handle, a run id, a clock, a counter — participates, and nothing is
-persisted: this is not a durable epoch registry. A crash before spawn therefore
-grants no durable launch authority, and a retry re-reads, re-verifies, and
-re-derives from canonical evidence alone.
+exact candidate-version identity, immutable version ref, current-selection
+observation, `C/B/W`, repository identity, tree, parent, private candidate checkout,
+exact addressed parent and designated review-unit identities, historical and live
+canonical contract digests, and authenticated transitions. Its identity is the
+SHA-256 of that canonical key, so identical concurrent derivations converge on one
+contract and a differing version or snapshot yields a different identity that
+rechecks or refuses. Nothing process-local — a monitor handle, a run id, a clock, a
+counter — participates, and nothing is persisted: this is not a durable epoch
+registry. A crash before spawn therefore grants no durable launch authority, and a
+retry re-reads, re-verifies, and re-derives from canonical evidence alone.
+
+Managed Codex and Claude terminal reviewers receive this exact per-attempt
+contract through the [normative frozen reviewer-query
+protocol](mcp-dispatch-runtime-contract.md#frozen-reviewer-query-protocol), not
+through prompt bodies. This terminal lifecycle remains responsible for the
+candidate and live-contract gates above; it does not own query authorization,
+contract-discriminator coverage, pagination, cursor grammar, or query refusals.
+The shared role instruction still requires exhausting both acceptance targets,
+and managed reviewer prompts remain invariant to contract length under the
+complete-prompt 1200 UTF-8-byte ceiling. Pre-spawn validation, exact target facts,
+findings-only terminal instructions, result schema enforcement, and unrelated
+roles are unchanged.
 
 The final live canonical read and digest verification happens **inside the
 production spawn stack, immediately adjacent to the actual process-creation
@@ -149,10 +320,10 @@ A present-but-uncallable barrier fails closed with
 spawn. A launch whose `spawn` merely returns an already-created child is a
 post-spawn supervision step and deliberately carries no barrier.
 
-The deep refusal is a privately branded throw, unforgeable from outside the spawn
+The deep refusal is a process-local branded throw recognized only by the spawn
 primitive and deliberately **not** a `BubblewrapIsolationError`: each family
 classifies it first, ahead of the conduit remap and the sandbox decision, so a
-coordination refusal can never be laundered into an unenforced retry. It carries
+coordination refusal is not reclassified as an unenforced retry. It carries
 the verifier's verdict verbatim, so the family returns the same typed
 terminal-review lifecycle refusal — including `exact_candidate_unchanged` — that
 the earlier gates return. Refusal runs the family's existing pre-spawn
@@ -190,6 +361,17 @@ candidate checkout, with `B` as the findings-only diff base and empty write
 authority. Standalone findings-only reviewers and redteam units carry no per-attempt
 contract and reach none of this.
 
+Empty write authority is also the lifecycle discriminator. Terminal, exact-slice,
+standalone reviewer, and standalone redteam actions bind immutable findings
+source snapshots and do not allocate, consult, or mutate persistent
+implementation-WK lifecycle state; technical role remains a confinement and
+transport fact only.
+
+Candidate construction assumes the repository-wide
+[design-first work-record sequence](../AGENTS.md#wk-first-work); terminal review
+does not provide a local substitute for its semantic authoring or CCE-owned
+sequencing.
+
 ## Active managed composition precedes dispatch and child creation
 
 At managed-backend construction, the launcher mints one immutable, branded,
@@ -198,7 +380,7 @@ process-local composition object. It binds the exact resolved
 executable, exact spawn primitive, producer-owned lifecycle descriptor,
 consumer lifecycle descriptor, and `createStdioMcpConduit` constructor used by
 both managed Claude and Codex family executors. The object is not public;
-module-private brands authenticate it and a bounded accessor exposes only its
+module-private brands identify it and a bounded accessor exposes only its
 frozen compatibility fact and guarded conduit construction.
 
 This fact authenticates the coherently loaded launcher/package composition; it
@@ -206,7 +388,7 @@ does not execute the selected server or attest arbitrary in-place source changes
 within that backend generation. The spawned-server readiness exchange below is
 the authority for what the separate server process actually executes. A partial
 or hot deployment can therefore pass this early composition gate and still be
-safely refused by the mandatory per-dispatch exchange.
+refused by the mandatory per-dispatch exchange.
 
 The public fact is `stdio-mcp-conduit-composition-compatibility.v1` with exactly
 six keys: `schema_version`, `backend_generation_id`,
@@ -226,11 +408,16 @@ reported independently. Effective structured dispatch alone becomes
 unavailable on any unresolved outcome; native edit, repository read boundary,
 commit, managed worktree provisioning, slice-to-WK integration, WK-context
 review, validation ownership, and automatic main promotion remain independent.
-All public projections use `operator_recovery_needed`, cause
-`stdio_mcp_lifecycle_protocol_incompatible`, and recovery to deploy one coherent
-build and restart the long-lived backend. No raw component identity is exposed,
+Public projections preserve the originating
+`stdio_mcp_lifecycle_protocol_incompatible` identity and recovery to deploy one
+coherent build and restart the long-lived backend. They do not replace that
+modeled startup cause with `operator_recovery_needed`. No raw component identity is exposed,
 and historical failures cannot poison a newly minted compatible generation.
-Direct orchestrator and operator launches are outside this gate.
+The direct Claude orchestrator topology covered here is not outside this gate:
+its fresh and resume launches take their conduit constructor from the same
+launcher-minted composition authority, so the pre-spawn compatibility decision —
+including the on-disk producer probe — precedes both host wiki-MCP server and
+confined child creation. Other direct operator launches remain outside it.
 
 ## Lifecycle compatibility precedes confined child spawn or MCP forwarding
 
@@ -321,13 +508,15 @@ inputs.
 
 For an orchestrator, the launcher persists `stdio_mcp_reason` and
 `stdio_mcp_detail` in its launcher-owned `session.json` before publishing the
-terminal state. This projection is bounded and allowlisted: it records the typed
+terminal state. This projection has an explicit closed schema: it records the typed
 reason, phase (`readiness`, `mid_session_server_loss`, `relay_restart`,
 `cleanup`, or `reaping`), launcher run id, and bounded cleanup resource/code
-tokens only. It never serializes Error messages or causes, prompts, credentials,
+tokens only. By schema it does not serialize Error messages or causes, prompts, credentials,
 environment, raw process output, arbitrary event detail, prose, or stack traces.
-The initiating failure remains primary. Failure to persist this diagnostic fails
-closed as `stdio_mcp_session_diagnostic_persistence_failed`; terminal state is
+This is a stable lifecycle-result shape, not a least-disclosure or
+confidentiality guarantee. The initiating failure remains primary. Failure to
+persist this diagnostic refuses publication as
+`stdio_mcp_session_diagnostic_persistence_failed`; terminal state is
 not published as though the diagnostic had been saved.
 
 Run-state polling fails closed on probe shape. A non-null probe result without a
@@ -406,27 +595,97 @@ prevents a boundary mutation.
 
 This exception is reviewer-only and does not make arbitrary failed worker or
 reviewer output authoritative. A genuinely failed child, a nonzero exit or a
-terminating signal, a readiness/server/relay failure, a cancellation, a malformed
-probe result, a wrong role or subject, a malformed or unbranded structured
-result, and prose-only output all remain unusable — with or without a cleanup
-failure alongside them. These dispositions affect only that run's evidence. A
-failed, cancelled, malformed, transport-failed, clean, or findings-bearing review
-never changes whether another exact-target review may be dispatched.
+terminating signal, a readiness/server/relay failure, a cancellation, and a
+malformed probe result remain distinct execution facts. When reviewer text was
+captured, however, it remains usable advisory evidence even if the structured
+payload is malformed, unbranded, bound to the wrong role or subject, or is prose
+only. Those defects affect only optional schema observation and formal
+attestation. These dispositions affect only that run's evidence and never change
+whether another exact-target review may be dispatched.
 
-## Plural exact-slice review evidence
+## Canonical acceptance.validation admission across the findings-only surfaces
 
-Exact-slice findings-only review is plural. Every valid reviewer or policy-allowed
-redteam dispatch against the canonical committed target receives a distinct run id,
-monitor handle, execution state, and receipt. Active reviews and any amount of
-historical receipt state never block another dispatch. Restart does not turn review
-history into an admission latch.
+One wiki-core owner validates and projects every selected unit's complete
+`acceptance.validation[]` declaration. The only executable entry is exactly
+`{operation: "node_test", target, verification_ids}`; `target` is one
+canonical repository-relative lowercase-`.mjs` test-module path and
+`verification_ids` is an array of unique nonblank identities. Plain nonblank
+strings and exact `{note, verification_ids}` objects are human instructions,
+not execution authority. Command-bearing objects, unknown operations, extra
+fields, duplicate executable bindings, invalid targets, and
+`sections.structured_validation` are rejected.
 
-Receipts are append-only per-run evidence bound to the exact subject, committed
-SHA/tree, diff base or base parent, role, run identity, monitor handle,
-structured-result digest, and terminal disposition. The complete applicable set is
-evaluated; a latest-receipt projection is never review admission or the complete
-review set. Target movement makes old evidence inapplicable without rewriting or
-deleting it.
+The work-record schema, ready-slice projection, bounded selected-unit read,
+dispatch/admission projection, findings-only classifier, and role-contract
+renderer all consume that owner. The same projected operation, target, and
+verification population also feeds `workspace_run_validation`, managed-worker
+declared-test authorization, terminal-candidate execution, and
+`workspace_verify_proof`. Consumers retain their own confinement and role
+authority, but none parses command text, searches secondary sections, or
+reconstructs target bindings.
+
+Reviewer rendering preserves note order and emits executable entries as compact
+JSON in `operation`, `target`, `verification_ids` order. Verification
+identities are deterministically sorted by the shared projection. Composition ordering is unchanged on both surfaces: the parent WK's entries
+precede the selected review unit's. On a slice-level standalone surface, the
+parent is authenticated as immutable inherited review material rather than as
+the executable selected unit. Its canonical nonempty criteria may intentionally
+carry an empty validation array while still admitting the review; an exactly
+empty `{criteria: [], validation: []}` parent contributes zero inherited
+entries. The selected review slice's acceptance stays mandatory and complete.
+The terminal whole-WK surface has no draft-parent exception: the parent is the
+selected executable unit, so both sections stay mandatory and complete there.
+
+A malformed section fails closed. The refusal names which side contributed it —
+the parent or the selected review unit — alongside the canonical detail, so the
+defect is attributable without re-inspecting either frozen contract. An
+entry-level canonical rejection is reported as `acceptance_validation_invalid`; a
+section that is not an array at all is reported against the acceptance-section
+shape; and a canonically valid entry that the typed projection cannot faithfully
+render carries its own distinct non-renderable detail, so "the schema rejects this
+section" is never conflated with "this projection cannot render it". A canonical
+field that is present is never described as missing.
+
+Nothing here moves an authority boundary. The final prompt formatter, the
+controlled-contract schemas and vocabulary, the reviewer result schema, target
+binding, evidence authority, worker and reviewer confinement, lifecycle
+transitions, dispatch and readiness authority, and integration policy are all
+unchanged. The frozen contracts' identity checks, role behavior, and refusal codes
+are likewise unchanged; the refusals merely carry better attribution. Findings-only
+review stays advisory under `decision`.
+
+## Independent findings actions
+
+Public SHA spellings are ordinary locator syntax, not operator authentication.
+The registered `workspace_agent_dispatch` boundary accepts a complete
+`{ diff_base_sha, reviewed_sha }` pair for reviewer and redteam calls and routes it
+through the same normalizer used by canonical slice and terminal whole-WK
+subjects. No special selection authority, carrier, attestation, receipt,
+provenance identity, or persistent review identity is required.
+
+A review target is normalized only after the resolver proves commit type,
+base-to-reviewed ancestry, the required nonempty range, readable reviewed tree,
+and exact private-snapshot bytes. Canonical selectors additionally prove their
+canonical subject binding. The resolver keeps incomplete, malformed,
+missing-object, reversed-range, disjoint-range, binding-mismatch, and moved-target
+causes distinct and returns no immutable target on any failure.
+
+Every valid reviewer or admitted redteam call against a canonical committed
+target receives a distinct run, monitor, source carrier, execution state, and
+private materialization. Active or historical actions never block another call.
+Restart may make an old process-local handle unknown and never turns history into
+an admission latch.
+
+Receipts, logs, outcomes, and provenance are optional action-local audit evidence.
+They may describe the exact subject, committed SHA/tree, diff base, role, run,
+monitor, and terminal disposition, but no receipt set or latest-result projection
+has dispatch, admission, completion, integration, or veto authority.
+
+Historical `admission_review_target_unit` metadata is not read by review
+execution and is not an occurrence or provenance prerequisite. Its absence,
+staleness, or mismatch never requires retroactive repair. Ordinary `depends_on`
+lineage remains available for a reviewer unit that challenges a predecessor
+review or redteam result.
 
 Findings-only reviews are advisory, not admissions or vetoes. Clean and
 findings-bearing results may coexist indefinitely, and reviewer disagreement remains
@@ -442,6 +701,13 @@ isolated worktrees/runtime state distinguish attempts; short critical sections a
 exact ref/status compare-and-swap protect shared mutations. Process identity supports
 observation and cleanup only. It is never review authority or a historical
 per-subject dispatch prohibition.
+
+Terminal whole-WK findings use the same independent-action model. The current
+call binds the designated review unit, exact terminal candidate ref and SHA,
+fixed base SHA, WK ref and SHA, canonical WK digest, private checkout, and current
+controlled generation. A fresh call for unchanged inputs still launches a new
+action; no durable store recovers, resumes, replaces, or returns an earlier
+action after the process-local registry is gone.
 
 ## Exact-slice review-surface state budget
 
@@ -470,7 +736,44 @@ entry, fails closed even when every required OID stays readable elsewhere, and a
 missing or wrong-type reviewed or base commit or tree object always fails
 closed.
 
-### Safe postcheck mismatch diagnostics
+### Full provisioning is authoritative and no sparse guard exists
+
+The retained slice worktree is provisioned v2/full, and that provisioning is
+authoritative for checkout density. Sparse checkout is unsupported for this
+surface: it is not a configuration the review path tolerates, detects, or
+compensates for.
+
+Consequently, review preparation neither probes sparse configuration nor
+enumerates the ordinary index population. It reads no `core.sparseCheckout`,
+`core.sparseCheckoutCone`, or `index.sparse` value in any scope, and it runs no
+`git ls-files --sparse --stage` or `git ls-files --sparse -v` scan.
+
+Nothing replaced them. There is no sparse-disable pin, no compatibility probe,
+no bounded or sampled rescan, no early-exit predicate, and no increase to the
+Git output-capture limit. The removal is the fix, not a step toward a smaller
+guard.
+
+The scans were removed because they were population-wide: their cost and output
+grew with the size of the repository rather than with the review surface they
+claimed to prove. Past a large-enough tracked population the staged scan's output
+exceeded the launcher's Git output capture, and preparation failed before the
+findings-only reviewer could start — a delivery-blocking failure with no bearing
+on whether the review surface was exact.
+
+Removing them narrows no authority. The exact worktree, ref, HEAD, base, and
+reviewed tuple, the object-store and sequencer checks, the physical
+checkout-tree verification, the ordinary-index classification and
+reconciliation, historical launcher-delivery recovery, arbitrary third-index
+refusal, and the complete postcheck are all unchanged. The `ls-files` calls that
+remain enumerate untracked content only, so they are bounded by worktree dirt
+rather than by the tracked population.
+
+The public failure projection keeps its `...failure_projection.v1` schema
+version. Its `config_key` and `config_scope` detail fields are retained in place
+and in order as constant nulls, so existing consumers keep the same shape; no
+refusal can populate them any more.
+
+### Bounded postcheck mismatch diagnostics
 
 A state-budget refusal names which bound fact drifted. The dispatch surface
 republishes that name, and nothing else, as an additive
@@ -478,17 +781,18 @@ republishes that name, and nothing else, as an additive
 distinguish a moved slice ref from a substituted object directory without host
 log access.
 
-The projection is an allowlist owned by the dispatch surface, not a pass-through
+The projection is an explicit field list owned by the dispatch surface, not a pass-through
 of producer detail. It applies only to the exact
 `agent_launch.slice_review_materialization.postcheck_failed.v1` code; the detail
 must be an own, plain-object, exactly-one-key `{ field }` shape carrying a plain
 data property whose string value is a member of the closed bound-field enum.
 Arrays, null prototypes, class instances, accessors, non-enumerable properties,
 additional string or symbol keys, nested values, unknown values, and every other
-diagnostic code omit the field entirely. This is what keeps the sibling refusals
-under the same code — which carry `git status` porcelain and raw stderr — from
-ever reaching the envelope. No cause, path, stderr, secret, or arbitrary detail
-transits this seam, and existing envelopes are otherwise unchanged.
+diagnostic code omit the field entirely. Sibling refusals under the same code may
+carry `git status` porcelain and raw stderr internally, but those fields are not
+members of this envelope schema. This is a response-contract fact, not a
+confidentiality or minimum-disclosure guarantee. Existing envelopes are otherwise
+unchanged.
 
 The additive field survives every public projection of both monitor routes: the
 `workspace_agent_run_status` and `workspace_agent_run_wait` catch seams, the
@@ -509,3 +813,55 @@ what is published. Carrying the diagnostic never promotes the run: a timed-out
 response stays `timed_out: true`, `terminal: false`, with `child_terminal` and
 `next_action` reporting exactly which wait expired, and a refusal is never
 rewritten into success, finalization, or an automatic retry.
+
+## Terminal-review audit evidence
+
+A terminal whole-WK findings action is independent. Its receipt, log, outcome,
+and provenance, when captured, are optional evidence about only that action.
+Audit append failure does not change the action's result and cannot prevent a
+later terminal findings dispatch. No receipt or provenance record elects,
+replays, resumes, replaces, or settles a later findings action.
+
+Run and monitor observation is process-local. An old findings handle may
+truthfully be unknown after restart; a new call launches from the current
+launcher-authenticated terminal source selection. Terminal candidate
+construction, candidate CAS, forge handoff, and implementation/integration
+lifecycle behavior remain separately owned and unchanged.
+
+Forge publication does not authenticate or consume the historical findings
+receipt, result, or provenance. Its eligibility owner authenticates the current
+candidate, exact candidate version or controlled generation, base, current forge
+facts, and applicable CCE decision only. Those inputs and the eligibility answer
+are identical for absent, clean, critical/blocking, schema-invalid, failed, or
+missing historical findings evidence. Retained review evidence remains optional
+audit data and cannot enter the forge request, repair a candidate, or veto or
+authorize publication.
+
+Terminal review publication separates review occurrence, actual advisory text,
+optional schema observation, and optional formal attestation. Captured text is
+available and usable in full-result mode even after schema nonadherence or a
+nonzero execution; compact mode carries its supported content reference. Parser
+diagnostics annotate the schema observation instead of classifying the review as
+invalid. Only an explicit formal-attestation request consumes adherence. The
+coordinator reads and dispositions the actual response normally.
+
+## Terminal findings execution (decision, work record)
+
+The findings execution action for a canonical terminal whole-WK review unit is an
+empty-scope immutable snapshot action. It does not recover, consult, or advance a
+persistent terminal/WK lifecycle. The terminal purpose remains frozen contract
+metadata, while source bytes, the canonical WK record, manifests, and the complete
+carrier generation are bound independently for that call in the same manner as
+standalone and exact-slice findings.
+
+Historical terminal-candidate machinery remains relevant to implementation
+candidate construction and forge coordination, but it is not findings-action
+provisioning authority and cannot be selected by caller-supplied locators.
+Every accepted terminal findings call creates a fresh run, monitor, source
+carrier, and private materialization. Prior runs, receipts, results, failures,
+roles, or metadata cannot select, satisfy, suppress, resume, replace, veto, or
+refuse another terminal findings call. Observation is process-local; an old
+handle may be unknown after restart. Receipts, logs, outcomes, and provenance are
+optional action-local audit evidence, and audit capture failure cannot block a
+later dispatch. Implementation candidate construction, integration, CAS, and
+forge behavior remain independently owned and unchanged.

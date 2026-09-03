@@ -8,6 +8,7 @@ import {
 import { statusRefusal } from "./workspace-agent-dispatch-refusal.mjs";
 import { findRunRecord } from "./workspace-agent-dispatch-run-lifecycle-state.mjs";
 import { settleAndProjectRunStatus } from "./workspace-agent-dispatch-run-lifecycle-settlement.mjs";
+import { settleAndProjectAdvisoryProcess } from "./workspace-agent-advisory-result-settlement.mjs";
 
 export function createMonitor(deps = {}) {
   const {
@@ -15,8 +16,11 @@ export function createMonitor(deps = {}) {
     clock,
     sleep,
     monotonicNow,
-    captureSliceReviewTerminalResult = null
+    captureSliceReviewTerminalResult = null,
+    settleFormalReviewAttestation = null
   } = deps;
+
+  const statusSettlementByRecord = new WeakMap();
 
   async function getRunStatus(input = {}) {
     const {
@@ -49,7 +53,25 @@ export function createMonitor(deps = {}) {
       );
     }
 
-    return settleAndProjectRunStatus(record, { clock, captureSliceReviewTerminalResult });
+    if (!statusSettlementByRecord.has(record)) {
+      let settlement;
+      settlement = (record.advisory_process === true
+        ? settleAndProjectAdvisoryProcess(record, {
+            clock,
+            settleFormalReviewAttestation
+          })
+        : settleAndProjectRunStatus(record, {
+            clock,
+            captureSliceReviewTerminalResult,
+            settleFormalReviewAttestation
+          })).finally(() => {
+        if (statusSettlementByRecord.get(record) === settlement) {
+          statusSettlementByRecord.delete(record);
+        }
+      });
+      statusSettlementByRecord.set(record, settlement);
+    }
+    return statusSettlementByRecord.get(record);
   }
 
   async function waitForRunStatus(input = {}) {
@@ -93,6 +115,15 @@ export function createMonitor(deps = {}) {
           updated_at: status.updated_at,
           exit: status.exit ?? null,
           final_result: status.final_result ?? null,
+          ...(status.session_contract_required === true
+            ? {
+                session_contract_required: true,
+                session_contract: status.session_contract
+              }
+            : {}),
+          ...(status.validation_evidence
+            ? { validation_evidence: status.validation_evidence }
+            : {}),
 
           ...(status.review_result ? { review_result: status.review_result } : {})
         };
@@ -115,7 +146,13 @@ export function createMonitor(deps = {}) {
           terminal: false,
           started_at: status.started_at,
           updated_at: status.updated_at,
-          exit: null
+          exit: null,
+          ...(status.session_contract_required === true
+            ? {
+                session_contract_required: true,
+                session_contract: status.session_contract
+              }
+            : {})
         };
       }
 

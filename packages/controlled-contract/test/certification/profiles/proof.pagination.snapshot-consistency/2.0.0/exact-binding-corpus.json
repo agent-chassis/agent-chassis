@@ -1,0 +1,43 @@
+{
+  "controls": [
+    {
+      "control_id": "caller-selected-attempt-refused"
+    },
+    {
+      "control_id": "capture-order-swap-refused"
+    },
+    {
+      "control_id": "duplicate-occurrence-positive"
+    },
+    {
+      "control_id": "empty-page-positive"
+    },
+    {
+      "control_id": "frozen-snapshot-positive"
+    },
+    {
+      "control_id": "live-version-content-reuse-refused"
+    },
+    {
+      "control_id": "member-occurrence-omission-refused"
+    },
+    {
+      "control_id": "member-occurrence-reorder-refused"
+    },
+    {
+      "control_id": "missing-trace-refused"
+    },
+    {
+      "control_id": "projection-result-splice-refused"
+    },
+    {
+      "control_id": "snapshot-identity-splice-refused"
+    },
+    {
+      "control_id": "snapshot-state-content-change-refused"
+    }
+  ],
+  "corpus_id": "snapshot-pagination-consistency-exact-binding",
+  "corpus_version": "1.0.0",
+  "schema_version": "controlled-contract.mutation-pagination-exact-corpus.v1"
+}

@@ -10,18 +10,33 @@ import {
   createBoundedToolDiscoveryListEnvelope,
   createToolDiscoveryEnvelope,
   loadToolDiscoveryDescriptor,
-  TOOL_DISCOVERY_LIST_DEFAULT_LIMIT,
-  TOOL_DISCOVERY_LIST_MAX_BYTES
+  projectRuntimeToolDiscoveryDocumentation,
+  rankToolDiscoveryTools,
+  TOOL_DISCOVERY_LIST_DEFAULT_LIMIT
 } from "@agent-chassis/wiki-core/src/lib/tool-discovery.mjs";
 
 import { parseToolProfile, shouldExposeTool } from "./tool-profile.mjs";
+import { recordOwnerRegisteredRequestSchema } from "./dispatch-tool-helpers.mjs";
 
 const THIS_DIR = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 
 const WIKI_MCP_PACKAGE_JSON_PATH = path.resolve(THIS_DIR, "../../package.json");
 const VERSION_FALLBACK = "0.0.0";
-const TOOL_DISCOVERY_LIST_MCP_RESULT_MAX_BYTES = 4096;
+const TOOL_DISCOVERY_DESCRIBE_COMPACT_OMITTED_FIELDS = Object.freeze([
+  "kind",
+  "entrypoint",
+  "runtime_posture",
+  "priority",
+  "rank"
+]);
+
+export const WORKSPACE_TOOLS_DESCRIBE_INPUT_SCHEMA = Object.freeze({
+  task_id: z.string().optional(),
+  tool_name: z.string().optional(),
+  limit: z.number().int().positive().optional(),
+  verbose: z.boolean().optional()
+});
 
 async function readPackageVersionByPath(packageJsonPath) {
   try {
@@ -66,6 +81,10 @@ function resolveToolDiscoveryQuery(options = {}) {
   if (Number.isInteger(options.limit) && options.limit > 0) {
     query.limit = options.limit;
   }
+
+  if (Number.isInteger(options.offset) && options.offset > 0) {
+    query.offset = options.offset;
+  }
   return query;
 }
 
@@ -85,7 +104,9 @@ export function registerToolDiscoveryTools({
 
   registeredTier = null,
 
-  sessionRole = null
+  sessionRole = null,
+
+  docsCarrier = null
 }) {
 
   function resolveSessionRole() {
@@ -99,12 +120,12 @@ export function registerToolDiscoveryTools({
     }
   }
 
-  function scopeToolDiscoveryResultsToSessionRole(results) {
-    if (!Array.isArray(results)) {
+  function scopeToolDiscoveryRowsToSessionRole(rows) {
+    if (!Array.isArray(rows)) {
       return [];
     }
     const role = resolveSessionRole();
-    return results.filter((entry) => {
+    return rows.filter((entry) => {
       const toolName =
         entry && typeof entry.tool_name === "string" ? entry.tool_name : "";
       if (toolName === "") {
@@ -134,73 +155,97 @@ export function registerToolDiscoveryTools({
   async function loadWorkspaceToolDiscoveryEnvelope(query = {}, { verbose = false } = {}) {
     const descriptor = await loadToolDiscoveryDescriptor();
     const package_versions = await loadToolDiscoveryPackageVersions();
+    const augmentedDescriptor = augmentDescriptor(descriptor);
 
     const tierQuery =
       typeof registeredTier === "string" && registeredTier
         ? { ...query, registered_tier: registeredTier }
         : query;
-    const envelope = createToolDiscoveryEnvelope({
+
+    const roleVisibleResults = projectRuntimeToolDiscoveryDocumentation(
+      rankToolDiscoveryTools(
+        {
+          ...augmentedDescriptor,
+          tools: scopeToolDiscoveryRowsToSessionRole(augmentedDescriptor?.tools)
+        },
+        tierQuery,
+        { verbose }
+      ),
+      { docsCarrier }
+    );
+    return createToolDiscoveryEnvelope({
       interface: "mcp",
       source_kind: "runtime_snapshot",
       package_versions,
-      descriptor: augmentDescriptor(descriptor),
+      descriptor: augmentedDescriptor,
       query: tierQuery,
-      verbose
+      verbose,
+      results: roleVisibleResults
     });
+  }
 
-    if (Array.isArray(envelope.results)) {
-      envelope.results = scopeToolDiscoveryResultsToSessionRole(envelope.results);
-    }
-    return envelope;
+  function measureToolDiscoveryListResultBytes(candidate) {
+    return Buffer.byteLength(JSON.stringify(jsonContent(candidate)), "utf8");
   }
 
   async function loadWorkspaceToolDiscoveryListEnvelope(options = {}) {
+
     const query = resolveToolDiscoveryQuery(options);
 
     const filterQuery = { ...query };
     delete filterQuery.limit;
+    delete filterQuery.offset;
     const envelope = await loadWorkspaceToolDiscoveryEnvelope(filterQuery, { verbose: false });
     if (Object.keys(query).length > 0) {
       envelope.query = query;
     }
-    const totalCount = Array.isArray(envelope.results) ? envelope.results.length : 0;
+    const roleVisibleResults = Array.isArray(envelope.results) ? envelope.results : [];
     const limit = Number.isInteger(query.limit) && query.limit > 0
       ? query.limit
       : TOOL_DISCOVERY_LIST_DEFAULT_LIMIT;
-    const roleVisibleResults = Array.isArray(envelope.results) ? envelope.results : [];
-    let byteLimit = TOOL_DISCOVERY_LIST_MAX_BYTES;
 
-    while (true) {
-      const bounded = createBoundedToolDiscoveryListEnvelope(envelope, roleVisibleResults, {
-        totalCount,
-        limit,
-        byteLimit
-      });
-      const serializedBytes = Buffer.byteLength(JSON.stringify(jsonContent(bounded)), "utf8");
-      if (serializedBytes <= TOOL_DISCOVERY_LIST_MCP_RESULT_MAX_BYTES) {
-        return bounded;
-      }
-      const nextByteLimit = Math.max(
-        1024,
-        byteLimit - (serializedBytes - TOOL_DISCOVERY_LIST_MCP_RESULT_MAX_BYTES) - 64
-      );
-      if (nextByteLimit >= byteLimit) {
-        throw new Error("workspace_tools_list could not satisfy its MCP response-byte ceiling");
-      }
-      byteLimit = nextByteLimit;
-    }
+    const offset = Number.isInteger(query.offset) && query.offset > 0 ? query.offset : 0;
+
+    return createBoundedToolDiscoveryListEnvelope(envelope, roleVisibleResults, {
+      totalCount: roleVisibleResults.length,
+      limit,
+      offset,
+      measureResultBytes: measureToolDiscoveryListResultBytes
+    });
   }
 
   async function loadWorkspaceToolDiscoveryDescribeEnvelope(options = {}) {
     const query = resolveToolDiscoveryQuery(options);
     const verbose = options.verbose === true;
-    const envelope = await loadWorkspaceToolDiscoveryEnvelope(query, { verbose });
+
+    const rankRecoveryToolName = verbose ? query.tool_name : null;
+    const projectionQuery = rankRecoveryToolName ? { ...query } : query;
+    if (rankRecoveryToolName) {
+      delete projectionQuery.tool_name;
+      delete projectionQuery.limit;
+    }
+    const envelope = await loadWorkspaceToolDiscoveryEnvelope(projectionQuery, { verbose });
+    if (rankRecoveryToolName && Array.isArray(envelope.results)) {
+      envelope.results = envelope.results.filter(
+        (entry) => entry.tool_name === rankRecoveryToolName
+      );
+      envelope.query = query;
+    }
     const totalCount = Array.isArray(envelope.results) ? envelope.results.length : 0;
     const limit = Number.isInteger(query.limit) && query.limit > 0
       ? query.limit
       : verbose
         ? null
         : TOOL_DISCOVERY_LIST_DEFAULT_LIMIT;
+    if (!verbose && Array.isArray(envelope.results)) {
+      envelope.results = envelope.results.map((entry) => {
+        const projected = { ...entry };
+        for (const field of TOOL_DISCOVERY_DESCRIBE_COMPACT_OMITTED_FIELDS) {
+          delete projected[field];
+        }
+        return projected;
+      });
+    }
     if (Number.isInteger(limit) && limit > 0 && Array.isArray(envelope.results)) {
       envelope.results = envelope.results.slice(0, limit);
     }
@@ -221,11 +266,12 @@ export function registerToolDiscoveryTools({
     "workspace_tools_list",
     {
       description:
-        "List a hard-bounded role- and tier-filtered catalog for tool selection. Default rows contain only tool_name, task_ids, and rank; independent count and byte truncation metadata reports the exact role-visible total and returned counts. A caller limit cannot bypass the byte ceiling. Use workspace_tools_query by task_id/tool_name or workspace_tools_describe by tool_name for targeted detail.",
+        "List a hard-bounded role- and tier-filtered catalog for tool selection. Default rows contain only tool_name and task_ids; total_count is the exact role-visible total and returned_count is what this page carries. The response is a page: while has_more is true, repeat with offset:next_offset, which resumes at the first omitted row after either count or byte truncation. Neither limit nor offset bypasses the byte ceiling. Recover complete detail and global rank for a selected name with workspace_tools_describe({tool_name,verbose:true}).",
       inputSchema: {
         task_id: z.string().optional(),
         tool_name: z.string().optional(),
-        limit: z.number().int().positive().optional()
+        limit: z.number().int().positive().optional(),
+        offset: z.number().int().nonnegative().optional()
       }
     },
     async (args) => {
@@ -237,17 +283,17 @@ export function registerToolDiscoveryTools({
     }
   );
 
+  recordOwnerRegisteredRequestSchema({
+    registerTool,
+    toolName: "workspace_tools_describe",
+    declaredInput: WORKSPACE_TOOLS_DESCRIBE_INPUT_SCHEMA
+  });
   registerTool(
     "workspace_tools_describe",
     {
       description:
-        "Describe the repository-local discovery envelope for targeted per-tool inspection. Default response returns compact entries (tool_name, kind, entrypoint, task_ids, runtime_posture, recommended_route, priority, rank) and is bounded to 20 entries unless a different positive limit is provided; pass task_id, tool_name, or limit to target a narrow set, and verbose:true for full catalog entries including display_name, install_state, side_effects, authority, docs_refs, source_files, and notes.",
-      inputSchema: {
-        task_id: z.string().optional(),
-        tool_name: z.string().optional(),
-        limit: z.number().int().positive().optional(),
-        verbose: z.boolean().optional()
-      }
+        "Describe the repository-local discovery envelope for targeted per-tool inspection. Default response returns compact routing and task-contract fields while omitting kind, entrypoint, runtime_posture, priority, and rank, and is bounded to 20 entries unless a different positive limit is provided. Pass task_id, tool_name, or limit to target a narrow set; verbose:true returns the complete entry and losslessly restores every omitted field.",
+      inputSchema: WORKSPACE_TOOLS_DESCRIBE_INPUT_SCHEMA
     },
     async (args) => {
       try {

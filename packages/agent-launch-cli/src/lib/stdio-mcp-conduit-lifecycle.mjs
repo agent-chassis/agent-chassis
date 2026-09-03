@@ -1,11 +1,18 @@
 
 
+import { performance } from "node:perf_hooks";
+
 import {
   STDIO_MCP_CONDUIT_ERROR_CODES,
+  STDIO_MCP_LIFECYCLE_EVENT_CLASSES,
+  STDIO_MCP_LIFECYCLE_FAILURE_REASONS,
+  STDIO_MCP_LIFECYCLE_PHASES,
   STDIO_MCP_LIFECYCLE_PROTOCOL_GENERATION,
   STDIO_MCP_LIFECYCLE_PROTOCOL_RECOVERY,
+  STDIO_MCP_LIFECYCLE_VALIDATION_RULES,
   STDIO_MCP_READY_FD,
-  StdioMcpConduitError
+  StdioMcpConduitError,
+  controlledLifecycleProtocolGeneration
 } from "./stdio-mcp-conduit-contract.mjs";
 
 function deferred() {
@@ -72,16 +79,7 @@ function compareToolSurfaces(expected, actual) {
   };
 }
 
-const LIFECYCLE_PHASES = Object.freeze({
-  AWAITING_SERVER_REGISTRATION: "awaiting_server_registration_generation",
-  SERVER_COMPATIBLE: "server_compatible",
-  AWAITING_CLIENT_INITIALIZE: "awaiting_client_initialize",
-  AWAITING_EXACT_TOOLS_LIST: "awaiting_exact_tools_list",
-  READY: "ready",
-  CLIENT_CLOSED: "client_closed",
-  FAILED: "failed",
-  TERMINAL: "terminal"
-});
+const LIFECYCLE_PHASES = STDIO_MCP_LIFECYCLE_PHASES;
 
 const SERVER_REGISTRATION_SCHEMA = "wiki-mcp-launcher-readiness.v2";
 const LEGACY_SERVER_REGISTRATION_SCHEMA = "wiki-mcp-launcher-readiness.v1";
@@ -90,31 +88,62 @@ const TOOLS_LISTED_SCHEMA = "wiki-mcp-launcher-tools-listed.v1";
 const CLIENT_RESTARTED_SCHEMA = "wiki-mcp-launcher-client-restarted.v1";
 const CLIENT_CLOSED_SCHEMA = "wiki-mcp-launcher-client-closed.v1";
 
+const CLIENT_DISCOVERY_PROBE_CLOSED_SCHEMA =
+  "wiki-mcp-launcher-client-closed.discovery-probe.v1";
+
+const LIFECYCLE_EVENT_CLASS_BY_SCHEMA = new Map([
+  [SERVER_REGISTRATION_SCHEMA, STDIO_MCP_LIFECYCLE_EVENT_CLASSES.SERVER_REGISTRATION],
+  [LEGACY_SERVER_REGISTRATION_SCHEMA,
+    STDIO_MCP_LIFECYCLE_EVENT_CLASSES.LEGACY_SERVER_REGISTRATION],
+  [CLIENT_INITIALIZED_SCHEMA, STDIO_MCP_LIFECYCLE_EVENT_CLASSES.CLIENT_INITIALIZED],
+  [TOOLS_LISTED_SCHEMA, STDIO_MCP_LIFECYCLE_EVENT_CLASSES.TOOLS_LISTED],
+  [CLIENT_RESTARTED_SCHEMA, STDIO_MCP_LIFECYCLE_EVENT_CLASSES.CLIENT_RESTARTED],
+  [CLIENT_CLOSED_SCHEMA, STDIO_MCP_LIFECYCLE_EVENT_CLASSES.CLIENT_CLOSED],
+  [CLIENT_DISCOVERY_PROBE_CLOSED_SCHEMA,
+    STDIO_MCP_LIFECYCLE_EVENT_CLASSES.CLIENT_DISCOVERY_PROBE_CLOSED]
+]);
+
+function lifecycleEventClass(event) {
+  return LIFECYCLE_EVENT_CLASS_BY_SCHEMA.get(event?.schema_version) ??
+    STDIO_MCP_LIFECYCLE_EVENT_CLASSES.UNRECOGNIZED;
+}
+
 function isPlainLifecycleEvent(event) {
   return event !== null && typeof event === "object" && !Array.isArray(event) &&
     (Object.getPrototypeOf(event) === Object.prototype ||
       Object.getPrototypeOf(event) === null);
 }
 
-function hasLifecycleEventKeys(event, required, allowed = required) {
-  if (!isPlainLifecycleEvent(event)) return false;
-  const keys = Object.keys(event);
-  return required.every((key) => Object.prototype.hasOwnProperty.call(event, key)) &&
-    keys.every((key) => allowed.includes(key));
+function lifecycleEventKeyRule(event, required, allowed = required) {
+  if (!isPlainLifecycleEvent(event)) {
+    return STDIO_MCP_LIFECYCLE_VALIDATION_RULES.EVENT_NOT_PLAIN_OBJECT;
+  }
+  for (const key of required) {
+    if (!Object.prototype.hasOwnProperty.call(event, key)) {
+      return STDIO_MCP_LIFECYCLE_VALIDATION_RULES.MISSING_REQUIRED_EVENT_KEY;
+    }
+  }
+  for (const key of Object.keys(event)) {
+    if (!allowed.includes(key)) {
+      return STDIO_MCP_LIFECYCLE_VALIDATION_RULES.UNPERMITTED_EVENT_KEY;
+    }
+  }
+  return null;
 }
 
-function boundedLifecycleEventDetail(event) {
-  const generation = typeof event?.lifecycle_protocol_generation === "string"
-    ? event.lifecycle_protocol_generation.slice(0, 128)
-    : event?.lifecycle_protocol_generation === undefined
-      ? null
-      : `<${typeof event.lifecycle_protocol_generation}>`;
-  return {
-    schema_version: typeof event?.schema_version === "string"
-      ? event.schema_version.slice(0, 128)
-      : null,
-    lifecycle_protocol_generation: generation
-  };
+function lifecycleEventRule(event, required, allowed, exact = []) {
+  const shape = lifecycleEventKeyRule(event, required, allowed);
+  if (shape !== null) return shape;
+  for (const holds of exact) {
+    if (!holds(event)) return STDIO_MCP_LIFECYCLE_VALIDATION_RULES.FIELD_VALUE_NOT_EXACT;
+  }
+  return null;
+}
+
+function boundedEventSchemaVersion(event) {
+  return typeof event?.schema_version === "string"
+    ? event.schema_version.slice(0, 128)
+    : null;
 }
 
 function observeConduitLifecycle({
@@ -124,11 +153,13 @@ function observeConduitLifecycle({
   clientReadinessTimeoutMs,
   expectedToolNames,
   getStderr = () => "",
+  readinessMeasurements = null,
 
   termination = createChildTerminationLatch()
 }) {
   const serverReady = deferred();
   const clientReady = deferred();
+  const discoveryProbeClosed = deferred();
 
   const failureSettlement = deferred();
 
@@ -139,12 +170,39 @@ function observeConduitLifecycle({
   let clientProcessTerminal = false;
 
   let clientTransportEof = false;
+  let clientDiscoveryProbeClosed = false;
   let readinessEvent = null;
   let failure = null;
   let serverTimer = null;
   let clientTimer = null;
   let phase = LIFECYCLE_PHASES.AWAITING_SERVER_REGISTRATION;
   const phaseHistory = [phase];
+
+  let negotiatedProducerGeneration = null;
+
+  const retainedGenerations = () => ({
+    producer_protocol_generation: negotiatedProducerGeneration,
+    consumer_protocol_generation: STDIO_MCP_LIFECYCLE_PROTOCOL_GENERATION,
+
+    lifecycle_protocol_generation: negotiatedProducerGeneration
+  });
+  const snapshotReadinessMeasurements = () => Object.freeze({
+    spawn_to_registration_elapsed_ms:
+      Number.isFinite(readinessMeasurements?.spawn_to_registration_elapsed_ms) &&
+        readinessMeasurements.spawn_to_registration_elapsed_ms >= 0
+        ? readinessMeasurements.spawn_to_registration_elapsed_ms
+        : null,
+    authenticated_client_payload_bytes_before_close:
+      Number.isInteger(readinessMeasurements?.authenticated_client_payload_bytes_before_close) &&
+        readinessMeasurements.authenticated_client_payload_bytes_before_close >= 0
+        ? readinessMeasurements.authenticated_client_payload_bytes_before_close
+        : 0
+  });
+  const closeReadinessMeasurements = (event) =>
+    event?.schema_version === CLIENT_CLOSED_SCHEMA ||
+    event?.schema_version === CLIENT_DISCOVERY_PROBE_CLOSED_SCHEMA
+      ? snapshotReadinessMeasurements()
+      : {};
 
   const transitionTo = (next) => {
     phase = next;
@@ -194,8 +252,11 @@ function observeConduitLifecycle({
       return;
     }
 
-    const expected = clientReadyResolved && code === 0 && signal === null &&
-      (role !== "orchestrator" || clientProcessTerminal || clientTransportEof);
+    const expected = code === 0 && signal === null && (
+      clientDiscoveryProbeClosed ||
+      (clientReadyResolved &&
+        (role !== "orchestrator" || clientProcessTerminal || clientTransportEof))
+    );
     serverExit.resolve(Object.freeze({
       code, signal, expected, cleanupInitiated: cleanupOwned
     }));
@@ -212,7 +273,7 @@ function observeConduitLifecycle({
         : serverReady.settled
           ? "host wiki-MCP server exited before the confined client became ready"
           : "host wiki-MCP server exited before reporting readiness",
-      { code, signal, stderr: getStderr() }
+      { code, signal, stderr: getStderr(), ...retainedGenerations() }
     ));
   };
 
@@ -221,6 +282,30 @@ function observeConduitLifecycle({
     clientTransportEof = true;
     return true;
   };
+
+  const buildLifecycleFacade = (beginClientReadiness) => ({
+    serverReady: serverReady.promise,
+    clientReady: clientReady.promise,
+    discoveryProbeClosed: discoveryProbeClosed.promise,
+    failureSettlement: failureSettlement.promise,
+    serverExit: serverExit.promise,
+    beginClientReadiness,
+    markClientProcessTerminal: () => { clientProcessTerminal = true; },
+    markClientTransportEof,
+    isClientTransportEof: () => clientTransportEof,
+    isClientProcessTerminal: () => clientProcessTerminal,
+    currentFailure: () => failure,
+    isClientReady: () => clientReadyResolved,
+    currentPhase: () => phase,
+    phaseHistory: () => Object.freeze([...phaseHistory]),
+
+    negotiatedProtocolGenerations: () => Object.freeze({
+      producer: negotiatedProducerGeneration,
+      consumer: STDIO_MCP_LIFECYCLE_PROTOCOL_GENERATION
+    }),
+    termination
+  });
+
   child.once?.("error", (error) => finalizeChild("error", null, null, error));
   child.once?.("exit", (code, signal) => finalizeChild("exit", code, signal, null));
   child.once?.("close", (code, signal) => finalizeChild("close", code, signal, null));
@@ -231,67 +316,81 @@ function observeConduitLifecycle({
       STDIO_MCP_CONDUIT_ERROR_CODES.SERVER_READINESS_FAILED,
       "host wiki-MCP server readiness pipe is unavailable"
     ));
-    return {
-      serverReady: serverReady.promise,
-      clientReady: clientReady.promise,
-      failureSettlement: failureSettlement.promise,
-      serverExit: serverExit.promise,
-      beginClientReadiness: () => {},
-      markClientProcessTerminal: () => { clientProcessTerminal = true; },
-      markClientTransportEof,
-      isClientTransportEof: () => clientTransportEof,
-      isClientProcessTerminal: () => clientProcessTerminal,
-      currentFailure: () => failure,
-      isClientReady: () => clientReadyResolved,
-      termination
-    };
+
+    return buildLifecycleFacade(() => {});
   }
 
-  const invalidTransition = (message, event) => recordFailure(new StdioMcpConduitError(
-    STDIO_MCP_CONDUIT_ERROR_CODES.CLIENT_READINESS_FAILED,
-    message,
-    { phase, ...boundedLifecycleEventDetail(event) }
-  ));
+  const invalidTransition = (reason, message, event, validationRule = null) => recordFailure(
+    new StdioMcpConduitError(
+      STDIO_MCP_CONDUIT_ERROR_CODES.CLIENT_READINESS_FAILED,
+      message,
+      {
+        lifecycle_reason: reason,
+        lifecycle_phase: phase,
+        lifecycle_event_class: lifecycleEventClass(event),
+
+        lifecycle_validation_rule: validationRule,
+        phase,
+        schema_version: boundedEventSchemaVersion(event),
+        ...retainedGenerations(),
+        ...closeReadinessMeasurements(event)
+      }
+    ));
+
   const incompatibleGeneration = (reason, event) => recordFailure(new StdioMcpConduitError(
     STDIO_MCP_CONDUIT_ERROR_CODES.LIFECYCLE_PROTOCOL_INCOMPATIBLE,
     "spawned host wiki-MCP server lifecycle generation is incompatible with the launcher",
     {
       reason,
       producer_protocol_generation:
-        typeof event?.lifecycle_protocol_generation === "string"
-          ? event.lifecycle_protocol_generation.slice(0, 128)
-          : null,
+        controlledLifecycleProtocolGeneration(event?.lifecycle_protocol_generation),
       consumer_protocol_generation: STDIO_MCP_LIFECYCLE_PROTOCOL_GENERATION,
-      recovery: STDIO_MCP_LIFECYCLE_PROTOCOL_RECOVERY
+      lifecycle_event_class: lifecycleEventClass(event),
+      schema_version: boundedEventSchemaVersion(event),
+      recovery: STDIO_MCP_LIFECYCLE_PROTOCOL_RECOVERY,
+      ...closeReadinessMeasurements(event)
     }
   ));
 
   const handleEvent = (event) => {
-    if (!isPlainLifecycleEvent(event) || typeof event.schema_version !== "string") {
-      invalidTransition("host wiki-MCP server emitted a malformed lifecycle event", event);
+    if (!isPlainLifecycleEvent(event)) {
+      invalidTransition(STDIO_MCP_LIFECYCLE_FAILURE_REASONS.MALFORMED_LIFECYCLE_EVENT,
+        "host wiki-MCP server emitted a malformed lifecycle event", event,
+        STDIO_MCP_LIFECYCLE_VALIDATION_RULES.EVENT_NOT_PLAIN_OBJECT);
+      return;
+    }
+    if (typeof event.schema_version !== "string") {
+      invalidTransition(STDIO_MCP_LIFECYCLE_FAILURE_REASONS.MALFORMED_LIFECYCLE_EVENT,
+        "host wiki-MCP server emitted a malformed lifecycle event", event,
+        STDIO_MCP_LIFECYCLE_VALIDATION_RULES.SCHEMA_VERSION_NOT_STRING);
       return;
     }
     if (phase === LIFECYCLE_PHASES.TERMINAL ||
         (phase === LIFECYCLE_PHASES.CLIENT_CLOSED &&
           event.schema_version !== CLIENT_CLOSED_SCHEMA)) {
-      invalidTransition("host wiki-MCP server emitted lifecycle evidence after terminal close", event);
+      invalidTransition(STDIO_MCP_LIFECYCLE_FAILURE_REASONS.EVIDENCE_AFTER_TERMINAL_CLOSE,
+        "host wiki-MCP server emitted lifecycle evidence after terminal close", event,
+        STDIO_MCP_LIFECYCLE_VALIDATION_RULES.PHASE_NOT_PERMITTED);
       return;
     }
 
     if (event.schema_version === SERVER_REGISTRATION_SCHEMA ||
         event.schema_version === LEGACY_SERVER_REGISTRATION_SCHEMA) {
       if (phase !== LIFECYCLE_PHASES.AWAITING_SERVER_REGISTRATION) {
-        invalidTransition("host wiki-MCP server emitted duplicate server registration", event);
+        invalidTransition(STDIO_MCP_LIFECYCLE_FAILURE_REASONS.DUPLICATE_SERVER_REGISTRATION,
+          "host wiki-MCP server emitted duplicate server registration", event,
+          STDIO_MCP_LIFECYCLE_VALIDATION_RULES.PHASE_NOT_PERMITTED);
         return;
       }
       if (event.schema_version !== SERVER_REGISTRATION_SCHEMA) {
         incompatibleGeneration("legacy_server_registration_schema", event);
         return;
       }
-      if (!hasLifecycleEventKeys(event,
+      if (lifecycleEventRule(event,
         ["schema_version", "lifecycle_protocol_generation", "ready", "tools"],
         ["schema_version", "lifecycle_protocol_generation", "ready", "tool_profile",
-          "registered_tier", "tools"]) || event.ready !== true || !Array.isArray(event.tools)) {
+          "registered_tier", "tools"],
+        [(e) => e.ready === true, (e) => Array.isArray(e.tools)]) !== null) {
         incompatibleGeneration("malformed_server_registration", event);
         return;
       }
@@ -304,13 +403,21 @@ function observeConduitLifecycle({
         incompatibleGeneration("producer_consumer_generation_mismatch", event);
         return;
       }
+
+      negotiatedProducerGeneration = STDIO_MCP_LIFECYCLE_PROTOCOL_GENERATION;
       const mismatch = compareToolSurfaces(expectedToolNames, event.tools);
       if (mismatch) {
         recordFailure(new StdioMcpConduitError(
           STDIO_MCP_CONDUIT_ERROR_CODES.TOOL_SURFACE_MISMATCH,
           "host wiki-MCP registered tool surface does not match the launcher-derived role profile",
-          mismatch));
+          { ...mismatch, ...retainedGenerations() }));
         return;
+      }
+      if (readinessMeasurements !== null) {
+        readinessMeasurements.spawn_to_registration_elapsed_ms = Math.max(
+          0,
+          performance.now() - readinessMeasurements.spawnStartedAt
+        );
       }
       readinessEvent = Object.freeze({
         ...event,
@@ -324,31 +431,47 @@ function observeConduitLifecycle({
       return;
     }
     if (event.schema_version === CLIENT_INITIALIZED_SCHEMA) {
-      if (!hasLifecycleEventKeys(event, ["schema_version", "initialized"]) ||
-          event.initialized !== true) {
-        invalidTransition("host wiki-MCP server emitted malformed client initialize evidence", event);
+      const initializedRule = lifecycleEventRule(event,
+        ["schema_version", "initialized"], ["schema_version", "initialized"],
+        [(e) => e.initialized === true]);
+      if (initializedRule !== null) {
+        invalidTransition(STDIO_MCP_LIFECYCLE_FAILURE_REASONS.MALFORMED_CLIENT_INITIALIZE,
+          "host wiki-MCP server emitted malformed client initialize evidence", event,
+          initializedRule);
         return;
       }
       if (phase !== LIFECYCLE_PHASES.AWAITING_CLIENT_INITIALIZE) {
-        invalidTransition("host wiki-MCP server emitted duplicate or impossible client initialize evidence", event);
+        invalidTransition(STDIO_MCP_LIFECYCLE_FAILURE_REASONS.DUPLICATE_CLIENT_INITIALIZE,
+          "host wiki-MCP server emitted duplicate or impossible client initialize evidence", event,
+          STDIO_MCP_LIFECYCLE_VALIDATION_RULES.PHASE_NOT_PERMITTED);
         return;
       }
       transitionTo(LIFECYCLE_PHASES.AWAITING_EXACT_TOOLS_LIST);
       return;
     }
     if (event.schema_version === TOOLS_LISTED_SCHEMA) {
-      if (!hasLifecycleEventKeys(event,
-        ["schema_version", "tools_listed", "tools"]) ||
-          event.tools_listed !== true || !Array.isArray(event.tools)) {
-        invalidTransition("host wiki-MCP server emitted malformed tools/list evidence", event);
+      const toolsListedRule = lifecycleEventRule(event,
+        ["schema_version", "tools_listed", "tools"],
+        ["schema_version", "tools_listed", "tools"],
+        [(e) => e.tools_listed === true, (e) => Array.isArray(e.tools)]);
+      if (toolsListedRule !== null) {
+        invalidTransition(STDIO_MCP_LIFECYCLE_FAILURE_REASONS.MALFORMED_TOOLS_LISTED,
+          "host wiki-MCP server emitted malformed tools/list evidence", event,
+          toolsListedRule);
         return;
       }
       if (phase !== LIFECYCLE_PHASES.AWAITING_EXACT_TOOLS_LIST) {
+        const toolsListBeforeInitialize =
+          phase === LIFECYCLE_PHASES.AWAITING_CLIENT_INITIALIZE;
         invalidTransition(
-          phase === LIFECYCLE_PHASES.AWAITING_CLIENT_INITIALIZE
+          toolsListBeforeInitialize
+            ? STDIO_MCP_LIFECYCLE_FAILURE_REASONS.TOOLS_LIST_BEFORE_INITIALIZE
+            : STDIO_MCP_LIFECYCLE_FAILURE_REASONS.DUPLICATE_TOOLS_LISTED,
+          toolsListBeforeInitialize
             ? "confined client requested tools/list before completing MCP initialize"
             : "host wiki-MCP server emitted duplicate or impossible tools/list evidence",
-          event
+          event,
+          STDIO_MCP_LIFECYCLE_VALIDATION_RULES.PHASE_NOT_PERMITTED
         );
         return;
       }
@@ -358,7 +481,7 @@ function observeConduitLifecycle({
         recordFailure(new StdioMcpConduitError(
           STDIO_MCP_CONDUIT_ERROR_CODES.CLIENT_TOOL_SURFACE_MISMATCH,
           "tool surface returned to the confined client does not match the launcher-derived role profile",
-          mismatch));
+          { ...mismatch, ...retainedGenerations() }));
         return;
       }
       clearClientTimer();
@@ -372,32 +495,76 @@ function observeConduitLifecycle({
       return;
     }
     if (event.schema_version === CLIENT_RESTARTED_SCHEMA) {
-      if (!hasLifecycleEventKeys(event,
-        ["schema_version", "restarted", "restart_count"]) ||
-          event.restarted !== true || !Number.isInteger(event.restart_count) ||
-          event.restart_count < 1) {
-        invalidTransition("host wiki-MCP server emitted malformed client restart evidence", event);
+      const restartedRule = lifecycleEventRule(event,
+        ["schema_version", "restarted", "restart_count"],
+        ["schema_version", "restarted", "restart_count"],
+        [(e) => e.restarted === true,
+          (e) => Number.isInteger(e.restart_count) && e.restart_count >= 1]);
+      if (restartedRule !== null) {
+        invalidTransition(STDIO_MCP_LIFECYCLE_FAILURE_REASONS.MALFORMED_CLIENT_RESTARTED,
+          "host wiki-MCP server emitted malformed client restart evidence", event,
+          restartedRule);
         return;
       }
 
       recordFailure(new StdioMcpConduitError(
         STDIO_MCP_CONDUIT_ERROR_CODES.CLIENT_RELAY_RESTARTED,
         "confined client restarted its MCP relay; the per-dispatch conduit cannot be resumed",
-        { restart_count: Number.isInteger(event.restart_count) ? event.restart_count : null }));
+        {
+          restart_count: Number.isInteger(event.restart_count) ? event.restart_count : null,
+          ...retainedGenerations()
+        }));
+      return;
+    }
+
+    if (event.schema_version === CLIENT_DISCOVERY_PROBE_CLOSED_SCHEMA) {
+      const probeRule = lifecycleEventRule(event,
+        ["schema_version", "closed", "discovery_probe"],
+        ["schema_version", "closed", "discovery_probe"],
+        [(e) => e.closed === true, (e) => e.discovery_probe === true]);
+      if (probeRule !== null) {
+        invalidTransition(
+          STDIO_MCP_LIFECYCLE_FAILURE_REASONS.MALFORMED_CLIENT_DISCOVERY_PROBE_CLOSED,
+          "host wiki-MCP server emitted malformed client discovery-probe close evidence",
+          event, probeRule);
+        return;
+      }
+
+      if (phase !== LIFECYCLE_PHASES.AWAITING_CLIENT_INITIALIZE) {
+        invalidTransition(
+          STDIO_MCP_LIFECYCLE_FAILURE_REASONS.UNEXPECTED_CLIENT_DISCOVERY_PROBE_CLOSED,
+          "host wiki-MCP server reported a client discovery probe outside the pre-initialize phase",
+          event, STDIO_MCP_LIFECYCLE_VALIDATION_RULES.PHASE_NOT_PERMITTED);
+        return;
+      }
+      clientDiscoveryProbeClosed = true;
+      clearClientTimer();
+      transitionTo(LIFECYCLE_PHASES.TERMINAL);
+      discoveryProbeClosed.resolve(Object.freeze({ discoveryProbe: true }));
       return;
     }
     if (event.schema_version === CLIENT_CLOSED_SCHEMA) {
-      if (!hasLifecycleEventKeys(event, ["schema_version", "closed"]) ||
-          event.closed !== true) {
-        invalidTransition("host wiki-MCP server emitted malformed client-close evidence", event);
+
+      const closedRule = lifecycleEventRule(event,
+        ["schema_version", "closed"], ["schema_version", "closed"],
+        [(e) => e.closed === true]);
+      if (closedRule !== null) {
+        invalidTransition(STDIO_MCP_LIFECYCLE_FAILURE_REASONS.MALFORMED_CLIENT_CLOSED,
+          "host wiki-MCP server emitted malformed client-close evidence", event,
+          closedRule);
         return;
       }
       if (phase !== LIFECYCLE_PHASES.READY) {
+        const duplicateClose = phase === LIFECYCLE_PHASES.CLIENT_CLOSED;
         invalidTransition(
-          phase === LIFECYCLE_PHASES.CLIENT_CLOSED
+          duplicateClose
+            ? STDIO_MCP_LIFECYCLE_FAILURE_REASONS.DUPLICATE_CLIENT_CLOSED
+            : STDIO_MCP_LIFECYCLE_FAILURE_REASONS.CLIENT_CLOSED_BEFORE_READINESS,
+          duplicateClose
             ? "host wiki-MCP server emitted duplicate client-close evidence"
             : "confined client closed before completing lifecycle readiness",
-          event
+          event,
+          STDIO_MCP_LIFECYCLE_VALIDATION_RULES.PHASE_NOT_PERMITTED
         );
         return;
       }
@@ -412,7 +579,15 @@ function observeConduitLifecycle({
     recordFailure(new StdioMcpConduitError(
       STDIO_MCP_CONDUIT_ERROR_CODES.SERVER_READINESS_FAILED,
       "host wiki-MCP server emitted an unknown lifecycle schema",
-      { phase, ...boundedLifecycleEventDetail(event) }));
+      {
+        lifecycle_reason: STDIO_MCP_LIFECYCLE_FAILURE_REASONS.UNKNOWN_LIFECYCLE_SCHEMA,
+        lifecycle_phase: phase,
+        lifecycle_event_class: lifecycleEventClass(event),
+        lifecycle_validation_rule: null,
+        phase,
+        schema_version: boundedEventSchemaVersion(event),
+        ...retainedGenerations()
+      }));
   };
 
   readyStream.setEncoding("utf8");
@@ -426,7 +601,11 @@ function observeConduitLifecycle({
     recordFailure(new StdioMcpConduitError(
       STDIO_MCP_CONDUIT_ERROR_CODES.SERVER_READINESS_FAILED,
       "host wiki-MCP server emitted malformed readiness",
-      { reason: "unterminated_frame_at_eof", buffered_characters: bufferedCharacters }
+      {
+        reason: "unterminated_frame_at_eof",
+        buffered_characters: bufferedCharacters,
+        ...retainedGenerations()
+      }
     ));
   };
   readyStream.on("data", (chunk) => {
@@ -454,36 +633,23 @@ function observeConduitLifecycle({
   readyStream.on("end", finalizeReadinessStream);
   readyStream.on("close", finalizeReadinessStream);
 
-  return {
-    serverReady: serverReady.promise,
-    clientReady: clientReady.promise,
-    failureSettlement: failureSettlement.promise,
-    serverExit: serverExit.promise,
-    beginClientReadiness: () => {
-      if (clientReady.settled || clientTimer !== null) return;
-      clientTimer = setTimeout(() => recordFailure(new StdioMcpConduitError(
-        STDIO_MCP_CONDUIT_ERROR_CODES.CLIENT_READINESS_TIMEOUT,
-        "confined client did not complete MCP initialize and tools/list within the launcher budget",
-        {
-          timeout_ms: clientReadinessTimeoutMs,
-          initialized: phase === LIFECYCLE_PHASES.AWAITING_EXACT_TOOLS_LIST ||
-            phase === LIFECYCLE_PHASES.READY ||
-            phase === LIFECYCLE_PHASES.CLIENT_CLOSED ||
-            phase === LIFECYCLE_PHASES.TERMINAL,
-          phase
-        }
-      )), clientReadinessTimeoutMs);
-    },
-    markClientProcessTerminal: () => { clientProcessTerminal = true; },
-    markClientTransportEof,
-    isClientTransportEof: () => clientTransportEof,
-    isClientProcessTerminal: () => clientProcessTerminal,
-    currentFailure: () => failure,
-    isClientReady: () => clientReadyResolved,
-    currentPhase: () => phase,
-    phaseHistory: () => Object.freeze([...phaseHistory]),
-    termination
-  };
+  return buildLifecycleFacade(() => {
+    if (clientReady.settled || clientTimer !== null) return;
+    clientTimer = setTimeout(() => recordFailure(new StdioMcpConduitError(
+      STDIO_MCP_CONDUIT_ERROR_CODES.CLIENT_READINESS_TIMEOUT,
+      "confined client did not complete MCP initialize and tools/list within the launcher budget",
+      {
+        timeout_ms: clientReadinessTimeoutMs,
+        initialized: phase === LIFECYCLE_PHASES.AWAITING_EXACT_TOOLS_LIST ||
+          phase === LIFECYCLE_PHASES.READY ||
+          phase === LIFECYCLE_PHASES.CLIENT_CLOSED ||
+          phase === LIFECYCLE_PHASES.TERMINAL,
+        lifecycle_phase: phase,
+        phase,
+        ...retainedGenerations()
+      }
+    )), clientReadinessTimeoutMs);
+  });
 }
 
 export {

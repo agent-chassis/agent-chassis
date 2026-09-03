@@ -10,7 +10,7 @@
       "workspace_write",
       "record_write",
       "dispatch",
-      "review_attestation_write",
+      "review_result_write",
       "lint_or_generate",
       "admission_metric_refresh",
       "graph_impact_evidence_write",
@@ -72,11 +72,11 @@
     "split_work",
     "record_graph_impact_evidence",
     "validate_dispatch",
+    "allocate_work_record",
     "dispatch_redteam",
     "dispatch_worker",
     "create_remediation_slice",
     "dispatch_review",
-    "record_review_result",
     "mark_slice_done",
     "close_parent",
     "run_generate_and_lint",
@@ -106,6 +106,15 @@
     ]
   },
   "action_kinds": [
+    {
+      "kind": "allocate_work_record",
+      "label": "Allocate work record",
+      "suggested_tool": "workspace_create_record",
+      "priority": "high",
+      "advisory_only": true,
+      "default_description": "An active initiative has no work records and needs allocator-backed allocation.",
+      "verbose_description": "Use when a todo or in-progress initiative has an empty WK corpus. The initiative-status surface only recommends workspace_create_record; it does not allocate or create storage itself."
+    },
     {
       "kind": "validate_record",
       "label": "Validate record",
@@ -143,15 +152,6 @@
       "verbose_description": "Use for architecture, protocol, authority, or high-risk design changes where redteam is required by the WK or risk posture. This action only points to structured redteam dispatch."
     },
     {
-      "kind": "record_review_result",
-      "label": "Record review result",
-      "suggested_tool": "workspace_record_review_attestation",
-      "priority": "medium",
-      "advisory_only": true,
-      "default_description": "A completed trusted review result appears ready to record.",
-      "verbose_description": "Use when a trusted reviewer or redteam run has completed and its accepted review-attestation evidence should be recorded. Non-completion review-result evidence is owned by the review-attestation substrate and must not be treated as clean-review attestation."
-    },
-    {
       "kind": "create_remediation_slice",
       "label": "Create remediation slice",
       "suggested_tool": "workspace_work_record_upsert_slice",
@@ -167,7 +167,7 @@
       "priority": "low",
       "advisory_only": true,
       "default_description": "Slice appears ready for done status after closure and review.",
-      "verbose_description": "Use when a slice has completed implementation, validation, closure, and mandatory review evidence. The status write remains a separate structured work-record setter call."
+      "verbose_description": "Use when a slice has completed implementation, validation, closure, and its required findings-only review. The status write remains a separate structured work-record setter call."
     },
     {
       "kind": "close_parent",
@@ -244,6 +244,13 @@
   ],
   "local_reason_codes": [
     {
+      "code": "allocation_required",
+      "label": "Allocation required",
+      "default_action": "allocate_work_record",
+      "blocking": false,
+      "description": "An active initiative has zero WK records and requires allocator-backed workspace_create_record allocation."
+    },
+    {
       "code": "record_invalid",
       "label": "Record invalid",
       "default_action": "validate_record",
@@ -287,10 +294,10 @@
     },
     {
       "code": "review_result_ready",
-      "label": "Review result ready",
-      "default_action": "record_review_result",
+      "label": "Review result available",
+      "default_action": "no_action",
       "blocking": false,
-      "description": "A trusted review or redteam run result appears ready for bounded review-attestation recording."
+      "description": "A review or redteam result is advisory text for coordinator disposition; it requires no evidence append, reauthentication, or replacement review."
     },
     {
       "code": "remediation_required",

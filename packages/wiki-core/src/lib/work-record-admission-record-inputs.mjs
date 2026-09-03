@@ -23,6 +23,7 @@ import {
 import { computeWorkRecordSourceDigest } from "./work-record-schema.mjs";
 import { normalizeStructuralTargetMetrics } from "./work-record-target-metrics.mjs";
 import { loadWorkRecordById } from "./work-record-store.mjs";
+import { projectWorkRecordTestProofValidation } from "./work-record-test-proof-bindings.mjs";
 
 function normalizeAuthoredExpectedChangedLineBudget(record) {
   const value = record?.expected_changed_line_budget;
@@ -548,7 +549,11 @@ export async function createWorkRecordAdmissionRecordLocalInputs({
   );
   const fileStats = stripFileStatSourceText(fileStatsWithSource);
   const acceptance = isObject(record.acceptance) ? record.acceptance : {};
-  const validationCommands = Array.isArray(acceptance.validation) ? acceptance.validation : [];
+  const validationProjection = projectWorkRecordTestProofValidation({ selectedUnit: record });
+  if (validationProjection.status !== "valid") {
+    throw new Error("work-record admission requires valid current acceptance.validation declarations");
+  }
+  const validationCommands = validationProjection.validation_entries;
   const runtimeModeMetadata = [];
   const artifactKindMetadata = [];
   const sourceRecordDigest = isNonEmptyString(sourceRecordDigestOverride)

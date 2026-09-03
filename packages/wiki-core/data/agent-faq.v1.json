@@ -125,7 +125,6 @@
         }
       ],
       "related_codes": [
-        "worker_admission_review_threshold_exceeded",
         "review_threshold_exceeded",
         "worker_admission.work_unit_atomicity.write_scope_total_loc_denied.v1",
         "worker_admission.work_unit_atomicity.max_write_file_loc_denied.v1",
@@ -293,7 +292,7 @@
     {
       "id": "run-validation-target-not-authorized",
       "title": "workspace_run_validation refuses target_not_authorized (target not in the unit's allowlist)",
-      "symptom": "workspace_run_validation returns a structured refusal with refusal_code `workspace_run_validation.target_not_authorized.v1`: the requested target is not a node_test entry in the unit's sections.structured_validation.allowed[].",
+      "symptom": "workspace_run_validation returns a structured refusal with refusal_code `workspace_run_validation.target_not_authorized.v1`: the requested target is not an acceptance.validation[] entry with operation node_test on the selected unit.",
       "cause": "workspace_run_validation only runs targets the unit's work contract authorizes. The refusal carries the caller-visible authorized_targets set; a miss is a contract/allowlist gap resolvable locally with no paid tool.",
       "actor": "agent",
       "tier_visibility": [
@@ -302,7 +301,7 @@
       "routes": [
         {
           "tool": "workspace_run_validation",
-          "note": "Re-run with a target from the refusal's authorized_targets, or first add the intended target to the unit's sections.structured_validation.allowed[] (command node_test) so the contract authorizes it, then resubmit."
+          "note": "Re-run with a target from the refusal's authorized_targets, or author exactly {operation: node_test, target, verification_ids} in the selected unit's acceptance.validation[] before resubmitting. Text notes never authorize execution."
         }
       ],
       "related_codes": [
@@ -344,47 +343,10 @@
       ]
     },
     {
-      "id": "managed-corrective-status-reconciliation",
-      "title": "Managed corrective continuation refuses on canonical status reconciliation",
-      "symptom": "workspace_agent_dispatch returns the public blocker `managed_corrective_status_reconciliation_required`, or its refusal includes the nested managed-run diagnostic/recovery identifiers `agent_launch.managed_run.corrective_integrated_state_unresolved.v1`, `agent_launch.canonical_integrated_lifecycle_state.impossible.v1`, or `agent_launch.managed_run.corrective_status_reconciliation.v1`.",
-      "cause": "The server-derived reviewed-integrated corrective-continuation path observed exactly parent=todo and slice=todo. This FAQ is advisory only: the coordinator may recover only that observed tuple by using the exact parent unit and exact slice subject carried by the typed refusal. Every other status, missing or unauthenticated fact, ambiguous state, or neighboring lifecycle state remains fail-closed on its typed refusal; do not infer a recovery from message text.",
-      "actor": "agent_or_operator",
-      "tier_visibility": [
-        "paid_cce"
-      ],
-      "routes": [
-        {
-          "tool": "workspace_work_record_set_status",
-          "args": {
-            "unit": "<exact-parent-unit-from-refusal>",
-            "status": "active"
-          },
-          "note": "Only after confirming the refusal's server-derived observed parent=todo and slice=todo tuple, set status active on the exact parent unit named by the refusal. This FAQ grants no mutation authority and performs no action itself."
-        },
-        {
-          "tool": "workspace_agent_dispatch",
-          "args": {
-            "role": "worker",
-            "subject": "<exact-slice-subject-from-refusal>"
-          },
-          "note": "After the immediate status call succeeds, redispatch only the exact slice subject named by the same typed refusal. Stop on the refusal for every other state; do not clean up refs, receipts, identities, or worktrees."
-        }
-      ],
-      "related_codes": [
-        "managed_corrective_status_reconciliation_required",
-        "agent_launch.managed_run.corrective_integrated_state_unresolved.v1",
-        "agent_launch.canonical_integrated_lifecycle_state.impossible.v1",
-        "agent_launch.managed_run.corrective_status_reconciliation.v1"
-      ],
-      "related_docs": [
-        "docs/mcp-dispatch-managed-run-lifecycle.md"
-      ]
-    },
-    {
-      "id": "remediation-slices-branch-from-unintegrated-base",
-      "title": "Remediation slice is cut from an unadvanced base",
-      "symptom": "Successive remediation attempts regress controls that previously passed, and a reviewer reports that the delivery reads as a from-scratch reimplementation rather than an iteration on the prior attempt.",
-      "cause": "Earlier accepted deliveries were never integrated, so the persistent WK ref never advanced and each new slice's worker was cut from the same unchanged base, making every prior delivery invisible to it.",
+      "id": "frozen-slice-review-context-stale-or-mismatched",
+      "title": "Exact-slice reviewer dispatch refuses a stale frozen contract context",
+      "symptom": "workspace_agent_dispatch for an exact-slice reviewer refuses with frozen_slice_review_context_stale_or_mismatched after coordinator bookkeeping changed the canonical parent WK or selected review-unit contract while the committed delivery stayed unchanged.",
+      "cause": "The hot backend still selected a process-local frozen review context carrying the earlier broad parent-WK or review-unit contract snapshot. The ordinary exact reviewer dispatch can reauthenticate and replace that selection only when reviewed SHA, accumulated diff base, slice ref, worktree identity and path, repository identity, and committed-target digest all remain identical. Delivery movement, selected-unit movement, an object-store probe failure, or any unauthenticated identity remains fail-closed and is not retry-authorized.",
       "actor": "agent_or_operator",
       "tier_visibility": [
         "free_local",
@@ -392,12 +354,22 @@
       ],
       "routes": [
         {
-          "tool": "workspace_integrate_committed_slice",
-          "note": "A completed findings-only review of the slice is a precondition of integration: review the slice, disposition retained findings explicitly as accept, reject, or defer, then integrate. Finding severity does not veto integration."
+          "tool": "workspace_agent_dispatch",
+          "args": {
+            "role": "reviewer",
+            "subject": "<exact-slice-subject-from-refusal>"
+          },
+          "note": "Retry the ordinary reviewer dispatch for the exact canonical slice subject only when the closed recovery_action is retry_exact_reviewer_dispatch. The backend reauthenticates the same delivery and refreshes only its process-local current contract selection before the unchanged launch guard runs. Do not supply a SHA, digest, path, context, or recovery claim, and do not retry target or identity movement as contract staleness."
         }
       ],
+      "related_codes": [
+        "frozen_slice_review_context_stale_or_mismatched"
+      ],
       "related_docs": [
-        "docs/agent-launch-confinement-mcp-conduit.md"
+        "docs/mcp-dispatch-managed-run-lifecycle.md"
+      ],
+      "related_records": [
+        "WK-1906"
       ]
     },
     {
@@ -406,11 +378,187 @@
       "symptom": "Binding inspection refuses with proof_pack_binding_result_too_large.",
       "cause": "The legacy complete-inspection projection exceeded its 65,536-byte presentation bound. This does not mean the proof plan or its complete supplied bindings are invalid.",
       "actor": "agent",
-      "tier_visibility": ["free_local"],
-      "routes": [{ "tool": "workspace_controlled_proof_pack_bindings_inspect",
-        "note": "Use targeted roles/statuses and digest-bound pagination. Do not retry complete inspection, read the complete carrier, invoke the package CLI as fallback, or generate a token-heavy substitute projection." }],
-      "related_codes": ["proof_pack_binding_result_too_large"],
-      "related_docs": ["docs/mcp-operation-reference.md"]
+      "tier_visibility": [
+        "free_local"
+      ],
+      "routes": [
+        {
+          "tool": "workspace_controlled_proof_pack_bindings_inspect",
+          "note": "Use targeted roles/statuses and digest-bound pagination. Do not retry complete inspection, read the complete carrier, invoke the package CLI as fallback, or generate a token-heavy substitute projection."
+        }
+      ],
+      "related_codes": [
+        "proof_pack_binding_result_too_large"
+      ],
+      "related_docs": [
+        "docs/mcp-operation-reference.md"
+      ]
+    },
+    {
+      "id": "terminal-candidate-stale-w-advance",
+      "title": "Terminal candidate is stale against current W",
+      "symptom": "workspace_terminal_review_candidate_status returns candidate_stale_w and names the advance route.",
+      "cause": "The exact candidate embeds an older authenticated W than the current exact direct durable WK ref.",
+      "actor": "agent_or_operator",
+      "tier_visibility": [
+        "free_local",
+        "paid_cce"
+      ],
+      "routes": [
+        {
+          "tool": "workspace_terminal_review_candidate_advance",
+          "args": {
+            "wk_id": "$wk_id"
+          },
+          "note": "Call only when the status response itself returns this exact next_call; do not supply refs, SHAs, paths, schema, locks, or policy authority."
+        }
+      ],
+      "related_codes": [
+        "agent_launch.terminal_candidate.status.candidate_stale_w.v1"
+      ],
+      "related_docs": [
+        "docs/mcp-dispatch-terminal-review.md",
+        "wiki/decisions/DEC-0169.md"
+      ]
+    },
+    {
+      "id": "terminal-candidate-continuation-refresh",
+      "title": "Terminal candidate divergence continuation is invalid or stale",
+      "symptom": "A divergence page continuation is refused as invalid or stale.",
+      "cause": "The opaque continuation is malformed, exhausted, or bound candidate/W/contract authority moved.",
+      "actor": "agent_or_operator",
+      "tier_visibility": [
+        "free_local",
+        "paid_cce"
+      ],
+      "routes": [
+        {
+          "tool": "workspace_terminal_review_candidate_status",
+          "args": {
+            "wk_id": "$wk_id"
+          },
+          "note": "Re-read status without a continuation. Use only a fresh continuation returned by that response."
+        }
+      ],
+      "related_codes": [
+        "agent_launch.terminal_candidate.continuation_invalid.v1",
+        "agent_launch.terminal_candidate.continuation_stale.v1"
+      ],
+      "related_docs": [
+        "docs/mcp-dispatch-terminal-review.md"
+      ]
+    },
+    {
+      "id": "terminal-candidate-advance-reobserve",
+      "title": "Terminal candidate advance lost current authority",
+      "symptom": "Advance refuses because exact status, exclusion, B/W, canonical contract, or fixed-ref authority changed.",
+      "cause": "The stale-W fact or an authority input moved between the read-only status gate and the single candidate-ref CAS.",
+      "actor": "agent_or_operator",
+      "tier_visibility": [
+        "free_local",
+        "paid_cce"
+      ],
+      "routes": [
+        {
+          "tool": "workspace_terminal_review_candidate_status",
+          "args": {
+            "wk_id": "$wk_id"
+          },
+          "note": "Re-observe exact status. Advance again only if the new response itself returns candidate_stale_w and names the advance route."
+        }
+      ],
+      "related_codes": [
+        "agent_launch.terminal_candidate.transport_failure.v1",
+        "agent_launch.terminal_candidate.advance_not_stale.v1",
+        "agent_launch.terminal_candidate.advance_input_moved.v1",
+        "agent_launch.terminal_candidate.advance_final_recheck_failed.v1",
+        "agent_launch.terminal_candidate.exclusion_refused.v1",
+        "agent_launch.terminal_wk_candidate.invalid_argument.v1",
+        "agent_launch.terminal_wk_candidate.git_failed.v1",
+        "agent_launch.terminal_wk_candidate.input_moved.v1",
+        "agent_launch.terminal_wk_candidate.candidate_ref_disagrees.v1"
+      ],
+      "related_docs": [
+        "docs/mcp-dispatch-terminal-review.md",
+        "wiki/decisions/DEC-0169.md"
+      ]
+    },
+    {
+      "id": "terminal-review-dispositioned-forge-handoff",
+      "title": "Terminal whole-WK review is dispositioned and the candidate is unpublished",
+      "symptom": "The one terminal whole-WK findings-only review of the exact candidate is finished and every surviving finding is dispositioned, and the next structured action for getting that exact reviewed candidate onto the forge is unclear.",
+      "cause": "After the terminal whole-WK findings-only review is complete and its findings are dispositioned, workspace_wk_forge_handoff is the supported continuation. It publishes the already-reviewed candidate byte-for-byte against the configured base branch, and it creates or observes the pull request for that exact publication. It does not merge, does not observe or report merge state, does not reconcile any record or ref with what landed, and does not complete the parent WK; candidate construction stays launcher-owned, so it never reconstructs or re-derives the candidate. Input is closed to a workspace alias and the record-level assigned_unit: the server derives repository, remote, branch, candidate, and pull-request identity, so no caller-supplied candidate, base, or pull-request fact is accepted from request, prompt, or environment. Merge readiness belongs to the forge actor and its policy, and an unmergeable or conflicting pull request is still a successfully handed-off exact candidate rather than a failure to retry. The typed refusals include: wk_forge_handoff_subject_invalid when the subject is not a WK record id, wk_forge_handoff_executor_unavailable when no trusted forge executor is bound to the server, and terminal_candidate_recovery_current_ref_absent when cold recovery finds no already-present, directly commit-valued, mechanically authenticated terminal-current ref. Each of those fails closed, and other typed refusals reach the caller the same way; there is no shell or `gh` fallback, and no agent route past this boundary.",
+      "actor": "agent_or_operator",
+      "tier_visibility": [
+        "free_local",
+        "paid_cce"
+      ],
+      "routes": [
+        {
+          "tool": "workspace_wk_forge_handoff",
+          "args": {
+            "assigned_unit": "$wk_id"
+          },
+          "note": "Call only once the terminal whole-WK review of that exact candidate is complete and its findings are dispositioned. assigned_unit is required, and the workspace repository alias may also be supplied when the session is not repo-attached. Pass no other input: no refs, SHAs, base or branch names, no candidate identity, and no pull-request identity. A typed refusal is the answer for that call, not a reason to reach for another route."
+        }
+      ],
+      "related_codes": [
+        "terminal_candidate_recovery_current_ref_absent",
+        "wk_forge_handoff_executor_unavailable",
+        "wk_forge_handoff_subject_invalid"
+      ],
+      "related_docs": [
+        "docs/mcp-dispatch-terminal-review.md",
+        "docs/mcp-operation-reference.md",
+        "wiki/decisions/DEC-0169.md"
+      ]
+    },
+    {
+      "id": "verify-proof-execution-not-executable",
+      "title": "workspace_verify_proof reports an execution or receipt prerequisite failure",
+      "symptom": "workspace_verify_proof returns a workspace-verify-proof-refusal.v1 execution, provider, observation, or receipt code instead of a proof outcome.",
+      "cause": "A valid structured run of the predeclared selected assertion is proof evidence: a passing assertion may satisfy the proof and a failing assertion is unsatisfied, independently of sibling assertions and the whole-file exit code. Siblings remain bounded audit observations and are not attributed to the proof. not_executable or refused instead means the selected proof could not be evaluated because a canonical binding, launcher isolation/spawn/timeout prerequisite, structured node:test reporter protocol, candidate/falsifier/traversal provider, candidate identity, or authenticated receipt failed. Ordinary validation diagnostics use bounded head/tail capture. The proof reporter uses a separate lossless machine-protocol channel on a launcher-owned pipe with its own fixed byte limit and is never parsed after diagnostic elision. test_proof_structured_events_oversized means the authenticated envelope exceeded that protocol limit; reduce the declared test's structured event population or repair the reporter protocol owner before retrying, without treating the bytes as malformed JSON. test_proof_selected_identity_not_observed means the authenticated whole-file run terminated or completed without exposing the selected assertion; use its expected_test_id, target, bounded counts, wrapper status/error codes, and at most eight observed_identity_candidates to repair test startup or reporter observation before retrying. test_proof_bound_identity_mismatch is reserved for a genuine disagreement between the declared identity and its authenticated binding; repair the canonical file/name/nesting identity or the shared identity owner. Read the bounded outer_wrapper_code, deepest_stable_cause_code, execution_stage, declared_target, verification_id, test_proof_id, run disposition, blocker/observation code, and truncation facts in the response. Repair a binding or declared test in the controlled proof contract when those facts name the contract boundary; repair the launcher/runtime or reporter/provider prerequisite when they name execution infrastructure. The compact public result returns only the requested subject, one common subject-binding summary, aggregate counts/status, proof and verification identities with status, and minimal reason/recovery facts. It never exposes raw output, stacks, absolute paths, commands, argv, environment, provider payloads, or complete inventories, and never exceeds 65,536 UTF-8 bytes.",
+      "actor": "agent_or_operator",
+      "tier_visibility": [
+        "free_local",
+        "paid_cce"
+      ],
+      "routes": [
+        {
+          "tool": "workspace_verify_proof",
+          "args": {
+            "subject": "$same_canonical_subject"
+          },
+          "note": "Retry the same canonical subject only after the structured response's owning prerequisite has been repaired. A retry does not repair the contract, launcher, reporter, provider, candidate, or receipt by itself. Preserve git_sha when the original call selected an exact commit."
+        }
+      ],
+      "related_codes": [
+        "agent_launch.verify_proof.input_invalid.v1",
+        "agent_launch.verify_proof.binding_resolution_failed.v1",
+        "agent_launch.verify_proof.attempt_context_failed.v1",
+        "agent_launch.verify_proof.attempt_execution_failed.v1",
+        "agent_launch.verify_proof.receipt_incomplete.v1",
+        "agent_launch.verify_proof.receipt_cross_bound.v1",
+        "test_proof_candidate_execution_error",
+        "test_proof_falsifier_execution_error",
+        "test_proof_traversal_execution_error",
+        "test_proof_candidate_inventory_missing",
+        "test_proof_bound_identity_mismatch",
+        "test_proof_selected_identity_not_observed",
+        "test_proof_structured_events_invalid",
+        "test_proof_structured_events_oversized",
+        "test_proof_structured_summary_missing",
+        "test_proof_structured_events_digest_mismatch",
+        "test_proof_receipt_projection_invalid",
+        "test_proof_receipt_projection_digest_mismatch",
+        "test_proof_provider_registry.execution_untrusted.v1"
+      ],
+      "related_docs": [
+        "docs/agent-faq.md",
+        "docs/test-proof-runtime-identity.md",
+        "docs/mcp-controlled-contract-operations.md",
+        "docs/mcp-operation-reference.md"
+      ]
     }
   ]
 }

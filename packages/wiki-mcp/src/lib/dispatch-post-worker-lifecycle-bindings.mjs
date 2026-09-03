@@ -58,8 +58,8 @@ export function lifecycleError(code, message, detail = null, cause = null) {
   });
 }
 
-function runGitOrThrow(runGit, repo, args, message, code) {
-  const result = runGit({ repo, args });
+async function runGitOrThrow(runGit, repo, args, message, code) {
+  const result = await runGit({ repo, args });
   if (!result || result.ok !== true) {
     throw lifecycleError(code, message, {
       args,
@@ -70,15 +70,33 @@ function runGitOrThrow(runGit, repo, args, message, code) {
   return result;
 }
 
-export function resolvedCommit(runGit, repo, value, message, code) {
-  const sha = String(runGitOrThrow(
+export function isResolvedGitOid(value) {
+  return typeof value === "string" && OID_RE.test(value) && !/^0+$/u.test(value);
+}
+
+export async function resolvedCommit(runGit, repo, value, message, code) {
+  const sha = String((await runGitOrThrow(
     runGit,
     repo,
     ["rev-parse", "--verify", `${value}^{commit}`],
     message,
     code
-  ).stdout ?? "").trim();
-  if (!OID_RE.test(sha) || /^0+$/u.test(sha)) {
+  )).stdout ?? "").trim();
+  if (!isResolvedGitOid(sha)) {
+    throw lifecycleError(code, message, { value, sha: sha || null });
+  }
+  return sha;
+}
+
+export async function resolvedTree(runGit, repo, value, message, code) {
+  const sha = String((await runGitOrThrow(
+    runGit,
+    repo,
+    ["rev-parse", "--verify", `${value}^{tree}`],
+    message,
+    code
+  )).stdout ?? "").trim();
+  if (!isResolvedGitOid(sha)) {
     throw lifecycleError(code, message, { value, sha: sha || null });
   }
   return sha;
@@ -201,13 +219,29 @@ export function projectLifecycleResolution({ lifecycle, checkpoint = null } = {}
   });
 }
 
+export function projectInFlightLifecycleResolution(checkpoint = null) {
+
+  if (checkpoint?.phase === POST_WORKER_LIFECYCLE_PHASES.FINALIZED) {
+    return FINALIZED_LIFECYCLE_RESOLUTION;
+  }
+  const projected = projectLifecycleResolution({
+    lifecycle: { phase: checkpoint?.phase ?? POST_WORKER_LIFECYCLE_PHASES.PRE_INTEGRATION },
+    checkpoint
+  });
+  return Object.freeze({
+    ...projected,
+    advance_in_flight: true,
+    next_action: LIFECYCLE_RESOLUTION_NEXT_ACTIONS.RETRY
+  });
+}
+
 export function checkpointFromStatus(status) {
   const checkpoint = status?.[POST_WORKER_LIFECYCLE_CHECKPOINT];
   return checkpoint ?? createLifecycleCheckpoint();
 }
 
-export function recoverIntegratedSliceResult({ mainRepo, binding, sliceRef, wkRef, runGit, deps = {} }) {
-  return (deps.reconcileIntegratedSliceRecord ?? reconcileIntegratedSliceRecord)({
+export async function recoverIntegratedSliceResult({ mainRepo, binding, sliceRef, wkRef, runGit, deps = {} }) {
+  return await (deps.reconcileIntegratedSliceRecord ?? reconcileIntegratedSliceRecord)({
     mainRepo,
     unitAddress: binding.unit_address,
     sliceRef,

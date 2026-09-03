@@ -3,6 +3,10 @@
 import { hasManagedConfinementActivation } from "./backend-review-identity.mjs";
 import { managedLifecycleCapabilityFact } from "./backend-worktree-binding.mjs";
 import {
+  BACKEND_FAMILY_UNAVAILABLE_REASONS,
+  BACKEND_REFUSAL_CODES
+} from "@agent-chassis/agent-launch-core";
+import {
   STDIO_MCP_CONDUIT_COMPOSITION_FACT_SOURCE
 } from "./stdio-mcp-conduit-composition-compatibility.mjs";
 
@@ -60,4 +64,65 @@ export function createManagedLifecycleCapabilityAuthorityFacts({
       "agent_launch.dispatch_backend.main_promotion_unwired"
     )
   });
+}
+
+export function createSelectedBackendCapabilityFacts({
+  resolveDispatchSelection,
+  resolveBackendRoutingDecision = null,
+  executors,
+  executorRegistryEntries,
+  familyAwareWiring = false
+}) {
+  if (typeof resolveDispatchSelection !== "function") {
+    throw new TypeError("resolveDispatchSelection is required");
+  }
+
+  return (input = {}) => {
+    const selection = typeof resolveBackendRoutingDecision === "function"
+      ? resolveBackendRoutingDecision(input)
+      : resolveDispatchSelection(input);
+    if (selection?.ok !== true) {
+      return Object.freeze({
+        available: false,
+        selection: null,
+        refusal: selection ?? { ok: false, reason: "launcher_selection_unresolved" }
+      });
+    }
+
+    const executor = executors?.[selection.app] ?? null;
+    const executorAvailable = typeof executor === "function";
+    const executorRegistered = Object.prototype.hasOwnProperty.call(
+      executorRegistryEntries ?? {}, selection.app
+    );
+    const refusal = selection.refusal ?? (executorAvailable
+      ? null
+      : Object.freeze({
+          code: BACKEND_REFUSAL_CODES.BACKEND_UNAVAILABLE,
+          reason: BACKEND_FAMILY_UNAVAILABLE_REASONS[selection.app],
+          detail: Object.freeze({
+            app: selection.app,
+            missing_backend: familyAwareWiring
+              ? `workspace_agent_dispatch_backend.launch_executors.${selection.app}`
+              : "workspace_agent_dispatch_backend.launch_executor",
+            authority_limb: "mechanical_failure"
+          })
+        }));
+    return Object.freeze({
+      available: executorAvailable,
+      executor_available: executorAvailable,
+      refusal,
+      selection: Object.freeze({
+        target: selection.target,
+        target_role: selection.target_role,
+        routeKind: selection.routeKind,
+        applicable: selection.applicable,
+        model: selection.model,
+        app: selection.app,
+        backend: selection.backend,
+        backend_profile: selection.backend_profile,
+        default_effort: selection.default_effort
+      }),
+      executor_registered: executorRegistered
+    });
+  };
 }

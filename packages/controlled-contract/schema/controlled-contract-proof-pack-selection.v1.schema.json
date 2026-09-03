@@ -142,20 +142,24 @@
     "projection_counts": {
       "type": "object",
       "required": [
-        "reference_roles", "number_roles", "reference_binding_patterns",
+        "reference_roles", "number_roles", "binding_constraint_patterns",
+        "reference_binding_patterns",
         "claim_patterns", "relation_patterns", "collection_patterns",
-        "resolver_fact_patterns", "evidence_patterns"
+        "resolver_fact_patterns", "evidence_patterns",
+        "falsifier_occurrence_bindings"
       ],
       "additionalProperties": false,
       "properties": {
         "reference_roles": { "type": "integer", "minimum": 0 },
         "number_roles": { "type": "integer", "minimum": 0 },
+        "binding_constraint_patterns": { "type": "integer", "minimum": 0 },
         "reference_binding_patterns": { "type": "integer", "minimum": 0 },
         "claim_patterns": { "type": "integer", "minimum": 0 },
         "relation_patterns": { "type": "integer", "minimum": 0 },
         "collection_patterns": { "type": "integer", "minimum": 0 },
         "resolver_fact_patterns": { "type": "integer", "minimum": 0 },
-        "evidence_patterns": { "type": "integer", "minimum": 0 }
+        "evidence_patterns": { "type": "integer", "minimum": 0 },
+        "falsifier_occurrence_bindings": { "type": "integer", "minimum": 0 }
       }
     },
     "authoring_projection": {

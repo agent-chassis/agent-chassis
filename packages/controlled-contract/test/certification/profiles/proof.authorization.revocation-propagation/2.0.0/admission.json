@@ -1,0 +1,24 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v1",
+  "profile_id": "proof.authorization.revocation-propagation",
+  "profile_version": "2.0.0",
+  "profile_digest": "929eb7e1972324f1a7bea2d7d33796d2d106523ce9243240b1b716d09f2ac7a1",
+  "guarantee": "For one declared authority and revocation event, one complete declared enforcement-consumer population applies the same revoked state during a finite declared propagation interval after revocation and before every member of one complete declared post-revocation attempt population; every such attempt uses that authority, targets that consumer population, is a member of an equal complete refused-attempt population, and neither writes nor mutates any member of one complete declared protected-effect population.",
+  "guarantee_digest": "573f7757b9134bdcd7929c205b6e8aea8316944787432cea7a5fba7b45b5c718",
+  "explicit_exclusions": [
+    "concurrency-outside-the-declared-revocation-propagation-attempt-order",
+    "consumers-attempts-resources-and-effects-outside-declared-complete-populations",
+    "delivered-evidence-authenticity-or-plan-implementation",
+    "dishonest-authority-event-state-population-identity-and-role-grounding",
+    "eventual-delivery-propagation-liveness-or-wall-clock-bound",
+    "runtime-truth-or-authenticity-of-authored-claims"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "69efc7302bb22f6ce13788e3f69af87c577e7860cd3466be424eef581d4b2163",
+    "adequacy_result_digest": "bea7ff5aa7fc838ce0e9ff36147bd6594054af189b19ba905ab30737517a6574",
+    "executable_control_count": 33,
+    "negative_fixture_count": 123,
+    "coverage_witness_count": 123
+  }
+}

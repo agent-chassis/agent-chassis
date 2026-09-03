@@ -1,6 +1,10 @@
 
 
-import { defaultRunGit } from "./worktree-substrate.mjs";
+import { defaultRunGitAsync } from "./worktree-substrate.mjs";
+import { computeWorkRecordSourceDigest } from "@agent-chassis/wiki-core";
+import {
+  withControlledContractAuthorityExclusion
+} from "@agent-chassis/wiki-core/src/lib/controlled-contract-carrier-set-publication.mjs";
 
 import {
   SLICE_INTEGRATION_SCHEMA_VERSION,
@@ -22,8 +26,8 @@ import {
   resolveTree,
   resolveAuthenticatedExactSliceDeliveryBase,
   isLastIncompleteImplementationSlice,
-  resolveFixedWkForkCommit,
-  resolveZeroDeltaIntegrationEvidence
+  boundedWkLifecycleObservation,
+  resolveZeroDeltaIntegrationEvidenceFromObservation
 } from "./slice-integration-authorization.mjs";
 
 import {
@@ -52,14 +56,14 @@ const BOUNDARY_TARGET_FIELDS = Object.freeze([
   "subject", "initiative", "slice_ref", "reviewed_sha", "diff_base_sha"
 ]);
 
-function assertBoundaryObjectStoreProbes(runGit, mainRepo, target) {
+async function assertBoundaryObjectStoreProbes(runGit, mainRepo, target) {
   const probes = [
     { name: "slice_ref_resolves_to_reviewed_sha", rev: `${target.slice_ref}^{commit}`, expect: target.reviewed_sha },
     { name: "reviewed_commit_object_present", rev: `${target.reviewed_sha}^{commit}`, expect: target.reviewed_sha },
     { name: "slice_diff_base_object_present", rev: `${target.diff_base_sha}^{commit}`, expect: target.diff_base_sha }
   ];
   for (const probe of probes) {
-    const result = runGit({ repo: mainRepo, args: ["rev-parse", "--verify", probe.rev] });
+    const result = await runGit({ repo: mainRepo, args: ["rev-parse", "--verify", probe.rev] });
     const actual = result && result.ok === true ? String(result.stdout ?? "").trim() : null;
     if (actual !== probe.expect) {
       fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH,
@@ -72,7 +76,7 @@ function assertBoundaryObjectStoreProbes(runGit, mainRepo, target) {
   }
 }
 
-function assertSliceIntegrationBoundaryAuthorization({
+async function assertSliceIntegrationBoundaryAuthorization({
   runGit,
   mainRepo,
   sliceRef,
@@ -123,7 +127,7 @@ function assertSliceIntegrationBoundaryAuthorization({
       }
     });
   }
-  const currentSliceSha = revParse(runGit, mainRepo, sliceRef);
+  const currentSliceSha = await revParse(runGit, mainRepo, sliceRef);
   if (currentSliceSha !== target.reviewed_sha || target.diff_base_sha !== baseSha) {
     fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH,
       "integration boundary authorization is stale for the exact target", {
@@ -161,7 +165,7 @@ function assertSliceIntegrationBoundaryAuthorization({
     fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.BOUNDARY_AUTHORIZATION_MALFORMED,
       "integration boundary authorization has an unknown policy posture", { subject });
   }
-  assertBoundaryObjectStoreProbes(runGit, mainRepo, target);
+  await assertBoundaryObjectStoreProbes(runGit, mainRepo, target);
   return Object.freeze({ ...boundaryAuthorization, target: Object.freeze({ ...target }) });
 }
 
@@ -181,7 +185,7 @@ export async function integrateCommittedSlice({
   boundaryAuthorization = null,
   deps = {}
 } = {}) {
-  const runGit = deps.runGit ?? defaultRunGit;
+  const runGit = deps.runGit ?? defaultRunGitAsync;
   const coordinatorContinuation = boundaryAuthorization?.operation ===
     "integrate_committed_slice";
   if (workerTerminated !== true && !coordinatorContinuation) {
@@ -209,21 +213,20 @@ export async function integrateCommittedSlice({
   if (typeof transitionToReview !== "function") {
     fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.REVIEW_FREEZE_FAILED, "canonical review transition callback is required");
   }
-  const initialWkTip = revParse(runGit, mainRepo, wk.ref);
+  return withControlledContractAuthorityExclusion({
+    repoRoot: mainRepo,
+    wkId: slice.match[2],
+    run: async () => {
+  const initialWkTip = await revParse(runGit, mainRepo, wk.ref);
 
   if (!coordinatorContinuation) {
-    assertExactWorktreeBinding(runGit, worktreePath, slice.ref, commit);
+    await assertExactWorktreeBinding(runGit, worktreePath, slice.ref, commit);
   }
   const loadRecord = deps.loadCanonicalRecord ?? parseCanonicalRecord;
+  const initialRecord = loadRecord(mainRepo, slice.match[2]);
+  const initialRecordDigest = computeWorkRecordSourceDigest(initialRecord);
 
-  resolveFixedWkForkCommit({
-    runGit,
-    mainRepo,
-    initiative: slice.match[1],
-    wkId: slice.match[2]
-  });
-
-  const appliedBoundaryAuthorization = assertSliceIntegrationBoundaryAuthorization({
+  const appliedBoundaryAuthorization = await assertSliceIntegrationBoundaryAuthorization({
     runGit,
     mainRepo,
     sliceRef: slice.ref,
@@ -235,7 +238,7 @@ export async function integrateCommittedSlice({
     boundaryAuthorization
   });
 
-  const advance = advanceSliceRefCas({
+  const advance = await advanceSliceRefCas({
     runGit,
     runGitRefTransaction: deps.runGitRefTransaction,
     mainRepo,
@@ -245,7 +248,12 @@ export async function integrateCommittedSlice({
     sliceId: slice.match[3],
     baseSha,
     commit,
-    expectedWkTip: initialWkTip
+    expectedWkTip: initialWkTip,
+    initiative: slice.match[1],
+    recordSourceDigest: initialRecordDigest,
+    readRecordSourceDigest: () => computeWorkRecordSourceDigest(
+      loadRecord(mainRepo, slice.match[2])
+    )
   });
   const integratedCommit = advance.integratedCommit;
   const wkOld = advance.previousWkSha;
@@ -257,7 +265,7 @@ export async function integrateCommittedSlice({
   const expectedPostHelperWkTip = advance.already_present && !concurrentZeroDeltaWinner
     ? initialWkTip
     : integratedCommit;
-  const observedPostHelperWkTip = revParse(runGit, mainRepo, wk.ref);
+  const observedPostHelperWkTip = await revParse(runGit, mainRepo, wk.ref);
   if (observedPostHelperWkTip !== expectedPostHelperWkTip) {
     fail(
       SLICE_INTEGRATION_DIAGNOSTIC_CODES.WK_ADVANCE_CONFLICT,
@@ -281,6 +289,7 @@ export async function integrateCommittedSlice({
     writeRecordCas,
     transitionToReview,
     markSliceComplete,
+    integratedCommit,
     validateRecord: ({ wkTip }) => {
       if (wkTip !== expectedPostHelperWkTip) {
         fail(
@@ -312,6 +321,8 @@ export async function integrateCommittedSlice({
     transition: write.transition,
     boundary_authorization: appliedBoundaryAuthorization
   });
+    }
+  });
 }
 
 function zeroDeltaLifecycleRefusal(code, message, detail) {
@@ -325,10 +336,10 @@ function isParentPreterminal(status) {
 const EXACT_RAW_REF_FORMAT = "%(refname)%00%(objectname)%00%(objecttype)%00%(symref)";
 const EXACT_RAW_REF_OID_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 
-function authenticateExactDirectCommitRef(runGit, mainRepo, requestedRef, targetKind) {
+async function authenticateExactDirectCommitRef(runGit, mainRepo, requestedRef, targetKind) {
   let result;
   try {
-    result = runGit({
+    result = await runGit({
       repo: mainRepo,
       args: [
         "--no-replace-objects",
@@ -416,7 +427,7 @@ export async function recoverZeroDeltaIntegratedSlice({
   writeRecordCas = null,
   deps = {}
 } = {}) {
-  const runGit = deps.runGit ?? defaultRunGit;
+  const runGit = deps.runGit ?? defaultRunGitAsync;
   const slice = normalizeRef(sliceRef, SLICE_REF_RE, "sliceRef");
   const wk = normalizeRef(wkRef, WK_REF_RE, "wkRef");
   if (slice.match[1] !== wk.match[1] || slice.match[2] !== wk.match[2]) {
@@ -429,24 +440,36 @@ export async function recoverZeroDeltaIntegratedSlice({
       "unitAddress does not match the exact slice ref", { expected: expectedUnit, actual: unitAddress });
   }
   const subject = `${slice.match[2]}#${slice.match[3]}`;
-
-  const fixedFork = resolveFixedWkForkCommit({
-    runGit,
-    mainRepo,
-    initiative: slice.match[1],
-    wkId: slice.match[2]
-  });
-  const sliceTip = authenticateExactDirectCommitRef(runGit, mainRepo, slice.ref, "slice");
-  const wkTip = authenticateExactDirectCommitRef(runGit, mainRepo, wk.ref, "wk");
-  const evidenceSet = resolveZeroDeltaIntegrationEvidence({
-    runGit,
-    mainRepo,
-    wkTip,
-    subject,
-    deliverySha: sliceTip
-  });
+  const sliceTip = await authenticateExactDirectCommitRef(runGit, mainRepo, slice.ref, "slice");
+  const wkTip = await authenticateExactDirectCommitRef(runGit, mainRepo, wk.ref, "wk");
   const loadRecord = deps.loadCanonicalRecord ?? parseCanonicalRecord;
   const record = loadRecord(mainRepo, slice.match[2]);
+  const recordSourceDigest = computeWorkRecordSourceDigest(record);
+  let recoveryObservation;
+  let evidenceSet;
+  try {
+    recoveryObservation = await boundedWkLifecycleObservation({
+      runGit,
+      mainRepo,
+      initiative: slice.match[1],
+      wkId: slice.match[2],
+      wkTipSha: wkTip,
+      recordSourceDigest
+    });
+    evidenceSet = await resolveZeroDeltaIntegrationEvidenceFromObservation({
+      runGit,
+      mainRepo,
+      observation: recoveryObservation,
+      subject,
+      deliverySha: sliceTip
+    });
+  } catch (error) {
+    zeroDeltaLifecycleRefusal(
+      SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_EVIDENCE_INDETERMINATE,
+      "zero-delta recovery history is indeterminate",
+      { subject, reason: error?.detail?.reason ?? "history_observation_indeterminate" }
+    );
+  }
   const sliceEntry = record?.slices?.find((entry) => entry?.id === slice.match[3]) ?? null;
   if (sliceEntry === null) {
     fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH,
@@ -464,14 +487,14 @@ export async function recoverZeroDeltaIntegratedSlice({
   }
   if (evidenceSet.count === 0) {
 
-    const directBase = resolveAuthenticatedExactSliceDeliveryBase({
+    const directBase = await resolveAuthenticatedExactSliceDeliveryBase({
       runGit,
       mainRepo,
       subject,
       deliverySha: sliceTip
     });
     const genuineZeroDelta = directBase !== null &&
-      resolveTree(runGit, mainRepo, directBase) === resolveTree(runGit, mainRepo, sliceTip);
+      await resolveTree(runGit, mainRepo, directBase) === await resolveTree(runGit, mainRepo, sliceTip);
     if (!genuineZeroDelta) return null;
     if (sliceStatus === "done" || sliceStatus === "cancelled" ||
         parentStatus === "review" || parentStatus === "done") {
@@ -500,18 +523,25 @@ export async function recoverZeroDeltaIntegratedSlice({
     );
   }
   if (sliceStatus === "review" && isParentPreterminal(parentStatus)) {
-    const write = await driveRecordCasWrite({
-      runGit,
-      mainRepo,
-      wkRef: wk.ref,
-      initiative: slice.match[1],
-      wkId: slice.match[2],
-      sliceId: slice.match[3],
-      loadRecord,
-      writeRecordCas,
-      transitionToReview: null,
-      markSliceComplete: null,
-      validateRecord: ({ record: currentRecord, wkTip: currentTip, finalSlice }) => {
+    let write;
+    try {
+      write = await driveRecordCasWrite({
+        runGit,
+        mainRepo,
+        wkRef: wk.ref,
+        initiative: slice.match[1],
+        wkId: slice.match[2],
+        sliceId: slice.match[3],
+        loadRecord,
+        writeRecordCas,
+        transitionToReview: null,
+        markSliceComplete: null,
+      validateRecord: async ({
+        record: currentRecord,
+        wkTip: currentTip,
+        finalSlice,
+        observation
+      }) => {
         const currentSlice = currentRecord.slices.find((entry) => entry?.id === slice.match[3]);
         if (currentSlice?.status !== "review" || !isParentPreterminal(currentRecord.status)) {
           zeroDeltaLifecycleRefusal(
@@ -520,10 +550,10 @@ export async function recoverZeroDeltaIntegratedSlice({
             { subject, reason: "record_cas_source_inadmissible" }
           );
         }
-        const liveEvidenceSet = resolveZeroDeltaIntegrationEvidence({
+        const liveEvidenceSet = await resolveZeroDeltaIntegrationEvidenceFromObservation({
           runGit,
           mainRepo,
-          wkTip: currentTip,
+          observation,
           subject,
           deliverySha: evidence.delivery_sha,
           baseSha: evidence.base_sha
@@ -555,8 +585,22 @@ export async function recoverZeroDeltaIntegratedSlice({
             { subject, reason: "historical_evidence_cannot_finalize" }
           );
         }
+        }
+      });
+    } catch (error) {
+      const fixedForkRef = `refs/agent-launch/wk-forks/${slice.match[1]}/${slice.match[2]}`;
+      const fixedForkResolutionFailure = error?.detail?.fork_ref === fixedForkRef &&
+        (error?.code === SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH ||
+          error?.code === SLICE_INTEGRATION_DIAGNOSTIC_CODES.GIT_FAILED);
+      if (error?.detail?.history_observation === true || fixedForkResolutionFailure) {
+        zeroDeltaLifecycleRefusal(
+          SLICE_INTEGRATION_DIAGNOSTIC_CODES.ZERO_DELTA_EVIDENCE_INDETERMINATE,
+          "zero-delta live recovery history is indeterminate",
+          { subject, reason: error.detail.reason ?? "history_observation_indeterminate" }
+        );
       }
-    });
+      throw error;
+    }
     return recoveredZeroDeltaResult({
       slice,
       wk,
@@ -575,14 +619,14 @@ export async function recoverZeroDeltaIntegratedSlice({
     );
   }
 
-  const finalSlice = isLastIncompleteImplementationSlice(
+  const finalSlice = await isLastIncompleteImplementationSlice(
     record,
     slice.match[3],
     runGit,
     mainRepo,
     wkTip,
     slice.match[2],
-    { fixedForkSha: fixedFork.sha }
+    { observation: recoveryObservation, recordSourceDigest }
   );
   if (isParentPreterminal(parentStatus) && finalSlice) {
     zeroDeltaLifecycleRefusal(
@@ -592,7 +636,7 @@ export async function recoverZeroDeltaIntegratedSlice({
     );
   }
   const reviewTarget = parentStatus === "review" && evidenceAtCurrentTip
-    ? buildCompleteWkReviewTarget({
+    ? await buildCompleteWkReviewTarget({
         runGit,
         mainRepo,
         initiative: slice.match[1],
@@ -622,7 +666,7 @@ export async function recoverZeroDeltaIntegratedSlice({
   });
 }
 
-export function reconcileIntegratedSliceRecord({
+export async function reconcileIntegratedSliceRecord({
   mainRepo,
   unitAddress,
   sliceRef,
@@ -630,7 +674,7 @@ export function reconcileIntegratedSliceRecord({
   baseSha = null,
   deps = {}
 } = {}) {
-  const runGit = deps.runGit ?? defaultRunGit;
+  const runGit = deps.runGit ?? defaultRunGitAsync;
   const slice = normalizeRef(sliceRef, SLICE_REF_RE, "sliceRef");
   const wk = normalizeRef(wkRef, WK_REF_RE, "wkRef");
   if (slice.match[1] !== wk.match[1] || slice.match[2] !== wk.match[2]) {
@@ -640,8 +684,8 @@ export function reconcileIntegratedSliceRecord({
   if (unitAddress !== expectedUnit) {
     fail(SLICE_INTEGRATION_DIAGNOSTIC_CODES.BINDING_MISMATCH, "unitAddress does not match the exact slice ref", { expected: expectedUnit, actual: unitAddress });
   }
-  const wkTip = revParse(runGit, mainRepo, wk.ref);
-  const markerSha = resolveSliceMarkerCommit(runGit, mainRepo, wkTip, slice.match[2], slice.match[3]);
+  const wkTip = await revParse(runGit, mainRepo, wk.ref);
+  const markerSha = await resolveSliceMarkerCommit(runGit, mainRepo, wkTip, slice.match[2], slice.match[3]);
   const loadRecord = deps.loadCanonicalRecord ?? parseCanonicalRecord;
   const record = loadRecord(mainRepo, slice.match[2]);
   const sliceEntry = Array.isArray(record?.slices)
@@ -654,10 +698,10 @@ export function reconcileIntegratedSliceRecord({
 
     return null;
   }
-  const sliceTip = revParse(runGit, mainRepo, slice.ref);
+  const sliceTip = await revParse(runGit, mainRepo, slice.ref);
   if (sliceTip !== markerSha) {
 
-    const retained = resolveSliceMarkerEvidence(
+    const retained = await resolveSliceMarkerEvidence(
       runGit,
       mainRepo,
       sliceTip,
@@ -685,7 +729,7 @@ export function reconcileIntegratedSliceRecord({
 
   const ownsCurrentWkTip = markerSha === wkTip;
   const reviewTarget = wkInReview && ownsCurrentWkTip
-    ? buildCompleteWkReviewTarget({ runGit, mainRepo, initiative: slice.match[1], wkId: slice.match[2], wkRef: wk.ref, wkTip })
+    ? await buildCompleteWkReviewTarget({ runGit, mainRepo, initiative: slice.match[1], wkId: slice.match[2], wkRef: wk.ref, wkTip })
     : null;
   return Object.freeze({
     schema_version: SLICE_INTEGRATION_SCHEMA_VERSION,

@@ -18,6 +18,50 @@ import {
 } from "./launch-isolation-family-runtime.mjs";
 import { normalizeProvisionedWorktreeGitIsolation } from "./launch-isolation-git-binding.mjs";
 import { buildSparseWorkerNamespace } from "./launch-isolation-worker-scope.mjs";
+import { lstatSync, realpathSync } from "node:fs";
+import path from "node:path";
+import { CONTROLLED_CONTRACT_PRIVATE_PATH_ROOT } from "@agent-chassis/wiki-core";
+
+function sparseNamespaceShowsPrivatePath(namespace, privatePath) {
+  if (namespace === null) return true;
+  const visible = [...namespace.readable, ...namespace.writable].map(({ absolute }) => absolute);
+  return visible.some((entry) => privatePath === entry || privatePath.startsWith(`${entry}${path.sep}`));
+}
+
+function resolvePrivateReadOnlyMasks(repoReal, sparseWorkerNamespace, writableRoots) {
+  const privatePath = path.join(
+    repoReal, ...CONTROLLED_CONTRACT_PRIVATE_PATH_ROOT.split("/")
+  );
+  if (!sparseNamespaceShowsPrivatePath(sparseWorkerNamespace, privatePath)) return Object.freeze([]);
+  if (sparseWorkerNamespace !== null &&
+      !sparseWorkerNamespace.exclusions.some(({ absolute }) => absolute === privatePath)) {
+    fail(
+      BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.PRIVATE_REPOSITORY_PATH_CONFINEMENT_UNAVAILABLE,
+      "worker scope authority does not carry the required private-family exclusion"
+    );
+  }
+  let stat;
+  try {
+    stat = lstatSync(privatePath);
+  } catch (error) {
+    if (error?.code === "ENOENT" && !(Array.isArray(writableRoots) && writableRoots.some((root) =>
+      typeof root === "string" && path.isAbsolute(root) &&
+      (privatePath === path.normalize(root) || privatePath.startsWith(`${path.normalize(root)}${path.sep}`))
+    ))) return Object.freeze([]);
+    fail(
+      BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.PRIVATE_REPOSITORY_PATH_CONFINEMENT_UNAVAILABLE,
+      "private repository path could not be inspected",
+      { errno: error?.code ?? null }
+    );
+  }
+  if (!stat.isDirectory() || stat.isSymbolicLink() || realpathSync(privatePath) !== privatePath) {
+    fail(
+      BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.PRIVATE_REPOSITORY_PATH_CONFINEMENT_UNAVAILABLE,
+      "private repository path is not a canonical directory"
+    );
+  }
+  return Object.freeze([privatePath]);
+}
 
 export function prepareBubblewrapPlanCore({
   repo,
@@ -55,10 +99,7 @@ export function prepareBubblewrapPlanCore({
   const repoReal = realpathExisting(repoNormalized, "repo", BUBBLEWRAP_ISOLATION_DIAGNOSTIC_CODES.REPO_INVALID);
   const provisionedGitIsolation = normalizeProvisionedWorktreeGitIsolation(
     provisionedWorktreeGitIdentity ?? provisionedWorktreeGitBinding,
-    repoReal,
-    {
-      projectReadOnlyBinds: workerScopeAuthority === null || workerScopeAuthority === undefined
-    }
+    repoReal
   );
   const sparseWorkerNamespace = workerScopeAuthority === null || workerScopeAuthority === undefined
     ? null
@@ -68,6 +109,9 @@ export function prepareBubblewrapPlanCore({
         writableRoots,
         writableFiles
       });
+  const privateReadOnlyMaskDirsResolved = resolvePrivateReadOnlyMasks(
+    repoReal, sparseWorkerNamespace, writableRoots
+  );
 
   const resolvedFamilyRuntimePolicyProfile = familyRuntimePolicyProfile ?? (() => {
     const resolved = resolveFamilyRuntimeHomePolicyProfile();
@@ -170,6 +214,7 @@ export function prepareBubblewrapPlanCore({
     systemRoots,
     tmpfsDirsResolved,
     maskTmpfsDirsResolved,
+    privateReadOnlyMaskDirsResolved,
     familyRuntimeApprovedPrefixes,
     resolvedCommand
   };

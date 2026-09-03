@@ -1,0 +1,197 @@
+{
+  "input_version": "controlled-contract-verification-profile-input.experimental.v0.2",
+  "evaluation_stage": "post_delivery",
+  "reference_bindings": [
+    {
+      "role": "target",
+      "reference_ids": [
+        "ref-query-target"
+      ]
+    },
+    {
+      "role": "observation_attempt",
+      "reference_ids": [
+        "ref-observation-attempt-sound-negative-template"
+      ]
+    },
+    {
+      "role": "interval_start",
+      "reference_ids": [
+        "ref-observation-interval-start"
+      ]
+    },
+    {
+      "role": "interval_end",
+      "reference_ids": [
+        "ref-observation-interval-end"
+      ]
+    },
+    {
+      "role": "verification",
+      "reference_ids": [
+        "ref-sno-verification"
+      ]
+    },
+    {
+      "role": "observation_evidence_capture",
+      "reference_ids": [
+        "ref-sno-observation-evidence-capture"
+      ]
+    },
+    {
+      "role": "observation_capture_proof",
+      "reference_ids": [
+        "ref-sno-observation-capture-proof"
+      ]
+    },
+    {
+      "role": "projection_result",
+      "reference_ids": [
+        "ref-sno-projection-result"
+      ]
+    },
+    {
+      "role": "stable_endpoint_state",
+      "reference_ids": [
+        "ref-sno-stable-endpoint-state"
+      ]
+    },
+    {
+      "role": "source_count_signal",
+      "reference_ids": [
+        "ref-sno-source-count-signal"
+      ]
+    },
+    {
+      "role": "observation_count_signal",
+      "reference_ids": [
+        "ref-sno-observation-count-signal"
+      ]
+    },
+    {
+      "role": "declared_source_population",
+      "reference_ids": [
+        "ref-sno-declared-sources-population"
+      ]
+    },
+    {
+      "role": "declared_sources",
+      "reference_ids": []
+    },
+    {
+      "role": "observed_source_population",
+      "reference_ids": [
+        "ref-sno-observed-sources-population"
+      ]
+    },
+    {
+      "role": "observed_sources",
+      "reference_ids": []
+    },
+    {
+      "role": "source_outcome_population",
+      "reference_ids": [
+        "ref-sno-source-outcomes-population"
+      ]
+    },
+    {
+      "role": "source_outcomes",
+      "reference_ids": []
+    },
+    {
+      "role": "endpoint_population",
+      "reference_ids": [
+        "ref-sno-endpoint-pairs-population"
+      ]
+    },
+    {
+      "role": "endpoint_pairs",
+      "reference_ids": []
+    },
+    {
+      "role": "raw_observation_population",
+      "reference_ids": [
+        "ref-sno-raw-observations-population"
+      ]
+    },
+    {
+      "role": "raw_observations",
+      "reference_ids": []
+    },
+    {
+      "role": "valid_observation_population",
+      "reference_ids": [
+        "ref-sno-valid-observations-population"
+      ]
+    },
+    {
+      "role": "valid_observations",
+      "reference_ids": []
+    },
+    {
+      "role": "observation_position_population",
+      "reference_ids": [
+        "ref-sno-observation-positions-population"
+      ]
+    },
+    {
+      "role": "observation_positions",
+      "reference_ids": []
+    },
+    {
+      "role": "resolved_target_population",
+      "reference_ids": [
+        "ref-sno-resolved-targets-population"
+      ]
+    },
+    {
+      "role": "resolved_targets",
+      "reference_ids": []
+    },
+    {
+      "role": "assigned_source_population",
+      "reference_ids": [
+        "ref-sno-assigned-sources-population"
+      ]
+    },
+    {
+      "role": "assigned_sources",
+      "reference_ids": []
+    },
+    {
+      "role": "invalidating_condition_population",
+      "reference_ids": [
+        "ref-sno-invalidating-conditions-population"
+      ]
+    },
+    {
+      "role": "invalidating_conditions",
+      "reference_ids": []
+    },
+    {
+      "role": "absent_conclusion_population",
+      "reference_ids": [
+        "ref-sno-absent-conclusion-population"
+      ]
+    },
+    {
+      "role": "absent_conclusion",
+      "reference_ids": [
+        "ref-sno-conclusion-absent"
+      ]
+    }
+  ],
+  "number_bindings": [
+    {
+      "role": "declared_source_count",
+      "value": 0
+    },
+    {
+      "role": "declared_observation_count",
+      "value": 0
+    }
+  ],
+  "claim_pattern_bindings": [],
+  "resolver_facts": [],
+  "delivered_evidence": []
+}

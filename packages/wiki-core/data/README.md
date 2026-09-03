@@ -10,7 +10,7 @@ diagnostics that are read only as-needed (when a gate fires), not authored.
 ## Public Surface
 
 Sources of truth (for any future count, read these — do not estimate):
-- `packages/wiki-core/data/runtime-blocker-codes.v1.json` — the 33-code runtime-blocker taxonomy.
+- `packages/wiki-core/data/runtime-blocker-codes.v1.json` — the 110-code runtime-blocker taxonomy.
 - `packages/wiki-core/src/lib/work-record-schema-constants.mjs` — author-facing work-record enums.
 - `packages/wiki-core/src/lib/work-record-admission-decision-codes.mjs` and
   `packages/wiki-core/src/lib/work-record-dispatch.mjs` — admission / dispatch decision codes.

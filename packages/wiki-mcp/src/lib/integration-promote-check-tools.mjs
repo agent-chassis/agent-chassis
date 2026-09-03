@@ -129,7 +129,6 @@ export function buildWorkspaceIntegrationPromoteCheck({ workspaceRepo, workspace
     unit,
     work_record: recordId,
     expected_wk_ref: binding.initiative ? `wk/${binding.initiative}/${recordId}` : null,
-    expected_integration_ref: binding.initiative ? `integration/${binding.initiative}` : null,
     sources: {
       work_record: {
         source_path_relative: recordRead.source_path_relative,
@@ -167,7 +166,7 @@ export function registerIntegrationPromoteCheckTools({
     "workspace_integration_promote_check",
     {
       description:
-        "Read-only local WK-to-integration promote check. Accepts only server-resolved repo selection plus a canonical WK/unit id; reports local facts and fail-closed blockers without policy, review, merge, rebase, cleanup, or promotion authority.",
+        "Read-only local WK trunk-readiness check under the legacy route name. Accepts only server-resolved repo selection plus a canonical WK/unit id; reports local facts and fail-closed blockers without branch, policy, review, merge, rebase, cleanup, or promotion authority.",
       inputSchema: { repo: z.string().optional(), unit: z.string().optional(), work_record: z.string().optional() }
     },
     async (args) => {

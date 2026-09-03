@@ -1,0 +1,1783 @@
+{
+  "schema_version": "controlled-contract-proof-pack-negative-fixture.experimental.v0.1",
+  "fixture_id": "reference-role-surface-variations",
+  "covers": [
+    {
+      "surface_id": "role-actor-identity-kinds",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-actor-types",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-end-event-identity-kinds",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-end-event-types",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-interval-identity-kinds",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-interval-types",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-protected-resource-population-identity-kinds",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-protected-resource-population-types",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-protected-resources-identity-kinds",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-protected-resources-types",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-start-event-identity-kinds",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-start-event-types",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-verification-identity-kinds",
+      "weakening_class": "type_broadening"
+    },
+    {
+      "surface_id": "role-verification-types",
+      "weakening_class": "type_broadening"
+    }
+  ],
+  "contract": {
+    "schema_version": "controlled-acceptance-contract.v1",
+    "vocabulary_version": "controlled-contract-vocabulary.v1",
+    "profile_id": "acceptance-contract.standard.v1",
+    "references": [
+      {
+        "reference_id": "ref-actor",
+        "type_term": "cc:actor",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "bounded-interval-nonmutation:database-snapshot",
+          "value": "actor"
+        }
+      },
+      {
+        "reference_id": "ref-interval",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "bounded-interval-nonmutation:database-snapshot",
+          "value": "interval"
+        }
+      },
+      {
+        "reference_id": "ref-start",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "bounded-interval-nonmutation:database-snapshot",
+          "value": "start"
+        }
+      },
+      {
+        "reference_id": "ref-end",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "bounded-interval-nonmutation:database-snapshot",
+          "value": "end"
+        }
+      },
+      {
+        "reference_id": "ref-protected-population",
+        "type_term": "cc:population",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "bounded-interval-nonmutation:database-snapshot",
+          "value": "protected-population"
+        }
+      },
+      {
+        "reference_id": "ref-resource-1",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "bounded-interval-nonmutation:database-snapshot",
+          "value": "resource-1"
+        }
+      },
+      {
+        "reference_id": "ref-resource-2",
+        "type_term": "cc:resource",
+        "identity": {
+          "kind": "durable_id",
+          "domain": "bounded-interval-nonmutation:database-snapshot",
+          "value": "resource-2"
+        }
+      },
+      {
+        "reference_id": "ref-verification",
+        "type_term": "cc:test",
+        "identity": {
+          "kind": "code_symbol",
+          "repository": "fixture-database-snapshot",
+          "path": "tests/bounded-interval-nonmutation.test.mjs",
+          "symbol": "boundedIntervalNonmutation"
+        }
+      }
+    ],
+    "propositions": [
+      {
+        "proposition_id": "prop-population-protected-resource-population-contains",
+        "subject_reference_id": "ref-protected-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource-1"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource-2"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-population-protected-resource-population-cardinality",
+        "subject_reference_id": "ref-protected-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-start-event-starts-interval",
+        "subject_reference_id": "ref-start",
+        "operator": "reference:starts",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-interval"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-end-event-completes-interval",
+        "subject_reference_id": "ref-end",
+        "operator": "reference:completes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-interval"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-start-event-precedes-end-event",
+        "subject_reference_id": "ref-start",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-end"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-actor-does-not-write-protected-resources-during-interval",
+        "subject_reference_id": "ref-actor",
+        "operator": "reference:writes",
+        "applicability_context": {
+          "mode": "during",
+          "operand_reference_ids": [
+            "ref-interval"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource-1"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource-2"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-actor-does-not-mutate-protected-resources-during-interval",
+        "subject_reference_id": "ref-actor",
+        "operator": "reference:mutates",
+        "applicability_context": {
+          "mode": "during",
+          "operand_reference_ids": [
+            "ref-interval"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource-1"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource-2"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-verification-observes-exact-bounded-proof-subjects",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-actor"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-start"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-end"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-interval"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource-1"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource-2"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-verify-no-during-interval-write",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-protected-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-verify-no-during-interval-write",
+        "subject_reference_id": "ref-actor",
+        "operator": "reference:writes",
+        "applicability_context": {
+          "mode": "during",
+          "operand_reference_ids": [
+            "ref-interval"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource-1"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource-2"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-verify-no-during-interval-mutation",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-interval"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-verify-no-during-interval-mutation",
+        "subject_reference_id": "ref-actor",
+        "operator": "reference:mutates",
+        "applicability_context": {
+          "mode": "during",
+          "operand_reference_ids": [
+            "ref-interval"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource-1"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-resource-2"
+          }
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "claim_id": "claim-population-protected-resource-population-contains",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-population-protected-resource-population-contains"
+      },
+      {
+        "claim_id": "claim-population-protected-resource-population-cardinality",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-population-protected-resource-population-cardinality"
+      },
+      {
+        "claim_id": "claim-start-event-starts-interval",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-start-event-starts-interval"
+      },
+      {
+        "claim_id": "claim-end-event-completes-interval",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-end-event-completes-interval"
+      },
+      {
+        "claim_id": "claim-start-event-precedes-end-event",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-start-event-precedes-end-event"
+      },
+      {
+        "claim_id": "claim-actor-does-not-write-protected-resources-during-interval",
+        "kind": "behavior",
+        "modality": "MUST_NOT",
+        "proposition_id": "prop-actor-does-not-write-protected-resources-during-interval"
+      },
+      {
+        "claim_id": "claim-actor-does-not-mutate-protected-resources-during-interval",
+        "kind": "behavior",
+        "modality": "MUST_NOT",
+        "proposition_id": "prop-actor-does-not-mutate-protected-resources-during-interval"
+      },
+      {
+        "claim_id": "claim-verification-observes-exact-bounded-proof-subjects",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-verification-observes-exact-bounded-proof-subjects"
+      },
+      {
+        "claim_id": "claim-verify-no-during-interval-write",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-verify-no-during-interval-write",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-verify-no-during-interval-write"
+      },
+      {
+        "claim_id": "claim-verify-no-during-interval-mutation",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-verify-no-during-interval-mutation",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-verify-no-during-interval-mutation"
+      }
+    ],
+    "relations": [
+      {
+        "relation_id": "rel-verification-target-no-write",
+        "role": "verifies",
+        "source_claim_id": "claim-verify-no-during-interval-write",
+        "target_claim_id": "claim-actor-does-not-write-protected-resources-during-interval"
+      },
+      {
+        "relation_id": "rel-verification-target-no-mutation",
+        "role": "verifies",
+        "source_claim_id": "claim-verify-no-during-interval-mutation",
+        "target_claim_id": "claim-actor-does-not-mutate-protected-resources-during-interval"
+      }
+    ],
+    "collections": [],
+    "residue": [],
+    "annotations": [],
+    "test_proof_version": "controlled-contract-test-proof.v1",
+    "test_proofs": []
+  },
+  "evaluation_input": {
+    "input_version": "controlled-contract-verification-profile-input.v1",
+    "evaluation_stage": "pre_dispatch",
+    "reference_bindings": [
+      {
+        "role": "actor",
+        "reference_ids": [
+          "ref-actor"
+        ]
+      },
+      {
+        "role": "interval",
+        "reference_ids": [
+          "ref-interval"
+        ]
+      },
+      {
+        "role": "start_event",
+        "reference_ids": [
+          "ref-start"
+        ]
+      },
+      {
+        "role": "end_event",
+        "reference_ids": [
+          "ref-end"
+        ]
+      },
+      {
+        "role": "protected_resource_population",
+        "reference_ids": [
+          "ref-protected-population"
+        ]
+      },
+      {
+        "role": "protected_resources",
+        "reference_ids": [
+          "ref-resource-1",
+          "ref-resource-2"
+        ]
+      },
+      {
+        "role": "verification",
+        "reference_ids": [
+          "ref-verification"
+        ]
+      }
+    ],
+    "number_bindings": [
+      {
+        "role": "protected_resource_count",
+        "value": 2
+      }
+    ],
+    "claim_pattern_bindings": [],
+    "resolver_facts": [],
+    "delivered_evidence": [],
+    "stable_evaluation": {}
+  },
+  "variations": [
+    {
+      "variant_id": "role-actor-identity-kinds",
+      "covers": [
+        {
+          "surface_id": "role-actor-identity-kinds",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-actor",
+              "type_term": "cc:actor",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-interval-nonmutation:actor"
+              }
+            },
+            {
+              "reference_id": "ref-interval",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "interval"
+              }
+            },
+            {
+              "reference_id": "ref-start",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "start"
+              }
+            },
+            {
+              "reference_id": "ref-end",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "end"
+              }
+            },
+            {
+              "reference_id": "ref-protected-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "protected-population"
+              }
+            },
+            {
+              "reference_id": "ref-resource-1",
+              "type_term": "cc:resource",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "resource-1"
+              }
+            },
+            {
+              "reference_id": "ref-resource-2",
+              "type_term": "cc:resource",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "resource-2"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:test",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-database-snapshot",
+                "path": "tests/bounded-interval-nonmutation.test.mjs",
+                "symbol": "boundedIntervalNonmutation"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-actor-types",
+      "covers": [
+        {
+          "surface_id": "role-actor-types",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-actor",
+              "type_term": "cc:entity",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "actor"
+              }
+            },
+            {
+              "reference_id": "ref-interval",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "interval"
+              }
+            },
+            {
+              "reference_id": "ref-start",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "start"
+              }
+            },
+            {
+              "reference_id": "ref-end",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "end"
+              }
+            },
+            {
+              "reference_id": "ref-protected-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "protected-population"
+              }
+            },
+            {
+              "reference_id": "ref-resource-1",
+              "type_term": "cc:resource",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "resource-1"
+              }
+            },
+            {
+              "reference_id": "ref-resource-2",
+              "type_term": "cc:resource",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "resource-2"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:test",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-database-snapshot",
+                "path": "tests/bounded-interval-nonmutation.test.mjs",
+                "symbol": "boundedIntervalNonmutation"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-end-event-identity-kinds",
+      "covers": [
+        {
+          "surface_id": "role-end-event-identity-kinds",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-actor",
+              "type_term": "cc:actor",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "actor"
+              }
+            },
+            {
+              "reference_id": "ref-interval",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "interval"
+              }
+            },
+            {
+              "reference_id": "ref-start",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "start"
+              }
+            },
+            {
+              "reference_id": "ref-end",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-interval-nonmutation:end"
+              }
+            },
+            {
+              "reference_id": "ref-protected-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "protected-population"
+              }
+            },
+            {
+              "reference_id": "ref-resource-1",
+              "type_term": "cc:resource",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "resource-1"
+              }
+            },
+            {
+              "reference_id": "ref-resource-2",
+              "type_term": "cc:resource",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "resource-2"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:test",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-database-snapshot",
+                "path": "tests/bounded-interval-nonmutation.test.mjs",
+                "symbol": "boundedIntervalNonmutation"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-end-event-types",
+      "covers": [
+        {
+          "surface_id": "role-end-event-types",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-actor",
+              "type_term": "cc:actor",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "actor"
+              }
+            },
+            {
+              "reference_id": "ref-interval",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "interval"
+              }
+            },
+            {
+              "reference_id": "ref-start",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "start"
+              }
+            },
+            {
+              "reference_id": "ref-end",
+              "type_term": "cc:entity",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "end"
+              }
+            },
+            {
+              "reference_id": "ref-protected-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "protected-population"
+              }
+            },
+            {
+              "reference_id": "ref-resource-1",
+              "type_term": "cc:resource",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "resource-1"
+              }
+            },
+            {
+              "reference_id": "ref-resource-2",
+              "type_term": "cc:resource",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "resource-2"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:test",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-database-snapshot",
+                "path": "tests/bounded-interval-nonmutation.test.mjs",
+                "symbol": "boundedIntervalNonmutation"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-interval-identity-kinds",
+      "covers": [
+        {
+          "surface_id": "role-interval-identity-kinds",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-actor",
+              "type_term": "cc:actor",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "actor"
+              }
+            },
+            {
+              "reference_id": "ref-interval",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-interval-nonmutation:interval"
+              }
+            },
+            {
+              "reference_id": "ref-start",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "start"
+              }
+            },
+            {
+              "reference_id": "ref-end",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "end"
+              }
+            },
+            {
+              "reference_id": "ref-protected-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "protected-population"
+              }
+            },
+            {
+              "reference_id": "ref-resource-1",
+              "type_term": "cc:resource",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "resource-1"
+              }
+            },
+            {
+              "reference_id": "ref-resource-2",
+              "type_term": "cc:resource",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "resource-2"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:test",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-database-snapshot",
+                "path": "tests/bounded-interval-nonmutation.test.mjs",
+                "symbol": "boundedIntervalNonmutation"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-interval-types",
+      "covers": [
+        {
+          "surface_id": "role-interval-types",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-actor",
+              "type_term": "cc:actor",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "actor"
+              }
+            },
+            {
+              "reference_id": "ref-interval",
+              "type_term": "cc:entity",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "interval"
+              }
+            },
+            {
+              "reference_id": "ref-start",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "start"
+              }
+            },
+            {
+              "reference_id": "ref-end",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "end"
+              }
+            },
+            {
+              "reference_id": "ref-protected-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "protected-population"
+              }
+            },
+            {
+              "reference_id": "ref-resource-1",
+              "type_term": "cc:resource",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "resource-1"
+              }
+            },
+            {
+              "reference_id": "ref-resource-2",
+              "type_term": "cc:resource",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "resource-2"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:test",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-database-snapshot",
+                "path": "tests/bounded-interval-nonmutation.test.mjs",
+                "symbol": "boundedIntervalNonmutation"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-protected-resource-population-identity-kinds",
+      "covers": [
+        {
+          "surface_id": "role-protected-resource-population-identity-kinds",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-actor",
+              "type_term": "cc:actor",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "actor"
+              }
+            },
+            {
+              "reference_id": "ref-interval",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "interval"
+              }
+            },
+            {
+              "reference_id": "ref-start",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "start"
+              }
+            },
+            {
+              "reference_id": "ref-end",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "end"
+              }
+            },
+            {
+              "reference_id": "ref-protected-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-interval-nonmutation:protected-population"
+              }
+            },
+            {
+              "reference_id": "ref-resource-1",
+              "type_term": "cc:resource",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "resource-1"
+              }
+            },
+            {
+              "reference_id": "ref-resource-2",
+              "type_term": "cc:resource",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "resource-2"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:test",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-database-snapshot",
+                "path": "tests/bounded-interval-nonmutation.test.mjs",
+                "symbol": "boundedIntervalNonmutation"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-protected-resource-population-types",
+      "covers": [
+        {
+          "surface_id": "role-protected-resource-population-types",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-actor",
+              "type_term": "cc:actor",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "actor"
+              }
+            },
+            {
+              "reference_id": "ref-interval",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "interval"
+              }
+            },
+            {
+              "reference_id": "ref-start",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "start"
+              }
+            },
+            {
+              "reference_id": "ref-end",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "end"
+              }
+            },
+            {
+              "reference_id": "ref-protected-population",
+              "type_term": "cc:scope",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "protected-population"
+              }
+            },
+            {
+              "reference_id": "ref-resource-1",
+              "type_term": "cc:resource",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "resource-1"
+              }
+            },
+            {
+              "reference_id": "ref-resource-2",
+              "type_term": "cc:resource",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "resource-2"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:test",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-database-snapshot",
+                "path": "tests/bounded-interval-nonmutation.test.mjs",
+                "symbol": "boundedIntervalNonmutation"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-protected-resources-identity-kinds",
+      "covers": [
+        {
+          "surface_id": "role-protected-resources-identity-kinds",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-actor",
+              "type_term": "cc:actor",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "actor"
+              }
+            },
+            {
+              "reference_id": "ref-interval",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "interval"
+              }
+            },
+            {
+              "reference_id": "ref-start",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "start"
+              }
+            },
+            {
+              "reference_id": "ref-end",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "end"
+              }
+            },
+            {
+              "reference_id": "ref-protected-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "protected-population"
+              }
+            },
+            {
+              "reference_id": "ref-resource-1",
+              "type_term": "cc:resource",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-interval-nonmutation:resource-1"
+              }
+            },
+            {
+              "reference_id": "ref-resource-2",
+              "type_term": "cc:resource",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-interval-nonmutation:resource-2"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:test",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-database-snapshot",
+                "path": "tests/bounded-interval-nonmutation.test.mjs",
+                "symbol": "boundedIntervalNonmutation"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-protected-resources-types",
+      "covers": [
+        {
+          "surface_id": "role-protected-resources-types",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-actor",
+              "type_term": "cc:actor",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "actor"
+              }
+            },
+            {
+              "reference_id": "ref-interval",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "interval"
+              }
+            },
+            {
+              "reference_id": "ref-start",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "start"
+              }
+            },
+            {
+              "reference_id": "ref-end",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "end"
+              }
+            },
+            {
+              "reference_id": "ref-protected-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "protected-population"
+              }
+            },
+            {
+              "reference_id": "ref-resource-1",
+              "type_term": "cc:entity",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "resource-1"
+              }
+            },
+            {
+              "reference_id": "ref-resource-2",
+              "type_term": "cc:entity",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "resource-2"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:test",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-database-snapshot",
+                "path": "tests/bounded-interval-nonmutation.test.mjs",
+                "symbol": "boundedIntervalNonmutation"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-start-event-identity-kinds",
+      "covers": [
+        {
+          "surface_id": "role-start-event-identity-kinds",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-actor",
+              "type_term": "cc:actor",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "actor"
+              }
+            },
+            {
+              "reference_id": "ref-interval",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "interval"
+              }
+            },
+            {
+              "reference_id": "ref-start",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-interval-nonmutation:start"
+              }
+            },
+            {
+              "reference_id": "ref-end",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "end"
+              }
+            },
+            {
+              "reference_id": "ref-protected-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "protected-population"
+              }
+            },
+            {
+              "reference_id": "ref-resource-1",
+              "type_term": "cc:resource",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "resource-1"
+              }
+            },
+            {
+              "reference_id": "ref-resource-2",
+              "type_term": "cc:resource",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "resource-2"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:test",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-database-snapshot",
+                "path": "tests/bounded-interval-nonmutation.test.mjs",
+                "symbol": "boundedIntervalNonmutation"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-start-event-types",
+      "covers": [
+        {
+          "surface_id": "role-start-event-types",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-actor",
+              "type_term": "cc:actor",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "actor"
+              }
+            },
+            {
+              "reference_id": "ref-interval",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "interval"
+              }
+            },
+            {
+              "reference_id": "ref-start",
+              "type_term": "cc:entity",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "start"
+              }
+            },
+            {
+              "reference_id": "ref-end",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "end"
+              }
+            },
+            {
+              "reference_id": "ref-protected-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "protected-population"
+              }
+            },
+            {
+              "reference_id": "ref-resource-1",
+              "type_term": "cc:resource",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "resource-1"
+              }
+            },
+            {
+              "reference_id": "ref-resource-2",
+              "type_term": "cc:resource",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "resource-2"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:test",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-database-snapshot",
+                "path": "tests/bounded-interval-nonmutation.test.mjs",
+                "symbol": "boundedIntervalNonmutation"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-verification-identity-kinds",
+      "covers": [
+        {
+          "surface_id": "role-verification-identity-kinds",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-actor",
+              "type_term": "cc:actor",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "actor"
+              }
+            },
+            {
+              "reference_id": "ref-interval",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "interval"
+              }
+            },
+            {
+              "reference_id": "ref-start",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "start"
+              }
+            },
+            {
+              "reference_id": "ref-end",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "end"
+              }
+            },
+            {
+              "reference_id": "ref-protected-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "protected-population"
+              }
+            },
+            {
+              "reference_id": "ref-resource-1",
+              "type_term": "cc:resource",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "resource-1"
+              }
+            },
+            {
+              "reference_id": "ref-resource-2",
+              "type_term": "cc:resource",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "resource-2"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:test",
+              "identity": {
+                "kind": "profile_term",
+                "term": "bounded-interval-nonmutation:verification"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    },
+    {
+      "variant_id": "role-verification-types",
+      "covers": [
+        {
+          "surface_id": "role-verification-types",
+          "weakening_class": "type_broadening"
+        }
+      ],
+      "contract_patches": [
+        {
+          "op": "replace",
+          "path": "/references",
+          "value": [
+            {
+              "reference_id": "ref-actor",
+              "type_term": "cc:actor",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "actor"
+              }
+            },
+            {
+              "reference_id": "ref-interval",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "interval"
+              }
+            },
+            {
+              "reference_id": "ref-start",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "start"
+              }
+            },
+            {
+              "reference_id": "ref-end",
+              "type_term": "cc:event",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "end"
+              }
+            },
+            {
+              "reference_id": "ref-protected-population",
+              "type_term": "cc:population",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "protected-population"
+              }
+            },
+            {
+              "reference_id": "ref-resource-1",
+              "type_term": "cc:resource",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "resource-1"
+              }
+            },
+            {
+              "reference_id": "ref-resource-2",
+              "type_term": "cc:resource",
+              "identity": {
+                "kind": "durable_id",
+                "domain": "bounded-interval-nonmutation:database-snapshot",
+                "value": "resource-2"
+              }
+            },
+            {
+              "reference_id": "ref-verification",
+              "type_term": "cc:entity",
+              "identity": {
+                "kind": "code_symbol",
+                "repository": "fixture-database-snapshot",
+                "path": "tests/bounded-interval-nonmutation.test.mjs",
+                "symbol": "boundedIntervalNonmutation"
+              }
+            }
+          ]
+        }
+      ],
+      "evaluation_input_patches": []
+    }
+  ]
+}

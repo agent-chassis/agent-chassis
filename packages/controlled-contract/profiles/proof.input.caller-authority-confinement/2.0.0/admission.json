@@ -1,0 +1,72 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v2",
+  "profile_id": "proof.input.caller-authority-confinement",
+  "profile_version": "2.0.0",
+  "profile_digest": "82c491ef567f422ed6ddd22e6342e7f233511771082a42cf37555bcd26e94c18",
+  "guarantee": "For one exact closed canonical caller-input policy, one exact accepted request and parser attempt, one distinct exact authority-bearing forbidden request and parser attempt, and one authenticated complete ordered observation cut ending at that forbidden attempt's exact refusal, the package-owned combined projection exactly partitions declared members, derives typed structural identities and all member-to-coordinate-to-operation-to-effect associations, proves the accepted opaque path-like control selects no coordinate and is accepted, proves the forbidden member is refused, exactly reconciles the policy-derived source census, and establishes no resolver, loader, filesystem, environment, module, catalog, subprocess, return, or success occurrence for the forbidden attempt before refusal.",
+  "guarantee_digest": "c1223d3646244ecd972d854b9e5243b2e756d63b638be031aa90b4ba449bcc5c",
+  "explicit_exclusions": [
+    "canonical-policy-adapter-fidelity-outside-capture",
+    "cce-consequences-or-publication-authority",
+    "cross-pack-occurrence-joins",
+    "instrumentation-completeness-outside-policy-derived-source-census",
+    "post-refusal-behavior-and-later-requests",
+    "runtime-truth-beyond-exact-capture"
+  ],
+  "certification": {
+    "method": "executable_semantic_adequacy",
+    "adequacy_declaration_digest": "f0808f1fc8931608ff4cce23bd0115080ca4208c6d10dc2b60fe2c836d37f973",
+    "adequacy_result_digest": "fae2d14856b8bbb184b2faca6b789f9b6792f142ae7adf7c7b8d05e294d189f7",
+    "executable_control_count": 85,
+    "negative_fixture_count": 0,
+    "coverage_witness_count": 0
+  },
+  "exact_binding": {
+    "declaration_digest": "d0266b09db806886ed5289b4656dc42072858186516d87e94c5a1a1b43a98c58",
+    "certification_result_digest": "1d24a38b37f428d3b8403d71075622eb07c93d59c85ee3ceae59cdd95686db0e",
+    "executable_control_count": 32,
+    "binding_kinds": [
+      "artifact_bytes"
+    ],
+    "relation_operators": [
+      "deterministic_projection"
+    ],
+    "corpus_id": "proof-input-caller-authority-confinement-exact-binding",
+    "corpus_version": "1.0.0",
+    "corpus_digest": "ecf591a1c29c73033679a687a98f68e1ffa90c4c29812d0fca022acfca8a81f8",
+    "passed_control_ids": [
+      "accepted-parser-request-id-splice",
+      "accepted-request-source-splice",
+      "admission-context-splice",
+      "authored-equality-laundering",
+      "capture-proof-source-splice",
+      "crossed-member-coordinate-association",
+      "cut-refusal-id-splice",
+      "declaration-profile-splice",
+      "declaration-result-splice",
+      "evaluation-input-splice",
+      "evidence-attempt-id-splice",
+      "evidence-cut-id-splice",
+      "fabricated-selected-claim",
+      "forbidden-request-source-splice",
+      "observation-evidence-source-splice",
+      "omitted-association-trace-record",
+      "policy-source-splice",
+      "positive-exact-capture",
+      "positive-reordered-capture",
+      "positive-unicode-capture",
+      "profile-association-binding-weakening",
+      "profile-cardinality-weakening",
+      "profile-complete-population-weakening",
+      "profile-context-splice",
+      "profile-falsifier-weakening",
+      "profile-relation-weakening",
+      "profile-satisfaction-weakening",
+      "profile-stage-weakening",
+      "profile-verification-method-weakening",
+      "projected-evaluation-opt-in-removal",
+      "projection-result-splice",
+      "surplus-member-coordinate-association"
+    ]
+  }
+}

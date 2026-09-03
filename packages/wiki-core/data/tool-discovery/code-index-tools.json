@@ -4,7 +4,7 @@
   "repository": "agent-chassis/agent-chassis",
   "fragment": "code-index-tools.json",
   "summary": "Code-index and graph-impact tools across MCP and CLI.",
-  "tool_count": 18,
+  "tool_count": 28,
   "tools": [
     {
       "tool_name": "workspace_code_index_status",
@@ -251,7 +251,15 @@
         "packages/wiki-mcp/src/lib/code-index-tools.mjs",
         "docs/mcp-integration.md"
       ],
-      "notes": "Preferred MCP symbol-reference lookup for the SCIP-derived repo code index layer. Compact by default with one freshness state, one resolution/status reason, bounded results, total/returned/truncated metadata, and a next action. Pass verbose:true for the full derived envelope, provider descriptors, coverage, canonical refs, and evidence. CLI fallback: `npm run wiki -- code-index find-references --json --symbol <scip-symbol>`."
+      "notes": "Preferred MCP symbol-reference lookup for the SCIP-derived repo code index. Compact output reports exact counts and next action; verbose:true restores complete evidence.",
+      "use_when": ["Find every indexed reference to one known symbol or source position."],
+      "do_not_use_when": ["The task asks for a definition, caller, callee, or path impact; use that owning code-index route."],
+      "authoritative_for": ["SCIP-derived symbol-reference lookup"],
+      "recommended_first_call": {
+        "operation": "query one known symbol or source position",
+        "arguments": {"symbol": "$known_symbol", "verbose": false},
+        "omit_null_arguments": true
+      }
     },
     {
       "tool_name": "workspace_code_index_definition",
@@ -293,7 +301,15 @@
         "packages/wiki-mcp/src/lib/code-index-tools.mjs",
         "docs/mcp-integration.md"
       ],
-      "notes": "Preferred MCP definition lookup for the SCIP-derived repo code index layer. Compact by default with one freshness state, one resolution/status reason, bounded results, total/returned/truncated metadata, and a next action. Pass verbose:true for the full derived envelope, provider descriptors, coverage, canonical refs, and evidence. CLI fallback: `npm run wiki -- code-index definition --json --path <path> --line <line>`."
+      "notes": "Preferred MCP definition lookup for the SCIP-derived repo code index. Compact output reports exact counts and next action; verbose:true restores complete evidence.",
+      "use_when": ["Resolve the indexed definition of one known symbol or source position."],
+      "do_not_use_when": ["The task asks for references, callers, callees, or path impact; use that owning code-index route."],
+      "authoritative_for": ["SCIP-derived symbol-definition lookup"],
+      "recommended_first_call": {
+        "operation": "resolve one known symbol or source position",
+        "arguments": {"path": "$repo_relative_path", "line": "$line"},
+        "omit_null_arguments": true
+      }
     },
     {
       "tool_name": "workspace_code_index_callers",
@@ -335,7 +351,15 @@
         "packages/wiki-mcp/src/lib/code-index-tools.mjs",
         "docs/mcp-integration.md"
       ],
-      "notes": "Preferred MCP callers lookup for the SCIP-derived repo code index call-graph layer. Compact by default with one freshness state, one resolution/status reason, bounded results, total/returned/truncated metadata, and a next action. Pass verbose:true for the full derived envelope, provider descriptors, coverage, canonical refs, call-graph state, and evidence. CLI fallback: `npm run wiki -- code-index callers --json --symbol <scip-symbol>`."
+      "notes": "Preferred MCP caller lookup for the SCIP-derived call graph. Compact output reports exact counts and next action; verbose:true restores complete evidence.",
+      "use_when": ["Find indexed symbols that call one known symbol or source position."],
+      "do_not_use_when": ["The task asks what this symbol calls, its definition, references, or path impact; use that owning route."],
+      "authoritative_for": ["SCIP-derived caller lookup"],
+      "recommended_first_call": {
+        "operation": "query callers of one known symbol",
+        "arguments": {"symbol": "$known_symbol", "verbose": false},
+        "omit_null_arguments": true
+      }
     },
     {
       "tool_name": "workspace_code_index_callees",
@@ -377,7 +401,15 @@
         "packages/wiki-mcp/src/lib/code-index-tools.mjs",
         "docs/mcp-integration.md"
       ],
-      "notes": "Preferred MCP callees lookup for the SCIP-derived repo code index call-graph layer. Compact by default with one freshness state, one resolution/status reason, bounded results, total/returned/truncated metadata, and a next action. Pass verbose:true for the full derived envelope, provider descriptors, coverage, canonical refs, call-graph state, and evidence. CLI fallback: `npm run wiki -- code-index callees --json --symbol <scip-symbol>`."
+      "notes": "Preferred MCP callee lookup for the SCIP-derived call graph. Compact output reports exact counts and next action; verbose:true restores complete evidence.",
+      "use_when": ["Find indexed symbols called by one known symbol or source position."],
+      "do_not_use_when": ["The task asks what calls this symbol, its definition, references, or path impact; use that owning route."],
+      "authoritative_for": ["SCIP-derived callee lookup"],
+      "recommended_first_call": {
+        "operation": "query callees of one known symbol",
+        "arguments": {"symbol": "$known_symbol", "verbose": false},
+        "omit_null_arguments": true
+      }
     },
     {
       "tool_name": "workspace_code_index_build",
@@ -690,6 +722,531 @@
         "packages/wiki-core/src/lib/sidecar-symbol-query.mjs"
       ],
       "notes": "Compact CLI fallback for SCIP-derived callees lookup. Prefer the MCP `workspace_code_index_callees` route for structured agent use; use --path <path> --line <line> [--character <char>] when resolving a symbol from a position."
+    },
+    {
+      "tool_name": "sidecar_build",
+      "display_name": "Sidecar build",
+      "kind": "mcp_tool",
+      "entrypoint": "sidecar_build",
+      "task_ids": [
+        "refresh-derived-evidence"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "operator"
+      ],
+      "priority": 34,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "operator_input",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md",
+        "docs/agent-tool-compliance-and-surface-rationalization.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/code-index-tools.mjs",
+        "packages/wiki-core/src/lib/sidecar-impact.mjs"
+      ],
+      "notes": "Build the code index for an explicitly selected directory.",
+      "use_when": [
+        "Operator is using the direct-directory code-index contract."
+      ],
+      "do_not_use_when": [
+        "New configured-workspace calls should use workspace_code_index_build."
+      ],
+      "authoritative_for": [
+        "operator-requested direct-directory code-index operation"
+      ],
+      "recommended_first_call": {
+        "operation": "run direct-directory sidecar_build",
+        "arguments": {
+          "dir": "$operator_selected_target_directory"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "workspace_sidecar_build",
+      "display_name": "Workspace sidecar build",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_sidecar_build",
+      "task_ids": [
+        "refresh-derived-evidence"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "operator"
+      ],
+      "priority": 34,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "operator_input",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md",
+        "docs/agent-tool-compliance-and-surface-rationalization.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/code-index-tools.mjs",
+        "packages/wiki-core/src/lib/sidecar-impact.mjs"
+      ],
+      "notes": "Compatibility name for the configured-workspace code-index build route.",
+      "use_when": [
+        "An existing caller requires the workspace_sidecar_build compatibility name."
+      ],
+      "do_not_use_when": [
+        "New configured-workspace calls should use workspace_code_index_build."
+      ],
+      "authoritative_for": [
+        "compatibility routing to the canonical code-index operation"
+      ],
+      "recommended_first_call": {
+        "operation": "call workspace_code_index_build for new work",
+        "arguments": {
+          "repo": "$configured_workspace_alias"
+        },
+        "omit_null_arguments": true
+      },
+      "compatibility_alias_for": "workspace_code_index_build"
+    },
+    {
+      "tool_name": "sidecar_rebuild",
+      "display_name": "Sidecar rebuild",
+      "kind": "mcp_tool",
+      "entrypoint": "sidecar_rebuild",
+      "task_ids": [
+        "refresh-derived-evidence"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "operator"
+      ],
+      "priority": 34,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "operator_input",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md",
+        "docs/agent-tool-compliance-and-surface-rationalization.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/code-index-tools.mjs",
+        "packages/wiki-core/src/lib/sidecar-impact.mjs"
+      ],
+      "notes": "Rebuild the code index for an explicitly selected directory.",
+      "use_when": [
+        "Operator is using the direct-directory code-index contract."
+      ],
+      "do_not_use_when": [
+        "New configured-workspace calls should use workspace_code_index_rebuild."
+      ],
+      "authoritative_for": [
+        "operator-requested direct-directory code-index operation"
+      ],
+      "recommended_first_call": {
+        "operation": "run direct-directory sidecar_rebuild",
+        "arguments": {
+          "dir": "$operator_selected_target_directory"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "workspace_sidecar_rebuild",
+      "display_name": "Workspace sidecar rebuild",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_sidecar_rebuild",
+      "task_ids": [
+        "refresh-derived-evidence"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "operator"
+      ],
+      "priority": 34,
+      "side_effects": [
+        "workspace_write"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "operator_input",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md",
+        "docs/agent-tool-compliance-and-surface-rationalization.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/code-index-tools.mjs",
+        "packages/wiki-core/src/lib/sidecar-impact.mjs"
+      ],
+      "notes": "Compatibility name for the configured-workspace code-index rebuild route.",
+      "use_when": [
+        "An existing caller requires the workspace_sidecar_rebuild compatibility name."
+      ],
+      "do_not_use_when": [
+        "New configured-workspace calls should use workspace_code_index_rebuild."
+      ],
+      "authoritative_for": [
+        "compatibility routing to the canonical code-index operation"
+      ],
+      "recommended_first_call": {
+        "operation": "call workspace_code_index_rebuild for new work",
+        "arguments": {
+          "repo": "$configured_workspace_alias"
+        },
+        "omit_null_arguments": true
+      },
+      "compatibility_alias_for": "workspace_code_index_rebuild"
+    },
+    {
+      "tool_name": "sidecar_status",
+      "display_name": "Sidecar status",
+      "kind": "mcp_tool",
+      "entrypoint": "sidecar_status",
+      "task_ids": [
+        "query-graph-impact"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "operator"
+      ],
+      "priority": 34,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "operator_input",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md",
+        "docs/agent-tool-compliance-and-surface-rationalization.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/code-index-tools.mjs",
+        "packages/wiki-core/src/lib/sidecar-impact.mjs"
+      ],
+      "notes": "Read code-index status for an explicitly selected directory.",
+      "use_when": [
+        "Operator is using the direct-directory code-index contract."
+      ],
+      "do_not_use_when": [
+        "New configured-workspace calls should use workspace_code_index_status."
+      ],
+      "authoritative_for": [
+        "operator-requested direct-directory code-index operation"
+      ],
+      "recommended_first_call": {
+        "operation": "run direct-directory sidecar_status",
+        "arguments": {
+          "dir": "$operator_selected_target_directory"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "workspace_sidecar_status",
+      "display_name": "Workspace sidecar status",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_sidecar_status",
+      "task_ids": [
+        "query-graph-impact"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "operator"
+      ],
+      "priority": 34,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "operator_input",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md",
+        "docs/agent-tool-compliance-and-surface-rationalization.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/code-index-tools.mjs",
+        "packages/wiki-core/src/lib/sidecar-impact.mjs"
+      ],
+      "notes": "Compatibility name for the configured-workspace code-index status route.",
+      "use_when": [
+        "An existing caller requires the workspace_sidecar_status compatibility name."
+      ],
+      "do_not_use_when": [
+        "New configured-workspace calls should use workspace_code_index_status."
+      ],
+      "authoritative_for": [
+        "compatibility routing to the canonical code-index operation"
+      ],
+      "recommended_first_call": {
+        "operation": "call workspace_code_index_status for new work",
+        "arguments": {
+          "repo": "$configured_workspace_alias"
+        },
+        "omit_null_arguments": true
+      },
+      "compatibility_alias_for": "workspace_code_index_status"
+    },
+    {
+      "tool_name": "sidecar_impact_paths",
+      "display_name": "Sidecar impact paths",
+      "kind": "mcp_tool",
+      "entrypoint": "sidecar_impact_paths",
+      "task_ids": [
+        "query-graph-impact"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "operator"
+      ],
+      "priority": 34,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "operator_input",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md",
+        "docs/agent-tool-compliance-and-surface-rationalization.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/code-index-tools.mjs",
+        "packages/wiki-core/src/lib/sidecar-impact.mjs"
+      ],
+      "notes": "Read path-impact context for an explicitly selected directory.",
+      "use_when": [
+        "Operator is using the direct-directory code-index contract."
+      ],
+      "do_not_use_when": [
+        "New configured-workspace calls should use workspace_code_index_impact_paths."
+      ],
+      "authoritative_for": [
+        "operator-requested direct-directory code-index operation"
+      ],
+      "recommended_first_call": {
+        "operation": "run direct-directory sidecar_impact_paths",
+        "arguments": {
+          "dir": "$operator_selected_target_directory"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "workspace_sidecar_impact_paths",
+      "display_name": "Workspace sidecar impact paths",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_sidecar_impact_paths",
+      "task_ids": [
+        "query-graph-impact"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "operator"
+      ],
+      "priority": 34,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "operator_input",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md",
+        "docs/agent-tool-compliance-and-surface-rationalization.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/code-index-tools.mjs",
+        "packages/wiki-core/src/lib/sidecar-impact.mjs"
+      ],
+      "notes": "Compatibility name for the configured-workspace code-index impact-paths route.",
+      "use_when": [
+        "An existing caller requires the workspace_sidecar_impact_paths compatibility name."
+      ],
+      "do_not_use_when": [
+        "New configured-workspace calls should use workspace_code_index_impact_paths."
+      ],
+      "authoritative_for": [
+        "compatibility routing to the canonical code-index operation"
+      ],
+      "recommended_first_call": {
+        "operation": "call workspace_code_index_impact_paths for new work",
+        "arguments": {
+          "repo": "$configured_workspace_alias"
+        },
+        "omit_null_arguments": true
+      },
+      "compatibility_alias_for": "workspace_code_index_impact_paths"
+    },
+    {
+      "tool_name": "sidecar_context_for_path",
+      "display_name": "Sidecar context for path",
+      "kind": "mcp_tool",
+      "entrypoint": "sidecar_context_for_path",
+      "task_ids": [
+        "query-graph-impact"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "operator"
+      ],
+      "priority": 34,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "operator_input",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md",
+        "docs/agent-tool-compliance-and-surface-rationalization.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/code-index-tools.mjs",
+        "packages/wiki-core/src/lib/sidecar-impact.mjs"
+      ],
+      "notes": "Read scoped code-index context for a path in an explicitly selected directory.",
+      "use_when": [
+        "Operator is using the direct-directory code-index contract."
+      ],
+      "do_not_use_when": [
+        "New configured-workspace calls should use workspace_code_index_context_for_path."
+      ],
+      "authoritative_for": [
+        "operator-requested direct-directory code-index operation"
+      ],
+      "recommended_first_call": {
+        "operation": "run direct-directory sidecar_context_for_path",
+        "arguments": {
+          "dir": "$operator_selected_target_directory"
+        },
+        "omit_null_arguments": true
+      }
+    },
+    {
+      "tool_name": "workspace_sidecar_context_for_path",
+      "display_name": "Workspace sidecar context for path",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_sidecar_context_for_path",
+      "task_ids": [
+        "query-graph-impact"
+      ],
+      "install_state": "installed",
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": [
+        "operator"
+      ],
+      "priority": 34,
+      "side_effects": [
+        "read_only"
+      ],
+      "authority": [
+        "checked_in_descriptor",
+        "operator_input",
+        "workspace_repo"
+      ],
+      "tier_visibility": [
+        "operator_only"
+      ],
+      "docs_refs": [
+        "docs/mcp-operation-reference.md",
+        "docs/agent-tool-compliance-and-surface-rationalization.md"
+      ],
+      "source_files": [
+        "packages/wiki-mcp/src/lib/code-index-tools.mjs",
+        "packages/wiki-core/src/lib/sidecar-impact.mjs"
+      ],
+      "notes": "Compatibility name for the configured-workspace code-index context route.",
+      "use_when": [
+        "An existing caller requires the workspace_sidecar_context_for_path compatibility name."
+      ],
+      "do_not_use_when": [
+        "New configured-workspace calls should use workspace_code_index_context_for_path."
+      ],
+      "authoritative_for": [
+        "compatibility routing to the canonical code-index operation"
+      ],
+      "recommended_first_call": {
+        "operation": "call workspace_code_index_context_for_path for new work",
+        "arguments": {
+          "repo": "$configured_workspace_alias"
+        },
+        "omit_null_arguments": true
+      },
+      "compatibility_alias_for": "workspace_code_index_context_for_path"
     }
   ]
 }

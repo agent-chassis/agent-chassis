@@ -1,0 +1,464 @@
+{
+  "schema_version": "async-failure-census.v1",
+  "work_record": "WK-2382",
+  "slice": "SLICE-006",
+  "summary": "The bounded five-population asynchronous-failure census for WK-2382, re-derived from the integrated SLICE-003/004/005 candidate. Duplicate mechanisms are collapsed to their retained owner BEFORE counting, so a removed copy is not an independent denominator member. Source shape does not decide safety: a suppression whose identical rejection is authoritatively observed elsewhere is closed, and an ENOENT-only catch that rethrows every other failure is closed, while a rejection that is only logged, permanently retained, or left without a settlement owner is not.",
+  "boundary": "Exactly the eight modules of SLICE-006's read scope, and exactly the five WK-2382 populations. This is not repository-wide exception or code-literal discovery, which WK-2361 owns. WK-2361 CONSUMES and RECONCILES this closed corpus rather than rediscovering it; it does not own remediation of the sites recorded here. Assigning an owner to any residual below is coordinator closeout work on WK-2382, carried to an explicitly linked follow-on unit.",
+  "corpus": [
+    "packages/wiki-core/src/operations/controlled-contract/package-runtime.mjs",
+    "packages/wiki-core/src/lib/controlled-contract-tool-shared.mjs",
+    "packages/controlled-contract/lib/compiled-validator-cache.mjs",
+    "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store.mjs",
+    "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store-io.mjs",
+    "packages/wiki-core/src/lib/wiki-allocator.mjs",
+    "packages/wiki-mcp/src/lib/mcp-response.mjs",
+    "packages/agent-launch-cli/src/lib/launch-isolation-spawn.mjs"
+  ],
+  "dispositions": {
+    "evict_on_rejection_owned": "Memoized through the single evict-on-rejection settlement owner: concurrent callers share one pending attempt, a rejection is evicted before the next authorized attempt, and success stays cached.",
+    "non_masking_scoped_run_owner": "Cleanup runs through a scoped-run owner that keeps the primary semantic failure, attaches cleanup failures as ordered secondary evidence, and attempts every remaining step.",
+    "cleanup_failure_suppressed_bounded": "The cleanup's own failure is deliberately and locally suppressed, so it has no path by which to replace the primary.",
+    "synchronous_cleanup_no_failure_path": "The finally body is a synchronous assignment with no rejection path, so it cannot mask.",
+    "inner_catch_non_masking": "The cleanup error is caught inside the finally body and never escapes to replace the primary.",
+    "crash_durable_publication_owned_wk2357": "Masking-capable handle-close cleanup inside crash-durable publication or lock layout. WK-2357 owns those semantics and WK-2382 records the site without remediating it.",
+    "masking_capable_recorded_residual": "Masking-capable cleanup with no owner inside WK-2382's named scope. Recorded here as an open residual for WK-2361 rather than silently remediated.",
+    "suppression_observed_elsewhere": "A detached suppression that prevents a DUPLICATE unhandled rejection while the identical promise is authoritatively awaited elsewhere. Closed.",
+    "launcher_supervision_owned": "Detachment whose settlement owner is launch-isolation-spawn's retained supervision, termination-attribution, and outcome machinery. WK-2382 reads that module and does not modify it.",
+    "settles_owning_promise": "A stream error listener that settles the promise owning the stream, so the error reaches exactly one awaited settlement.",
+    "revokes_readiness": "A stream error listener that requests fail-stop, moving the controller out of running.",
+    "disables_diagnostic_sink": "A stream error listener that disables the diagnostic sink terminally, so no later write targets a dead stream.",
+    "fail_stop_owned": "A process guard that emits one attributable terminal diagnostic, preserves its publication outcome, disables diagnostics, and requests fail-stop.",
+    "accepted_static_module_map_memo": "ACCEPTED NON-REMEDIATED. A memoized dynamic `import()` of a STATIC module specifier. Node's ESM module map permanently caches a module-evaluation failure and rethrows the identical error object on every later import of that specifier, so evicting the local memo cannot make the site retryable: the retained rejection lives in the loader, below anything the module owns. The site keeps its original local settlement shape deliberately. It is NOT an evict-owner site and must not be counted as one."
+  },
+  "populations": {
+    "poisoned_memoized_promises": {
+      "retained_owner": "packages/controlled-contract/lib/compiled-validator-cache.mjs#createEvictOnRejectionMemo",
+      "removed_copies": [
+        {
+          "module": "packages/wiki-core/src/lib/controlled-contract-tool-shared.mjs",
+          "was": "controlledContractPackagePromise ??= import(CONTROLLED_CONTRACT_MODULE_SPECIFIER)",
+          "collapsed_into": "packages/wiki-core/src/operations/controlled-contract/package-runtime.mjs#loadControlledContractPackage",
+          "reason": "a second package loader one module from the operation-boundary owner, with its own retained-rejection settlement"
+        },
+        {
+          "module": "packages/wiki-core/src/lib/controlled-contract-tool-shared.mjs",
+          "was": "generationEvaluationInputValidatorPromise ??= Promise.all([...schema read..., import(validator-cache)])",
+          "collapsed_into": "packages/wiki-core/src/operations/controlled-contract/package-runtime.mjs#loadEvaluationInputSchema",
+          "reason": "a second evaluation-input validator memo carrying its own schema read and its own validator-cache import memo"
+        },
+        {
+          "module": "packages/controlled-contract/lib/validator-population.mjs",
+          "was": "wiki-core.controlled-contract-tool-shared.evaluation-input.v1",
+          "collapsed_into": "wiki-core.controlled-contract-operations.evaluation-input.v1",
+          "reason": "a second group identity over the IDENTICAL schema, compiling the same bytes twice and publishing a second artifact for them"
+        }
+      ],
+      "sites": [
+        {
+          "module": "packages/wiki-core/src/operations/controlled-contract/package-runtime.mjs",
+          "anchor": "const loadControlledContractPackage = createEvictOnRejectionMemo(() =>",
+          "occurrence": 1,
+          "symbol": "loadControlledContractPackage",
+          "disposition": "evict_on_rejection_owned",
+          "rationale": "the sole controlled-contract package loader for wiki-core",
+          "witness": "tests/unit/async-memo-retryability.test.mjs::each named package-runtime loader resolves and stays memoized"
+        },
+        {
+          "module": "packages/wiki-core/src/operations/controlled-contract/package-runtime.mjs",
+          "anchor": "const loadProofPlanRequestSchema = createEvictOnRejectionMemo(() =>",
+          "occurrence": 1,
+          "symbol": "loadProofPlanRequestSchema",
+          "disposition": "evict_on_rejection_owned",
+          "rationale": "proof-plan-request schema read",
+          "witness": "tests/unit/async-memo-retryability.test.mjs::each named package-runtime loader resolves and stays memoized"
+        },
+        {
+          "module": "packages/wiki-core/src/operations/controlled-contract/package-runtime.mjs",
+          "anchor": "const loadEvaluationInputSchemaValue = createEvictOnRejectionMemo(() =>",
+          "occurrence": 1,
+          "symbol": "loadEvaluationInputSchemaValue",
+          "disposition": "evict_on_rejection_owned",
+          "rationale": "evaluation-input schema read, upstream of the validator memo",
+          "witness": "tests/unit/async-memo-retryability.test.mjs::each named package-runtime loader resolves and stays memoized"
+        },
+        {
+          "module": "packages/wiki-core/src/operations/controlled-contract/package-runtime.mjs",
+          "anchor": "const loadEvaluationInputSchema = createEvictOnRejectionMemo(async () => {",
+          "occurrence": 1,
+          "symbol": "loadEvaluationInputSchema",
+          "disposition": "evict_on_rejection_owned",
+          "rationale": "the transitive validator memo; every layer beneath it is separately evictable",
+          "witness": "tests/unit/async-memo-retryability.test.mjs::the evaluation-input validator preserves its synchronous public result shape"
+        },
+        {
+          "module": "packages/wiki-core/src/lib/controlled-contract-tool-shared.mjs",
+          "anchor": "controlledContractTestProofPromise ??= import(CONTROLLED_CONTRACT_TEST_PROOF_SPECIFIER);",
+          "occurrence": 1,
+          "symbol": "loadControlledContractTestProofPackage",
+          "disposition": "accepted_static_module_map_memo",
+          "rationale": "the controlled-contract test-proof package loader. It has no counterpart in the retained owner, and its specifier is static, so the ESM module map already retains any evaluation failure permanently.",
+          "witness": "tests/unit/async-failure-census.test.mjs::a static-specifier import failure is retained by the loader, not by the local memo"
+        },
+        {
+          "module": "packages/wiki-core/src/lib/controlled-contract-tool-shared.mjs",
+          "anchor": "carrierSetToolsPromise ??= import(\"./controlled-contract-carrier-set-tools.mjs\");",
+          "occurrence": 1,
+          "symbol": "loadCarrierSetTools",
+          "disposition": "accepted_static_module_map_memo",
+          "rationale": "the deferred carrier-set-tools import that preserves module layering. Same static-specifier shape and the same loader-level retention.",
+          "witness": "tests/unit/async-memo-retryability.test.mjs::the accepted static-module-map loaders keep their original settlement shape"
+        },
+        {
+          "module": "packages/controlled-contract/lib/compiled-validator-cache.mjs",
+          "anchor": "const toolchainIdentity = createEvictOnRejectionMemo(buildToolchainIdentity);",
+          "occurrence": 1,
+          "symbol": "toolchainIdentity",
+          "disposition": "evict_on_rejection_owned",
+          "rationale": "process-wide and shared by every cache instance, upstream of every group resolution",
+          "witness": "tests/unit/async-memo-retryability.test.mjs::a failed group resolution is evicted and the next attempt re-resolves"
+        },
+        {
+          "module": "packages/controlled-contract/lib/compiled-validator-cache.mjs",
+          "anchor": "const resolvedGroups = createEvictOnRejectionMemoStore(resolveGroupEntry);",
+          "occurrence": 1,
+          "symbol": "resolvedGroups",
+          "disposition": "evict_on_rejection_owned",
+          "rationale": "per-group resolution keyed by group identity and schema digest",
+          "witness": "tests/unit/async-memo-retryability.test.mjs::a failed group resolution is evicted and the next attempt re-resolves"
+        },
+        {
+          "module": "packages/controlled-contract/lib/compiled-validator-cache.mjs",
+          "anchor": "const ensurePopulationPass = createEvictOnRejectionMemo(() =>",
+          "occurrence": 1,
+          "symbol": "ensurePopulationPass",
+          "disposition": "evict_on_rejection_owned",
+          "rationale": "at most one generation pass per process, shared by concurrent callers",
+          "witness": "tests/unit/async-memo-retryability.test.mjs::a failed population status is evicted and the next attempt re-runs the pass"
+        },
+        {
+          "module": "packages/controlled-contract/lib/compiled-validator-cache.mjs",
+          "anchor": "const resolvePopulationStatus = createEvictOnRejectionMemo(resolvePopulation);",
+          "occurrence": 1,
+          "symbol": "resolvePopulationStatus",
+          "disposition": "evict_on_rejection_owned",
+          "rationale": "whole-population status resolution",
+          "witness": "tests/unit/async-memo-retryability.test.mjs::a failed population status is evicted and the next attempt re-runs the pass"
+        }
+      ],
+      "accepted_non_remediated": {
+        "count": 2,
+        "disposition": "accepted_static_module_map_memo",
+        "reason": "Remediation would be ineffective, not merely unscoped: local eviction cannot reach a rejection the ESM module map retains. Recorded so a later migration onto the eviction owner is treated as a regression rather than an improvement."
+      }
+    },
+    "finally_block_masking": {
+      "retained_owner": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store-io.mjs#withStoreLock and packages/wiki-core/src/lib/wiki-allocator.mjs#withAllocatorLock",
+      "removed_copies": [
+        {
+          "module": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store.mjs",
+          "was": "17 hand-authored `const release = await acquireStoreLock(...); try { ... } finally { await release(); }` copies",
+          "collapsed_into": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store-io.mjs#withStoreLock",
+          "reason": "seventeen per-call-site precedence implementations, every one of which let a release failure replace the semantic failure that decided the operation",
+          "count": 17
+        },
+        {
+          "module": "packages/wiki-core/src/lib/wiki-allocator.mjs",
+          "was": "finally { await handle.close(); await rm(lockPath, { force: true }); }",
+          "collapsed_into": "packages/wiki-core/src/lib/wiki-allocator.mjs#withAllocatorLock",
+          "reason": "sequential awaits in one finally: a throwing close skipped the removal and left the lock file on disk, and either step could replace the callback's failure"
+        }
+      ],
+      "sites": [
+        {
+          "module": "packages/controlled-contract/lib/compiled-validator-cache.mjs",
+          "anchor": "} finally {",
+          "occurrence": 1,
+          "symbol": "replaceOccupiedTarget",
+          "disposition": "cleanup_failure_suppressed_bounded",
+          "rationale": "the condemned-directory removal is suppressed with .catch(() => {}), so it has no path to replace the publication result",
+          "witness": "tests/unit/async-failure-census.test.mjs::a suppressed cleanup failure cannot replace the primary"
+        },
+        {
+          "module": "packages/controlled-contract/lib/compiled-validator-cache.mjs",
+          "anchor": "} finally {",
+          "occurrence": 2,
+          "symbol": "runPopulationWorker",
+          "disposition": "cleanup_failure_suppressed_bounded",
+          "rationale": "worker.terminate() resolves with an exit code and has no rejection path, so the typed generation failure is what propagates",
+          "witness": "tests/unit/async-failure-census.test.mjs::a cleanup with no rejection path cannot replace the primary"
+        },
+        {
+          "module": "packages/controlled-contract/lib/compiled-validator-cache.mjs",
+          "anchor": "} finally {",
+          "occurrence": 3,
+          "symbol": "runPopulationPass",
+          "disposition": "synchronous_cleanup_no_failure_path",
+          "rationale": "the finally body clears activeGenerationSink synchronously and cannot throw",
+          "witness": "tests/unit/async-failure-census.test.mjs::a synchronous cleanup cannot replace the primary"
+        },
+        {
+          "module": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store-io.mjs",
+          "anchor": "} finally {",
+          "occurrence": 1,
+          "symbol": "writeAtomicPublished:temp_handle",
+          "disposition": "crash_durable_publication_owned_wk2357",
+          "rationale": "a failing handle.close would replace the write or sync failure; this is crash-durable publication, whose semantics WK-2357 owns",
+          "witness": "tests/unit/cleanup-precedence.test.mjs::no hand-authored receipt-store finally/release copy survives"
+        },
+        {
+          "module": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store-io.mjs",
+          "anchor": "} finally {",
+          "occurrence": 2,
+          "symbol": "writeAtomicPublished:directory_handle",
+          "disposition": "crash_durable_publication_owned_wk2357",
+          "rationale": "directory-sync handle close inside crash-durable publication",
+          "witness": "tests/unit/cleanup-precedence.test.mjs::no hand-authored receipt-store finally/release copy survives"
+        },
+        {
+          "module": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store-io.mjs",
+          "anchor": "} finally {",
+          "occurrence": 3,
+          "symbol": "publishImmutableEvidenceOnce:temp_handle",
+          "disposition": "crash_durable_publication_owned_wk2357",
+          "rationale": "create-exclusive publication handle close inside crash-durable publication",
+          "witness": "tests/unit/cleanup-precedence.test.mjs::no hand-authored receipt-store finally/release copy survives"
+        },
+        {
+          "module": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store-io.mjs",
+          "anchor": "} finally {",
+          "occurrence": 4,
+          "symbol": "publishImmutableEvidenceOnce:directory_handle",
+          "disposition": "crash_durable_publication_owned_wk2357",
+          "rationale": "directory-sync handle close inside crash-durable publication",
+          "witness": "tests/unit/cleanup-precedence.test.mjs::no hand-authored receipt-store finally/release copy survives"
+        },
+        {
+          "module": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store-io.mjs",
+          "anchor": "} finally {",
+          "occurrence": 5,
+          "symbol": "syncDirectory",
+          "disposition": "crash_durable_publication_owned_wk2357",
+          "rationale": "durability-barrier directory handle close",
+          "witness": "tests/unit/cleanup-precedence.test.mjs::no hand-authored receipt-store finally/release copy survives"
+        },
+        {
+          "module": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-receipt-store-io.mjs",
+          "anchor": "} finally {",
+          "occurrence": 6,
+          "symbol": "acquireStoreLock:owner_handle",
+          "disposition": "crash_durable_publication_owned_wk2357",
+          "rationale": "owner-record handle close inside lock acquisition; acquisition, retry, timeout, layout, and stale-lock semantics are WK-2357's and are unchanged",
+          "witness": "tests/unit/cleanup-precedence.test.mjs::the allocator keeps one scoped-run owner and no per-call-site wrapper"
+        },
+        {
+          "module": "packages/wiki-core/src/lib/wiki-allocator.mjs",
+          "anchor": "} finally {",
+          "occurrence": 1,
+          "symbol": "writeAllocatorStateAtomically",
+          "disposition": "masking_capable_recorded_residual",
+          "rationale": "the temp-directory removal can replace a write or rename failure. WK-2382 owns cleanup precedence INSIDE withAllocatorLock only, so this sibling site is recorded as an open residual rather than silently remediated. WK-2361 reconciles it as part of this corpus but does not own fixing it; follow-on ownership is coordinator closeout work on a linked future unit.",
+          "witness": "tests/unit/async-failure-census.test.mjs::the recorded allocator residual is a real masking site, not a closed one"
+        },
+        {
+          "module": "packages/wiki-mcp/src/lib/mcp-response.mjs",
+          "anchor": "} finally {",
+          "occurrence": 1,
+          "symbol": "readSpilledMcpContentReference",
+          "disposition": "inner_catch_non_masking",
+          "rationale": "closeSync is wrapped in its own try/catch inside the finally, so the close error never escapes",
+          "witness": "tests/unit/async-failure-census.test.mjs::an inner-caught cleanup failure cannot replace the primary"
+        }
+      ],
+      "residuals": [
+        {
+          "symbol": "writeAllocatorStateAtomically",
+          "module": "packages/wiki-core/src/lib/wiki-allocator.mjs",
+          "disposition": "masking_capable_recorded_residual",
+          "remediation_owner": "unassigned; coordinator closeout must carry this to an explicitly linked follow-on WK",
+          "not_owned_by": "WK-2361, which reconciles this corpus but does not own remediation"
+        }
+      ]
+    },
+    "detached_promises": {
+      "retained_owner": "packages/agent-launch-cli/src/lib/launch-isolation-spawn.mjs#conduit supervision, and the awaiting frames inside packages/controlled-contract/lib/compiled-validator-cache.mjs#runPopulationPass",
+      "removed_copies": [],
+      "sites": [
+        {
+          "module": "packages/controlled-contract/lib/compiled-validator-cache.mjs",
+          "anchor": "entry.resolved.catch(() => {});",
+          "occurrence": 1,
+          "symbol": "runPopulationPass:activeGenerationSink",
+          "disposition": "suppression_observed_elsewhere",
+          "rationale": "the identical promise is authoritatively awaited on the next line and again when the pass collects each group's record, so this suppression prevents only a DUPLICATE unhandled rejection",
+          "witness": "tests/unit/async-failure-census.test.mjs::a suppression whose identical rejection is awaited elsewhere is closed"
+        },
+        {
+          "module": "packages/agent-launch-cli/src/lib/launch-isolation-spawn.mjs",
+          "anchor": "conduit.clientReady.then(() => {",
+          "occurrence": 1,
+          "symbol": "superviseConduitClientReadiness",
+          "disposition": "launcher_supervision_owned",
+          "rationale": "client-readiness supervision retires FIFO names and releases bind sources",
+          "witness": "tests/integration/mcp-process-fail-stop.test.mjs::terminateOnce stays closure-private and launcher supervision is untouched"
+        },
+        {
+          "module": "packages/agent-launch-cli/src/lib/launch-isolation-spawn.mjs",
+          "anchor": "void conduit.failureSettlement.then((cause) => {",
+          "occurrence": 1,
+          "symbol": "superviseConduitFailureSettlement",
+          "disposition": "launcher_supervision_owned",
+          "rationale": "conduit failure settlement drives the terminal drain and its initiating-fact record",
+          "witness": "tests/integration/mcp-process-fail-stop.test.mjs::terminateOnce stays closure-private and launcher supervision is untouched"
+        },
+        {
+          "module": "packages/agent-launch-cli/src/lib/launch-isolation-spawn.mjs",
+          "anchor": "void settleStdioMcpConduitCleanup(conduit);",
+          "occurrence": 1,
+          "symbol": "superviseConduitFailureSettlement:cleanup",
+          "disposition": "launcher_supervision_owned",
+          "rationale": "conduit cleanup settlement after a failure-driven drain",
+          "witness": "tests/integration/mcp-process-fail-stop.test.mjs::terminateOnce stays closure-private and launcher supervision is untouched"
+        },
+        {
+          "module": "packages/agent-launch-cli/src/lib/launch-isolation-spawn.mjs",
+          "anchor": "void settleStdioMcpConduitCleanup(conduit);",
+          "occurrence": 2,
+          "symbol": "finalizeConduitLifecycle",
+          "disposition": "launcher_supervision_owned",
+          "rationale": "conduit cleanup settlement on the terminal child finalizer",
+          "witness": "tests/integration/mcp-process-fail-stop.test.mjs::terminateOnce stays closure-private and launcher supervision is untouched"
+        },
+        {
+          "module": "packages/agent-launch-cli/src/lib/launch-isolation-spawn.mjs",
+          "anchor": "void conduit.serverExit.then((exit) => {",
+          "occurrence": 1,
+          "symbol": "superviseServerExitTerminal",
+          "disposition": "launcher_supervision_owned",
+          "rationale": "server-exit classification decides whether any supervision is scheduled at all",
+          "witness": "tests/integration/mcp-process-fail-stop.test.mjs::terminateOnce stays closure-private and launcher supervision is untouched"
+        }
+      ]
+    },
+    "stream_error_listeners": {
+      "retained_owner": "packages/wiki-mcp/src/lib/mcp-response.mjs#createStdioShutdownController and packages/wiki-mcp/src/lib/mcp-response.mjs#createDiagnosticSink",
+      "removed_copies": [],
+      "sites": [
+        {
+          "module": "packages/controlled-contract/lib/compiled-validator-cache.mjs",
+          "anchor": "worker.once(\"error\", reject);",
+          "occurrence": 1,
+          "symbol": "runPopulationWorker",
+          "disposition": "settles_owning_promise",
+          "rationale": "the worker error rejects the one promise the caller awaits",
+          "witness": "tests/unit/async-memo-retryability.test.mjs::a failed population status is evicted and the next attempt re-runs the pass"
+        },
+        {
+          "module": "packages/wiki-mcp/src/lib/mcp-response.mjs",
+          "anchor": "stderr.on(\"error\", disable);",
+          "occurrence": 1,
+          "symbol": "createDiagnosticSink",
+          "disposition": "disables_diagnostic_sink",
+          "rationale": "a dead stderr disables the sink terminally, and disabled is never undone",
+          "witness": "tests/integration/mcp-process-fail-stop.test.mjs::an already-unavailable sink reports false and fail-stop still proceeds"
+        },
+        {
+          "module": "packages/wiki-mcp/src/lib/mcp-response.mjs",
+          "anchor": "on(stdin, \"error\", () => requestShutdown(1));",
+          "occurrence": 1,
+          "symbol": "createStdioShutdownController:stdin",
+          "disposition": "revokes_readiness",
+          "rationale": "a stdin transport error revokes readiness through the one controller",
+          "witness": "tests/integration/mcp-process-fail-stop.test.mjs::the parent-liveness interval and drain timer follow the controller"
+        },
+        {
+          "module": "packages/wiki-mcp/src/lib/mcp-response.mjs",
+          "anchor": "on(stdout, \"error\", () => requestShutdown(1));",
+          "occurrence": 1,
+          "symbol": "createStdioShutdownController:stdout",
+          "disposition": "revokes_readiness",
+          "rationale": "a stdout transport error revokes readiness through the one controller",
+          "witness": "tests/integration/mcp-process-fail-stop.test.mjs::the parent-liveness interval and drain timer follow the controller"
+        },
+        {
+          "module": "packages/wiki-mcp/src/lib/mcp-response.mjs",
+          "anchor": "on(stderr, \"error\", disableDiagnostics);",
+          "occurrence": 1,
+          "symbol": "createStdioShutdownController:stderr",
+          "disposition": "disables_diagnostic_sink",
+          "rationale": "the controller disables the injected sink rather than owning a second one",
+          "witness": "tests/integration/mcp-process-fail-stop.test.mjs::an already-unavailable sink reports false and fail-stop still proceeds"
+        },
+        {
+          "module": "packages/agent-launch-cli/src/lib/launch-isolation-spawn.mjs",
+          "anchor": "child.once(\"error\", finalizeConduitLifecycle);",
+          "occurrence": 1,
+          "symbol": "finalizeConduitLifecycle",
+          "disposition": "launcher_supervision_owned",
+          "rationale": "the child error reaches the launcher's one terminal finalizer",
+          "witness": "tests/integration/mcp-process-fail-stop.test.mjs::terminateOnce stays closure-private and launcher supervision is untouched"
+        }
+      ]
+    },
+    "process_guards": {
+      "retained_owner": "packages/wiki-mcp/src/lib/mcp-response.mjs#installProcessErrorGuards composed at packages/wiki-mcp/src/server.mjs",
+      "removed_copies": [
+        {
+          "module": "packages/wiki-mcp/src/lib/mcp-response.mjs",
+          "was": "log-only guard: \"wiki-mcp process-level error caught; keeping server process alive\"",
+          "collapsed_into": "packages/wiki-mcp/src/lib/mcp-response.mjs#installProcessErrorGuards fail-stop path",
+          "reason": "a rejection that reached only a log-only process guard, leaving a server with violated invariants accepting and answering tool calls"
+        }
+      ],
+      "sites": [
+        {
+          "module": "packages/wiki-mcp/src/lib/mcp-response.mjs",
+          "anchor": "processLike.on(\"unhandledRejection\", (reason) => {",
+          "occurrence": 1,
+          "symbol": "installProcessErrorGuards:unhandledRejection",
+          "disposition": "fail_stop_owned",
+          "rationale": "a detached rejection that escaped every settlement owner revokes readiness",
+          "witness": "tests/integration/mcp-process-fail-stop.test.mjs::a second escape performs no second terminal action and does not resurrect the sink"
+        },
+        {
+          "module": "packages/wiki-mcp/src/lib/mcp-response.mjs",
+          "anchor": "processLike.on(\"uncaughtException\", (error, origin) => {",
+          "occurrence": 1,
+          "symbol": "installProcessErrorGuards:uncaughtException",
+          "disposition": "fail_stop_owned",
+          "rationale": "an exception that escaped every operation boundary revokes readiness",
+          "witness": "tests/integration/mcp-process-fail-stop.test.mjs::the cleanup hook stops the server accepting work during the drain"
+        }
+      ]
+    }
+  },
+  "denominators": {
+    "populations": 5,
+    "corpus_modules": 8,
+    "retained_sites_by_population": {
+      "poisoned_memoized_promises": 10,
+      "finally_block_masking": 11,
+      "detached_promises": 6,
+      "stream_error_listeners": 6,
+      "process_guards": 2
+    },
+    "retained_sites_total": 35,
+    "retained_sites_by_disposition": {
+      "accepted_static_module_map_memo": 2,
+      "cleanup_failure_suppressed_bounded": 2,
+      "crash_durable_publication_owned_wk2357": 6,
+      "disables_diagnostic_sink": 2,
+      "evict_on_rejection_owned": 8,
+      "fail_stop_owned": 2,
+      "inner_catch_non_masking": 1,
+      "launcher_supervision_owned": 6,
+      "masking_capable_recorded_residual": 1,
+      "revokes_readiness": 2,
+      "settles_owning_promise": 1,
+      "suppression_observed_elsewhere": 1,
+      "synchronous_cleanup_no_failure_path": 1
+    },
+    "removed_copies_total": 22,
+    "accepted_non_remediated_total": 2,
+    "open_residuals_total": 1
+  }
+}

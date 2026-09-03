@@ -17,6 +17,22 @@ import {
   WORKSPACE_AGENT_RUN_ENFORCEMENT_REASONS,
   WORKSPACE_AGENT_RUN_ISOLATION_BACKENDS
 } from "./workspace-agent-run-enforcement.mjs";
+import {
+  classifyWorkspaceAgentResultMode,
+  WORKSPACE_AGENT_SELECTED_RESULT_CONTRACTS
+} from "./workspace-agent-dispatch-result-mode.mjs";
+export {
+  WORKSPACE_AGENT_SELECTED_RESULT_CONTRACTS,
+  WORKSPACE_AGENT_RESULT_MODE_SCHEMA_VERSION,
+  WORKSPACE_AGENT_RESULT_MODES,
+  WORKSPACE_AGENT_TERMINAL_RESULT_MODE_FACTS_SCHEMA_VERSION,
+  attachLauncherObservedTerminalResultModeFacts,
+  classifyExactSliceReviewReceiptResultMode,
+  classifyWorkspaceAgentResultMode,
+  readLauncherObservedTerminalResultMode,
+  readLauncherObservedTerminalResultModeFacts,
+  resultModeCompletesMechanicalReview
+} from "./workspace-agent-dispatch-result-mode.mjs";
 
 function buildStructuredRoleResultDiagnostic(code, message, path = null, detail = null) {
   const diagnostic = { code, message };
@@ -96,18 +112,112 @@ function buildStructuredRoleResultEvidence(finalResult, record) {
   return parsed;
 }
 
+export const ADVISORY_REVIEW_COORDINATOR_GUIDANCE =
+  "The review output is usable advisory evidence. Read and disposition the reviewer's actual response normally; schema diagnostics affect only optional metadata derived in this result.";
+export const ABSENT_ADVISORY_REVIEW_COORDINATOR_GUIDANCE =
+  "No reviewer text was captured. This content absence affects only the current review action and carries no lifecycle authority.";
+
+function projectAdvisoryReviewResult(finalResult, structuredRoleResult, record) {
+  if (record?.role !== "reviewer" && record?.role !== "redteam") return null;
+  const text = typeof finalResult?.full_response?.text === "string" &&
+      finalResult.full_response.text.length > 0
+    ? finalResult.full_response.text
+    : null;
+  const schemaAdherent = structuredRoleResult?.valid === true;
+  const formalRequested = record?.terminal_structured_role_result_mode ===
+    WORKSPACE_AGENT_SELECTED_RESULT_CONTRACTS.SCHEMA_CONSTRAINED;
+  const executionStatus = record?.status === "succeeded"
+    ? "completed"
+    : typeof record?.status === "string" && record.status.length > 0
+      ? record.status
+      : "unknown";
+  return Object.freeze({
+    kind: "advisory_review",
+    execution_status: executionStatus,
+    advisory_output: Object.freeze({
+      available: text !== null,
+      usable: text !== null,
+      ...(text === null ? {} : { text })
+    }),
+    schema_observation: Object.freeze({
+      adherent: schemaAdherent,
+      diagnostics: Object.freeze(
+        Array.isArray(structuredRoleResult?.diagnostics)
+          ? structuredRoleResult.diagnostics.slice(0, 20)
+          : []
+      )
+    }),
+    formal_attestation: Object.freeze({
+      requested: formalRequested,
+      available: false,
+      reason: formalRequested
+        ? schemaAdherent
+          ? "settlement_pending"
+          : "schema_non_adherent"
+        : "not_requested"
+    }),
+    coordinator_guidance: text === null
+      ? ABSENT_ADVISORY_REVIEW_COORDINATOR_GUIDANCE
+      : ADVISORY_REVIEW_COORDINATOR_GUIDANCE,
+    automatic_lifecycle_posture: Object.freeze({
+      authority: "advisory_only",
+      changes_status: false,
+      grants_lifecycle_authority: false,
+      vetoes_lifecycle_action: false,
+      requires_retry_or_replacement: false,
+      creates_recovery_state: false
+    })
+  });
+}
+
+export function attachFormalReviewAttestationSettlement(finalResult, settlement) {
+  if (finalResult?.advisory_review?.formal_attestation?.requested !== true) {
+    return finalResult;
+  }
+  const formalAttestation = settlement && typeof settlement === "object" &&
+      !Array.isArray(settlement)
+    ? Object.freeze({ requested: true, ...settlement })
+    : Object.freeze({
+        requested: true,
+        available: false,
+        reason: "settlement_unavailable"
+      });
+  return Object.freeze({
+    ...finalResult,
+    advisory_review: Object.freeze({
+      ...finalResult.advisory_review,
+      formal_attestation: formalAttestation
+    })
+  });
+}
+
 export function normalizeFinalResultWithStructuredRoleResult(rawFinalResult, record) {
   const normalized = normalizeFinalResult(rawFinalResult);
   if (!normalized) return null;
   const structuredRoleResult = buildStructuredRoleResultEvidence(normalized, record);
-  return normalizeFinalResult({
+  const withStructuredResult = normalizeFinalResult({
     ...(rawFinalResult && typeof rawFinalResult === "object" ? rawFinalResult : normalized),
     structured_role_result: structuredRoleResult
   });
+  const advisoryReview = projectAdvisoryReviewResult(
+    withStructuredResult,
+    structuredRoleResult,
+    record
+  );
+  return Object.freeze({
+    ...withStructuredResult,
+    result_mode: classifyWorkspaceAgentResultMode({
+      record,
+      finalResult: withStructuredResult,
+      structuredRoleResult,
+      selectedContract: record?.terminal_structured_role_result_mode ?? null
+    }),
+    ...(advisoryReview === null ? {} : { advisory_review: advisoryReview })
+  });
 }
 
-export function buildMissingResultEnvelopeWithStructuredRoleResult(code, reason, detail) {
-  return normalizeFinalResult({
+export function buildMissingResultEnvelopeWithStructuredRoleResult(code, reason, detail, record = null) {
+  const normalized = normalizeFinalResult({
     kind: "missing_result",
     missing_result: {
       code,
@@ -120,6 +230,22 @@ export function buildMissingResultEnvelopeWithStructuredRoleResult(code, reason,
         "workspace-agent-dispatch-final-result.v1.full_response.text is unavailable for structured role-result validation"
       )
     ])
+  });
+  const advisoryReview = projectAdvisoryReviewResult(
+    normalized,
+    normalized?.structured_role_result,
+    record
+  );
+  return Object.freeze({
+    ...normalized,
+    result_mode: classifyWorkspaceAgentResultMode({
+      record,
+      finalResult: normalized,
+      structuredRoleResult: normalized?.structured_role_result,
+      missingOutput: true,
+      selectedContract: record?.terminal_structured_role_result_mode ?? null
+    }),
+    ...(advisoryReview === null ? {} : { advisory_review: advisoryReview })
   });
 }
 

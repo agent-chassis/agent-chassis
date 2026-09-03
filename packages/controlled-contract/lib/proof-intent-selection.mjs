@@ -1,8 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
-import Ajv2020 from "ajv/dist/2020.js";
-
+import { compiledValidators } from "./compiled-validator-cache.mjs";
 import {
   loadAdmittedProofPack,
   readProofPackCatalog
@@ -10,13 +9,16 @@ import {
 import {
   VOCABULARY_DIGESTS,
   VOCABULARY_VERSION
-} from "./vocabulary-v034.mjs";
+} from "./vocabulary-v1.mjs";
+import { reduceProofIntentSelectionStatus } from
+  "./proof-intent-selection-status.mjs";
 
 const packageRoot = new URL("../", import.meta.url);
 const [
   intentArtifact,
   intentSchema,
-  selectionSchema,
+  selectionV1Schema,
+  selectionV2Schema,
   authoringSchema,
   proofPackCatalog
 ] =
@@ -31,16 +33,32 @@ const [
       packageRoot
     )),
     readJson(new URL(
+      "schema/controlled-contract-proof-pack-selection.v2.schema.json",
+      packageRoot
+    )),
+    readJson(new URL(
       "schema/controlled-contract-proof-pack-authoring.v1.schema.json",
       packageRoot
     )),
     readProofPackCatalog()
   ]);
 
-const ajv = new Ajv2020({ strict: true, allErrors: true });
-const validateIntentArtifact = ajv.compile(intentSchema);
-const validateSelectionResult = ajv.compile(selectionSchema);
-const validateProofPackAuthoringProjection = ajv.compile(authoringSchema);
+const stableAuthoringSchema = structuredClone(authoringSchema);
+stableAuthoringSchema.$defs.evaluation_input_skeleton.properties.input_version.const =
+  "controlled-contract-verification-profile-input.v1";
+const {
+  validateIntentArtifact,
+  validateSelectionResult,
+  validateSelectionResultV2,
+  validateProofPackAuthoringProjection
+} = await compiledValidators("controlled-contract.proof-intent-selection.v1", {
+  validators: {
+    validateIntentArtifact: intentSchema,
+    validateSelectionResult: selectionV1Schema,
+    validateSelectionResultV2: selectionV2Schema,
+    validateProofPackAuthoringProjection: stableAuthoringSchema
+  }
+});
 const MAX_AUTHORING_PROJECTION_BYTES = 65_536;
 
 class ProofIntentSelectionError extends Error {
@@ -264,6 +282,7 @@ function renderOperand(operand) {
     return `number($${operand.value_role})`;
   }
   if (operand.kind === "number") return `number(${operand.value})`;
+  if (operand.kind === "boolean") return `boolean(${operand.value})`;
   if (operand.kind === "range") return `range(minimum=${operand.minimum})`;
   throw new ProofIntentSelectionError(
     "proof_pack_authoring_operand_unknown",
@@ -346,12 +365,15 @@ function projectionCounts(profile) {
   return {
     reference_roles: (profile.reference_roles ?? []).length,
     number_roles: (profile.number_roles ?? []).length,
+    binding_constraint_patterns: (profile.binding_constraint_patterns ?? []).length,
     reference_binding_patterns: (profile.reference_binding_patterns ?? []).length,
     claim_patterns: (profile.claim_patterns ?? []).length,
     relation_patterns: (profile.relation_patterns ?? []).length,
     collection_patterns: (profile.collection_patterns ?? []).length,
     resolver_fact_patterns: (profile.resolver_fact_patterns ?? []).length,
-    evidence_patterns: (profile.evidence_patterns ?? []).length
+    evidence_patterns: (profile.evidence_patterns ?? []).length,
+    falsifier_occurrence_bindings:
+      (profile.falsifier_occurrence_bindings ?? []).length
   };
 }
 
@@ -376,7 +398,7 @@ function buildProofPackAuthoringProjection(pack, intentDefinitions) {
     },
     evaluation_input_skeleton: {
       input_version:
-        "controlled-contract-verification-profile-input.experimental.v0.2",
+        "controlled-contract-verification-profile-input.v1",
       allowed_evaluation_stages: sortedUnique(profile.evaluation_stages),
       reference_bindings: sortedBy((profile.reference_roles ?? []).map((role) => ({
         role: role.role,
@@ -406,6 +428,10 @@ function buildProofPackAuthoringProjection(pack, intentDefinitions) {
         : "not_applicable"
     },
     role_constraints: {
+      binding_constraint_patterns: sortedBy(
+        structuredClone(profile.binding_constraint_patterns ?? []),
+        ({ pattern_id: patternId }) => patternId
+      ),
       distinct_reference_role_sets: sortedBy(
         (profile.distinct_reference_role_sets ?? []).map(({ roles }) => ({
           roles: sortedUnique(roles)
@@ -436,6 +462,10 @@ function buildProofPackAuthoringProjection(pack, intentDefinitions) {
         ({ pattern_id: patternId }) => patternId),
       falsifier_condition_bindings: sortedBy(
         structuredClone(profile.falsifier_condition_bindings ?? []),
+        ({ relation_pattern_id: patternId }) => patternId
+      ),
+      falsifier_occurrence_bindings: sortedBy(
+        structuredClone(profile.falsifier_occurrence_bindings ?? []),
         ({ relation_pattern_id: patternId }) => patternId
       ),
       verification_falsifier_policy: profile.verification_falsifier_policy,
@@ -547,7 +577,7 @@ function assertExpectedDigests(expectedDigests) {
   }
 }
 
-function selectProofPacks({ contract, requestedIntents, expectedDigests = null }) {
+function selectProofPacksV2({ contract, requestedIntents, expectedDigests = null }) {
   if (contract === null || typeof contract !== "object" || Array.isArray(contract)) {
     throw new ProofIntentSelectionError(
       "proof_intent_contract_invalid", "selection requires one controlled contract object"
@@ -579,28 +609,13 @@ function selectProofPacks({ contract, requestedIntents, expectedDigests = null }
     profile_id: pack.profile.profile_id,
     profile_version: pack.profile.profile_version
   }), pack]));
-  const ambiguousIntents = [];
-  const uncoveredIntents = [];
   const hardIncompatibilities = [];
   const candidateIntentIds = new Map();
   for (const intentId of normalizedIntents) {
     const intent = intentById.get(intentId);
     if (intent.capable_packs.length === 0) {
-      uncoveredIntents.push({
-        intent_id: intentId,
-        reason_code: "proof_intent_uncovered",
-        remediation: "No admitted proof pack establishes this controlled intent; retain it as an explicit uncovered obligation."
-      });
       continue;
     }
-    if (intent.capable_packs.length > 1) ambiguousIntents.push({
-      intent_id: intentId,
-      reason_code: "proof_intent_ambiguous",
-      remediation: "Choose one candidate pack explicitly; the selector does not rank semantic alternatives.",
-      candidate_packs: [...intent.capable_packs].sort((left, right) =>
-        compareCodeUnits(packKey(left), packKey(right))
-      )
-    });
     for (const candidate of intent.capable_packs) {
       const key = packKey(candidate);
       const ids = candidateIntentIds.get(key) ?? [];
@@ -624,7 +639,6 @@ function selectProofPacks({ contract, requestedIntents, expectedDigests = null }
       }
     }
   }
-  const incompatibleKeys = new Set(hardIncompatibilities.map(packKey));
   const candidates = [...candidateIntentIds.entries()].map(([key, ids]) => {
     const pack = providedPackByIdentity.get(key);
     if (!pack) throw new ProofIntentSelectionError(
@@ -670,46 +684,177 @@ function selectProofPacks({ contract, requestedIntents, expectedDigests = null }
       }
     };
   }).sort((left, right) => compareCodeUnits(packKey(left), packKey(right)));
-  const selectedPacks = candidates.filter((candidate) =>
-    !incompatibleKeys.has(packKey(candidate)) &&
-    !candidate.requested_intents.some((intentId) =>
-      ambiguousIntents.some(({ intent_id: ambiguous }) => ambiguous === intentId)
-    )
+  const sortedHardIncompatibilities = hardIncompatibilities.sort((left, right) =>
+    compareCodeUnits(`${left.intent_id}\0${packKey(left)}`,
+      `${right.intent_id}\0${packKey(right)}`)
+  );
+  const candidateByIdentity = new Map(candidates.map((candidate) => [
+    packKey(candidate), candidate
+  ]));
+  const missingBindingsByIdentity = new Map(candidates.map((candidate) => {
+    const bindings = [
+      ...candidate.required_inputs.filter(({ input_id: id }) =>
+        id !== "controlled_contract"),
+      ...candidate.missing_compatible_reference_types
+    ].sort((left, right) => compareCodeUnits(left.input_id, right.input_id));
+    return [packKey(candidate), bindings];
+  }));
+  const perIntentOutcomes = normalizedIntents.map((intentId) => {
+    const intent = intentById.get(intentId);
+    const candidateOutcomes = [...intent.capable_packs].sort((left, right) =>
+      compareCodeUnits(packKey(left), packKey(right))).map((identity) => {
+      const key = packKey(identity);
+      const incompatibilities = sortedHardIncompatibilities.filter((entry) =>
+        entry.intent_id === intentId && packKey(entry) === key);
+      if (incompatibilities.length > 0) return {
+        ...structuredClone(identity),
+        compatibility_state: "hard_incompatible",
+        hard_incompatibility_count: incompatibilities.length
+      };
+      const candidate = candidateByIdentity.get(key);
+      const missingBindings = missingBindingsByIdentity.get(key);
+      return {
+        ...structuredClone(identity),
+        compatibility_state: "compatible",
+        authoring_state: missingBindings.length > 0
+          ? "requires_bindings" : "ready_for_authoring",
+        missing_authoring_binding_count: missingBindings.length
+      };
+    });
+    const outcome = {
+      intent_id: intentId,
+      candidate_outcomes: candidateOutcomes
+    };
+    return {
+      ...outcome,
+      selection_status: reduceProofIntentSelectionStatus([outcome])
+    };
+  });
+  const compatibleCandidateIdentities = new Map();
+  for (const outcome of perIntentOutcomes) {
+    for (const candidateOutcome of outcome.candidate_outcomes) {
+      if (candidateOutcome.compatibility_state !== "compatible") continue;
+      const key = packKey(candidateOutcome);
+      const current = compatibleCandidateIdentities.get(key) ?? [];
+      current.push(outcome.intent_id);
+      compatibleCandidateIdentities.set(key, current);
+    }
+  }
+  const compatibleCandidates = [...compatibleCandidateIdentities.entries()]
+    .map(([key, compatibleRequestedIntents]) => {
+      const candidate = candidateByIdentity.get(key);
+      const missingAuthoringBindings = missingBindingsByIdentity.get(key);
+      return {
+        profile_id: candidate.profile_id,
+        profile_version: candidate.profile_version,
+        requested_intents: sortedUnique(compatibleRequestedIntents),
+        authoring_state: missingAuthoringBindings.length > 0
+          ? "requires_bindings" : "ready_for_authoring",
+        missing_authoring_binding_count: missingAuthoringBindings.length
+      };
+    }).sort((left, right) => compareCodeUnits(packKey(left), packKey(right)));
+  const uncoveredRequestedIntentCount = perIntentOutcomes.filter(
+    ({ candidate_outcomes: outcomes }) => outcomes.length === 0
+  ).length;
+  const decision = {
+    selection_scope: "requested_intents_only",
+    selection_status: reduceProofIntentSelectionStatus(perIntentOutcomes),
+    requested_intent_count: normalizedIntents.length,
+    compatible_candidate_count: compatibleCandidates.length,
+    uncovered_requested_intent_count: uncoveredRequestedIntentCount,
+    hard_incompatibility_count: sortedHardIncompatibilities.length,
+    missing_authoring_binding_count: compatibleCandidates.reduce(
+      (count, candidate) => count + candidate.missing_authoring_binding_count, 0
+    ),
+    unrequested_intent_applicability: "not_evaluated",
+    runtime_evidence_applicability: "not_evaluated"
+  };
+  const result = {
+    schema_version: "controlled-contract-proof-pack-selection.v2",
+    decision,
+    requested_intents: normalizedIntents,
+    per_intent_outcomes: perIntentOutcomes,
+    compatible_candidates: compatibleCandidates,
+    hard_incompatibilities: sortedHardIncompatibilities,
+    candidates,
+    digests: structuredClone(PROOF_INTENT_DIGESTS),
+    authority: "non_authoritative"
+  };
+  if (!validateSelectionResultV2(result)) throw new ProofIntentSelectionError(
+    "proof_intent_selection_invalid",
+    "the selector emitted a schema-invalid typed result",
+    { diagnostics: structuredClone(validateSelectionResultV2.errors) }
+  );
+  return deepFreeze(structuredClone(result));
+}
+
+function projectProofIntentSelectionV1(result) {
+  if (!validateSelectionResultV2(result)) throw new ProofIntentSelectionError(
+    "proof_intent_selection_invalid",
+    "v1 compatibility projection requires a valid canonical v2 result"
+  );
+  const ambiguousIntentIds = new Set(result.per_intent_outcomes.filter(
+    ({ candidate_outcomes: outcomes }) => outcomes.length > 1
+  ).map(({ intent_id: id }) => id));
+  const hardIncompatiblePackIds = new Set(
+    result.hard_incompatibilities.map(packKey)
+  );
+  const compatibleCandidateByIdentity = new Map(
+    result.compatible_candidates.map((candidate) => [packKey(candidate), candidate])
+  );
+  const selectedPacks = result.candidates.filter((candidate) =>
+    !hardIncompatiblePackIds.has(packKey(candidate)) &&
+    !candidate.requested_intents.some((id) => ambiguousIntentIds.has(id))
   ).map((candidate) => ({
     profile_id: candidate.profile_id,
     profile_version: candidate.profile_version,
-    requested_intents: candidate.requested_intents,
-    selection_status: candidate.missing_compatible_reference_types.length > 0 ||
-        candidate.required_inputs.some(({ input_id: id }) => id !== "controlled_contract")
+    requested_intents: [...candidate.requested_intents],
+    selection_status: compatibleCandidateByIdentity.get(packKey(candidate))
+      ?.authoring_state === "requires_bindings"
       ? "requires_bindings" : "ready"
   }));
-  const result = {
+  const v1 = {
     schema_version: "controlled-contract-proof-pack-selection.v1",
-    requested_intents: normalizedIntents,
+    requested_intents: [...result.requested_intents],
     selected_packs: selectedPacks,
-    ambiguous_intents: ambiguousIntents.sort((left, right) =>
-      compareCodeUnits(left.intent_id, right.intent_id)
-    ),
-    uncovered_intents: uncoveredIntents,
+    ambiguous_intents: result.per_intent_outcomes.filter(
+      ({ candidate_outcomes: outcomes }) => outcomes.length > 1
+    ).map(({ intent_id: intentId, candidate_outcomes: outcomes }) => ({
+      intent_id: intentId,
+      reason_code: "proof_intent_ambiguous",
+      remediation: "Choose one candidate pack explicitly; the selector does not rank semantic alternatives.",
+      candidate_packs: outcomes.map(({ profile_id: profileId,
+        profile_version: profileVersion }) => ({
+        profile_id: profileId, profile_version: profileVersion
+      }))
+    })),
+    uncovered_intents: result.per_intent_outcomes.filter(
+      ({ candidate_outcomes: outcomes }) => outcomes.length === 0
+    ).map(({ intent_id: intentId }) => ({
+      intent_id: intentId,
+      reason_code: "proof_intent_uncovered",
+      remediation: "No admitted proof pack establishes this controlled intent; retain it as an explicit uncovered obligation."
+    })),
     packs_requiring_bindings: selectedPacks.filter(
       ({ selection_status: status }) => status === "requires_bindings"
     ).map(({ profile_id: profileId, profile_version: profileVersion }) => ({
       profile_id: profileId, profile_version: profileVersion
     })),
-    hard_incompatibilities: hardIncompatibilities.sort((left, right) =>
-      compareCodeUnits(`${left.intent_id}\0${packKey(left)}`,
-        `${right.intent_id}\0${packKey(right)}`)
-    ),
-    candidates,
-    digests: structuredClone(PROOF_INTENT_DIGESTS),
-    authority: "non_authoritative"
+    hard_incompatibilities: structuredClone(result.hard_incompatibilities),
+    candidates: structuredClone(result.candidates),
+    digests: structuredClone(result.digests),
+    authority: result.authority
   };
-  if (!validateSelectionResult(result)) throw new ProofIntentSelectionError(
+  if (!validateSelectionResult(v1)) throw new ProofIntentSelectionError(
     "proof_intent_selection_invalid",
-    "the selector emitted a schema-invalid typed result",
+    "the v1 compatibility projection is schema-invalid",
     { diagnostics: structuredClone(validateSelectionResult.errors) }
   );
-  return deepFreeze(structuredClone(result));
+  return deepFreeze(v1);
+}
+
+function selectProofPacks(input) {
+  return projectProofIntentSelectionV1(selectProofPacksV2(input));
 }
 
 function compactProofIntentSelection(result) {
@@ -765,7 +910,9 @@ export {
   normalizeIntentArtifact,
   normalizeProofPackCatalog,
   selectProofPacks,
+  selectProofPacksV2,
   validateIntentArtifact,
   validateProofPackAuthoringProjection,
-  validateSelectionResult
+  validateSelectionResult,
+  validateSelectionResultV2
 };

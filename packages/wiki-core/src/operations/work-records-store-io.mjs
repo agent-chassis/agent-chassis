@@ -1,8 +1,32 @@
 
 
 import path from "node:path";
-import { createHash } from "node:crypto";
-import { mkdtemp, open, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import { AsyncLocalStorage } from "node:async_hooks";
+import { createHash, randomBytes } from "node:crypto";
+import { mkdtemp, open, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import {
+  CRASH_DURABLE_EFFECTS,
+  CRASH_DURABLE_LIVENESS,
+  CRASH_DURABLE_LOCK_STATES,
+  CRASH_DURABLE_RESULTS,
+  classifyLockState,
+  createAsyncEffects,
+  decideRelease,
+  decideRetirement,
+  inspectLockPathAsync,
+  planLockAcquisition,
+  planReplacement,
+  planRetirementClaim,
+  planTombstoneCleanup,
+  runCrashDurablePlanAsync
+} from "../lib/crash-durable-state.mjs";
+import {
+  PROCESS_LIVENESS,
+  assessProcessLiveness,
+  captureProcessIdentity,
+  formatProcessIdentity,
+  parseProcessIdentity
+} from "../lib/process-identity.mjs";
 import { isObject } from "./work-records-shared.mjs";
 import {
   canonicalizeWorkRecordReadScope,
@@ -19,213 +43,350 @@ import {
 } from "../lib/work-record-admission-derived-evidence-persist.mjs";
 
 const WORK_RECORD_WRITE_LOCK_FILE = ".work-record-write.lock";
-const WORK_RECORD_WRITE_LOCK_STALE_AFTER_MS = 60_000;
 const WORK_RECORD_WRITE_LOCK_RETRY_DELAY_MS = 100;
 const WORK_RECORD_WRITE_LOCK_RETRY_ATTEMPTS = 50;
+
+export const WORK_RECORD_WRITE_LOCK_UNAVAILABLE_CODE = "work_record_write_lock_unavailable";
+
+export const WORK_RECORD_WRITE_LOCK_IDENTITY_UNAVAILABLE_CODE =
+  "work_record_write_lock_identity_unavailable";
+
+const HELD_WORK_RECORD_WRITE_LOCKS = new AsyncLocalStorage();
+const WORK_RECORD_READ_LEASES = new WeakMap();
+
+const WORK_RECORD_READ_LEASE_MAX_DURATION_MS = 60_000;
 
 function getWorkRecordWriteLockPath(targetDir) {
   return path.join(targetDir, "wiki", WORK_RECORD_WRITE_LOCK_FILE);
 }
 
-function buildWorkRecordWriteLockMetadata() {
-  return {
-    acquired_at: new Date().toISOString(),
-    pid: process.pid
-  };
+export function mintWorkRecordWriteLockToken(identity) {
+  return [
+    "wrl",
+    identity.pid,
+    identity.starttime,
+    identity.boot_id,
+    randomBytes(12).toString("hex")
+  ].join(TOKEN_FIELD_SEPARATOR);
 }
 
-function getProcessLiveness(pid) {
-  if (!Number.isInteger(pid) || pid <= 0) {
-    return "unknown";
-  }
+const TOKEN_FIELD_SEPARATOR = "~";
 
-  try {
-    process.kill(pid, 0);
-    return "alive";
-  } catch (error) {
-    if (error?.code === "ESRCH") {
-      return "dead";
-    }
-
-    if (error?.code === "EPERM") {
-      return "alive";
-    }
-
-    return "unknown";
-  }
+export function processIdentityFromWorkRecordWriteLockToken(token) {
+  if (typeof token !== "string") return null;
+  const parts = token.split(TOKEN_FIELD_SEPARATOR);
+  if (parts.length !== 5 || parts[0] !== "wrl") return null;
+  return parseProcessIdentity(`proc.v1:pid=${parts[1]}:start=${parts[2]}:boot=${parts[3]}`);
 }
 
-function parseWorkRecordWriteLockMetadata(rawText, lockStats) {
-  const now = Date.now();
-  const ageMs =
-    lockStats && Number.isFinite(lockStats.mtimeMs)
-      ? Math.max(0, now - lockStats.mtimeMs)
-      : null;
+function workRecordWriteLockIdentity(identity) {
 
-  if (typeof rawText !== "string" || rawText.trim().length === 0) {
-    return {
-      acquiredAt: null,
-      ageMs,
-      liveness: "unknown",
-      pid: null
-    };
+  return formatProcessIdentity(identity);
+}
+
+function workRecordWriteLockIdentityUnavailableError(lockPath, cause) {
+  const error = new Error(
+    `Refusing to acquire the work-record write lock at ${lockPath}: this host ` +
+    "cannot capture a non-reusable process identity (/proc is required), so a " +
+    "later holder-death verdict could never be sound. The store will not fall " +
+    `back to a reusable PID or a wall-clock lease. Underlying reason: ${cause}`
+  );
+  error.code = WORK_RECORD_WRITE_LOCK_IDENTITY_UNAVAILABLE_CODE;
+  error.lock_path = lockPath;
+  return error;
+}
+
+function workRecordWriteLockUnavailableError(lockPath, state, livenessReason = null) {
+  const explanation = livenessReason === null
+    ? "This store cannot prove the holder is dead and will not reclaim it"
+    : `This store could not prove the holder is dead (${livenessReason}) and will not reclaim it`;
+  const error = new Error(
+    `Timed out waiting for work-record write lock at ${lockPath}. ` +
+    `Observed lock state: ${state}. ${explanation}; ` +
+    "operator action is required to remove the lock."
+  );
+  error.code = WORK_RECORD_WRITE_LOCK_UNAVAILABLE_CODE;
+  error.lock_path = lockPath;
+  error.lock_state = state;
+  error.liveness_reason = livenessReason;
+  return error;
+}
+
+async function observeWorkRecordWriteLockState(lockPath) {
+  return classifyLockState(await inspectLockPathAsync(lockPath));
+}
+
+async function retireDeadWorkRecordWriteLockHolder(lockPath, contenderToken, effects) {
+  const inspection = await inspectLockPathAsync(lockPath);
+  if (classifyLockState(inspection) !== CRASH_DURABLE_LOCK_STATES.TOKEN_OWNED) {
+    return { retired: false, reason: "lock is not token-owned" };
+  }
+  const observedIdentity = inspection.ownerEntry.owner_identity;
+  const identity = parseProcessIdentity(observedIdentity);
+  if (identity === null) {
+
+    return { retired: false, reason: "persisted owner identity is not a non-reusable process identity" };
+  }
+  const verdict = assessProcessLiveness(identity);
+  if (verdict.state !== PROCESS_LIVENESS.DEAD) {
+    return { retired: false, reason: verdict.reason };
   }
 
-  try {
-    const parsed = JSON.parse(rawText);
-    const pid = Number.isInteger(parsed?.pid) ? parsed.pid : null;
-    const acquiredAt =
-      typeof parsed?.acquired_at === "string" && parsed.acquired_at.length > 0
-        ? parsed.acquired_at
-        : null;
-    const acquiredAtMs = acquiredAt ? Date.parse(acquiredAt) : Number.NaN;
-    const parsedAgeMs =
-      Number.isFinite(acquiredAtMs) && acquiredAtMs > 0 ? Math.max(0, now - acquiredAtMs) : null;
+  const decision = decideRetirement({
+    inspection,
+    contenderToken,
+    liveness: CRASH_DURABLE_LIVENESS.DEAD,
+    observedIdentity
+  });
+  if (!decision.retirable) return { retired: false, reason: decision.reason };
+  return completeWorkRecordWriteLockRetirement(lockPath, contenderToken, effects, verdict.reason);
+}
 
-    return {
-      acquiredAt,
-      ageMs: parsedAgeMs ?? ageMs,
-      liveness: getProcessLiveness(pid),
-      pid
-    };
+async function completeWorkRecordWriteLockRetirement(lockPath, contenderToken, effects, reason) {
+  const tombstonePath = `${lockPath}.released-${contenderToken}`;
+  const claimantMarkerPath = `${lockPath}.owner-released-${contenderToken}`;
+  const claimed = await runCrashDurablePlanAsync(
+    planRetirementClaim({
+      canonicalPath: lockPath,
+      claimantMarkerPath,
+      tombstonePath,
+      claimantToken: contenderToken
+    }),
+    effects
+  );
+  if (claimed.classification !== CRASH_DURABLE_RESULTS.RETIREMENT_CLAIMED) {
+
+    return { retired: false, reason: "lost the retirement claim to a concurrent contender" };
+  }
+  await runCrashDurablePlanAsync(
+    planTombstoneCleanup({ tombstonePath, claimantToken: contenderToken }),
+    effects
+  );
+  await rm(claimantMarkerPath, { force: true });
+  return { retired: true, reason };
+}
+
+async function transferCrashedWorkRecordWriteLockClaim(lockPath, contenderToken, effects) {
+  const inspection = await inspectLockPathAsync(lockPath);
+  if (classifyLockState(inspection) !== CRASH_DURABLE_LOCK_STATES.LEGACY_OWNERLESS_DIRECTORY) {
+    return { retired: false, reason: "lock is not an interrupted retirement" };
+  }
+  const markerPrefix = `${path.basename(lockPath)}.owner-released-`;
+  let siblings;
+  try {
+    siblings = await readdir(path.dirname(lockPath));
   } catch {
-    return {
-      acquiredAt: null,
-      ageMs,
-      liveness: "unknown",
-      pid: null
-    };
+    return { retired: false, reason: "cannot enumerate retirement markers" };
   }
-}
+  for (const entry of siblings) {
+    if (!entry.startsWith(markerPrefix)) continue;
+    const claimantToken = entry.slice(markerPrefix.length);
+    if (claimantToken === contenderToken) continue;
+    const claimantIdentity = processIdentityFromWorkRecordWriteLockToken(claimantToken);
+    if (claimantIdentity === null) {
 
-async function readWorkRecordWriteLockState(lockPath) {
-  try {
-    const [lockStats, rawText] = await Promise.all([stat(lockPath), readFile(lockPath, "utf8")]);
-    return {
-      ...parseWorkRecordWriteLockMetadata(rawText, lockStats),
-      exists: true,
-      rawText,
-      lockStats
-    };
-  } catch (error) {
-    if (error?.code === "ENOENT") {
-      return {
-        acquiredAt: null,
-        ageMs: null,
-        exists: false,
-        liveness: "unknown",
-        rawText: null,
-        lockStats: null,
-        pid: null
-      };
+      continue;
     }
+    const verdict = assessProcessLiveness(claimantIdentity);
+    if (verdict.state !== PROCESS_LIVENESS.DEAD) continue;
 
-    throw error;
-  }
-}
-
-function shouldRecoverStaleWorkRecordWriteLock(lockState) {
-  if (!lockState?.exists) {
-    return false;
-  }
-
-  if (lockState.liveness === "dead") {
-    return true;
-  }
-
-  if (lockState.liveness === "unknown" && lockState.ageMs !== null) {
-    return lockState.ageMs >= WORK_RECORD_WRITE_LOCK_STALE_AFTER_MS;
-  }
-
-  return false;
-}
-
-function doesWorkRecordWriteLockMatchSnapshot(observedState, currentState) {
-  if (!observedState?.exists || !currentState?.exists) {
-    return false;
-  }
-
-  if (typeof observedState.rawText !== "string" || typeof currentState.rawText !== "string") {
-    return false;
-  }
-
-  return observedState.rawText === currentState.rawText;
-}
-
-async function breakStaleWorkRecordWriteLock(lockPath, observedState) {
-  const currentState = await readWorkRecordWriteLockState(lockPath);
-  if (!doesWorkRecordWriteLockMatchSnapshot(observedState, currentState)) {
-    return false;
-  }
-
-  if (!shouldRecoverStaleWorkRecordWriteLock(currentState)) {
-    return false;
-  }
-
-  const recoveryPath = `${lockPath}.stale-${process.pid}-${Date.now()}-${Math.random()
-    .toString(36)
-    .slice(2)}`;
-
-  try {
-    await rename(lockPath, recoveryPath);
-    return true;
-  } catch (error) {
-    if (error?.code === "ENOENT") {
-      return false;
-    }
-
-    throw error;
-  } finally {
-    await rm(recoveryPath, { force: true });
-  }
-}
-
-async function withWorkRecordWriteLock(targetDir, callback) {
-  const lockPath = getWorkRecordWriteLockPath(targetDir);
-  await ensureDirectory(path.dirname(lockPath));
-  let handle = null;
-
-  for (let attempt = 0; attempt < WORK_RECORD_WRITE_LOCK_RETRY_ATTEMPTS; attempt += 1) {
+    const tombstonePath = `${lockPath}.released-${contenderToken}`;
     try {
-      handle = await open(lockPath, "wx");
-      try {
-        await handle.writeFile(`${JSON.stringify(buildWorkRecordWriteLockMetadata(), null, 2)}\n`, {
-          encoding: "utf8"
-        });
-      } catch (error) {
-        await handle.close();
-        handle = null;
-        await rm(lockPath, { force: true });
-        throw error;
-      }
-      break;
-    } catch (error) {
-      if (error?.code !== "EEXIST") {
-        throw error;
-      }
-
-      const lockState = await readWorkRecordWriteLockState(lockPath);
-      if (shouldRecoverStaleWorkRecordWriteLock(lockState)) {
-        const recovered = await breakStaleWorkRecordWriteLock(lockPath, lockState);
-        if (recovered) {
-          continue;
-        }
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, WORK_RECORD_WRITE_LOCK_RETRY_DELAY_MS));
+      await rename(lockPath, tombstonePath);
+    } catch {
+      return { retired: false, reason: "lost the interrupted-retirement transfer to a concurrent contender" };
     }
-  }
+    await runCrashDurablePlanAsync(
+      planTombstoneCleanup({ tombstonePath, claimantToken: contenderToken }),
+      effects
+    );
 
-  if (!handle) {
-    throw new Error(`Timed out waiting for work-record write lock at ${lockPath}`);
+    await rm(path.join(path.dirname(lockPath), entry), { force: true });
+    return { retired: true, reason: `crashed retirement claimant is dead: ${verdict.reason}` };
   }
+  return { retired: false, reason: "no authoritatively dead retirement claimant" };
+}
 
+async function withWorkRecordWriteLock(targetDir, callback, { reentrant = false } = {}) {
+  const lockPath = getWorkRecordWriteLockPath(targetDir);
+  if (reentrant && HELD_WORK_RECORD_WRITE_LOCKS.getStore()?.has(lockPath)) {
+    return callback();
+  }
+  await ensureDirectory(path.dirname(lockPath));
+
+  let selfIdentity;
   try {
-    return await callback();
-  } finally {
-    await handle.close();
-    await rm(lockPath, { force: true });
+    selfIdentity = captureProcessIdentity(process.pid);
+  } catch (error) {
+    throw workRecordWriteLockIdentityUnavailableError(lockPath, error?.message ?? String(error));
   }
+  const token = mintWorkRecordWriteLockToken(selfIdentity);
+  const identity = workRecordWriteLockIdentity(selfIdentity);
+  const stagingPath = path.join(path.dirname(lockPath), `.${WORK_RECORD_WRITE_LOCK_FILE}.staging-${token}`);
+  const effects = createAsyncEffects({});
+
+  let acquired = false;
+  let observedState = CRASH_DURABLE_LOCK_STATES.ABSENT;
+  let livenessReason = null;
+  for (let attempt = 0; attempt < WORK_RECORD_WRITE_LOCK_RETRY_ATTEMPTS; attempt += 1) {
+
+    observedState = await observeWorkRecordWriteLockState(lockPath);
+    if (observedState !== CRASH_DURABLE_LOCK_STATES.ABSENT) {
+
+      const recovery = observedState === CRASH_DURABLE_LOCK_STATES.TOKEN_OWNED
+        ? await retireDeadWorkRecordWriteLockHolder(lockPath, token, effects)
+        : await transferCrashedWorkRecordWriteLockClaim(lockPath, token, effects);
+      livenessReason = recovery.reason;
+      if (recovery.retired) {
+
+        continue;
+      }
+      await new Promise((resolve) => setTimeout(resolve, WORK_RECORD_WRITE_LOCK_RETRY_DELAY_MS));
+      continue;
+    }
+    const result = await runCrashDurablePlanAsync(
+      planLockAcquisition({ canonicalPath: lockPath, stagingPath, ownerToken: token, ownerIdentity: identity }),
+      effects
+    );
+    if (result.classification === CRASH_DURABLE_RESULTS.LOCK_ACQUIRED) {
+      acquired = true;
+      break;
+    }
+
+    observedState = await observeWorkRecordWriteLockState(lockPath);
+    await new Promise((resolve) => setTimeout(resolve, WORK_RECORD_WRITE_LOCK_RETRY_DELAY_MS));
+  }
+
+  if (!acquired) {
+    throw workRecordWriteLockUnavailableError(lockPath, observedState, livenessReason);
+  }
+
+  const heldHere = new Set(HELD_WORK_RECORD_WRITE_LOCKS.getStore() ?? []);
+  heldHere.add(lockPath);
+  try {
+    return await HELD_WORK_RECORD_WRITE_LOCKS.run(heldHere, callback);
+  } finally {
+    await releaseWorkRecordWriteLock(lockPath, token, effects);
+  }
+}
+
+async function releaseWorkRecordWriteLock(lockPath, token, effects) {
+  const inspection = await inspectLockPathAsync(lockPath);
+  if (!decideRelease({ inspection, token }).releasable) {
+
+    return false;
+  }
+  const tombstonePath = `${lockPath}.released-${token}`;
+  const claimed = await runCrashDurablePlanAsync(
+    planRetirementClaim({
+      canonicalPath: lockPath,
+      claimantMarkerPath: `${lockPath}.owner-released-${token}`,
+      tombstonePath,
+      claimantToken: token
+    }),
+    effects
+  );
+  if (claimed.classification !== CRASH_DURABLE_RESULTS.RETIREMENT_CLAIMED) return false;
+  await runCrashDurablePlanAsync(
+    planTombstoneCleanup({ tombstonePath, claimantToken: token }),
+    effects
+  );
+  await rm(`${lockPath}.owner-released-${token}`, { force: true });
+  return true;
+}
+
+async function publishCanonicalWorkRecord({ canonicalRecordPath, record, canonicalReplace = rename }) {
+  const bytes = `${JSON.stringify(record, null, 2)}\n`;
+  const privatePath = path.join(
+    path.dirname(canonicalRecordPath),
+    `.${path.basename(canonicalRecordPath)}.publish-${process.pid}-${randomBytes(8).toString("hex")}`
+  );
+
+  const effects = {
+    ...createAsyncEffects({ mode: 0o666 }),
+    [CRASH_DURABLE_EFFECTS.PUBLISH_RENAME]: async (step) => {
+      await canonicalReplace(step.privatePath, step.targetPath);
+    }
+  };
+  const result = await runCrashDurablePlanAsync(
+    planReplacement({ targetPath: canonicalRecordPath, privatePath, bytes }),
+    effects
+  );
+  if (result.failed_fault !== null) {
+    throw result.error ?? new Error("canonical work-record publication failed");
+  }
+  return result;
+}
+
+export function assertCanonicalWorkRecordReadLease(lease, {
+  dir = ".", id, now = Date.now()
+} = {}) {
+  const state = lease !== null && typeof lease === "object"
+    ? WORK_RECORD_READ_LEASES.get(lease) : null;
+  if (state === null || state === undefined || state.active !== true) {
+    const error = new Error("canonical work-record read lease is missing or forged");
+    error.code = "canonical_work_record_read_lease_invalid";
+    throw error;
+  }
+  const targetDir = path.resolve(String(dir));
+  if (state.targetDir !== targetDir || state.id !== id) {
+    const error = new Error("canonical work-record read lease identity is mismatched");
+    error.code = "canonical_work_record_read_lease_identity_mismatch";
+    throw error;
+  }
+  if (!Number.isFinite(now) || now > state.expiresAt) {
+    const error = new Error("canonical work-record read lease expired");
+    error.code = "canonical_work_record_read_lease_expired";
+    throw error;
+  }
+  return Object.freeze({
+    target_dir: state.targetDir,
+    record_id: state.id,
+    source_digest: state.sourceDigest,
+    expires_at: new Date(state.expiresAt).toISOString()
+  });
+}
+
+export async function withCanonicalWorkRecordReadLease({
+  dir = ".", id, recordStore = null, maximumDurationMs = WORK_RECORD_READ_LEASE_MAX_DURATION_MS
+} = {}, callback) {
+  if (typeof callback !== "function" || typeof id !== "string" || id.length === 0 ||
+      !Number.isInteger(maximumDurationMs) || maximumDurationMs <= 0 ||
+      maximumDurationMs > WORK_RECORD_READ_LEASE_MAX_DURATION_MS) {
+    const error = new Error("canonical work-record read lease input is invalid");
+    error.code = "canonical_work_record_read_lease_input_invalid";
+    throw error;
+  }
+  const targetDir = path.resolve(String(dir));
+  return withWorkRecordWriteLock(targetDir, async () => {
+    const loaded = await loadWorkRecordById({ dir: targetDir, id, recordStore });
+    if (loaded.valid !== true || loaded.record_id !== id || !loaded.record ||
+        typeof loaded.source_digest !== "string") {
+      const error = new Error("canonical work record is unavailable or invalid under its lease");
+      error.code = "canonical_work_record_read_lease_source_invalid";
+      error.details = { diagnostics: structuredClone(loaded.diagnostics ?? []) };
+      throw error;
+    }
+    const token = Object.freeze(Object.create(null));
+    const state = {
+      active: true,
+      expiresAt: Date.now() + maximumDurationMs,
+      id,
+      sourceDigest: loaded.source_digest,
+      targetDir
+    };
+    WORK_RECORD_READ_LEASES.set(token, state);
+    try {
+      return await callback(Object.freeze({
+        lease: token,
+        record: loaded.record,
+        source_digest: loaded.source_digest,
+        canonical_record_path: loaded.canonical_path ?? getWorkRecordPath(targetDir, id)
+      }));
+    } finally {
+      state.active = false;
+    }
+  }, { reentrant: true });
 }
 
 async function writeJsonFileToTemp(filePath, value) {
@@ -265,6 +426,33 @@ export function computeWorkRecordPersistenceSnapshotDigest(record) {
   const hash = createHash("sha256");
   hash.update(canonicalizeWorkRecordJson(record || {}));
   return `sha256:${hash.digest("hex")}`;
+}
+
+function sameCanonicalValue(left, right) {
+  return canonicalizeWorkRecordJson(left) === canonicalizeWorkRecordJson(right);
+}
+
+function preservesReviewProvenance(persistedRecord, proposedRecord) {
+  const persistedHasLedger = Object.prototype.hasOwnProperty.call(
+    persistedRecord ?? {}, "review_provenance");
+  const proposedHasLedger = Object.prototype.hasOwnProperty.call(
+    proposedRecord ?? {}, "review_provenance");
+  if (persistedHasLedger === proposedHasLedger &&
+      (!persistedHasLedger || sameCanonicalValue(
+        persistedRecord.review_provenance,
+        proposedRecord.review_provenance
+      ))) {
+    return true;
+  }
+  return false;
+}
+
+function reviewProvenanceHistoryMutationDiagnostic(recordId) {
+  return createStoreDiagnostic(
+    "review_provenance_history_mutation",
+    "archival review_provenance must be preserved exactly",
+    { recordId }
+  );
 }
 
 function createStoreDiagnostic(code, message, {
@@ -521,6 +709,17 @@ export async function writeValidatedWorkRecordWithAdmissionSidecars({
         });
       }
 
+      if (!preservesReviewProvenance(currentLoaded.record, record)) {
+        return {
+          valid: false,
+          written: false,
+          diagnostics: [reviewProvenanceHistoryMutationDiagnostic(recordId)],
+          record,
+          source_digest: sourceDigest,
+          canonical_record_path: canonicalRecordPath
+        };
+      }
+
       const publications = [];
       for (const publication of admissionSidecars) {
         const published = await publishWorkRecordAdmissionDerivedEvidenceSidecar({
@@ -544,7 +743,7 @@ export async function writeValidatedWorkRecordWithAdmissionSidecars({
       }
 
       try {
-        await canonicalReplace(tempWrite.tempPath, canonicalRecordPath);
+        await publishCanonicalWorkRecord({ canonicalRecordPath, record, canonicalReplace });
       } catch {
         for (const created of publications.filter((entry) => entry.created)) {
           await rm(path.resolve(targetDir, created.relativePath), { force: true }).catch(() => {});
@@ -755,6 +954,8 @@ export async function writeValidatedWorkRecord({
       : baselineSourceDigest;
   let tempWrite = null;
   try {
+
+    await ensureDirectory(path.dirname(canonicalRecordPath));
     tempWrite = await writeJsonFileToTemp(canonicalRecordPath, record);
     const writeResult = await withWorkRecordWriteLock(targetDir, async () => {
       const currentLoaded = await loadWorkRecordByPath({
@@ -776,8 +977,14 @@ export async function writeValidatedWorkRecord({
         };
       }
 
+      if (!preservesReviewProvenance(currentLoaded.record, record)) {
+        return {
+          status: "review_provenance_history_mutation"
+        };
+      }
+
       try {
-        await rename(tempWrite.tempPath, canonicalRecordPath);
+        await publishCanonicalWorkRecord({ canonicalRecordPath, record });
       } catch {
         return {
           status: "write_failed"
@@ -826,6 +1033,18 @@ export async function writeValidatedWorkRecord({
             path: "status"
           }
         ],
+        record,
+        source_digest: sourceDigest,
+        canonical_record_path: canonicalRecordPath,
+        record_id: recordId
+      };
+    }
+
+    if (writeResult.status === "review_provenance_history_mutation") {
+      return {
+        valid: false,
+        written: false,
+        diagnostics: [reviewProvenanceHistoryMutationDiagnostic(recordId)],
         record,
         source_digest: sourceDigest,
         canonical_record_path: canonicalRecordPath,

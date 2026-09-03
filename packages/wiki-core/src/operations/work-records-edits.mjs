@@ -11,6 +11,9 @@ import {
   validateWorkRecord
 } from "../lib/work-record-schema.mjs";
 import { getWorkRecordPath, loadWorkRecordById } from "../lib/work-record-store.mjs";
+import { collectWorkRecordControlledContractPrivateScopeFacts } from
+  "../lib/controlled-contract-private-path-policy.mjs";
+import { WORK_RECORD_TASK_EDIT_ACTIONS } from "../lib/work-record-contract-edit.mjs";
 
 function createSelectedUnitProjection(unit) {
   if (!unit) {
@@ -61,7 +64,8 @@ function createInvalidWorkRecordEditResult({ recordId = null, unit = null, diagn
     changed_fields: [],
     status: null,
     task: null,
-    canonical_record_path: null
+    canonical_record_path: null,
+    policy_facts: []
   };
 }
 
@@ -78,7 +82,8 @@ function createWorkRecordEditResult({
   task = null,
   canonicalRecordPath = null,
   currentSourceDigest = null,
-  expectedSourceDigest = undefined
+  expectedSourceDigest = undefined,
+  record = loaded?.record ?? null
 } = {}) {
   const result = {
     record_id: loaded?.record_id || null,
@@ -93,7 +98,8 @@ function createWorkRecordEditResult({
     changed_fields: Array.isArray(changedFields) ? changedFields : [],
     status,
     task,
-    canonical_record_path: canonicalRecordPath || null
+    canonical_record_path: canonicalRecordPath || null,
+    policy_facts: collectWorkRecordControlledContractPrivateScopeFacts(record)
   };
 
   if (expectedSourceDigest !== undefined) {
@@ -120,7 +126,8 @@ function createStatusEditNoopResult({ loaded, selectedUnit, sourceDigest, curren
     changedFields: [],
     status: currentStatus,
     task: null,
-    canonicalRecordPath: loaded?.canonical_record_path || null
+    canonicalRecordPath: loaded?.canonical_record_path || null,
+    record: loaded?.record ?? null
   });
 }
 
@@ -140,7 +147,8 @@ function createTaskEditNoopResult({ loaded, selectedUnit, sourceDigest, currentT
     changedFields: [],
     status: currentTask?.status || null,
     task: currentTask,
-    canonicalRecordPath: loaded?.canonical_record_path || null
+    canonicalRecordPath: loaded?.canonical_record_path || null,
+    record: loaded?.record ?? null
   });
 }
 
@@ -378,7 +386,8 @@ export async function setWorkRecordStatusByUnit({
     task: null,
     canonicalRecordPath: writeResult.canonical_record_path || getWorkRecordPath(path.resolve(String(dir)), updatedRecord.id),
     currentSourceDigest: writeResult.current_source_digest || null,
-    expectedSourceDigest
+    expectedSourceDigest,
+    record: updatedRecord
   });
 }
 
@@ -478,8 +487,12 @@ function selectTaskBySelector({ tasks, text, index }) {
 export async function setWorkRecordTaskByUnit({
   dir = ".",
   unitAddress,
+  action = "mark_done",
   text = undefined,
   index = undefined,
+  value = undefined,
+  status = undefined,
+  tasks: replacementTasks = undefined,
   expectedSourceDigest = null,
   recordStore = null
 } = {}) {
@@ -494,8 +507,107 @@ export async function setWorkRecordTaskByUnit({
   }
 
   const { loaded, requestedUnit, target, sourcePath } = loadedResult;
+  if (
+    expectedSourceDigest !== null &&
+    expectedSourceDigest !== undefined &&
+    expectedSourceDigest !== loaded.source_digest
+  ) {
+    return createWorkRecordEditResult({
+      loaded,
+      selectedUnit: requestedUnit.unit,
+      sourceDigest: loaded.source_digest || null,
+      diagnostics: [{
+        code: "stale_source_digest",
+        severity: "error",
+        message: "source digest does not match the current on-disk record",
+        path: "expected_source_digest"
+      }],
+      valid: false,
+      written: false,
+      noOp: false,
+      changedFields: [],
+      expectedSourceDigest,
+      currentSourceDigest: loaded.source_digest || null,
+      canonicalRecordPath: loaded.canonical_record_path || null
+    });
+  }
+
+  const normalizedAction = typeof action === "string" ? action.trim() : "";
+  if (status !== undefined || replacementTasks !== undefined) {
+    return createEditRefusalResult({
+      loaded,
+      unit: requestedUnit.unit,
+      code: "task_owner_required",
+      message: "task status selection and bulk task-list replacement are not supported; use one bounded task action",
+      fieldPath: status !== undefined ? "status" : "tasks"
+    });
+  }
+  if (!WORK_RECORD_TASK_EDIT_ACTIONS.includes(normalizedAction)) {
+    return createEditRefusalResult({
+      loaded,
+      unit: requestedUnit.unit,
+      code: "unsupported_task_action",
+      message: `task action must be one of: ${WORK_RECORD_TASK_EDIT_ACTIONS.join(", ")}`,
+      fieldPath: "action"
+    });
+  }
+
   target.sections = isObject(target.sections) ? target.sections : {};
   const tasks = Array.isArray(target.sections.tasks) ? target.sections.tasks : null;
+
+  if (normalizedAction === "append_todo") {
+    if (text !== undefined || index !== undefined) {
+      return createEditRefusalResult({
+        loaded,
+        unit: requestedUnit.unit,
+        code: "ambiguous_task_selector",
+        message: "append_todo accepts no task selector",
+        fieldPath: "tasks"
+      });
+    }
+    const appendedText = typeof value === "string" ? value.trim() : "";
+    if (!appendedText) {
+      return createEditRefusalResult({
+        loaded,
+        unit: requestedUnit.unit,
+        code: "invalid_task_value",
+        message: "append_todo requires one non-empty task text value",
+        fieldPath: "value"
+      });
+    }
+    const currentTasks = tasks || [];
+    const duplicateIndex = currentTasks.findIndex(
+      (task) => isObject(task) && task.status === "todo" && task.text?.trim() === appendedText
+    );
+    if (duplicateIndex !== -1) {
+      return createTaskEditNoopResult({
+        loaded,
+        selectedUnit: requestedUnit.unit,
+        sourceDigest: loaded.source_digest || null,
+        currentTask: { index: duplicateIndex, text: appendedText, status: "todo" },
+        sourcePath
+      });
+    }
+    const updatedRecord = cloneJson(loaded.record);
+    const updatedTarget = getSelectedTarget(updatedRecord, requestedUnit.unit);
+    updatedTarget.sections = isObject(updatedTarget.sections) ? updatedTarget.sections : {};
+    updatedTarget.sections.tasks = Array.isArray(updatedTarget.sections.tasks)
+      ? updatedTarget.sections.tasks
+      : [];
+    const appendedIndex = updatedTarget.sections.tasks.length;
+    updatedTarget.sections.tasks.push({ text: appendedText, status: "todo" });
+    return persistTaskEdit({
+      dir,
+      loaded,
+      requestedUnit,
+      updatedRecord,
+      changedField: prefixSelectedUnitField(requestedUnit.unit, "sections.tasks"),
+      task: { index: appendedIndex, text: appendedText, status: "todo" },
+      expectedSourceDigest,
+      recordStore
+    });
+  }
+
   const selectedTask = selectTaskBySelector({ tasks, text, index });
   if (!selectedTask.ok) {
     return createWorkRecordEditResult({
@@ -528,7 +640,31 @@ export async function setWorkRecordTaskByUnit({
     status: currentStatus
   };
 
-  if (currentStatus === "done") {
+  if (normalizedAction === "mark_done" && value !== undefined) {
+    return createEditRefusalResult({
+      loaded,
+      unit: requestedUnit.unit,
+      code: "invalid_task_value",
+      message: "mark_done does not accept a caller-supplied value or status",
+      fieldPath: "value"
+    });
+  }
+
+  const replacementText = typeof value === "string" ? value.trim() : "";
+  if (normalizedAction === "replace_text" && !replacementText) {
+    return createEditRefusalResult({
+      loaded,
+      unit: requestedUnit.unit,
+      code: "invalid_task_value",
+      message: "replace_text requires one non-empty replacement text value",
+      fieldPath: "value"
+    });
+  }
+
+  if (
+    (normalizedAction === "mark_done" && currentStatus === "done") ||
+    (normalizedAction === "replace_text" && currentTaskResult.text === replacementText)
+  ) {
     return createTaskEditNoopResult({
       loaded,
       selectedUnit: requestedUnit.unit,
@@ -543,12 +679,44 @@ export async function setWorkRecordTaskByUnit({
   updatedTarget.sections = isObject(updatedTarget.sections) ? updatedTarget.sections : {};
   const updatedTasks = Array.isArray(updatedTarget.sections.tasks) ? updatedTarget.sections.tasks : null;
   const updatedTask = updatedTasks[selectedTask.index];
+  const editedMember = normalizedAction === "mark_done" ? "status" : "text";
   const fieldPath = prefixSelectedUnitField(
     requestedUnit.unit,
-    `sections.tasks[${selectedTask.index}].status`
+    `sections.tasks[${selectedTask.index}].${editedMember}`
   );
 
-  updatedTask.status = "done";
+  if (normalizedAction === "mark_done") {
+    updatedTask.status = "done";
+  } else {
+    updatedTask.text = replacementText;
+  }
+
+  return persistTaskEdit({
+    dir,
+    loaded,
+    requestedUnit,
+    updatedRecord,
+    changedField: fieldPath,
+    task: {
+      index: selectedTask.index,
+      text: updatedTask.text,
+      status: updatedTask.status
+    },
+    expectedSourceDigest,
+    recordStore
+  });
+}
+
+async function persistTaskEdit({
+  dir,
+  loaded,
+  requestedUnit,
+  updatedRecord,
+  changedField,
+  task,
+  expectedSourceDigest,
+  recordStore
+}) {
   updatedRecord.updated = todayDateString();
 
   const sourceDigest = computeWorkRecordSourceDigest(updatedRecord);
@@ -592,16 +760,13 @@ export async function setWorkRecordTaskByUnit({
     valid: writeResult.valid,
     written: Boolean(writeResult.written),
     noOp: false,
-    changedFields: [fieldPath, "updated"],
-    status: "done",
-    task: {
-      index: selectedTask.index,
-      text: currentTaskResult.text,
-      status: "done"
-    },
+    changedFields: [changedField, "updated"],
+    status: task.status,
+    task,
     canonicalRecordPath: writeResult.canonical_record_path || getWorkRecordPath(path.resolve(String(dir)), updatedRecord.id),
     currentSourceDigest: writeResult.current_source_digest || null,
-    expectedSourceDigest
+    expectedSourceDigest,
+    record: updatedRecord
   });
 }
 
@@ -689,7 +854,8 @@ function createInvalidSetClosureResult({ recordId = null, unit = null, diagnosti
     written: false,
     canonical_record_path: null,
     no_op: false,
-    changed_fields: []
+    changed_fields: [],
+    policy_facts: []
   };
 }
 
@@ -747,7 +913,8 @@ export async function setWorkRecordClosureByUnit({
       valid: false,
       written: false,
       no_op: false,
-      changed_fields: []
+      changed_fields: [],
+      policy_facts: []
     };
   }
 
@@ -758,7 +925,8 @@ export async function setWorkRecordClosureByUnit({
       valid: false,
       written: false,
       no_op: false,
-      changed_fields: []
+      changed_fields: [],
+      policy_facts: collectWorkRecordControlledContractPrivateScopeFacts(loaded.record)
     };
   }
 
@@ -780,6 +948,7 @@ export async function setWorkRecordClosureByUnit({
       written: false,
       no_op: false,
       changed_fields: [],
+      policy_facts: collectWorkRecordControlledContractPrivateScopeFacts(loaded.record),
       diagnostics: [
         ...loaded.diagnostics,
         {
@@ -814,7 +983,8 @@ export async function setWorkRecordClosureByUnit({
       written: false,
       no_op: true,
       changed_fields: [],
-      record: updatedRecord
+      record: updatedRecord,
+      policy_facts: collectWorkRecordControlledContractPrivateScopeFacts(updatedRecord)
     };
   }
 
@@ -853,6 +1023,7 @@ export async function setWorkRecordClosureByUnit({
     changed_fields: changedFields,
     canonical_record_path:
       writeResult.canonical_record_path || getWorkRecordPath(targetDir, updatedRecord.id),
-    closure: nextClosure
+    closure: nextClosure,
+    policy_facts: collectWorkRecordControlledContractPrivateScopeFacts(updatedRecord)
   };
 }

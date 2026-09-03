@@ -41,10 +41,6 @@ export {
 } from "./orchestrator-launch-isolation.mjs";
 
 export {
-  TERMINAL_REVIEW_SPAWN_BARRIER_DEFAULT_REASON,
-  TERMINAL_REVIEW_SPAWN_BARRIER_INVALID_REASON,
-  TerminalReviewSpawnBarrierRefusal,
-  isTerminalReviewSpawnBarrierRefusal,
   spawnIsolated
 } from "./launch-isolation-spawn.mjs";
 

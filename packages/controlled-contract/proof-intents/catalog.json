@@ -11,11 +11,34 @@
         "partial state exclusion",
         "commit rollback boundary"
       ],
-      "capable_packs": [{ "profile_id": "proof.atomicity.failure-boundary", "profile_version": "1.0.0" }],
-      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
-      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "capable_packs": [
+        {
+          "profile_id": "proof.atomicity.failure-boundary",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v1"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input"
+      ],
       "exact_binding_required": false,
-      "distinctions": [{ "from_intent_id": "controlled-proof-intent.failure-settlement-and-cleanup", "explanation": "This intent excludes partial state for a compound operation after an injected between-effect failure; failure settlement and cleanup establishes terminal failure and cleanup completion without an all-or-nothing state guarantee." }]
+      "distinctions": [
+        {
+          "from_intent_id": "controlled-proof-intent.failure-settlement-and-cleanup",
+          "explanation": "This intent excludes partial state for a compound operation after an injected between-effect failure; failure settlement and cleanup establishes terminal failure and cleanup completion without an all-or-nothing state guarantee."
+        }
+      ]
     },
     {
       "intent_id": "controlled-proof-intent.failed-attempt-nonconsumption",
@@ -27,11 +50,34 @@
         "later valid attempt succeeds",
         "refusal preserves authority"
       ],
-      "capable_packs": [{ "profile_id": "proof.authorization.failed-attempt-nonconsumption", "profile_version": "1.0.0" }],
-      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
-      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "capable_packs": [
+        {
+          "profile_id": "proof.authorization.failed-attempt-nonconsumption",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v1"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input"
+      ],
       "exact_binding_required": false,
-      "distinctions": [{ "from_intent_id": "controlled-proof-intent.refusal-before-effects", "explanation": "This intent preserves reusable authority across a failed attempt; refusal-before-effects instead constrains protected effects before refusal." }]
+      "distinctions": [
+        {
+          "from_intent_id": "controlled-proof-intent.refusal-before-effects",
+          "explanation": "This intent preserves reusable authority across a failed attempt; refusal-before-effects instead constrains protected effects before refusal."
+        }
+      ]
     },
     {
       "intent_id": "controlled-proof-intent.refusal-before-effects",
@@ -43,13 +89,94 @@
         "denied attempt nonmutation",
         "authorization failure"
       ],
-      "capable_packs": [{ "profile_id": "proof.authorization.refusal-before-effects", "profile_version": "1.0.0" }],
-      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
-      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "capable_packs": [
+        {
+          "profile_id": "proof.authorization.refusal-before-effects",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v1"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input"
+      ],
       "exact_binding_required": false,
       "distinctions": [
-        { "from_intent_id": "controlled-proof-intent.failed-attempt-nonconsumption", "explanation": "This intent constrains protected effects before refusal; failed-attempt nonconsumption instead preserves reusable authority and its later usability." },
-        { "from_intent_id": "controlled-proof-intent.bounded-interval-nonmutation", "explanation": "This intent fixes an unauthorized attempt ending in refusal and excludes protected effects before that refusal; bounded-interval nonmutation fixes one actor and explicit interval endpoints without requiring refusal." }
+        {
+          "from_intent_id": "controlled-proof-intent.failed-attempt-nonconsumption",
+          "explanation": "This intent constrains protected effects before refusal; failed-attempt nonconsumption instead preserves reusable authority and its later usability."
+        },
+        {
+          "from_intent_id": "controlled-proof-intent.bounded-interval-nonmutation",
+          "explanation": "This intent fixes an unauthorized attempt ending in refusal and excludes protected effects before that refusal; bounded-interval nonmutation fixes one actor and explicit interval endpoints without requiring refusal."
+        }
+      ]
+    },
+    {
+      "intent_id": "controlled-proof-intent.caller-input-authority-confinement",
+      "definition": "Establish in one exact captured graph that a closed canonical caller-input policy exactly partitions typed structural members; an exhaustive allowed-only request selects no coordinate and is accepted; an exhaustive authority-bearing request is refused; member-to-coordinate-to-operation-to-effect and request-through-cut identities are exact; the policy-derived source census is complete; and the forbidden attempt has no prohibited pre-refusal occurrence.",
+      "discovery_terms": [
+        "caller input authority confinement",
+        "accepted and forbidden request surface",
+        "authority bearing input refusal",
+        "typed structural member policy",
+        "no resolution before refusal"
+      ],
+      "capable_packs": [
+        {
+          "profile_id": "proof.input.caller-authority-confinement",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v2"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input",
+        "exact_capture_root",
+        "exact_binding_sources"
+      ],
+      "exact_binding_required": true,
+      "distinctions": [
+        {
+          "from_intent_id": "controlled-proof-intent.refusal-before-effects",
+          "explanation": "This intent derives the closed input partition, both request surfaces, and resolution/source joins; refusal-before-effects starts from an already selected attempt and effect population. It supplies no identity or evidence here."
+        },
+        {
+          "from_intent_id": "controlled-proof-intent.forbidden-operation-noninvocation",
+          "explanation": "This intent proves the closed input partition, two parser outcomes, resolution chains, and refusal cut; forbidden-operation noninvocation only excludes selected operation use. It supplies no identity or evidence here."
+        },
+        {
+          "from_intent_id": "controlled-proof-intent.write-confinement",
+          "explanation": "This intent covers every prohibited caller-boundary occurrence family; write confinement only constrains observed mutations to authorized targets. It supplies no identity or evidence here."
+        },
+        {
+          "from_intent_id": "controlled-proof-intent.result-shape-conformance",
+          "explanation": "This intent classifies exhaustive request members and binds acceptance and refusal; result-shape conformance checks one returned result's members and count. It supplies no identity or evidence here."
+        },
+        {
+          "from_intent_id": "controlled-proof-intent.sound-negative-observation",
+          "explanation": "This intent owns policy, request, resolution, parser-outcome, and source-census identity in one graph; sound-negative observation proves one target absent from captured sources. It supplies no identity or evidence here."
+        }
       ]
     },
     {
@@ -62,9 +189,27 @@
         "consumer invalidation",
         "revoked credential"
       ],
-      "capable_packs": [{ "profile_id": "proof.authorization.revocation-propagation", "profile_version": "1.0.0" }],
-      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
-      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "capable_packs": [
+        {
+          "profile_id": "proof.authorization.revocation-propagation",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v1"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input"
+      ],
       "exact_binding_required": false,
       "distinctions": []
     },
@@ -78,9 +223,27 @@
         "cross-generation noninterference",
         "cancelled attempt isolation"
       ],
-      "capable_packs": [{ "profile_id": "proof.cancellation.isolation", "profile_version": "1.0.0" }],
-      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
-      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "capable_packs": [
+        {
+          "profile_id": "proof.cancellation.isolation",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v1"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input"
+      ],
       "exact_binding_required": false,
       "distinctions": []
     },
@@ -94,13 +257,39 @@
         "complete behavior reports",
         "unchanged observable behavior"
       ],
-      "capable_packs": [{ "profile_id": "proof.compatibility.behavioral-preservation", "profile_version": "1.0.0" }],
-      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v2"] },
-      "required_evaluation_inputs": ["controlled_contract", "evaluation_input", "exact_capture_root", "exact_binding_sources"],
+      "capable_packs": [
+        {
+          "profile_id": "proof.compatibility.behavioral-preservation",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v2"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input",
+        "exact_capture_root",
+        "exact_binding_sources"
+      ],
       "exact_binding_required": true,
       "distinctions": [
-        { "from_intent_id": "controlled-proof-intent.integration-prefix-safety", "explanation": "This intent compares complete baseline and candidate behavior reports; integration-prefix safety quantifies over integration prefixes, execution paths, and required branches." },
-        { "from_intent_id": "controlled-proof-intent.cross-representation-parity", "explanation": "This intent compares baseline and candidate behavior reports and exact captured bytes; cross-representation parity compares two complete representations of one logical source without a baseline-to-candidate preservation claim." }
+        {
+          "from_intent_id": "controlled-proof-intent.integration-prefix-safety",
+          "explanation": "This intent compares complete baseline and candidate behavior reports; integration-prefix safety quantifies over integration prefixes, execution paths, and required branches."
+        },
+        {
+          "from_intent_id": "controlled-proof-intent.cross-representation-parity",
+          "explanation": "This intent compares baseline and candidate behavior reports and exact captured bytes; cross-representation parity compares two complete representations of one logical source without a baseline-to-candidate preservation claim."
+        }
       ]
     },
     {
@@ -113,13 +302,37 @@
         "source population recoverability",
         "compact result completeness"
       ],
-      "capable_packs": [{ "profile_id": "proof.completeness.lossless-projection", "profile_version": "1.0.0" }],
-      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
-      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "capable_packs": [
+        {
+          "profile_id": "proof.completeness.lossless-projection",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v1"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input"
+      ],
       "exact_binding_required": false,
       "distinctions": [
-        { "from_intent_id": "controlled-proof-intent.result-shape-conformance", "explanation": "This intent establishes complete-source recoverability across compact and complete modes; shape conformance establishes membership in one declared result schema." },
-        { "from_intent_id": "controlled-proof-intent.cross-representation-parity", "explanation": "This intent reconstructs one complete source from a compact result and disclosed omissions; parity compares two complete representations of one logical source." }
+        {
+          "from_intent_id": "controlled-proof-intent.result-shape-conformance",
+          "explanation": "This intent establishes complete-source recoverability across compact and complete modes; shape conformance establishes membership in one declared result schema."
+        },
+        {
+          "from_intent_id": "controlled-proof-intent.cross-representation-parity",
+          "explanation": "This intent reconstructs one complete source from a compact result and disclosed omissions; parity compares two complete representations of one logical source."
+        }
       ]
     },
     {
@@ -132,9 +345,27 @@
         "concurrent loser no effect",
         "sole durable effect"
       ],
-      "capable_packs": [{ "profile_id": "proof.concurrency.single-winner-effect", "profile_version": "1.0.0" }],
-      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
-      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "capable_packs": [
+        {
+          "profile_id": "proof.concurrency.single-winner-effect",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v1"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input"
+      ],
       "exact_binding_required": false,
       "distinctions": []
     },
@@ -148,9 +379,27 @@
         "zero placeholders",
         "validation coverage"
       ],
-      "capable_packs": [{ "profile_id": "proof.design.implementation-readiness", "profile_version": "1.0.0" }],
-      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
-      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "capable_packs": [
+        {
+          "profile_id": "proof.design.implementation-readiness",
+          "profile_version": "2.1.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v1"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input"
+      ],
       "exact_binding_required": false,
       "distinctions": []
     },
@@ -164,9 +413,29 @@
         "production entrypoint unreachable",
         "no activation events"
       ],
-      "capable_packs": [{ "profile_id": "proof.dormancy.nonactivation", "profile_version": "1.0.0" }],
-      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v2"] },
-      "required_evaluation_inputs": ["controlled_contract", "evaluation_input", "exact_capture_root", "exact_binding_sources"],
+      "capable_packs": [
+        {
+          "profile_id": "proof.dormancy.nonactivation",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v2"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input",
+        "exact_capture_root",
+        "exact_binding_sources"
+      ],
       "exact_binding_required": true,
       "distinctions": []
     },
@@ -180,9 +449,27 @@
         "distinct attempt succeeds",
         "cleanup isolation"
       ],
-      "capable_packs": [{ "profile_id": "proof.failure.cleanup-noninterference", "profile_version": "1.0.0" }],
-      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
-      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "capable_packs": [
+        {
+          "profile_id": "proof.failure.cleanup-noninterference",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v1"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input"
+      ],
       "exact_binding_required": false,
       "distinctions": []
     },
@@ -196,11 +483,34 @@
         "failure then retry success",
         "retry sequence completion"
       ],
-      "capable_packs": [{ "profile_id": "proof.failure.retry-convergence", "profile_version": "1.0.0" }],
-      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
-      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "capable_packs": [
+        {
+          "profile_id": "proof.failure.retry-convergence",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v1"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input"
+      ],
       "exact_binding_required": false,
-      "distinctions": [{ "from_intent_id": "controlled-proof-intent.idempotent-effect-nonduplication", "explanation": "This intent establishes eventual convergence of a bounded retry sequence; idempotency establishes nonduplication of the elected durable effect across repeated attempts." }]
+      "distinctions": [
+        {
+          "from_intent_id": "controlled-proof-intent.idempotent-effect-nonduplication",
+          "explanation": "This intent establishes eventual convergence of a bounded retry sequence; idempotency establishes nonduplication of the elected durable effect across repeated attempts."
+        }
+      ]
     },
     {
       "intent_id": "controlled-proof-intent.failure-settlement-and-cleanup",
@@ -212,11 +522,34 @@
         "failure lifecycle completion",
         "settled failure cleanup"
       ],
-      "capable_packs": [{ "profile_id": "proof.failure.settlement-and-cleanup", "profile_version": "1.0.0" }],
-      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
-      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "capable_packs": [
+        {
+          "profile_id": "proof.failure.settlement-and-cleanup",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v1"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input"
+      ],
       "exact_binding_required": false,
-      "distinctions": [{ "from_intent_id": "controlled-proof-intent.atomic-failure-boundary", "explanation": "This intent establishes terminal failure and cleanup completion; atomic failure boundary instead excludes a declared partial state for a compound operation after an injected between-effect failure." }]
+      "distinctions": [
+        {
+          "from_intent_id": "controlled-proof-intent.atomic-failure-boundary",
+          "explanation": "This intent establishes terminal failure and cleanup completion; atomic failure boundary instead excludes a declared partial state for a compound operation after an injected between-effect failure."
+        }
+      ]
     },
     {
       "intent_id": "controlled-proof-intent.idempotent-effect-nonduplication",
@@ -228,13 +561,37 @@
         "duplicate effect prevention",
         "deduplicated durable effect"
       ],
-      "capable_packs": [{ "profile_id": "proof.idempotency.effect-nonduplication", "profile_version": "2.0.0" }],
-      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
-      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "capable_packs": [
+        {
+          "profile_id": "proof.idempotency.effect-nonduplication",
+          "profile_version": "3.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v1"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input"
+      ],
       "exact_binding_required": false,
       "distinctions": [
-        { "from_intent_id": "controlled-proof-intent.retry-convergence", "explanation": "This intent establishes effect nonduplication across repeated attempts; retry convergence establishes eventual arrival at a successful terminal state." },
-        { "from_intent_id": "controlled-proof-intent.single-use-replay-refusal", "explanation": "This intent permits repeated attempts under one idempotency identity while electing one durable effect; single-use replay refusal requires a successful first use followed by explicit refusal of a later replay." }
+        {
+          "from_intent_id": "controlled-proof-intent.retry-convergence",
+          "explanation": "This intent establishes effect nonduplication across repeated attempts; retry convergence establishes eventual arrival at a successful terminal state."
+        },
+        {
+          "from_intent_id": "controlled-proof-intent.single-use-replay-refusal",
+          "explanation": "This intent permits repeated attempts under one idempotency identity while electing one durable effect; single-use replay refusal requires a successful first use followed by explicit refusal of a later replay."
+        }
       ]
     },
     {
@@ -247,11 +604,36 @@
         "all required branches",
         "prefix census"
       ],
-      "capable_packs": [{ "profile_id": "proof.integration.prefix-safety", "profile_version": "1.0.0" }],
-      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v2"] },
-      "required_evaluation_inputs": ["controlled_contract", "evaluation_input", "exact_capture_root", "exact_binding_sources"],
+      "capable_packs": [
+        {
+          "profile_id": "proof.integration.prefix-safety",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v2"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input",
+        "exact_capture_root",
+        "exact_binding_sources"
+      ],
       "exact_binding_required": true,
-      "distinctions": [{ "from_intent_id": "controlled-proof-intent.behavioral-preservation", "explanation": "This intent quantifies over integration prefixes, execution paths, and required branches; behavioral preservation compares complete baseline and candidate reports." }]
+      "distinctions": [
+        {
+          "from_intent_id": "controlled-proof-intent.behavioral-preservation",
+          "explanation": "This intent quantifies over integration prefixes, execution paths, and required branches; behavioral preservation compares complete baseline and candidate reports."
+        }
+      ]
     },
     {
       "intent_id": "controlled-proof-intent.bounded-state-stability",
@@ -263,9 +645,27 @@
         "selected state unchanged",
         "bounded state comparison"
       ],
-      "capable_packs": [{ "profile_id": "proof.lifecycle.bounded-state-stability", "profile_version": "1.0.0" }],
-      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
-      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "capable_packs": [
+        {
+          "profile_id": "proof.lifecycle.bounded-state-stability",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v1"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input"
+      ],
       "exact_binding_required": false,
       "distinctions": []
     },
@@ -279,9 +679,27 @@
         "terminal state unchanged",
         "stable terminal state"
       ],
-      "capable_packs": [{ "profile_id": "proof.lifecycle.bounded-terminal-stability", "profile_version": "1.0.0" }],
-      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
-      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "capable_packs": [
+        {
+          "profile_id": "proof.lifecycle.bounded-terminal-stability",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v1"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input"
+      ],
       "exact_binding_required": false,
       "distinctions": []
     },
@@ -295,9 +713,27 @@
         "settled state visible",
         "durability visibility ordering"
       ],
-      "capable_packs": [{ "profile_id": "proof.ordering.visibility-after-durable-settlement", "profile_version": "1.0.0" }],
-      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
-      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "capable_packs": [
+        {
+          "profile_id": "proof.ordering.visibility-after-durable-settlement",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v1"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input"
+      ],
       "exact_binding_required": false,
       "distinctions": []
     },
@@ -311,9 +747,27 @@
         "cross-execution isolation",
         "owner identity separation"
       ],
-      "capable_packs": [{ "profile_id": "proof.ownership.exact-isolation", "profile_version": "1.0.0" }],
-      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
-      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "capable_packs": [
+        {
+          "profile_id": "proof.ownership.exact-isolation",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v1"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input"
+      ],
       "exact_binding_required": false,
       "distinctions": []
     },
@@ -327,9 +781,27 @@
         "successor acquires ownership",
         "stale owner refusal"
       ],
-      "capable_packs": [{ "profile_id": "proof.ownership.fenced-handoff", "profile_version": "1.0.0" }],
-      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
-      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "capable_packs": [
+        {
+          "profile_id": "proof.ownership.fenced-handoff",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v1"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input"
+      ],
       "exact_binding_required": false,
       "distinctions": []
     },
@@ -343,9 +815,27 @@
         "success requires readiness",
         "readiness event ordering"
       ],
-      "capable_packs": [{ "profile_id": "proof.readiness.before-success", "profile_version": "1.0.0" }],
-      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
-      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "capable_packs": [
+        {
+          "profile_id": "proof.readiness.before-success",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v1"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input"
+      ],
       "exact_binding_required": false,
       "distinctions": []
     },
@@ -359,11 +849,34 @@
         "exact emitted count",
         "single result schema"
       ],
-      "capable_packs": [{ "profile_id": "proof.result-shape.conformance", "profile_version": "1.0.0" }],
-      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
-      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "capable_packs": [
+        {
+          "profile_id": "proof.result-shape.conformance",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v1"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input"
+      ],
       "exact_binding_required": false,
-      "distinctions": [{ "from_intent_id": "controlled-proof-intent.lossless-projection", "explanation": "This intent checks one result against its declared allowed shape; lossless projection checks complete-source recoverability across compact and complete modes." }]
+      "distinctions": [
+        {
+          "from_intent_id": "controlled-proof-intent.lossless-projection",
+          "explanation": "This intent checks one result against its declared allowed shape; lossless projection checks complete-source recoverability across compact and complete modes."
+        }
+      ]
     },
     {
       "intent_id": "controlled-proof-intent.cross-representation-parity",
@@ -375,13 +888,37 @@
         "paired canonical value",
         "representation equivalence"
       ],
-      "capable_packs": [{ "profile_id": "proof.result-shape.cross-representation-parity", "profile_version": "1.0.0" }],
-      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
-      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "capable_packs": [
+        {
+          "profile_id": "proof.result-shape.cross-representation-parity",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v1"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input"
+      ],
       "exact_binding_required": false,
       "distinctions": [
-        { "from_intent_id": "controlled-proof-intent.lossless-projection", "explanation": "This intent compares two complete representations; lossless projection reconstructs a complete source from a compact result and disclosed omissions." },
-        { "from_intent_id": "controlled-proof-intent.behavioral-preservation", "explanation": "This intent compares two complete representations of one logical source; behavioral preservation compares baseline and candidate behavior reports and binds their exact captured bytes." }
+        {
+          "from_intent_id": "controlled-proof-intent.lossless-projection",
+          "explanation": "This intent compares two complete representations; lossless projection reconstructs a complete source from a compact result and disclosed omissions."
+        },
+        {
+          "from_intent_id": "controlled-proof-intent.behavioral-preservation",
+          "explanation": "This intent compares two complete representations of one logical source; behavioral preservation compares baseline and candidate behavior reports and binds their exact captured bytes."
+        }
       ]
     },
     {
@@ -394,9 +931,27 @@
         "no out-of-scope writes",
         "mutation scope"
       ],
-      "capable_packs": [{ "profile_id": "proof.scope.write-confinement", "profile_version": "1.0.0" }],
-      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
-      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "capable_packs": [
+        {
+          "profile_id": "proof.scope.write-confinement",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v1"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input"
+      ],
       "exact_binding_required": false,
       "distinctions": []
     },
@@ -410,11 +965,34 @@
         "later replay refused",
         "consumed token replay"
       ],
-      "capable_packs": [{ "profile_id": "proof.single-use.replay-refusal", "profile_version": "1.0.0" }],
-      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
-      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "capable_packs": [
+        {
+          "profile_id": "proof.single-use.replay-refusal",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v1"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input"
+      ],
       "exact_binding_required": false,
-      "distinctions": [{ "from_intent_id": "controlled-proof-intent.idempotent-effect-nonduplication", "explanation": "This intent requires a successful first single use and explicit refusal of a later replay without another effect; idempotent nonduplication permits repeated attempts while electing one durable effect." }]
+      "distinctions": [
+        {
+          "from_intent_id": "controlled-proof-intent.idempotent-effect-nonduplication",
+          "explanation": "This intent requires a successful first single use and explicit refusal of a later replay without another effect; idempotent nonduplication permits repeated attempts while electing one durable effect."
+        }
+      ]
     },
     {
       "intent_id": "controlled-proof-intent.bounded-interval-nonmutation",
@@ -426,11 +1004,77 @@
         "no writes during interval",
         "explicit start and end events"
       ],
-      "capable_packs": [{ "profile_id": "proof.state.bounded-interval-nonmutation", "profile_version": "1.0.0" }],
-      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
-      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "capable_packs": [
+        {
+          "profile_id": "proof.state.bounded-interval-nonmutation",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v1"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input"
+      ],
       "exact_binding_required": false,
-      "distinctions": [{ "from_intent_id": "controlled-proof-intent.refusal-before-effects", "explanation": "This intent fixes one actor and explicit interval endpoints and excludes mutation throughout that interval; refusal-before-effects fixes an unauthorized attempt ending in refusal and excludes protected effects before refusal." }]
+      "distinctions": [
+        {
+          "from_intent_id": "controlled-proof-intent.refusal-before-effects",
+          "explanation": "This intent fixes one actor and explicit interval endpoints and excludes mutation throughout that interval; refusal-before-effects fixes an unauthorized attempt ending in refusal and excludes protected effects before refusal."
+        }
+      ]
+    },
+    {
+      "intent_id": "controlled-proof-intent.forbidden-operation-noninvocation",
+      "definition": "Establish that one declared subject operation does not use any member of a complete exact nonempty forbidden-operation population in one declared execution context.",
+      "discovery_terms": [
+        "forbidden operation noninvocation",
+        "obsolete call absent",
+        "prohibited helper not used",
+        "removed call not restored",
+        "no forbidden invocation"
+      ],
+      "capable_packs": [
+        {
+          "profile_id": "proof.operation.forbidden-noninvocation",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v1"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input"
+      ],
+      "exact_binding_required": false,
+      "distinctions": [
+        {
+          "from_intent_id": "controlled-proof-intent.dormancy-nonactivation",
+          "explanation": "This intent prohibits one complete declared operation population for a selected subject and context; dormancy nonactivation establishes that a constructible component is inactive and unreachable from complete captured production entrypoints."
+        },
+        {
+          "from_intent_id": "controlled-proof-intent.bounded-interval-nonmutation",
+          "explanation": "This intent prohibits operation use in a selected context; bounded-interval nonmutation prohibits writes and mutations to protected resources between explicit interval endpoints."
+        }
+      ]
     },
     {
       "intent_id": "controlled-proof-intent.protected-effect-nonmutation",
@@ -443,15 +1087,438 @@
         "refusal or bounded interval"
       ],
       "capable_packs": [
-        { "profile_id": "proof.authorization.refusal-before-effects", "profile_version": "1.0.0" },
-        { "profile_id": "proof.state.bounded-interval-nonmutation", "profile_version": "1.0.0" }
+        {
+          "profile_id": "proof.authorization.refusal-before-effects",
+          "profile_version": "2.0.0"
+        },
+        {
+          "profile_id": "proof.state.bounded-interval-nonmutation",
+          "profile_version": "2.0.0"
+        }
       ],
-      "compatibility": { "contract_schema_versions": ["controlled-acceptance-contract.experimental.v0.2"], "vocabulary_versions": ["cv.experimental.0.34"], "admission_schema_versions": ["controlled-contract-admitted-proof-pack.v1"] },
-      "required_evaluation_inputs": ["controlled_contract", "evaluation_input"],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v1"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input"
+      ],
       "exact_binding_required": false,
       "distinctions": [
-        { "from_intent_id": "controlled-proof-intent.refusal-before-effects", "explanation": "This broader intent leaves the interval proof shape unresolved; refusal-before-effects fixes it to an unauthorized attempt ending in refusal." },
-        { "from_intent_id": "controlled-proof-intent.bounded-interval-nonmutation", "explanation": "This broader intent leaves the interval proof shape unresolved; bounded-interval nonmutation fixes it to one actor and explicit start/end events." }
+        {
+          "from_intent_id": "controlled-proof-intent.refusal-before-effects",
+          "explanation": "This broader intent leaves the interval proof shape unresolved; refusal-before-effects fixes it to an unauthorized attempt ending in refusal."
+        },
+        {
+          "from_intent_id": "controlled-proof-intent.bounded-interval-nonmutation",
+          "explanation": "This broader intent leaves the interval proof shape unresolved; bounded-interval nonmutation fixes it to one actor and explicit start/end events."
+        }
+      ]
+    },
+    {
+      "intent_id": "controlled-proof-intent.deterministic-lexicographic-ordering",
+      "definition": "Establish, for exact captured input, complete result, ordering policy, and item-key/comparator evidence, exact population equality and deterministic total lexicographic order under at least two typed precedence keys and one stable tie-breaker, including complete pair coverage and input, declaration, and equivalent-serialization permutation invariance.",
+      "discovery_terms": [
+        "deterministic lexicographic ordering",
+        "first unequal key",
+        "stable tie breaker",
+        "complete pairwise comparator",
+        "ordering permutation invariance"
+      ],
+      "capable_packs": [
+        {
+          "profile_id": "proof.ordering.lexicographic-conformance",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v2"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input",
+        "exact_capture_root",
+        "exact_binding_sources"
+      ],
+      "exact_binding_required": true,
+      "distinctions": [
+        {
+          "from_intent_id": "controlled-proof-intent.result-shape-conformance",
+          "explanation": "This intent retains its own exact population spine and additionally establishes comparator policy, total lexicographic order, and permutation invariance; result-shape conformance does not mechanically unify population identities across a separate pack evaluation."
+        },
+        {
+          "from_intent_id": "controlled-proof-intent.cross-representation-parity",
+          "explanation": "This intent checks one complete ordered result against a typed comparator policy and complete pair evidence; cross-representation parity compares two unordered representation populations and one paired canonical value."
+        }
+      ]
+    },
+    {
+      "intent_id": "controlled-proof-intent.mutation-consistent-pagination",
+      "definition": "Establish mutation-consistent pagination under one explicitly selected policy: immutable snapshot traversal or fail-closed stale versioned-cursor refusal.",
+      "discovery_terms": [
+        "mutation consistent pagination",
+        "snapshot pagination consistency",
+        "versioned cursor refusal",
+        "stale cursor fail closed",
+        "pagination across source mutation"
+      ],
+      "capable_packs": [
+        {
+          "profile_id": "proof.pagination.snapshot-consistency",
+          "profile_version": "2.0.0"
+        },
+        {
+          "profile_id": "proof.pagination.versioned-cursor-refusal",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v2"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input",
+        "exact_capture_root",
+        "exact_binding_sources"
+      ],
+      "exact_binding_required": true,
+      "distinctions": [
+        {
+          "from_intent_id": "controlled-proof-intent.integration-prefix-safety",
+          "explanation": "This intent prevents mutation-induced version mixing or requires fail-closed stale-cursor refusal; integration-prefix safety quantifies over integration prefixes."
+        },
+        {
+          "from_intent_id": "controlled-proof-intent.refusal-before-effects",
+          "explanation": "This intent selects either immutable snapshot traversal or a self-contained stale-version refusal proof; refusal-before-effects alone does not bind page returns, cursor advancement, source versions, or the unrelated-mutation control."
+        }
+      ]
+    },
+    {
+      "intent_id": "controlled-proof-intent.complete-pagination-traversal",
+      "definition": "Establish that one exact package-authenticated authoritative ordered-occurrence population is traversed from the canonical initial state through one linear opaque cursor chain under one snapshot/version identity, with exactly one terminal page and concatenated returned occurrences equal to the authoritative sequence exactly.",
+      "discovery_terms": [
+        "complete pagination traversal",
+        "authoritative ordered occurrence pagination",
+        "exact once only pagination membership",
+        "linear opaque cursor chain",
+        "pagination terminal uniqueness",
+        "page boundary invariant traversal"
+      ],
+      "capable_packs": [
+        {
+          "profile_id": "proof.pagination.complete-traversal",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v2"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input",
+        "exact_capture_root",
+        "exact_binding_sources"
+      ],
+      "exact_binding_required": true,
+      "distinctions": [
+        {
+          "from_intent_id": "controlled-proof-intent.mutation-consistent-pagination",
+          "explanation": "This intent proves authenticated complete ordered traversal, once-only occurrence membership, linear cursor transitions, and terminal uniqueness; mutation-consistent pagination selects snapshot consistency or stale-cursor refusal without establishing full traversal completeness."
+        }
+      ]
+    },
+    {
+      "intent_id": "controlled-proof-intent.sound-negative-observation",
+      "definition": "Establish absence of one exact captured target relative to one complete declared captured source population by proving complete source and observation coverage, stable endpoint pairs, authenticated per-occurrence target/source/attempt/position grounding, universal target non-match, an empty invalidating-condition population, and the sole exact projected absent conclusion.",
+      "discovery_terms": [
+        "sound negative observation",
+        "complete captured source absence",
+        "authenticated absence evidence",
+        "every observation does not match target",
+        "absence across declared sources"
+      ],
+      "capable_packs": [
+        {
+          "profile_id": "proof.observation.sound-negative",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v2"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input",
+        "exact_capture_root",
+        "exact_binding_sources"
+      ],
+      "exact_binding_required": true,
+      "distinctions": [
+        {
+          "from_intent_id": "controlled-proof-intent.direct-source-authentication-provenance",
+          "explanation": "This intent quantifies over complete declared source and observation populations and derives absence; direct-source authentication provenance proves one occurrence's target, source, and attempt provenance but not absence."
+        },
+        {
+          "from_intent_id": "controlled-proof-intent.dormancy-nonactivation",
+          "explanation": "This intent establishes absence of a selected target relative to complete exact captured observations; dormancy nonactivation establishes inactive and unreachable component state from captured production entrypoints."
+        },
+        {
+          "from_intent_id": "controlled-proof-intent.bounded-state-stability",
+          "explanation": "This intent uses stable endpoint pairs to validate captured source outcomes and then proves target non-match; bounded-state stability establishes equality of one selected state across interval endpoints without an absence conclusion."
+        }
+      ]
+    },
+    {
+      "intent_id": "controlled-proof-intent.declared-boundary-record-consistency",
+      "definition": "Establish that one exact caller-asserted boundary observation record is arithmetically and disposition-table consistent with one exact closed declared policy and exact captured boundary subjects, without claiming execution provenance or production enforcement.",
+      "discovery_terms": [
+        "declared boundary record consistency",
+        "limit boundary N-1 N N+1",
+        "caller asserted disposition table",
+        "character versus byte limit",
+        "zero maximum boundary"
+      ],
+      "capable_packs": [
+        {
+          "profile_id": "proof.policy.declared-boundary-record-consistency",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v2"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input",
+        "exact_capture_root",
+        "exact_binding_sources"
+      ],
+      "exact_binding_required": true,
+      "distinctions": [
+        {
+          "from_intent_id": "controlled-proof-intent.declared-limit-guidance-propagation",
+          "explanation": "This intent validates a caller-asserted boundary record against captured policy and subject bytes; guidance propagation validates one authored guidance artifact and does not entail boundary-record consistency."
+        }
+      ]
+    },
+    {
+      "intent_id": "controlled-proof-intent.declared-limit-guidance-propagation",
+      "definition": "Establish that one exact raw guidance artifact carries exactly one nonconflicting plain-decimal value and exact unit token for every key in one exact closed declared policy.",
+      "discovery_terms": [
+        "declared limit guidance propagation",
+        "stale guidance limit",
+        "policy value and unit documentation",
+        "duplicate conflicting guidance number",
+        "exact guidance artifact"
+      ],
+      "capable_packs": [
+        {
+          "profile_id": "proof.policy.declared-limit-propagation",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v2"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input",
+        "exact_capture_root",
+        "exact_binding_sources"
+      ],
+      "exact_binding_required": true,
+      "distinctions": [
+        {
+          "from_intent_id": "controlled-proof-intent.declared-boundary-record-consistency",
+          "explanation": "This intent validates one authored guidance artifact against the captured policy; boundary-record consistency validates caller-asserted boundary dispositions and does not entail guidance propagation."
+        }
+      ]
+    },
+    {
+      "intent_id": "controlled-proof-intent.direct-source-authentication-provenance",
+      "definition": "Establish that one exact directly captured evidence occurrence authenticates one exact target, originates from the target's singular authenticated source of record, and was observed in one exact bound attempt.",
+      "discovery_terms": [
+        "direct source authentication provenance",
+        "authenticated evidence occurrence",
+        "source of record provenance",
+        "same occurrence target source attempt",
+        "attempt bound evidence authentication"
+      ],
+      "capable_packs": [
+        {
+          "profile_id": "proof.authentication.direct-source-provenance",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v2"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input",
+        "exact_capture_root",
+        "exact_binding_sources"
+      ],
+      "exact_binding_required": true,
+      "distinctions": []
+    },
+    {
+      "intent_id": "controlled-proof-intent.supplementary-failure-isolation",
+      "definition": "Establish within one exact captured attempt that a valid settled core survives a later supplementary failure unchanged and complete, no supplementary result was produced, and the final result discloses exactly one captured reason while representing the failed component in exactly one closed present-unavailable or omitted-disclosed form.",
+      "discovery_terms": [
+        "supplementary failure isolation",
+        "optional enrichment failure preserves core",
+        "failed supplement unavailable or omitted",
+        "same attempt core preservation",
+        "no supplementary result after failure"
+      ],
+      "capable_packs": [
+        {
+          "profile_id": "proof.failure.supplementary-isolation",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v2"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input",
+        "exact_capture_root",
+        "exact_binding_sources"
+      ],
+      "exact_binding_required": true,
+      "distinctions": [
+        {
+          "from_intent_id": "controlled-proof-intent.failure-settlement-and-cleanup",
+          "explanation": "This intent binds one exact core settlement, later supplementary failure, final core preservation, no supplementary result, and exact disclosure; failure settlement and cleanup does not establish preservation of a successful core across a distinct supplementary failure."
+        },
+        {
+          "from_intent_id": "controlled-proof-intent.behavioral-preservation",
+          "explanation": "This intent derives sub-result preservation and supplementary absence inside one exact attempt; behavioral preservation compares complete baseline and candidate reports and does not establish the supplementary failure lifecycle."
+        }
+      ]
+    },
+    {
+      "intent_id": "controlled-proof-intent.test-verification-validity",
+      "definition": "Establish for one stable-v1 test_execution verification exact versioned launcher-registry providers and capability-snapshot evidence; a passing candidate; complete declared/observed inventories; isolated discriminating execution of every falsifier; disposition of existing coverage; no new skips, source inspection, or caller executors; and authenticated exact boundary/observable traversal. Registry-authenticated unsupported traversal remains review_only.",
+      "discovery_terms": [
+        "test verification validity",
+        "system under test boundary",
+        "discriminating falsifier execution",
+        "declared test inventory preservation",
+        "newly skipped test detection",
+        "authenticated boundary traversal",
+        "versioned execution provider binding",
+        "provider capability snapshot"
+      ],
+      "capable_packs": [
+        {
+          "profile_id": "proof.verification.test-validity",
+          "profile_version": "2.0.0"
+        }
+      ],
+      "compatibility": {
+        "contract_schema_versions": [
+          "controlled-acceptance-contract.v1"
+        ],
+        "vocabulary_versions": [
+          "controlled-contract-vocabulary.v1"
+        ],
+        "admission_schema_versions": [
+          "controlled-contract-admitted-proof-pack.v1"
+        ]
+      },
+      "required_evaluation_inputs": [
+        "controlled_contract",
+        "evaluation_input"
+      ],
+      "exact_binding_required": false,
+      "distinctions": [
+        {
+          "from_intent_id": "controlled-proof-intent.implementation-readiness",
+          "explanation": "Implementation readiness binds design, test loci, requirements, warning shape, and placeholder absence; it does not establish executed test identity, falsifier discrimination, coverage preservation, or boundary traversal."
+        },
+        {
+          "from_intent_id": "controlled-proof-intent.behavioral-preservation",
+          "explanation": "Behavioral preservation compares complete baseline and candidate reports; it does not establish per-verification test-proof identity, isolated falsifiers, skipped-test detection, or boundary traversal."
+        },
+        {
+          "from_intent_id": "controlled-proof-intent.forbidden-operation-noninvocation",
+          "explanation": "Forbidden-operation noninvocation excludes one declared operation; it does not establish the combined test-validity axes and cannot substitute for this pack."
+        }
       ]
     }
   ]

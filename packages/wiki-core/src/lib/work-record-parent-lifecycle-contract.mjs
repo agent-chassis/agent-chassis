@@ -39,6 +39,14 @@ export function isEligibleTerminalWholeWkReviewContractUnit(unit) {
   );
 }
 
+function projectTerminalReviewDesignation(eligibleUnits) {
+  const designation = { eligible_count: eligibleUnits.length };
+  if (eligibleUnits.length === 1) {
+    designation.unit = cloneAndFreeze(eligibleUnits[0]);
+  }
+  return Object.freeze(designation);
+}
+
 export function evaluateWorkRecordParentLifecycleContract(record) {
   const missingFacts = [];
   const ambiguousFacts = [];
@@ -62,16 +70,20 @@ export function evaluateWorkRecordParentLifecycleContract(record) {
     ambiguousFacts.push(PARENT_LIFECYCLE_CONTRACT_FACTS.TERMINAL_REVIEW_CONTRACT_UNIT);
   }
 
+  const terminalReviewDesignation = projectTerminalReviewDesignation(eligibleUnits);
+
   if (missingFacts.length > 0 || ambiguousFacts.length > 0) {
     return Object.freeze({
       complete: false,
       missing_facts: Object.freeze(missingFacts),
-      ambiguous_facts: Object.freeze(ambiguousFacts)
+      ambiguous_facts: Object.freeze(ambiguousFacts),
+      terminal_review_designation: terminalReviewDesignation
     });
   }
 
   return Object.freeze({
     complete: true,
-    terminal_review_contract_unit: cloneAndFreeze(eligibleUnits[0])
+    terminal_review_contract_unit: terminalReviewDesignation.unit,
+    terminal_review_designation: terminalReviewDesignation
   });
 }

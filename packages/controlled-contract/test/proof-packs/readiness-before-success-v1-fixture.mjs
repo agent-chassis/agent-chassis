@@ -1,14 +1,14 @@
 import { readFile } from "node:fs/promises";
 
 import {
-  PROFILE_ID_V034,
-  SCHEMA_VERSION_V034,
-  VOCABULARY_VERSION_V034
-} from "../../lib/native-contract-carrier-v034.mjs";
-import { EVALUATION_INPUT_VERSION_V034 } from "../../lib/verification-profile-v034.mjs";
+  PROFILE_ID_V1,
+  SCHEMA_VERSION_V1,
+  VOCABULARY_VERSION_V1
+} from "../../lib/native-contract-carrier-v1.mjs";
+import { EVALUATION_INPUT_VERSION_V1 } from "../support/stable-v1-proof-pack-runtime.mjs";
 
 const READINESS_BEFORE_SUCCESS_PROFILE = JSON.parse(await readFile(new URL(
-  "../certification/profiles/proof.readiness.before-success/1.0.0/profile.json",
+  "../certification/profiles/proof.readiness.before-success/2.0.0/profile.json",
   import.meta.url
 ), "utf8"));
 
@@ -142,9 +142,9 @@ function buildReadinessBeforeSuccessFixture({
   });
 
   const contract = {
-    schema_version: SCHEMA_VERSION_V034,
-    vocabulary_version: VOCABULARY_VERSION_V034,
-    profile_id: PROFILE_ID_V034,
+    schema_version: SCHEMA_VERSION_V1,
+    vocabulary_version: VOCABULARY_VERSION_V1,
+    profile_id: PROFILE_ID_V1,
     references,
     propositions,
     claims,
@@ -161,11 +161,11 @@ function buildReadinessBeforeSuccessFixture({
       member_claim_ids: PROOF_PATTERN_IDS.map((patternId) => `claim-${patternId}`)
     }],
     residue: [],
-    annotations: []
+    annotations: [], test_proof_version: "controlled-contract-test-proof.v1", test_proofs: []
   };
 
   const input = {
-    input_version: EVALUATION_INPUT_VERSION_V034,
+    input_version: EVALUATION_INPUT_VERSION_V1,
     evaluation_stage: "pre_dispatch",
     reference_bindings: Object.keys(roleReferenceIds).map((role) => ({
       role,
@@ -174,7 +174,7 @@ function buildReadinessBeforeSuccessFixture({
     number_bindings: [],
     claim_pattern_bindings: [],
     resolver_facts: [],
-    delivered_evidence: []
+    delivered_evidence: [], stable_evaluation: {}
   };
 
   if (mutateContract) mutateContract(contract, input);

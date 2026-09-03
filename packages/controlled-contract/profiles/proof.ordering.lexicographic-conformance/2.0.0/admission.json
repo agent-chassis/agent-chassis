@@ -1,0 +1,63 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v2",
+  "profile_id": "proof.ordering.lexicographic-conformance",
+  "profile_version": "2.0.0",
+  "profile_digest": "e8236db6201793762140c3999ff605ac52829a36940d5f383d2ec2df9950575e",
+  "guarantee": "For exact captured input, complete result, ordering policy, and item-key/comparator evidence artifacts, the package-owned deterministic-lexicographic-conformance.v1 transformer validates complete mutually inclusive item populations and exact counts, at least two typed keys with explicit precedence and direction, first-unequal-key ordering, equal-key fallthrough to one stable item-identity tie-breaker, non-equality for every distinguishable pair, the complete captured result, and observed input, declaration, and equivalent-serialization permutation invariance; it emits one exact digest-bound conformance report containing the complete typed fact set and derived declared-item, result-item, and policy-key populations, and the profile retains its own population, count, claim, falsifier, and verifies spine.",
+  "guarantee_digest": "93cd1b6fdab1f2173ab1d256c99f7b56f3ddf568dc9554596cee2dabf9e6a62c",
+  "explicit_exclusions": [
+    "artifact-acquisition-completeness-before-exact-capture",
+    "caller-supplied-source-truth-or-authority",
+    "empty-or-singleton-item-or-policy-key-populations",
+    "ordering-behavior-after-the-captured-observation-boundary",
+    "pack-applicability-evidence-authority-or-cce-consequence",
+    "pagination-performance-or-resource-behavior",
+    "runtime-or-deployment-behavior-outside-captured-artifacts",
+    "undeclared-coercion-null-nan-locale-collation-normalization-or-punctuation-semantics"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "5e0b700c40fc267f5835b8718ecebb471fa28a4e79c3d185734be40bd0f69bb7",
+    "adequacy_result_digest": "db4421e508e3c845ea172304ea0a9449abfe37431bb7eb618695cb0d65e0a33b",
+    "executable_control_count": 95,
+    "negative_fixture_count": 136,
+    "coverage_witness_count": 136
+  },
+  "exact_binding": {
+    "declaration_digest": "85fb1b64057a8dbcb880433c01aef64f1ca30ab79d5509e33bf915cc55d49851",
+    "certification_result_digest": "9762cec945a49485dae5a0ae8f1f9a6990da1ff34255c1ea0a388d9fb2336d2f",
+    "executable_control_count": 20,
+    "binding_kinds": [
+      "artifact_bytes"
+    ],
+    "relation_operators": [
+      "deterministic_projection",
+      "distinct_source_descriptor"
+    ],
+    "corpus_id": "deterministic-lexicographic-conformance-exact-binding",
+    "corpus_version": "1.0.0",
+    "corpus_digest": "460841f87356f076a5d1a23cae3b9d18d259c213f124b6978054ad1b86283d56",
+    "passed_control_ids": [
+      "boolean-numeric-unicode-positive",
+      "comparator-evidence-missing-refused",
+      "conformance-report-fabrication-refused",
+      "conformance-report-rebinding-refused",
+      "declared-population-duplicate-refused",
+      "declared-population-omission-refused",
+      "declared-population-substitution-refused",
+      "distinct-source-descriptor-alias-refused",
+      "input-snapshot-missing-refused",
+      "numeric-unicode-positive",
+      "ordering-policy-missing-refused",
+      "policy-population-duplicate-refused",
+      "policy-population-omission-refused",
+      "policy-population-substitution-refused",
+      "result-population-duplicate-refused",
+      "result-population-omission-refused",
+      "result-population-substitution-refused",
+      "result-snapshot-missing-refused",
+      "source-result-shape-swap-refused",
+      "timestamp-integer-positive"
+    ]
+  }
+}

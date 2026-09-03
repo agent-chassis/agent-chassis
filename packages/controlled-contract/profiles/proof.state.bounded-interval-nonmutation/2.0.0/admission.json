@@ -1,0 +1,24 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v1",
+  "profile_id": "proof.state.bounded-interval-nonmutation",
+  "profile_version": "2.0.0",
+  "profile_digest": "8c6a652caed365b0e92292de52fa932fc6cd52b2d7de03c8c15758f616d8689b",
+  "guarantee": "For one caller-declared actor or process, one declared interval with distinct ordered start and end events, and one complete exact nonempty protected-resource population, the actor neither writes nor mutates any protected member during that interval; same-actor, same-population, same-interval positive write and mutation propositions falsify the plan, including mutate then restore.",
+  "guarantee_digest": "939c6810e54a1ca2b6174e13bdd12bebec13f923159f57cd7ee6c752b4e42fee",
+  "explicit_exclusions": [
+    "actions-outside-the-declared-interval",
+    "delete-or-create-unless-represented-as-write-or-mutation",
+    "dishonest-identities-populations-intervals-or-grounding",
+    "real-time-clock-trace-or-evidence-truth",
+    "trace-omissions-or-unreported-transient-activity",
+    "undiscovered-actors-or-protected-resources"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "ae1b4ce82612d8a324b6b8a77cc3851f9534f7eeaa1cec9a68d5fdd51ea318a0",
+    "adequacy_result_digest": "47c34cff1aa9595e0633f61c9f12e4059f736e76f179279d17146ed06f46adbe",
+    "executable_control_count": 29,
+    "negative_fixture_count": 3,
+    "coverage_witness_count": 58
+  }
+}

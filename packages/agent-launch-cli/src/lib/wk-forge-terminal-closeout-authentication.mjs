@@ -83,7 +83,7 @@ export function authenticateTerminalCloseoutProjection({ candidateRecord, liveRe
     if (candidateSlice.id === dependencyId || candidateSlice.id === candidateReview.id) continue;
     if (!same(candidateSlice, liveSlice)) return { ok: false, reason: "unrelated_slice_drift" };
   }
-  if (!sameExcept(liveRecord, candidateRecord, ["status", "sections", "slices"])) return { ok: false, reason: "unrelated_record_drift" };
+  if (!sameExcept(liveRecord, candidateRecord, ["status", "sections", "slices", "review_provenance"])) return { ok: false, reason: "unrelated_record_drift" };
   const candidateSections = { ...(candidateRecord.sections ?? {}) };
   const liveSections = { ...(liveRecord.sections ?? {}) };
   delete candidateSections.closure;

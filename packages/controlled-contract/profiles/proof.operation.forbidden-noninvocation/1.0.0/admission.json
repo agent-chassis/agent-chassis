@@ -1,0 +1,24 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v1",
+  "profile_id": "proof.operation.forbidden-noninvocation",
+  "profile_version": "1.0.0",
+  "profile_digest": "8946078e25826e2434c6179b034466020f900b4c7cdb88b874ec30ec1dea6812",
+  "guarantee": "For one caller-declared subject operation, one declared execution context, and one complete exact nonempty forbidden-operation population, the subject does not use any forbidden member in that context; one verification reads the exact subject, context, population, and every forbidden member, verifies that prohibition, and carries same-subject, same-context positive use of the same complete population as its falsifier.",
+  "guarantee_digest": "37c6bfcae8528804a5a06d4013d6595e92742ce97e982ef126790662e6acf7df",
+  "explicit_exclusions": [
+    "actual-execution-or-mutation-test-outcome",
+    "dishonest-reference-context-population-or-verification-grounding",
+    "dynamic-reflective-or-environment-dependent-invocation-absent-from-the-declared-model",
+    "forbidden-operations-outside-the-caller-declared-complete-population",
+    "invocation-after-or-outside-the-declared-context",
+    "production-path-or-call-graph-discovery"
+  ],
+  "certification": {
+    "method": "executable_adequacy_full_negative_corpus",
+    "adequacy_declaration_digest": "99ee134bb2fd6f87be7745ab3de3164eda9f162784af48e98daae7922d21afe0",
+    "adequacy_result_digest": "9e433049bc9af541bebfb1f8fa845352b93ac9ba26020a38016cd1e9f87d1595",
+    "executable_control_count": 35,
+    "negative_fixture_count": 1,
+    "coverage_witness_count": 28
+  }
+}

@@ -19,6 +19,11 @@ import {
 import { ORCHESTRATOR_ISOLATION_MODES } from "./orchestrator-launch-isolation.mjs";
 import {
   STDIO_MCP_CONDUIT_ERROR_CODES,
+  controlledLifecycleEventClass,
+  controlledLifecycleFailureReason,
+  controlledLifecyclePhase,
+  controlledLifecycleProtocolGeneration,
+  controlledLifecycleValidationRule,
   settleStdioMcpConduitCleanup
 } from "./stdio-mcp-conduit-contract.mjs";
 
@@ -122,6 +127,21 @@ export function buildOrchestratorStdioMcpDiagnostic(conduit) {
       cleanup_phase: cleanup === null ? null : reaping ? "reaping" : "cleanup",
       cleanup_failures: Object.freeze(cleanupFailures),
 
+      lifecycle_reason: controlledLifecycleFailureReason(primary?.detail?.lifecycle_reason),
+      lifecycle_phase: controlledLifecyclePhase(primary?.detail?.lifecycle_phase),
+      lifecycle_event_class: controlledLifecycleEventClass(
+        primary?.detail?.lifecycle_event_class),
+
+      lifecycle_validation_rule: controlledLifecycleValidationRule(
+        primary?.detail?.lifecycle_validation_rule),
+
+      producer_protocol_generation: controlledLifecycleProtocolGeneration(
+        primary?.detail?.producer_protocol_generation),
+      consumer_protocol_generation: controlledLifecycleProtocolGeneration(
+        primary?.detail?.consumer_protocol_generation),
+
+      launcher_terminated_client: termination !== null,
+
       ...(termination === null ? {} : { launcher_termination: termination })
     })
   });
@@ -135,20 +155,43 @@ export function renderOrchestratorStdioMcpDiagnostic(stream, diagnostic) {
     `agent-launch: wiki-MCP conduit diagnostic reason=${diagnostic.stdio_mcp_reason} ` +
       `phase=${detail?.phase ?? "unknown"} run_id=${detail?.run_id ?? "unknown"}`
   ];
+
+  if (detail?.lifecycle_reason !== null && detail?.lifecycle_reason !== undefined) {
+    lines.push(
+      `agent-launch: the confined client's MCP lifecycle failed ` +
+      `(lifecycle_reason=${detail.lifecycle_reason} ` +
+      `lifecycle_phase=${detail.lifecycle_phase ?? "unknown"} ` +
+      `event_class=${detail.lifecycle_event_class ?? "unknown"} ` +
+      `validation_rule=${detail.lifecycle_validation_rule ?? "none"})`);
+  }
+
+  if (detail?.producer_protocol_generation !== null &&
+        detail?.producer_protocol_generation !== undefined ||
+      detail?.consumer_protocol_generation !== null &&
+        detail?.consumer_protocol_generation !== undefined) {
+    lines.push(
+      `agent-launch: conduit lifecycle generations ` +
+      `producer=${detail.producer_protocol_generation ?? "unnegotiated"} ` +
+      `consumer=${detail.consumer_protocol_generation ?? "unknown"}`);
+  }
   if (termination !== null) {
     const cause = termination.cause_available === true
       ? `cause=${termination.cause_code}`
       : `cause=unavailable boundary=${termination.cause_boundary}`;
+    const attribution =
+      `initiated_by=${termination.initiated_by} fact=${termination.initiating_fact} ${cause}`;
     if (termination.sigterm !== null && termination.sigterm !== undefined) {
       lines.push(
         `agent-launch: the launcher terminal supervisor issued SIGTERM to the confined client ` +
-        `(initiated_by=${termination.initiated_by} fact=${termination.initiating_fact} ` +
-        `${cause} delivered=${termination.sigterm.delivered})`);
+        `(${attribution} delivered=${termination.sigterm.delivered})`);
     }
     if (termination.sigkill !== null && termination.sigkill !== undefined) {
-      lines.push(
-        `agent-launch: the launcher terminal supervisor escalated to SIGKILL ` +
-        `(delivered=${termination.sigkill.delivered})`);
+
+      lines.push(termination.sigterm === null || termination.sigterm === undefined
+        ? `agent-launch: the launcher terminal supervisor issued SIGKILL to the confined client ` +
+          `(${attribution} delivered=${termination.sigkill.delivered})`
+        : `agent-launch: the launcher terminal supervisor escalated to SIGKILL ` +
+          `(delivered=${termination.sigkill.delivered})`);
     }
   }
   if (stream !== null && stream !== undefined && typeof stream.write === "function") {

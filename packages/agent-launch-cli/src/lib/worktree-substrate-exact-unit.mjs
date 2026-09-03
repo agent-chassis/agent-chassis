@@ -60,7 +60,6 @@ export {
 export { SLICE_TIP_RECONCILE_STATES, wkForkRefName };
 export {
   SLICE_TIP_RECONCILE_DIAGNOSTIC_CODES,
-  CORRECTIVE_CONTINUATION_PROOF_SCHEMA_VERSION,
   SLICE_TIP_RECOVERY_ROUTES,
   classifyExistingSliceTipForDispatch
 } from "./worktree-substrate-exact-unit-reconcile.mjs";
@@ -347,8 +346,7 @@ export function allocateFullSliceExactUnitWorktree({
         name,
         branch,
         worktreePath,
-        resolveWkTip,
-        resolveCorrectiveContinuationProof: deps.resolveCorrectiveContinuationProof
+        resolveWkTip
       })
     : Object.freeze({ state: SLICE_TIP_RECONCILE_STATES.ABSENT, slice_tip: null });
   const baseSha = branchPresent

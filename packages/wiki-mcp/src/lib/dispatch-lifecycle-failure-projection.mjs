@@ -11,15 +11,58 @@ export const CLOSED_LIFECYCLE_FAILURE_SCHEMA_VERSION =
 
 export const CLOSED_LIFECYCLE_FAILURE_NAME = "ClosedLifecycleFailure";
 
-export const CLOSED_LIFECYCLE_FAILURE_CODES = Object.freeze({
-  TERMINAL_CANDIDATE_PREPARATION_FAILED:
-    "agent_launch.slice_lifecycle.terminal_candidate_preparation_failed.v1"
+export const CLOSED_LIFECYCLE_FAILURE_SEAMS = Object.freeze({
+  TERMINAL_CANDIDATE_PREPARATION: "terminal_candidate_preparation",
+  TERMINAL_CANDIDATE_VALIDATION: "terminal_candidate_validation",
+  COMMITTED_SLICE_INTEGRATION_CONTINUATION: "committed_slice_integration_continuation",
+  FROZEN_REVIEW_CONTEXT_BINDING: "frozen_review_context_binding",
+  MANAGED_WORKER_IDENTITY_RETIREMENT: "managed_worker_identity_retirement"
 });
 
-export const CLOSED_LIFECYCLE_FAILURE_MESSAGES = Object.freeze({
-  [CLOSED_LIFECYCLE_FAILURE_CODES.TERMINAL_CANDIDATE_PREPARATION_FAILED]:
-    "post-worker terminal candidate preparation failed"
+const CLOSED_LIFECYCLE_FAILURE_SEAM_DESCRIPTORS = Object.freeze({
+  [CLOSED_LIFECYCLE_FAILURE_SEAMS.TERMINAL_CANDIDATE_PREPARATION]: Object.freeze({
+    key: "TERMINAL_CANDIDATE_PREPARATION_FAILED",
+    code: "agent_launch.slice_lifecycle.terminal_candidate_preparation_failed.v1",
+    message: "post-worker terminal candidate preparation failed",
+    carries_candidate_failure: true
+  }),
+  [CLOSED_LIFECYCLE_FAILURE_SEAMS.TERMINAL_CANDIDATE_VALIDATION]: Object.freeze({
+    key: "TERMINAL_CANDIDATE_VALIDATION_FAILED",
+    code: "agent_launch.slice_lifecycle.terminal_candidate_validation_failed.v1",
+    message: "post-worker terminal candidate validation failed",
+    carries_candidate_failure: true
+  }),
+  [CLOSED_LIFECYCLE_FAILURE_SEAMS.COMMITTED_SLICE_INTEGRATION_CONTINUATION]: Object.freeze({
+    key: "COMMITTED_SLICE_INTEGRATION_CONTINUATION_FAILED",
+    code: "agent_launch.slice_lifecycle.committed_slice_integration_continuation_failed.v1",
+    message: "post-worker committed slice integration continuation failed",
+    carries_candidate_failure: false
+  }),
+  [CLOSED_LIFECYCLE_FAILURE_SEAMS.FROZEN_REVIEW_CONTEXT_BINDING]: Object.freeze({
+    key: "FROZEN_REVIEW_CONTEXT_BINDING_FAILED",
+    code: "agent_launch.slice_lifecycle.frozen_review_context_binding_failed.v1",
+    message: "post-worker frozen review context binding failed",
+    carries_candidate_failure: false
+  }),
+  [CLOSED_LIFECYCLE_FAILURE_SEAMS.MANAGED_WORKER_IDENTITY_RETIREMENT]: Object.freeze({
+    key: "MANAGED_WORKER_IDENTITY_RETIREMENT_FAILED",
+    code: "agent_launch.slice_lifecycle.managed_worker_identity_retirement_failed.v1",
+    message: "post-worker managed worker identity retirement failed",
+    carries_candidate_failure: false
+  })
 });
+
+const CLOSED_LIFECYCLE_FAILURE_SEAM_LIST = Object.freeze(
+  Object.values(CLOSED_LIFECYCLE_FAILURE_SEAM_DESCRIPTORS)
+);
+
+export const CLOSED_LIFECYCLE_FAILURE_CODES = Object.freeze(Object.fromEntries(
+  CLOSED_LIFECYCLE_FAILURE_SEAM_LIST.map((descriptor) => [descriptor.key, descriptor.code])
+));
+
+export const CLOSED_LIFECYCLE_FAILURE_MESSAGES = Object.freeze(Object.fromEntries(
+  CLOSED_LIFECYCLE_FAILURE_SEAM_LIST.map((descriptor) => [descriptor.code, descriptor.message])
+));
 
 export const CLOSED_LIFECYCLE_FAILURE_KEYS = Object.freeze([
   "schema_version",
@@ -137,11 +180,18 @@ class ClosedLifecycleFailure extends Error {
   }
 }
 
-export function closeTerminalCandidatePreparationFailure(error) {
+export function closeLifecycleSeamFailure(seam, error) {
+  if (typeof seam !== "string" ||
+      !Object.hasOwn(CLOSED_LIFECYCLE_FAILURE_SEAM_DESCRIPTORS, seam)) {
+    throw new Error(
+      "closed lifecycle failure carrier requires a recognized post-worker lifecycle seam"
+    );
+  }
+  const descriptor = CLOSED_LIFECYCLE_FAILURE_SEAM_DESCRIPTORS[seam];
   const carrier = new ClosedLifecycleFailure(
     CARRIER_CONSTRUCTION_TOKEN,
-    CLOSED_LIFECYCLE_FAILURE_CODES.TERMINAL_CANDIDATE_PREPARATION_FAILED,
-    closedCandidateFailure(error)
+    descriptor.code,
+    descriptor.carries_candidate_failure ? closedCandidateFailure(error) : null
   );
   CARRIER_BRAND.add(carrier);
   return carrier;

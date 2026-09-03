@@ -1,0 +1,55 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v2",
+  "profile_id": "proof.failure.supplementary-isolation",
+  "profile_version": "2.0.0",
+  "profile_digest": "7cc148450179d77b1c35322719c80b557ff5518fa3bfc5f2f32a0c6f5dc24d62",
+  "guarantee": "Within one exact captured attempt, one core computation settles one valid core result; one distinct supplementary computation then fails without producing a result; one final result follows, preserves the exact captured core value and complete core-member population, represents the supplementary component in exactly one closed present-unavailable or omitted-disclosed form, and discloses exactly one captured failure reason from the captured closed reason population.",
+  "guarantee_digest": "ed305a7aa0efc0ef774d93f7ee7f3afde9fc7e46f8cb364f8456714e2121104a",
+  "explicit_exclusions": [
+    "acquisition-completeness-before-capture",
+    "applicability-evidence-authority-and-cce-consequence",
+    "concurrency-outside-declared-attempt",
+    "core-computation-failure",
+    "retries-or-later-attempts",
+    "runtime-truth-outside-exact-capture",
+    "semantic-reason-quality-beyond-closed-membership",
+    "successful-supplementary-computation",
+    "undeclared-effects-and-components"
+  ],
+  "certification": {
+    "method": "executable_semantic_adequacy",
+    "adequacy_declaration_digest": "10c6159bec68d0cde55bc7b8857f01782a3446627c7c985193dafd49f37bdcc3",
+    "adequacy_result_digest": "7237eae947f93af1ece4d8e29c730db9d2c5c5004b49ddd3fa4163184dca702d",
+    "executable_control_count": 39,
+    "negative_fixture_count": 0,
+    "coverage_witness_count": 0
+  },
+  "exact_binding": {
+    "declaration_digest": "c86bbe83e568553e9990d4a46501427925e67d8b62d905b416c065c82d35f0b8",
+    "certification_result_digest": "d697b62c5b3a6051ed0541707bbd322a917ede0e40f8d2ed1877911263e2b3a8",
+    "executable_control_count": 12,
+    "binding_kinds": [
+      "artifact_bytes"
+    ],
+    "relation_operators": [
+      "deterministic_projection"
+    ],
+    "corpus_id": "proof-failure-supplementary-isolation-exact-binding",
+    "corpus_version": "1.0.0",
+    "corpus_digest": "94aaa9bb7502213e9685a1fe313abbdf61664b0d195d249cff4161253598637e",
+    "passed_control_ids": [
+      "admission-splice",
+      "capture-splice",
+      "core-value-substitution",
+      "declaration-splice",
+      "evaluation-input-splice",
+      "multiple-failures",
+      "multiple-final-results",
+      "multiple-settlements",
+      "positive-omitted",
+      "positive-present",
+      "profile-splice",
+      "projection-splice"
+    ]
+  }
+}

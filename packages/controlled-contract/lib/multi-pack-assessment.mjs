@@ -5,8 +5,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 
-import Ajv2020 from "ajv/dist/2020.js";
-
+import { compiledValidators } from "./compiled-validator-cache.mjs";
 import {
   ARTIFACT_RELATIVE_ROOT,
   AssessmentArtifactError,
@@ -18,9 +17,14 @@ import {
   projectContractAssessment
 } from "./contract-assessment.mjs";
 import { checkContract } from "../bin/check-contract.mjs";
-import { loadAdmittedProofPack } from "./admitted-proof-packs.mjs";
+import {
+  assertAdmittedProofPackSnapshot,
+  loadAdmittedProofPack
+} from "./admitted-proof-packs.mjs";
 import { canonicalDigest as exactCanonicalDigest } from "./exact-binding-common.mjs";
-import { evaluateVerificationProfileV034 } from "./verification-profile-v034.mjs";
+import { assessmentSupplementContextFor } from
+  "./lossless-supplement-context.mjs";
+import { evaluateVerificationProfileV1 } from "./verification-profile-v1.mjs";
 import {
   PROOF_INTENT_ARTIFACT,
   PROOF_INTENT_DIGESTS,
@@ -35,10 +39,16 @@ const [proofPlanSchema, assessmentSchema] = await Promise.all([
     "schema/controlled-contract-multi-pack-assessment.v1.schema.json", packageRoot
   ))
 ]);
-const ajv = new Ajv2020({ strict: true, allErrors: true });
-const validateProofPlan = ajv.compile(proofPlanSchema);
-const validateMultiPackAssessment = ajv.compile(assessmentSchema);
+const { validateProofPlan, validateMultiPackAssessment } = await compiledValidators(
+  "controlled-contract.multi-pack-assessment.v1", {
+    validators: {
+      validateProofPlan: proofPlanSchema,
+      validateMultiPackAssessment: assessmentSchema
+    }
+  }
+);
 const PUBLISHABLE_MULTI_ASSESSMENTS = new WeakSet();
+const OBLIGATION_SELECTOR_PACKS = new WeakMap();
 const MULTI_LOSSLESS_FILES = Object.freeze([
   "assessment.json",
   "assessment.md",
@@ -269,6 +279,9 @@ function missingPackProjection(entry, pack, missingInputs) {
     pack,
     projected: null,
     admitted_evaluation: null,
+    selector_assessment: null,
+    selector_exact_binding: null,
+    evaluation_input: null,
     missing_inputs: missingInputs.map((inputId) => ({
       input_id: inputId,
       reason_code: `${inputId}_missing`,
@@ -306,6 +319,11 @@ async function assessPackEntry(entry, {
     pack, evaluation.value, entry.exact_binding?.sources ?? null
   );
   assertDigestBindings(entry, expected);
+  const selectorAssessment = evaluateVerificationProfileV1({
+    contract: clone(contract),
+    profile: clone(pack.profile),
+    evaluation_input: clone(evaluation.value)
+  });
   if (pack.admission_version === 1) {
     if (entry.exact_binding !== null) throw new ProofPlanError(
       "proof_plan_exact_binding_unexpected", "a v1 pack rejects exact-binding inputs",
@@ -323,6 +341,9 @@ async function assessPackEntry(entry, {
         proofPack: pack
       }),
       admitted_evaluation: null,
+      selector_assessment: selectorAssessment,
+      selector_exact_binding: null,
+      evaluation_input: clone(evaluation.value),
       missing_inputs: []
     };
   }
@@ -330,11 +351,9 @@ async function assessPackEntry(entry, {
     ...missingPackProjection(
       entry, pack, ["exact_capture_root", "exact_binding_sources"]
     ),
-    admitted_evaluation: evaluateVerificationProfileV034({
-      contract: clone(contract),
-      profile: clone(pack.profile),
-      evaluation_input: clone(evaluation.value)
-    })
+    admitted_evaluation: selectorAssessment,
+    selector_assessment: selectorAssessment,
+    evaluation_input: clone(evaluation.value)
   };
   const captureRoot = path.resolve(planDirectory, entry.exact_binding.capture_root);
   const expectedContract = path.resolve(captureRoot, entry.exact_binding.contract_path);
@@ -377,6 +396,10 @@ async function assessPackEntry(entry, {
     pack,
     projected,
     admitted_evaluation: null,
+    selector_assessment: selectorAssessment,
+    selector_exact_binding:
+      assessmentSupplementContextFor(projected)?.exact_binding_result ?? null,
+    evaluation_input: clone(evaluation.value),
     missing_inputs: []
   };
 }
@@ -413,6 +436,48 @@ function aggregateAxis(packResults, field, filter = () => true) {
 
 function provenanceDetail(observation, detail) {
   return { pack: packProvenance(observation.entry), detail: clone(detail) };
+}
+
+function assessmentCycleDigest({ plan, contract, structural, observations }) {
+  return canonicalDigest({
+    cycle_version: "controlled-contract-multi-pack-assessment-cycle.v1",
+    contract: canonicalDigest(normalizeContractForIdentity(contract)),
+    proof_plan: canonicalDigest(normalizedProofPlanForIdentity(plan)),
+    structural_result: canonicalDigest(structural.reports.structural),
+    packs: observations.map((observation) => ({
+      pack: packProvenance(observation.pack.profile),
+      profile_digest: observation.pack.profile_digest,
+      admission_digest: observation.pack.admission_digest,
+      component_exclusion_applicability_digest:
+        observation.pack.component_exclusion_applicability_digest,
+      source_digests: clone(observation.entry.source_digests),
+      pack_assessment_identity:
+        observation.projected?.assessment.assessment_identity ?? null
+    })).sort((left, right) => compareCodeUnits(packKey(left.pack), packKey(right.pack)))
+  });
+}
+
+function authenticatedApplicabilityProjection(observation, cycleDigest) {
+  const { pack } = observation;
+  assertAdmittedProofPackSnapshot(pack);
+  if (pack.component_exclusion_applicability === null) return null;
+  return {
+    projection_version:
+      "controlled-contract-assessment-component-exclusion-applicability.v1",
+    assessment_cycle_digest: cycleDigest,
+    profile_id: pack.profile.profile_id,
+    profile_version: pack.profile.profile_version,
+    profile_digest: pack.profile_digest,
+    admission_digest: pack.admission_digest,
+    component_exclusion_applicability_digest:
+      pack.component_exclusion_applicability_digest,
+    source_digests: {
+      ...clone(observation.entry.source_digests),
+      component_exclusion_applicability:
+        pack.component_exclusion_applicability_digest
+    },
+    components: clone(pack.component_exclusion_applicability.components)
+  };
 }
 
 function buildAggregateAssessment({ plan, contract, structural, observations }) {
@@ -456,15 +521,29 @@ function buildAggregateAssessment({ plan, contract, structural, observations }) 
   const missingInputs = observations.flatMap((observation) =>
     observation.missing_inputs.map((detail) => provenanceDetail(observation, detail))
   ).sort((left, right) => compareCodeUnits(canonicalJson(left), canonicalJson(right)));
-  const proofPacksFull = observations.map((observation) => ({
-    pack: packProvenance(observation.entry),
-    requested_intents: sortedUnique(observation.entry.requested_intents),
-    admission: clone(observation.pack.admission),
-    missing_inputs: clone(observation.missing_inputs),
-    admitted_evaluation: clone(observation.admitted_evaluation),
-    assessment: clone(observation.projected?.assessment ?? null),
-    reports: clone(observation.projected?.reports ?? null)
-  })).sort((left, right) => compareCodeUnits(packKey(left.pack), packKey(right.pack)));
+  const cycleDigest = assessmentCycleDigest({ plan, contract, structural, observations });
+  const proofPacksFull = observations.map((observation) => {
+    const applicability = authenticatedApplicabilityProjection(observation, cycleDigest);
+    return {
+      pack: packProvenance(observation.entry),
+      requested_intents: sortedUnique(observation.entry.requested_intents),
+      admission: clone(observation.pack.admission),
+      source_digests: {
+        ...clone(observation.entry.source_digests),
+        component_exclusion_applicability:
+          observation.pack.component_exclusion_applicability_digest
+      },
+      component_exclusion_applicability:
+        clone(observation.pack.component_exclusion_applicability),
+      component_exclusion_applicability_digest:
+        observation.pack.component_exclusion_applicability_digest,
+      authenticated_component_exclusion_applicability: applicability,
+      missing_inputs: clone(observation.missing_inputs),
+      admitted_evaluation: clone(observation.admitted_evaluation),
+      assessment: clone(observation.projected?.assessment ?? null),
+      reports: clone(observation.projected?.reports ?? null)
+    };
+  }).sort((left, right) => compareCodeUnits(packKey(left.pack), packKey(right.pack)));
   const baseDigests = {
     algorithm: "sha256-canonical-json-v1",
     contract: canonicalDigest(normalizeContractForIdentity(contract)),
@@ -533,6 +612,86 @@ function buildAggregateAssessment({ plan, contract, structural, observations }) 
   });
 }
 
+function obligationSelectorPacks(projected, observations) {
+  const fullPacks = new Map(projected.reports.proofPacks.packs.map((pack) => [
+    packKey(pack.pack), pack
+  ]));
+  return deepFreeze(observations.map((observation) => {
+    const aggregate = aggregatePackResult(observation);
+    const full = fullPacks.get(packKey(observation.entry));
+    return {
+      pack_id: observation.entry.profile_id,
+      requested_intents: sortedUnique(observation.entry.requested_intents),
+      pack_snapshot: observation.pack,
+      assessment: observation.selector_assessment,
+      authenticated_component_exclusion_applicability:
+        clone(full.authenticated_component_exclusion_applicability),
+      evaluation_input_present: observation.evaluation_input !== null,
+      profile_discrimination: aggregate.profile_discrimination,
+      exact_binding: observation.selector_exact_binding
+    };
+  }));
+}
+
+function recognizedObligationGuaranteeSelectorPacks(projected) {
+  const packs = OBLIGATION_SELECTOR_PACKS.get(projected);
+  if (packs === undefined) throw new AssessmentArtifactError(
+    "assessment_projection_untrusted",
+    "obligation selectors require this module's exact assessment projection"
+  );
+  return packs;
+}
+
+function verifiedCanonicalSupplementInputs({ ordinal, packInstanceId, plan, contract,
+  projected, manifest, observation, pack, context, perPackAssessment, cycle }) {
+  const selection = context?.projected_evaluation?.selection ?? null;
+  return {
+    ordinal,
+    pack_instance_id: packInstanceId,
+    assessment_pack_cycle_digest: cycle.digest,
+    contract: normalizeContractForIdentity(contract),
+    compiled_proof_plan: normalizedProofPlanForIdentity(plan),
+    assessment_identity: projected.assessment.assessment_identity,
+    assessment_manifest: manifest,
+    assessment_manifest_census: {
+      entry_count: manifest.files.length,
+      entries: manifest.files
+    },
+    per_pack_assessment: perPackAssessment,
+    pack_identity: {
+      admission_version: pack.admission_version,
+      profile: pack.profile,
+      admission: pack.admission,
+      declaration: pack.declaration ?? null,
+      certification: pack.certification ?? null
+    },
+    profile_identity: pack.profile,
+    guarantee_identity: pack.admission.guarantee,
+    admission_identity: pack.admission,
+    adequacy_declaration_digest:
+      pack.admission.certification.adequacy_declaration_digest,
+    adequacy_result_digest: pack.admission.certification.adequacy_result_digest,
+    evaluation_input: observation.evaluation_input === null ? null
+      : normalizeEvaluationInputForIdentity(observation.evaluation_input),
+    profile_result: observation.projected?.reports.admittedProof === undefined
+      ? null : observation.projected.assessment.digests.results.admitted_profile,
+    exact_binding_declaration: context?.exact_binding_declaration ?? null,
+    exact_binding_certification: pack.certification ?? null,
+    exact_binding_result: context?.exact_binding_result ?? null,
+    exact_capture_source_set: context?.exact_binding_sources ?? null,
+    projected_graph: selection?.graph ?? context?.projected_envelope?.graph ?? null,
+    selected_node_result: selection === null ? null : {
+      pattern_selections: selection.pattern_selections,
+      universal_iterations: selection.universal_iterations,
+      association_selections: selection.association_selections
+    },
+    binding_set_digest: context?.exact_binding_result?.binding_set_sha256 ?? null,
+    exact_context_digest: context === null ? null : exactCanonicalDigest(
+      context.exact_binding_result.context
+    )
+  };
+}
+
 async function assessProofPlan({ inputPath, proofPlan, planDirectory = process.cwd() }) {
   const resolvedInput = path.resolve(inputPath);
   const source = await readFile(resolvedInput, "utf8");
@@ -571,6 +730,8 @@ async function assessProofPlan({ inputPath, proofPlan, planDirectory = process.c
       plan: proofPlan, contract, structural, observations
     });
     PUBLISHABLE_MULTI_ASSESSMENTS.add(projected);
+    OBLIGATION_SELECTOR_PACKS.set(projected,
+      obligationSelectorPacks(projected, observations));
     return projected;
   } finally {
     await rm(temporary, { recursive: true, force: true });
@@ -622,14 +783,18 @@ function markdownMultiPackAssessment(assessment) {
   return lines.join("\n");
 }
 
-function multiPackBundleBytes(projected) {
+function multiPackManifestFor(projected) {
+  if (!PUBLISHABLE_MULTI_ASSESSMENTS.has(projected)) throw new AssessmentArtifactError(
+    "assessment_projection_untrusted",
+    "multi-pack manifests require this module's exact assessment projection"
+  );
   const files = new Map([
     ["assessment.json", canonicalJson(projected.assessment)],
     ["assessment.md", markdownMultiPackAssessment(projected.assessment)],
     ["structural.full.json", canonicalJson(projected.reports.structural)],
     ["proof-packs.full.json", canonicalJson(projected.reports.proofPacks)]
   ]);
-  const manifest = {
+  return deepFreeze({
     manifest_version: "controlled-contract-assessment-manifest.v1",
     assessment_identity: projected.assessment.assessment_identity,
     content_reference: projected.assessment.lossless_report.content_reference,
@@ -637,7 +802,21 @@ function multiPackBundleBytes(projected) {
     files: [...files].map(([name, contents]) => ({
       name, sha256: sha256Bytes(contents), bytes: Buffer.byteLength(contents)
     }))
-  };
+  });
+}
+
+function multiPackBundleBytes(projected) {
+  if (!PUBLISHABLE_MULTI_ASSESSMENTS.has(projected)) throw new AssessmentArtifactError(
+    "assessment_projection_untrusted",
+    "multi-pack bundles require this module's exact assessment projection"
+  );
+  const files = new Map([
+    ["assessment.json", canonicalJson(projected.assessment)],
+    ["assessment.md", markdownMultiPackAssessment(projected.assessment)],
+    ["structural.full.json", canonicalJson(projected.reports.structural)],
+    ["proof-packs.full.json", canonicalJson(projected.reports.proofPacks)]
+  ]);
+  const manifest = multiPackManifestFor(projected);
   files.set("manifest.json", canonicalJson(manifest));
   return files;
 }
@@ -770,8 +949,10 @@ export {
   compactMultiPackAssessment,
   expectedPackSourceDigests,
   markdownMultiPackAssessment,
+  multiPackManifestFor,
   multiPackBundleBytes,
   normalizedProofPlanForIdentity,
+  recognizedObligationGuaranteeSelectorPacks,
   validateMultiPackAssessment,
   validateProofPlan,
   writeMultiPackAssessmentBundle

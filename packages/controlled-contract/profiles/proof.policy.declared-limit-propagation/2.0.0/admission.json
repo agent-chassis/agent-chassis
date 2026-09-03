@@ -1,0 +1,66 @@
+{
+  "schema_version": "controlled-contract-admitted-proof-pack.v2",
+  "profile_id": "proof.policy.declared-limit-propagation",
+  "profile_version": "2.0.0",
+  "profile_digest": "2a20c114f8dd9fcf5b41cfa9d514d9fd1b36e789eb0fa25eb38dbdc1778d4684",
+  "guarantee": "For one exact closed declared policy and one exact raw UTF-8 guidance artifact, the package-owned transformer associates every required policy key with exactly one plain decimal value and exact unit token, refuses missing, duplicate, stale, conflicting, substituted, wrong-unit, and unrelated-number guidance, and emits complete policy-key and association populations, exact counts, associations, and one canonical report bound to the exact source-set digest.",
+  "guarantee_digest": "5892b6dbb347a027318369b35707d59b1e5cd9be14731d3862eee02e2e7736af",
+  "explicit_exclusions": [
+    "additional-live-guidance-surfaces-beyond-the-one-captured-artifact",
+    "artifact-acquisition-completeness-before-exact-capture",
+    "declared-policy-document-correspondence-to-enforced-limit-and-unit",
+    "evidence-authority-applicability-authority-or-cce-consequences",
+    "guidance-propagation-does-not-entail-boundary-consistency",
+    "locally-redigested-or-unadmitted-profile-variants",
+    "non-plain-decimal-numeral-forms",
+    "runtime-truth-or-production-enforcement",
+    "shared-policy-identity-across-independently-assessed-packs"
+  ],
+  "certification": {
+    "method": "executable_semantic_adequacy",
+    "adequacy_declaration_digest": "5321a4f0a736cac177ab512e6022c7cd94504e67e1be862cf00807996b737cd5",
+    "adequacy_result_digest": "6035865b8464e895e169163aa9ce4fba85df498b0f01a4523c078f4eac875b6a",
+    "executable_control_count": 25,
+    "negative_fixture_count": 0,
+    "coverage_witness_count": 0
+  },
+  "exact_binding": {
+    "declaration_digest": "fb72a62a86126378fce8d8ad4b738bf3cb6b4f04777a58c2d4523d9bf93a0994",
+    "certification_result_digest": "fabcac68b202d8a20b206d94b947d0f543e98ff8dd2a555c216501b14c6db98d",
+    "executable_control_count": 22,
+    "binding_kinds": [
+      "artifact_bytes"
+    ],
+    "relation_operators": [
+      "deterministic_projection",
+      "distinct_source_descriptor"
+    ],
+    "corpus_id": "proof-policy-guidance-exact-binding",
+    "corpus_version": "1.0.0",
+    "corpus_digest": "b47e3034b1b8220fed3cf38dc80b18d02208b76ce915f4b30528751fe49eb990",
+    "passed_control_ids": [
+      "admission-substitution",
+      "association-substitution",
+      "certification-substitution",
+      "declaration-source-order-substitution",
+      "declaration-substitution",
+      "evaluation-input-substitution",
+      "positive-exact-binding",
+      "profile-association-binding-omission",
+      "profile-cardinality-weakening",
+      "profile-complete-population-omission",
+      "profile-falsifier-omission",
+      "profile-mechanism-omission",
+      "profile-relation-omission",
+      "profile-satisfaction-weakening",
+      "profile-stage-weakening",
+      "profile-substitution",
+      "profile-verification-method-weakening",
+      "projected-evaluation-opt-in-removal",
+      "projection-result-substitution",
+      "result-as-source-splice",
+      "source-role-swap",
+      "source-substitution"
+    ]
+  }
+}

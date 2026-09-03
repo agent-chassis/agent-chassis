@@ -2,7 +2,6 @@ import { readNonSecretWorkspaceEnvValue } from "@agent-chassis/wiki-core/src/lib
 
 import {
   MODEL_NAME_SET,
-  appDefault,
   resolveModel
 } from "./agent-launch-model-registry.mjs";
 import {
@@ -15,7 +14,6 @@ export const AGENT_LAUNCH_PROFILE_SCHEMA_VERSION = "agent-launch-profile.v1";
 const ROLE_MODEL_ENV_KEY = Object.freeze({
   worker: "WORKER_MODEL",
   reviewer: "REVIEWER_MODEL",
-  review: "REVIEWER_MODEL",
   redteam: "REDTEAM_MODEL",
   orchestrator: "ORCHESTRATOR_MODEL",
   resume: "ORCHESTRATOR_MODEL"
@@ -24,7 +22,6 @@ const ROLE_MODEL_ENV_KEY = Object.freeze({
 const ROLE_MODEL_UNSET_CODE = Object.freeze({
   worker: "worker_model_unset",
   reviewer: "reviewer_model_unset",
-  review: "reviewer_model_unset",
   redteam: "redteam_model_unset",
   orchestrator: "orchestrator_model_unset",
   resume: "orchestrator_model_unset"
@@ -33,7 +30,6 @@ const ROLE_MODEL_UNSET_CODE = Object.freeze({
 const ROLE_APP_ENV_KEY = Object.freeze({
   worker: "WORKER_APP",
   reviewer: "REVIEWER_APP",
-  review: "REVIEWER_APP",
   redteam: "REDTEAM_APP",
   orchestrator: "ORCHESTRATOR_APP",
   resume: "ORCHESTRATOR_APP"
@@ -42,7 +38,6 @@ const ROLE_APP_ENV_KEY = Object.freeze({
 const ROLE_EFFORT_ENV_KEY = Object.freeze({
   worker: "WORKER_EFFORT",
   reviewer: "REVIEWER_EFFORT",
-  review: "REVIEWER_EFFORT",
   redteam: "REDTEAM_EFFORT",
   orchestrator: "ORCHESTRATOR_EFFORT",
   resume: "ORCHESTRATOR_EFFORT"
@@ -169,7 +164,7 @@ function unknownAppOrModelRefusal(token) {
 }
 
 function unknownRoleModelRefusal({ role, model, source }) {
-  const refusalRole = role === "review" ? "reviewer" : role === "resume" ? "orchestrator" : role;
+  const refusalRole = role === "resume" ? "orchestrator" : role;
   const code = typeof refusalRole === "string" && refusalRole.length > 0
     ? `${refusalRole}_model_unknown`
     : "role_model_unknown";
@@ -182,19 +177,6 @@ function unknownRoleModelRefusal({ role, model, source }) {
       model_source: source,
       known_models: knownModels(),
       message: `${code}: model ${JSON.stringify(model)} is not registered; known models: ${knownModels().join(", ")}`
-    }
-  };
-}
-
-function appDefaultRefusal(app) {
-  return {
-    ok: false,
-    reason: "app_default_model_unset",
-    detail: {
-      app,
-      known_apps: knownApps(),
-      known_models: knownModels(),
-      message: `launcher app ${app} has no app_default model in the model registry; pass a registered model instead`
     }
   };
 }
@@ -221,26 +203,14 @@ export function resolveLauncherOverrideToken(token) {
   const normalized = token.trim();
 
   if (APP_VOCABULARY.includes(normalized)) {
-    const defaultModel = appDefault(normalized);
-    if (typeof defaultModel !== "string" || defaultModel.length === 0) {
-      return appDefaultRefusal(normalized);
-    }
-    const resolvedDefault = resolveModel(defaultModel);
-    if (!resolvedDefault) {
-      return unknownRoleModelRefusal({
-        role: null,
-        model: defaultModel,
-        source: "app_default"
-      });
-    }
     return {
       ok: true,
       token: normalized,
       app: normalized,
-      model: defaultModel,
+      model: null,
       app_source: "operator_override",
-      model_source: "app_default",
-      model_spec: resolvedDefault
+      model_source: null,
+      model_spec: null
     };
   }
 
@@ -264,12 +234,20 @@ export function resolveExplicitOverrideSelection({ role, app, model }) {
   const appToken = typeof app === "string" && app.trim().length > 0 ? app.trim() : null;
   const modelToken = typeof model === "string" && model.trim().length > 0 ? model.trim() : null;
 
-  const appSelection = appToken === null ? null : resolveLauncherOverrideToken(appToken);
+  const appSelection = appToken === null
+    ? null
+    : APP_VOCABULARY.includes(appToken)
+      ? resolveLauncherOverrideToken(appToken)
+      : unknownAppOrModelRefusal(appToken);
   if (appSelection && appSelection.ok !== true) {
     return appSelection;
   }
 
-  const modelSelection = modelToken === null ? null : resolveLauncherOverrideToken(modelToken);
+  const modelSelection = modelToken === null
+    ? null
+    : MODEL_NAME_SET.has(modelToken)
+      ? resolveLauncherOverrideToken(modelToken)
+      : unknownRoleModelRefusal({ role, model: modelToken, source: "operator_override" });
   if (modelSelection && modelSelection.ok !== true) {
     return modelSelection;
   }
@@ -467,7 +445,7 @@ export function resolveDispatchedRoleModel({
   if (profileModel !== null) {
     const modelSource = typeof resolvedProfile?.model_source === "string"
       ? resolvedProfile.model_source
-      : "profile_default";
+      : "resolved_profile";
     const resolvedModel = resolveKnownModel({ role, model: profileModel, source: modelSource });
     if (!resolvedModel.ok) {
       return resolvedModel;
@@ -499,12 +477,18 @@ export function resolveDispatchedRoleModel({
       return resolvedModel;
     }
 
-    if (resolvedProfile && resolvedProfile.model_override_allowed === false) {
-      return {
-        ok: false,
-        reason: "model_override_not_allowed_for_binding",
-        detail: { role, env_key: envKey, requested_model: roleDefaultModel }
-      };
+    if (resolvedProfile) {
+      const permission = resolveModelOverrideBindingPermission({
+        role,
+        configRootDir: dir,
+        app: resolvedProfile.app,
+        profileName: resolvedProfile.profile_name,
+        resolvedProfile,
+        modelOverride: roleDefaultModel
+      });
+      if (!permission.ok) {
+        return permission;
+      }
     }
     return {
       ok: true,
@@ -528,7 +512,7 @@ export function resolveDispatchedRoleModel({
     detail: {
       role,
       env_key: envKey,
-      message: `${unsetCode}: no model override, profile default_model, or [roles].${role === "review" ? "reviewer" : role} entry in agent-launch.toml was provided; set the role default model in agent-launch.toml to select the ${role} model`
+      message: `${unsetCode}: no model override or [roles].${role} entry in agent-launch.toml was provided; set the role model in agent-launch.toml to select the ${role} model`
     }
   };
 }
@@ -546,18 +530,6 @@ export function resolveDispatchedRoleApp({
     return overrideSelection;
   }
 
-  const profileDefault = typeof profile?.default_app === "string" && profile.default_app.length > 0
-    ? profile.default_app
-    : null;
-  if (profileDefault !== null) {
-    return {
-      ok: true,
-      app: profileDefault,
-      app_source: "profile_default",
-      env_key: roleAppEnvKey(role)
-    };
-  }
-
   const deprecated = readDeprecatedRoleApp({ role, dir, readWorkspaceEnvValue });
   return {
     ok: false,
@@ -566,7 +538,7 @@ export function resolveDispatchedRoleApp({
       role: typeof role === "string" ? role : null,
       env_key: roleAppEnvKey(role),
       deprecated_app: deprecated?.app ?? null,
-      message: "launcher app is derived from a registered model; provide a model override, an app token with a registry app_default, or a role default model in agent-launch.toml"
+      message: "launcher app is derived from a registered model; provide a model override or a role model in agent-launch.toml"
     }
   };
 }
@@ -605,28 +577,23 @@ const APP_TO_VALIDATION_TRANSPORT = Object.freeze({
 
 const ROLE_DEFAULT_PROFILE = Object.freeze({
   worker: "worker",
-  review: "review",
+  reviewer: "reviewer",
   redteam: "redteam",
   orchestrator: "orchestrator",
   resume: "orchestrator"
 });
 
-const KNOWN_ROLES = Object.freeze(["worker", "review", "redteam", "orchestrator", "resume"]);
+const KNOWN_ROLES = Object.freeze(["worker", "reviewer", "redteam", "orchestrator", "resume"]);
 
-function buildCodexBinding({ backendProfileKey, defaultModel }) {
+function buildCodexBinding({ backendProfileKey, modelOverrideAllowed = true }) {
   const binding = {
     app: "codex",
     backend: "codex",
     validation_transport: APP_TO_VALIDATION_TRANSPORT.codex,
-    model_override_allowed: true
+    model_override_allowed: modelOverrideAllowed
   };
   if (typeof backendProfileKey === "string") {
     binding.backend_profile_key = backendProfileKey;
-  }
-  if (typeof defaultModel === "string") {
-    binding.default_model = defaultModel;
-  } else {
-    binding.default_model_source = "backend_default";
   }
   return binding;
 }
@@ -637,7 +604,6 @@ function buildRegistryBinding({ app, registryRole }) {
     backend: APP_TO_BACKEND[app],
     validation_transport: APP_TO_VALIDATION_TRANSPORT[app],
     backend_profile_source: `registry_default_for_role:${registryRole}`,
-    default_model_source: "backend_default",
     model_override_allowed: true
   };
 }
@@ -649,8 +615,6 @@ function buildClaudeOrchestratorBinding({ registryRole }) {
     backend: "claude",
     validation_transport: APP_TO_VALIDATION_TRANSPORT.claude,
     backend_profile_source: `registry_default_for_role:${registryRole}`,
-    default_model_source: "operator_declared",
-    default_effort: "default",
     model_override_allowed: true
   };
 }
@@ -677,20 +641,18 @@ const PROFILE_DEFINITIONS = {
     authority_role: "worker",
     prompt_policy_id: "worker_spark",
     permission_policy_id: "worker_spark",
-    default_app: "codex",
     allowed_apps: ["codex"],
     app_bindings: {
       codex: buildCodexBinding({
-        backendProfileKey: "worker_spark",
-        defaultModel: "codex-5.3-spark"
+        backendProfileKey: "worker_spark"
       })
     }
   },
-  review: {
-    profile_name: "review",
-    authority_role: "review",
-    prompt_policy_id: "review",
-    permission_policy_id: "review",
+  reviewer: {
+    profile_name: "reviewer",
+    authority_role: "reviewer",
+    prompt_policy_id: "reviewer",
+    permission_policy_id: "reviewer",
     allowed_apps: ["codex", "claude", "agy"],
     app_bindings: buildRoleBindings({ codexBackendKey: "reviewer", registryRole: "code_review" })
   },
@@ -718,10 +680,7 @@ const PROFILE_DEFINITIONS = {
     authority_role: "orchestrator",
     prompt_policy_id: "orchestrator",
     permission_policy_id: "orchestrator",
-    default_app: "claude",
     allowed_apps: ["claude"],
-    planner_default_effort: "default",
-    planner_default_effort_source: "profile_default",
     app_bindings: {
       claude: buildClaudeOrchestratorBinding({ registryRole: "orchestrator" })
     }
@@ -766,9 +725,6 @@ function assertProfileShape(entry) {
       throw new Error(`agent-launch-profiles: profile ${entry.profile_name ?? "<unknown>"} missing required field ${key}`);
     }
   }
-  if ("default_app" in entry && !APP_VOCABULARY.includes(entry.default_app)) {
-    throw new Error(`agent-launch-profiles: profile ${entry.profile_name} default_app ${entry.default_app} is not in app vocabulary`);
-  }
   for (const app of entry.allowed_apps) {
     if (!APP_VOCABULARY.includes(app)) {
       throw new Error(`agent-launch-profiles: profile ${entry.profile_name} allowed_app ${app} is not in app vocabulary`);
@@ -794,14 +750,9 @@ function assertProfileShape(entry) {
     if (!hasBackendProfileKey && !hasBackendProfileSource) {
       throw new Error(`agent-launch-profiles: profile ${entry.profile_name} binding ${app} must declare backend_profile_key or backend_profile_source`);
     }
-    const hasDefaultModel = typeof binding.default_model === "string";
-    const hasDefaultModelSource = typeof binding.default_model_source === "string";
-    if (!hasDefaultModel && !hasDefaultModelSource) {
-      throw new Error(`agent-launch-profiles: profile ${entry.profile_name} binding ${app} must declare default_model or default_model_source`);
+    if ("default_model" in binding || "default_model_source" in binding) {
+      throw new Error(`agent-launch-profiles: profile ${entry.profile_name} binding ${app} must not declare a model default`);
     }
-  }
-  if ("default_app" in entry && !entry.allowed_apps.includes(entry.default_app)) {
-    throw new Error(`agent-launch-profiles: profile ${entry.profile_name} default_app ${entry.default_app} not in allowed_apps`);
   }
   if (FAST_PROFILE_NAMES.has(entry.profile_name)) {
     throw new Error(`agent-launch-profiles: fast profile name ${entry.profile_name} must not be declared`);
@@ -856,6 +807,47 @@ function refusal(code, message, errorPath) {
   return { ok: false, error: { code, message, path: errorPath } };
 }
 
+export function resolveModelOverrideBindingPermission({
+  role,
+  configRootDir = null,
+  config_root_dir = null,
+  app,
+  profileName = null,
+  modelOverride = null
+} = {}) {
+  const canonicalConfigRoot = typeof configRootDir === "string"
+    ? configRootDir
+    : typeof config_root_dir === "string" ? config_root_dir : null;
+  const identityProfileName = typeof profileName === "string" && profileName.length > 0
+    ? profileName
+    : getDefaultProfileNameForRoleAndApp(role, app);
+  const canonicalProfileName = typeof identityProfileName === "string" && identityProfileName.length > 0
+    ? normalizeProfileAlias(identityProfileName)
+    : null;
+  const profile = canonicalProfileName === null
+    ? null
+    : getLauncherProfile(canonicalProfileName);
+  const binding = profile?.app_bindings?.[app] ?? null;
+
+  const allowed = binding?.model_override_allowed === true;
+  const hasOverride = typeof modelOverride === "string" && modelOverride.length > 0;
+  const fact = {
+    role: typeof role === "string" ? role : null,
+    config_root_dir: canonicalConfigRoot,
+    app: typeof app === "string" ? app : null,
+    profile_name: profile?.profile_name ?? canonicalProfileName,
+    model_override_allowed: allowed
+  };
+  if (hasOverride && !allowed) {
+    return {
+      ok: false,
+      reason: "model_override_not_allowed_for_binding",
+      detail: { ...fact, requested_model: modelOverride }
+    };
+  }
+  return { ok: true, value: fact };
+}
+
 function resolveBackendProfileFields(binding) {
   if (typeof binding.backend_profile_key === "string") {
     return {
@@ -867,16 +859,6 @@ function resolveBackendProfileFields(binding) {
     backend_profile_key: null,
     backend_profile_source: binding.backend_profile_source
   };
-}
-
-function resolveModelFields(binding, modelOverride) {
-  if (typeof modelOverride === "string" && modelOverride.length > 0) {
-    return { model: modelOverride, model_source: "operator_override" };
-  }
-  if (typeof binding.default_model === "string") {
-    return { model: binding.default_model, model_source: "profile_default" };
-  }
-  return { model: null, model_source: binding.default_model_source };
 }
 
 function isRoleProfileCompatible(role, authorityRole) {
@@ -908,7 +890,7 @@ export function resolveAppBinding({ profileName, app } = {}) {
   if (!profile) {
     return refusal("unknown_profile", `unknown launcher profile: ${profileName}`, "profileName");
   }
-  const selectedApp = typeof app === "string" && app.length > 0 ? app : profile.default_app;
+  const selectedApp = typeof app === "string" && app.length > 0 ? app : null;
   if (!APP_VOCABULARY.includes(selectedApp)) {
     return refusal(
       "unsupported_app_binding",
@@ -932,7 +914,6 @@ export function resolveAppBinding({ profileName, app } = {}) {
     );
   }
   const backendProfile = resolveBackendProfileFields(binding);
-  const modelFields = resolveModelFields(binding, undefined);
   return {
     ok: true,
     value: {
@@ -940,8 +921,6 @@ export function resolveAppBinding({ profileName, app } = {}) {
       backend: binding.backend,
       backend_profile_key: backendProfile.backend_profile_key,
       backend_profile_source: backendProfile.backend_profile_source,
-      default_model: modelFields.model,
-      default_model_source: modelFields.model_source,
       validation_transport: binding.validation_transport,
       model_override_allowed: binding.model_override_allowed !== false
     }
@@ -995,6 +974,18 @@ export function resolveLauncherProfile({
     );
   }
 
+  if (
+    role === "worker"
+    && typeof envProfile === "string"
+    && isFastProfileName(normalizeProfileAlias(envProfile))
+  ) {
+    return refusal(
+      "fast_profile_decommissioned",
+      FAST_PROFILE_REFUSAL_DIAGNOSTIC,
+      "env.CODEX_WORKER_PROFILE"
+    );
+  }
+
   let roleConfigSelection = null;
   const resolveRoleConfigSelection = (selectionRole) => {
     if (roleConfigSelection !== null) {
@@ -1015,7 +1006,9 @@ export function resolveLauncherProfile({
   };
 
   if (!canonicalProfileName) {
-    const roleSelection = overrideSelection ?? resolveRoleConfigSelection(role);
+    const roleSelection = overrideSelection?.model
+      ? overrideSelection
+      : resolveRoleConfigSelection(role);
     if (roleSelection && roleSelection.ok !== true) {
       return refusal(
         roleSelection.reason,
@@ -1023,9 +1016,24 @@ export function resolveLauncherProfile({
         "model"
       );
     }
+    if (!roleSelection) {
+      const unsetCode = roleModelUnsetCode(role) ?? "role_model_unset";
+      return refusal(
+        unsetCode,
+        `${unsetCode}: no model override or [roles].${role} entry in agent-launch.toml was provided; app is derived from the selected model`,
+        "model"
+      );
+    }
+    if (overrideSelection?.model === null && overrideSelection.app !== roleSelection.app) {
+      return refusal(
+        "launcher_override_app_model_mismatch",
+        `launcher override mismatch: ${overrideSelection.app} disagrees with model ${roleSelection.model}, which resolves to app ${roleSelection.app}`,
+        "app"
+      );
+    }
     const defaultName = getDefaultProfileNameForRoleAndApp(
       role,
-      roleSelection?.app ?? null
+      roleSelection.app
     );
     if (typeof defaultName !== "string") {
       return refusal("unknown_role", `no default profile registered for role: ${role}`, "role");
@@ -1053,39 +1061,30 @@ export function resolveLauncherProfile({
       "role"
     );
   }
-  if (
-    effectiveRole === "worker"
-    && typeof envProfile === "string"
-    && isFastProfileName(normalizeProfileAlias(envProfile))
-  ) {
+  const modelSelection = overrideSelection?.model
+    ? overrideSelection
+    : resolveRoleConfigSelection(effectiveRole);
+  if (modelSelection && modelSelection.ok !== true) {
     return refusal(
-      "fast_profile_decommissioned",
-      FAST_PROFILE_REFUSAL_DIAGNOSTIC,
-      "env.CODEX_WORKER_PROFILE"
+      modelSelection.reason,
+      modelSelection.detail?.message ?? `unknown model for role ${effectiveRole}`,
+      "model"
     );
   }
-
-  let selectedApp = overrideSelection?.app ?? null;
-  if (selectedApp === null) {
-    const roleSelection = resolveRoleConfigSelection(effectiveRole);
-    if (roleSelection && roleSelection.ok !== true) {
-      return refusal(
-        roleSelection.reason,
-        roleSelection.detail?.message ?? `unknown model for role ${effectiveRole}`,
-        "model"
-      );
-    }
-    selectedApp = roleSelection?.app ?? null;
-  }
-  if (selectedApp === null && typeof profile.default_app === "string" && profile.default_app.length > 0) {
-    selectedApp = profile.default_app;
-  }
-  if (selectedApp === null) {
+  if (!modelSelection) {
     const unsetCode = roleModelUnsetCode(effectiveRole) ?? "role_model_unset";
     return refusal(
       unsetCode,
-      `${unsetCode}: no model override, profile default_model, or [roles].${effectiveRole === "review" ? "reviewer" : effectiveRole} entry in agent-launch.toml was provided; app is derived from the selected model`,
+      `${unsetCode}: no model override or [roles].${effectiveRole} entry in agent-launch.toml was provided; app is derived from the selected model`,
       "model"
+    );
+  }
+  const selectedApp = modelSelection.app;
+  if (overrideSelection?.model === null && overrideSelection.app !== selectedApp) {
+    return refusal(
+      "launcher_override_app_model_mismatch",
+      `launcher override mismatch: ${overrideSelection.app} disagrees with model ${modelSelection.model}, which resolves to app ${selectedApp}`,
+      "app"
     );
   }
 
@@ -1112,74 +1111,28 @@ export function resolveLauncherProfile({
     );
   }
 
-  if (overrideSelection && binding.model_override_allowed === false) {
-    return refusal(
-      "unsupported_app_binding",
-      `profile ${profile.profile_name} app ${selectedApp} does not allow --model overrides`,
-      "model"
-    );
+  if (overrideSelection?.model) {
+    const permission = resolveModelOverrideBindingPermission({
+      role: effectiveRole,
+      configRootDir: dir,
+      app: selectedApp,
+      profileName: profile.profile_name,
+      modelOverride: overrideSelection.model
+    });
+    if (!permission.ok) {
+      return refusal(
+        permission.reason,
+        `profile ${profile.profile_name} app ${selectedApp} does not allow --model overrides`,
+        "model"
+      );
+    }
   }
 
   const backendProfile = resolveBackendProfileFields(binding);
-  let modelFields;
-  if (overrideSelection) {
-    modelFields = {
-      model: overrideSelection.model,
-      model_source: overrideSelection.model_source
-    };
-  } else {
-    modelFields = resolveModelFields(binding, undefined);
-  }
-
-  if (modelFields.model !== null) {
-    const resolvedModel = resolveKnownModel({
-      role: effectiveRole,
-      model: modelFields.model,
-      source: modelFields.model_source
-    });
-    if (!resolvedModel.ok) {
-      return refusal(
-        resolvedModel.reason,
-        resolvedModel.detail?.message ?? `unknown model ${modelFields.model}`,
-        "model"
-      );
-    }
-    if (resolvedModel.app !== selectedApp) {
-      return refusal(
-        "profile_app_model_mismatch",
-        `profile ${profile.profile_name} selected app ${selectedApp}, but model ${modelFields.model} resolves to app ${resolvedModel.app}`,
-        "model"
-      );
-    }
-  }
-
-  if (modelFields.model === null) {
-    const roleSelection = resolveRoleConfigSelection(effectiveRole);
-    if (roleSelection && roleSelection.ok !== true) {
-      return refusal(
-        roleSelection.reason,
-        roleSelection.detail?.message ?? `unknown model for role ${effectiveRole}`,
-        "model"
-      );
-    }
-    if (roleSelection && roleSelection.app !== selectedApp) {
-      return refusal(
-        "profile_app_model_mismatch",
-        `profile ${profile.profile_name} selected app ${selectedApp}, but role default model ${roleSelection.model} resolves to app ${roleSelection.app}`,
-        "model"
-      );
-    }
-    if (roleSelection) {
-      modelFields = { model: roleSelection.model, model_source: roleSelection.model_source };
-    } else {
-      const unsetCode = roleModelUnsetCode(effectiveRole) ?? "role_model_unset";
-      return refusal(
-        unsetCode,
-        `${unsetCode}: no model override, profile default_model, or [roles].${effectiveRole === "review" ? "reviewer" : effectiveRole} entry in agent-launch.toml was provided; app is derived from the selected model`,
-        "model"
-      );
-    }
-  }
+  const modelFields = {
+    model: modelSelection.model,
+    model_source: modelSelection.model_source
+  };
 
   const deprecatedAppProbe = probeDeprecatedRoleApp({
     role: effectiveRole,

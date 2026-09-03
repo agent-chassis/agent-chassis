@@ -22,6 +22,7 @@ const TYPE_TERMS = [
   ["cc:criterion", "A controlled condition used to judge satisfaction of work or behavior."],
   ["cc:invariant", "A controlled condition required to remain true throughout its applicability scope."],
   ["cc:evidence", "A controlled observation or record offered in support of a claim."],
+  ["cc:evidence_occurrence", "One bounded occurrence of evidence in one observation attempt, distinct from a reusable artifact, evidence class, logical record, or byte value. Re-observing identical bytes in another attempt creates a different occurrence. The type alone entails no authentication, provenance, authorship, issuance, integrity, containment, recording, observation membership, freshness, ownership, or authorization."],
   ["cc:conflict", "A controlled identity for an incompatibility requiring resolution."],
   ["cc:escalation", "A controlled identity for a handoff of unresolved responsibility or authority."],
   ["cc:authority", "An entity empowered to make a specified decision or grant a specified permission."],
@@ -77,6 +78,20 @@ const WITHHELD_APPLICABILITY_TERMS = [
 const unrestrictedTypes = Object.freeze({ kind: "unrestricted" });
 const oneOrMoreReferences = Object.freeze({ minimum: 1, maximum: null });
 const exactlyOne = Object.freeze({ minimum: 1, maximum: 1 });
+const evidenceOccurrence = Object.freeze({
+  kind: "restricted", terms: ["cc:evidence_occurrence"]
+});
+const authenticationTargets = Object.freeze({
+  kind: "restricted",
+  terms: ["cc:artifact", "cc:configuration", "cc:entity", "cc:event", "cc:resource", "cc:state"]
+});
+const provenanceSources = Object.freeze({
+  kind: "restricted",
+  terms: ["cc:actor", "cc:entity", "cc:process", "cc:resource", "cc:runtime_component"]
+});
+const observationAttempts = Object.freeze({
+  kind: "restricted", terms: ["cc:event", "cc:process"]
+});
 
 const referenceOperators = [
   ["accepts", "The subject treats each operand as an admissible input, result, or artifact."],
@@ -269,6 +284,152 @@ function referenceOperator([predicate, definition]) {
   };
 }
 
+function authenticationProvenanceOperator({
+  term,
+  definition,
+  subjectTypes,
+  operandTypes,
+  operandCardinality,
+  multiplicity,
+  complement,
+  applicabilityModes,
+  applicabilityContextTypes,
+  operandDuplicates = "forbidden"
+}) {
+  return {
+    term,
+    definition,
+    signature: {
+      subject_types: subjectTypes,
+      operand_kind: "reference",
+      operand_types: operandTypes,
+      operand_cardinality: operandCardinality
+    },
+    operand_semantics: { ordering: "insignificant", duplicates: operandDuplicates },
+    multiplicity,
+    controlled_complement: { kind: "operator", term: complement },
+    inverse: { kind: "none" },
+    controlled_entailments: { kind: "none" },
+    population_semantics: { kind: "not_applicable" },
+    algebraic_traits: { symmetric: false, transitive: false, irreflexive: true },
+    mechanical_support: {
+      operand_semantics: "enforced",
+      multiplicity: "enforced",
+      controlled_complement: "enforced",
+      inverse: "not_applicable",
+      controlled_entailments: "enforced",
+      population_semantics: "not_applicable",
+      algebraic_traits: {
+        symmetric: "not_applicable",
+        transitive: "not_applicable",
+        irreflexive: "enforced"
+      },
+      applicability: "enforced"
+    },
+    applicability: {
+      kind: "restricted_modes",
+      modes: applicabilityModes,
+      context_reference_cardinality: applicabilityModes[0] === "unconditional"
+        ? { minimum: 0, maximum: 0 }
+        : { minimum: 1, maximum: 1 },
+      context_reference_types: applicabilityContextTypes
+    }
+  };
+}
+
+const authenticationProvenanceOperators = [
+  {
+    term: "reference:authenticates",
+    definition: "Within the exact applicability scope, the subject evidence occurrence establishes each exact operand referent, with the authentication witness binding that referent, the evidence content, the provenance source, and the observation attempt. It does not entail origin, source-of-record status, ownership, authorship, issuance, authorization, containment, recording, freshness, or general integrity.",
+    subjectTypes: evidenceOccurrence,
+    operandTypes: authenticationTargets,
+    operandCardinality: oneOrMoreReferences,
+    multiplicity: "relation_set",
+    complement: "reference:does_not_authenticate",
+    applicabilityModes: ["during"],
+    applicabilityContextTypes: observationAttempts,
+    operandDuplicates: "ignored"
+  },
+  {
+    term: "reference:does_not_authenticate",
+    definition: "The exact positive authenticates relation is false for the same equality-normalized evidence occurrence, target, and exact scope. Missing evidence or failure to prove authentication does not entail this controlled negative.",
+    subjectTypes: evidenceOccurrence,
+    operandTypes: authenticationTargets,
+    operandCardinality: oneOrMoreReferences,
+    multiplicity: "conjunctive_constraint",
+    complement: "reference:authenticates",
+    applicabilityModes: ["during"],
+    applicabilityContextTypes: observationAttempts,
+    operandDuplicates: "ignored"
+  },
+  {
+    term: "reference:originates_from",
+    definition: "Within the exact applicability scope, the subject evidence occurrence has the exact operand as its singular authenticated provenance-root source. It does not entail immediate authorship, issuance, ownership, source-of-record status, decision authority, containment, recording, observation, authorization, or target authentication.",
+    subjectTypes: evidenceOccurrence,
+    operandTypes: provenanceSources,
+    operandCardinality: exactlyOne,
+    multiplicity: "single_value_per_subject_scope",
+    complement: "reference:does_not_originate_from",
+    applicabilityModes: ["during"],
+    applicabilityContextTypes: observationAttempts
+  },
+  {
+    term: "reference:does_not_originate_from",
+    definition: "The exact positive originates_from relation is false for the same equality-normalized evidence occurrence, provenance source, and exact scope. It neither identifies another source nor entails that no source exists.",
+    subjectTypes: evidenceOccurrence,
+    operandTypes: provenanceSources,
+    operandCardinality: exactlyOne,
+    multiplicity: "conjunctive_constraint",
+    complement: "reference:originates_from",
+    applicabilityModes: ["during"],
+    applicabilityContextTypes: observationAttempts
+  },
+  {
+    term: "reference:has_source_of_record",
+    definition: "Within the exact applicability scope, the subject target has the exact operand as the unique source whose representation is authoritative for that target in that scope. It does not entail ownership, authorship, issuance, decision authority, authorization, containment, recording, observation, or immutable integrity.",
+    subjectTypes: authenticationTargets,
+    operandTypes: provenanceSources,
+    operandCardinality: exactlyOne,
+    multiplicity: "single_value_per_subject_scope",
+    complement: "reference:does_not_have_source_of_record",
+    applicabilityModes: ["during"],
+    applicabilityContextTypes: observationAttempts
+  },
+  {
+    term: "reference:does_not_have_source_of_record",
+    definition: "The exact positive has_source_of_record relation is false for the same equality-normalized target, source, and exact scope. It neither identifies the actual source nor entails that the target has no source of record.",
+    subjectTypes: authenticationTargets,
+    operandTypes: provenanceSources,
+    operandCardinality: exactlyOne,
+    multiplicity: "conjunctive_constraint",
+    complement: "reference:has_source_of_record",
+    applicabilityModes: ["during"],
+    applicabilityContextTypes: observationAttempts
+  },
+  {
+    term: "reference:observed_in",
+    definition: "The subject evidence occurrence belongs to exactly the operand observation attempt. Identical reusable bytes observed again create a different occurrence. The relation does not entail authentication, provenance, recording, containment, freshness, issuance, integrity, or authorization.",
+    subjectTypes: evidenceOccurrence,
+    operandTypes: observationAttempts,
+    operandCardinality: exactlyOne,
+    multiplicity: "single_value_per_subject_scope",
+    complement: "reference:not_observed_in",
+    applicabilityModes: ["unconditional"],
+    applicabilityContextTypes: Object.freeze({ kind: "restricted", terms: [] })
+  },
+  {
+    term: "reference:not_observed_in",
+    definition: "The exact positive observed_in relation is false for the same equality-normalized evidence occurrence and observation attempt. Absence of an observation claim does not entail non-observation, and this relation does not mean that reusable bytes are stale.",
+    subjectTypes: evidenceOccurrence,
+    operandTypes: observationAttempts,
+    operandCardinality: exactlyOne,
+    multiplicity: "conjunctive_constraint",
+    complement: "reference:observed_in",
+    applicabilityModes: ["unconditional"],
+    applicabilityContextTypes: Object.freeze({ kind: "restricted", terms: [] })
+  }
+].map(authenticationProvenanceOperator);
+
 const booleanOperators = [
   ["authoritative", "Whether the subject is authoritative for its declared purpose."],
   ["deterministic", "Whether equal controlled inputs to the subject require equal controlled outputs."],
@@ -393,6 +554,7 @@ const rangeOperators = [
 
 const OPERATORS = [
   ...referenceOperators.map(referenceOperator),
+  ...authenticationProvenanceOperators,
   ...booleanOperators,
   ...numberOperators,
   ...rangeOperators

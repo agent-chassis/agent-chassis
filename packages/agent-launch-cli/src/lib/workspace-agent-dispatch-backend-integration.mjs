@@ -3,7 +3,8 @@
 import path from "node:path";
 import {
   setWorkRecordStatusByUnit,
-  writeValidatedWorkRecord
+  writeValidatedWorkRecord,
+  computeWorkRecordSourceDigest
 } from "@agent-chassis/wiki-core";
 import {
   integrateCommittedSlice,
@@ -20,6 +21,12 @@ import {
 import {
   resolveCanonicalSliceIntegrationUnit
 } from "./backend-scope-authority.mjs";
+import {
+  assertWkLifecycleObservationCurrent,
+  boundedWkLifecycleObservation,
+  readCanonicalContractGenerationIdentity,
+  revParse
+} from "./slice-integration-authorization.mjs";
 import {
   AUTHENTICATED_INTEGRATION_CONTINUATION,
   brandedContinuation,
@@ -40,7 +47,15 @@ export function createCanonicalCommittedSliceIntegrationAdapter(mainRepo) {
   }
   return async ({ context, boundaryAuthorization } = {}) => {
     const target = boundaryAuthorization?.target;
+    const integrationBinding = context?.integration_binding;
+    const expectedWkRef = context === null || context === undefined
+      ? null
+      : `refs/heads/wk/${context.initiative}/${context.record_id}`;
     if (context?.review_admission_kind !== "canonical_committed_slice" ||
+        !isPlainObject(integrationBinding) ||
+        integrationBinding.wk_ref !== expectedWkRef ||
+        typeof integrationBinding.wk_tip_sha !== "string" ||
+        !isPlainObject(integrationBinding.contract_generation) ||
         target?.subject !== context.review_subject ||
         target?.committed_target_digest !== context.committed_target_digest ||
         target?.reviewed_sha !== context.reviewed_sha ||
@@ -60,7 +75,7 @@ export function createCanonicalCommittedSliceIntegrationAdapter(mainRepo) {
       worktreePath: context.worktree_path,
       unitAddress: `${context.initiative}/${context.record_id}/${context.review_slice_id}`,
       sliceRef: context.slice_ref,
-      wkRef: `refs/heads/wk/${context.initiative}/${context.record_id}`,
+      wkRef: integrationBinding.wk_ref,
       baseSha: context.diff_base_sha,
       commit: context.reviewed_sha,
       workerTerminated: false,
@@ -85,13 +100,43 @@ const CCE_POLICY_REFUSAL_CODES = Object.freeze({
   MISSING: "agent_launch.slice_integration.cce_policy_decision_missing.v1",
   UNAVAILABLE: "agent_launch.slice_integration.cce_policy_unavailable.v1",
   MALFORMED: "agent_launch.slice_integration.cce_policy_malformed.v1",
+  OVERSIZED: "agent_launch.slice_integration.cce_policy_oversized.v1",
   UNRATIFIED: "agent_launch.slice_integration.cce_policy_unratified.v1",
   DENIED: "agent_launch.slice_integration.cce_policy_denied.v1",
-  TARGET_MISMATCH: "agent_launch.slice_integration.cce_policy_target_mismatch.v1",
-  DISPOSITION_INVALID: "agent_launch.slice_integration.advisory_disposition_invalid.v1"
+  TARGET_MISMATCH: "agent_launch.slice_integration.cce_policy_target_mismatch.v1"
 });
 const ORCHESTRATOR_ADVISORY_DISPOSITIONS = new Set(["accept", "reject", "defer"]);
 const SHA256_DIGEST_RE = /^sha256:[0-9a-f]{64}$/u;
+const CCE_POLICY_DECISION_MAX_BYTES = 64 * 1024;
+const CCE_POLICY_ID_MAX_CHARS = 256;
+const PUBLIC_BLOCKER_CODES = Object.freeze({
+  BACKEND_UNAVAILABLE: "backend_unavailable",
+  OPERATOR_RECOVERY_NEEDED: "operator_recovery_needed",
+  VALIDATION_FAILURE: "validation_failure"
+});
+const CCE_POLICY_DECISION_REFUSAL_CODES = new Set([
+  CCE_POLICY_REFUSAL_CODES.UNRATIFIED,
+  CCE_POLICY_REFUSAL_CODES.DENIED,
+  CCE_POLICY_REFUSAL_CODES.TARGET_MISMATCH
+]);
+const CCE_EVIDENCE_FAILURE_REFUSAL_CODES = new Set([
+  CCE_POLICY_REFUSAL_CODES.MISSING,
+  CCE_POLICY_REFUSAL_CODES.UNAVAILABLE,
+  CCE_POLICY_REFUSAL_CODES.MALFORMED,
+  CCE_POLICY_REFUSAL_CODES.OVERSIZED
+]);
+const CALLER_VALIDATION_CODES = new Set([
+  "agent_launch.slice_integration.invalid_arg.v1",
+  "agent_launch.slice_integration.binding_mismatch.v1"
+]);
+const ADMISSION_VALIDATION_CODES = new Set([
+  COMMITTED_SLICE_REVIEW_ADMISSION_CODES.REFUSED,
+  ...CALLER_VALIDATION_CODES
+]);
+const BACKEND_UNAVAILABLE_CODES = new Set([
+  "agent_launch.slice_integration.backend_unavailable.v1",
+  "agent_launch.slice_integration.integration_backend_unavailable.v1"
+]);
 const CCE_BOUNDARY_POLICY_DECISION_FIELDS = Object.freeze([
   "attestation_digest", "attestation_valid", "decision", "decision_id", "operation",
   "policy_id", "ratified", "schema_version", "target"
@@ -107,6 +152,13 @@ function hasExactKeys(value, expected) {
 }
 
 function ccePolicyRefusal(code, reason, detail = null) {
+  const diagnosticKind = new Set([
+    CCE_POLICY_REFUSAL_CODES.UNRATIFIED,
+    CCE_POLICY_REFUSAL_CODES.DENIED,
+    CCE_POLICY_REFUSAL_CODES.TARGET_MISMATCH
+  ]).has(code)
+    ? "returned_cce_policy_decision"
+    : "configured_cce_evidence_failure";
   return Object.freeze({
     integrated: false,
     refused: true,
@@ -114,9 +166,27 @@ function ccePolicyRefusal(code, reason, detail = null) {
       schema_version: CCE_POLICY_REFUSAL_SCHEMA_VERSION,
       code,
       reason,
-      detail
+      detail,
+      diagnostic_kind: diagnosticKind
     })
   });
+}
+
+function classifiedNonIntegratedResult(result) {
+  if (result?.integrated === true) return result;
+  const refusalCode = result?.refusal?.code;
+  const publicBlockerCode = result?.refusal?.diagnostic_kind ===
+      "returned_cce_policy_decision" || CCE_POLICY_DECISION_REFUSAL_CODES.has(refusalCode)
+    ? PUBLIC_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED
+    : result?.refusal?.diagnostic_kind === "configured_cce_evidence_failure" ||
+        CCE_EVIDENCE_FAILURE_REFUSAL_CODES.has(refusalCode)
+      ? PUBLIC_BLOCKER_CODES.BACKEND_UNAVAILABLE
+      : ADMISSION_VALIDATION_CODES.has(result?.code)
+        ? PUBLIC_BLOCKER_CODES.VALIDATION_FAILURE
+        : BACKEND_UNAVAILABLE_CODES.has(result?.code)
+          ? PUBLIC_BLOCKER_CODES.BACKEND_UNAVAILABLE
+          : PUBLIC_BLOCKER_CODES.OPERATOR_RECOVERY_NEEDED;
+  return Object.freeze({ ...result, public_blocker_code: publicBlockerCode });
 }
 
 function exactBoundaryTarget(context) {
@@ -234,13 +304,62 @@ export function createBackendIntegration(ctx) {
     canonicalCommittedSliceIntegrationAttempts,
     committedSliceIntegrationTargetKey
   } = ctx;
+  const { resolveDurableIntegrationContinuation } =
+    createBackendIntegrationContinuation(ctx);
 
-  const resolveSliceReviewEvidenceSet = (args) => ctx.resolveSliceReviewEvidenceSet(args);
+  async function resolveCurrentIntegrationBinding({ context }) {
+    const record = JSON.parse(context.canonical_parent_wk_contract);
+    const recordSourceDigest = computeWorkRecordSourceDigest(record);
+    const wkRef = `refs/heads/wk/${context.initiative}/${context.record_id}`;
+    const wkTipSha = await revParse(reviewContextRunGit, context.main_repo, wkRef);
+    const observation = await boundedWkLifecycleObservation({
+      runGit: reviewContextRunGit,
+      mainRepo: context.main_repo,
+      initiative: context.initiative,
+      wkId: context.record_id,
+      wkTipSha,
+      recordSourceDigest
+    });
+    const current = await assertWkLifecycleObservationCurrent({
+      observation,
+      runGit: reviewContextRunGit,
+      mainRepo: context.main_repo,
+      wkTipSha,
+      recordSourceDigest
+    });
+    if (current.current !== true) {
+      const error = new Error("committed-slice integration binding is stale");
+      error.code = "agent_launch.slice_integration.current_binding_stale.v1";
+      error.detail = Object.freeze({
+        reason: current.reason,
+        wk_tip_sha: wkTipSha,
+        contract_generation: observation.contract_generation
+      });
+      throw error;
+    }
+    return Object.freeze({
+      schema_version: "workspace-agent-committed-slice-integration-binding.v1",
+      wk_ref: wkRef,
+      wk_tip_sha: wkTipSha,
+      record_source_digest: recordSourceDigest,
+      contract_generation: readCanonicalContractGenerationIdentity(
+        context.main_repo,
+        context.record_id
+      ),
+      observation
+    });
+  }
 
-  const {
-    resolveDurableZeroDeltaIntegrationContinuation,
-    resolveCorrectiveFindingsContext
-  } = createBackendIntegrationContinuation(ctx);
+  const bindingRefusal = (error) => classifiedNonIntegratedResult(Object.freeze({
+    integrated: false,
+    refused: true,
+    refusal: Object.freeze({
+      schema_version: "slice-integration-binding-refusal.v1",
+      code: error?.code ?? "agent_launch.slice_integration.current_binding_unavailable.v1",
+      reason: error?.detail?.reason ?? error?.message ?? "current integration binding unavailable",
+      detail: error?.detail ?? null
+    })
+  }));
 
   async function resolveSliceIntegrationBoundaryAuthorization({
     context,
@@ -298,12 +417,30 @@ export function createBackendIntegration(ctx) {
         )
       };
     }
+    let decisionBytes;
+    try {
+      decisionBytes = Buffer.byteLength(JSON.stringify(decision), "utf8");
+    } catch {
+      decisionBytes = CCE_POLICY_DECISION_MAX_BYTES + 1;
+    }
+    if (decisionBytes > CCE_POLICY_DECISION_MAX_BYTES) {
+      return {
+        ok: false,
+        refusal: ccePolicyRefusal(
+          CCE_POLICY_REFUSAL_CODES.OVERSIZED,
+          "configured CCE policy returned an oversized decision",
+          { observed_bytes: decisionBytes, max_bytes: CCE_POLICY_DECISION_MAX_BYTES }
+        )
+      };
+    }
     if (!hasExactKeys(decision, CCE_BOUNDARY_POLICY_DECISION_FIELDS) ||
         decision.schema_version !== CCE_BOUNDARY_POLICY_DECISION_SCHEMA_VERSION ||
         decision.operation !== "integrate_committed_slice" ||
         !new Set(["allow", "deny"]).has(decision.decision) ||
         typeof decision.policy_id !== "string" || decision.policy_id.length === 0 ||
+        decision.policy_id.length > CCE_POLICY_ID_MAX_CHARS ||
         typeof decision.decision_id !== "string" || decision.decision_id.length === 0 ||
+        decision.decision_id.length > CCE_POLICY_ID_MAX_CHARS ||
         !SHA256_DIGEST_RE.test(decision.attestation_digest ?? "") ||
         typeof decision.ratified !== "boolean" ||
         typeof decision.attestation_valid !== "boolean" ||
@@ -365,38 +502,79 @@ export function createBackendIntegration(ctx) {
   }
 
   async function requestCommittedSliceIntegration({ subject, dispositions } = {}) {
-    if (worktreeProvisioningConfig === null ||
-        !EXACT_IMPLEMENTATION_SLICE_RE.test(subject ?? "")) {
-      return Object.freeze({
+    if (worktreeProvisioningConfig === null || worktreeProvisioningConfig === undefined) {
+      return classifiedNonIntegratedResult(Object.freeze({
         integrated: false,
         reason: "canonical_committed_slice_integration_unavailable",
-        code: COMMITTED_SLICE_REVIEW_ADMISSION_CODES.REFUSED
-      });
+        code: "agent_launch.slice_integration.backend_unavailable.v1"
+      }));
     }
+    if (!EXACT_IMPLEMENTATION_SLICE_RE.test(subject ?? "")) {
+      return classifiedNonIntegratedResult(Object.freeze({
+        integrated: false,
+        reason: "canonical committed-slice integration subject is invalid",
+        code: "agent_launch.slice_integration.invalid_arg.v1"
+      }));
+    }
+    const cceConfigured = isPlainObject(sliceIntegrationCcePolicy) &&
+      sliceIntegrationCcePolicy.configured === true;
     let context;
+    const retainedContext = frozenSliceReviewContexts.get(subject) ?? null;
+    if (retainedContext !== null &&
+        retainedContext.review_admission_kind === "canonical_committed_slice") {
+      const recoveryEvidence = emptySliceReviewAdvisoryEvidence(retainedContext);
+      const recoveryDispositions = cceConfigured
+        ? normalizeAdvisoryDispositions(dispositions, recoveryEvidence)
+        : null;
+      const recoveryWriteRecordCas = async ({ record, expectedSourceDigest }) => {
+        const policy = await resolveSliceIntegrationBoundaryAuthorization({
+          context: retainedContext,
+          evidence: recoveryEvidence,
+          orchestratorDispositions: recoveryDispositions
+        });
+        if (policy.ok !== true) {
+          throw Object.assign(new Error("committed-slice policy refused integration"), {
+            refusal: classifiedNonIntegratedResult(policy.refusal)
+          });
+        }
+        try {
+          await resolveCurrentIntegrationBinding({ context: retainedContext });
+        } catch (error) {
+          throw Object.assign(new Error("current integration binding unavailable"), {
+            refusal: bindingRefusal(error)
+          });
+        }
+        return writeValidatedWorkRecord({
+          dir: worktreeProvisioningConfig.mainRepo,
+          record,
+          expectedSourceDigest
+        });
+      };
+      try {
+        const recovered = await recoverZeroDeltaIntegratedSlice({
+          mainRepo: worktreeProvisioningConfig.mainRepo,
+          unitAddress: `${retainedContext.initiative}/${retainedContext.record_id}/${retainedContext.review_slice_id}`,
+          sliceRef: retainedContext.slice_ref,
+          wkRef: `refs/heads/wk/${retainedContext.initiative}/${retainedContext.record_id}`,
+          writeRecordCas: recoveryWriteRecordCas,
+          deps: { runGit: reviewContextRunGit }
+        });
+        if (recovered !== null) {
+          return classifiedNonIntegratedResult(Object.freeze({
+            ...recovered,
+            closeout_continuation: INTEGRATION_CLOSEOUT_CONTINUATION
+          }));
+        }
+      } catch (error) {
+        if (error?.refusal !== undefined) return error.refusal;
+
+      }
+    }
     try {
       const integrationUnit = resolveCanonicalSliceIntegrationUnit(
         worktreeProvisioningConfig.mainRepo,
         subject
       );
-      const recovered = await recoverZeroDeltaIntegratedSlice({
-        mainRepo: worktreeProvisioningConfig.mainRepo,
-        unitAddress: `${integrationUnit.initiative}/${integrationUnit.record_id}/${integrationUnit.slice_id}`,
-        sliceRef: `refs/heads/slice/${integrationUnit.initiative}/${integrationUnit.record_id}/${integrationUnit.slice_id}`,
-        wkRef: `refs/heads/wk/${integrationUnit.initiative}/${integrationUnit.record_id}`,
-        writeRecordCas: ({ record, expectedSourceDigest }) => writeValidatedWorkRecord({
-          dir: worktreeProvisioningConfig.mainRepo,
-          record,
-          expectedSourceDigest
-        }),
-        deps: { runGit: reviewContextRunGit }
-      });
-      if (recovered !== null) {
-        return Object.freeze({
-          ...recovered,
-          closeout_continuation: INTEGRATION_CLOSEOUT_CONTINUATION
-        });
-      }
       const admission = resolveCommittedSliceReviewAdmission({
         mainRepo: worktreeProvisioningConfig.mainRepo,
         worktreeRoot: worktreeProvisioningConfig.worktreeRoot,
@@ -426,42 +604,25 @@ export function createBackendIntegration(ctx) {
         worktree_identity: admission.identity
       });
     } catch (error) {
-      return Object.freeze({
+      const result = {
         integrated: false,
-        reason: error?.detail?.reason ?? "canonical_committed_slice_integration_unavailable",
-        code: error?.code ?? COMMITTED_SLICE_REVIEW_ADMISSION_CODES.REFUSED
-      });
+        reason: error?.detail?.reason ?? "canonical_committed_slice_integration_unavailable"
+      };
+      if (typeof error?.code === "string") result.code = error.code;
+      return classifiedNonIntegratedResult(Object.freeze(result));
     }
-    const reviewContext = frozenSliceReviewContexts.get(subject) ?? null;
-    let observedEvidence = null;
-    let observationDiagnostic = null;
-    if (reviewContext !== null &&
-        reviewContext.slice_ref === context.slice_ref &&
-        reviewContext.reviewed_sha === context.reviewed_sha &&
-        reviewContext.diff_base_sha === context.diff_base_sha) {
-      try {
-        observedEvidence = await resolveSliceReviewEvidenceSet({ subject });
-      } catch (error) {
 
-        observationDiagnostic = Object.freeze({
-          code: "review_evidence_observation_unavailable",
-          source_code: typeof error?.code === "string" ? error.code : null
-        });
-      }
-    }
-    const evidence = observedEvidence?.schema_version ===
-        "workspace-agent-slice-review-advisory-evidence.v1"
-      ? observedEvidence
-      : emptySliceReviewAdvisoryEvidence(context, observationDiagnostic);
-    const orchestratorDispositions = normalizeAdvisoryDispositions(dispositions, evidence);
-    if (orchestratorDispositions === null) {
-      return ccePolicyRefusal(
-        CCE_POLICY_REFUSAL_CODES.DISPOSITION_INVALID,
-        "orchestrator advisory dispositions do not match retained exact-target findings"
-      );
-    }
+    const evidence = emptySliceReviewAdvisoryEvidence(context);
+
+    const orchestratorDispositions = cceConfigured
+      ? normalizeAdvisoryDispositions(dispositions, evidence)
+      : null;
     if (canonicalCommittedSliceIntegration === null) {
-      throw new Error("canonical committed-slice integration adapter is unavailable");
+      return classifiedNonIntegratedResult({
+        integrated: false,
+        reason: "canonical committed-slice integration adapter is unavailable",
+        code: "agent_launch.slice_integration.integration_backend_unavailable.v1"
+      });
     }
     const key = committedSliceIntegrationTargetKey(context);
     if (canonicalCommittedSliceIntegrations.has(key)) {
@@ -474,19 +635,59 @@ export function createBackendIntegration(ctx) {
           evidence,
           orchestratorDispositions
         });
-        if (policy.ok !== true) return policy.refusal;
+        if (policy.ok !== true) return classifiedNonIntegratedResult(policy.refusal);
+        const writeCurrentRecordCas = async ({ record, expectedSourceDigest }) => {
+          try {
+            await resolveCurrentIntegrationBinding({ context });
+          } catch (error) {
+            throw Object.assign(new Error("current integration binding unavailable"), {
+              refusal: bindingRefusal(error)
+            });
+          }
+          return writeValidatedWorkRecord({
+            dir: worktreeProvisioningConfig.mainRepo,
+            record,
+            expectedSourceDigest
+          });
+        };
+        let recovered;
+        try {
+          recovered = await recoverZeroDeltaIntegratedSlice({
+            mainRepo: worktreeProvisioningConfig.mainRepo,
+            unitAddress: `${context.initiative}/${context.record_id}/${context.review_slice_id}`,
+            sliceRef: context.slice_ref,
+            wkRef: `refs/heads/wk/${context.initiative}/${context.record_id}`,
+            writeRecordCas: writeCurrentRecordCas,
+            deps: { runGit: reviewContextRunGit }
+          });
+        } catch (error) {
+          if (error?.refusal !== undefined) return error.refusal;
+          throw error;
+        }
+        if (recovered !== null) {
+          return classifiedNonIntegratedResult(Object.freeze({
+            ...recovered,
+            closeout_continuation: INTEGRATION_CLOSEOUT_CONTINUATION
+          }));
+        }
+        let integrationBinding;
+        try {
+          integrationBinding = await resolveCurrentIntegrationBinding({ context });
+        } catch (error) {
+          return bindingRefusal(error);
+        }
         const integration = await canonicalCommittedSliceIntegration({
-          context,
+          context: Object.freeze({ ...context, integration_binding: integrationBinding }),
           boundaryAuthorization: policy.authorization
         });
-        const result = Object.freeze({
+        const result = classifiedNonIntegratedResult(Object.freeze({
           ...integration,
           advisory_review_evidence: evidence,
           orchestrator_dispositions: orchestratorDispositions,
           ...(integration?.integrated === true
             ? { closeout_continuation: INTEGRATION_CLOSEOUT_CONTINUATION }
             : {})
-        });
+        }));
         canonicalCommittedSliceIntegrations.set(key, Promise.resolve(result));
         return result;
       })();
@@ -494,6 +695,13 @@ export function createBackendIntegration(ctx) {
     }
     try {
       return await canonicalCommittedSliceIntegrationAttempts.get(key);
+    } catch (error) {
+      const result = {
+        integrated: false,
+        reason: error?.detail?.reason ?? "canonical committed-slice integration failed"
+      };
+      if (typeof error?.code === "string") result.code = error.code;
+      return classifiedNonIntegratedResult(Object.freeze(result));
     } finally {
       canonicalCommittedSliceIntegrationAttempts.delete(key);
     }
@@ -527,13 +735,12 @@ export function createBackendIntegration(ctx) {
         });
       }
     }
-    return resolveDurableZeroDeltaIntegrationContinuation({ subject, status });
+    return resolveDurableIntegrationContinuation({ subject, status });
   }
 
   return {
     resolveSliceIntegrationBoundaryAuthorization,
     requestCommittedSliceIntegration,
-    resolveCommittedSliceIntegrationContinuation,
-    resolveCorrectiveFindingsContext
+    resolveCommittedSliceIntegrationContinuation
   };
 }

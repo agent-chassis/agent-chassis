@@ -12,6 +12,8 @@ export const WORK_RECORD_DISPATCH_DECISION_CODES = Object.freeze([
   "decisions_write_scope_forbidden",
   "stale_write_scope",
   "missing_validation",
+
+  "missing_acceptance_criteria",
   "missing_graph_impact",
   "zero_clusters",
   "multi_cluster",
@@ -41,7 +43,9 @@ const DECISION_PRECEDENCE = Object.freeze([
   "tracker_not_dispatchable",
   "missing_slice",
   "not_implementation",
+
   "missing_validation",
+  "missing_acceptance_criteria",
   "missing_graph_impact",
   "zero_clusters",
   "multi_cluster",

@@ -1,11 +1,11 @@
 import { readFile } from "node:fs/promises";
 
 const DORMANCY_NONACTIVATION_V1_PROFILE = JSON.parse(await readFile(new URL(
-  "../certification/profiles/proof.dormancy.nonactivation/1.0.0/profile.json",
+  "../certification/profiles/proof.dormancy.nonactivation/2.0.0/profile.json",
   import.meta.url
 ), "utf8"));
 const INPUT_TEMPLATE = JSON.parse(await readFile(new URL(
-  "../certification/profiles/proof.dormancy.nonactivation/1.0.0/evaluation-input.template.json",
+  "../certification/profiles/proof.dormancy.nonactivation/2.0.0/evaluation-input.template.json",
   import.meta.url
 ), "utf8"));
 
@@ -87,11 +87,11 @@ function buildDormancyNonactivationFixture({
     });
   }
   const contract = {
-    schema_version: "controlled-acceptance-contract.experimental.v0.2",
-    vocabulary_version: "cv.experimental.0.34",
-    profile_id: "acceptance-contract.standard.experimental.v0.2",
+    schema_version: "controlled-acceptance-contract.v1",
+    vocabulary_version: "controlled-contract-vocabulary.v1",
+    profile_id: "acceptance-contract.standard.v1",
     references: [...referenceById.values()], propositions: [], claims: [], relations: [],
-    collections: [], residue: [], annotations: []
+    collections: [], residue: [], annotations: [], test_proof_version: "controlled-contract-test-proof.v1", test_proofs: []
   };
   const addClaim = ({ id, proposition, kind = "evidence", modality = "MUST",
     verificationMethod, falsifierId }) => {

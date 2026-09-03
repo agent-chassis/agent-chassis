@@ -16,7 +16,6 @@ export const SLICE_REVIEW_SURFACE_PREPARATION_VERIFIED_PARTS = Object.freeze([
   "ordinary_index_allowed_prestate",
   "ordinary_index_reviewed_tree",
   "empty_cached_worktree_and_status",
-  "no_sparse_or_hidden_index_entries",
   "refs_registration_and_physical_tree_unchanged"
 ]);
 

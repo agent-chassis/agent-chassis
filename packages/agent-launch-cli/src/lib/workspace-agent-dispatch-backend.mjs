@@ -47,7 +47,8 @@ import {
   createFrozenReviewContextStores
 } from "./backend-frozen-review-context-stores.mjs";
 import {
-  createManagedLifecycleCapabilityAuthorityFacts
+  createManagedLifecycleCapabilityAuthorityFacts,
+  createSelectedBackendCapabilityFacts
 } from "./backend-managed-lifecycle-capability-facts.mjs";
 
 import {
@@ -55,32 +56,39 @@ import {
   defaultMonitorHandleFactory
 } from "./workspace-agent-dispatch-refusal.mjs";
 import { createDispatchRunLifecycle } from "./workspace-agent-dispatch-run-lifecycle.mjs";
-import { createExactSliceReviewReceiptStore } from "./workspace-agent-dispatch-run-receipt.mjs";
 import { defaultRunGit } from "./worktree-substrate.mjs";
 import {
   hasExactClosedInputCommitComposition
 } from "./backend-review-identity.mjs";
 import { resolveCanonicalFindingsOnlyReviewUnit } from "./backend-scope-authority.mjs";
+import { readCanonicalWorkRecord } from "./backend-worker-scope-authority.mjs";
+import { computeWorkRecordSourceDigest } from "@agent-chassis/wiki-core/src/lib/work-record-schema.mjs";
 import {
   normalizeProvisioningConfig,
   createLauncherOwnedManagedAttemptStateAuthority
 } from "./backend-provisioning-state.mjs";
 import {
+  createManagedWorktreeProvisioningAuthority,
   maybeWrapExecutorWithWorktreeProvisioning,
   maybeWrapRegistryEntryWithWorktreeProvisioning
 } from "./backend-worktree-binding.mjs";
 
 import { createBackendScope } from "./workspace-agent-dispatch-backend-scope.mjs";
 import { createBackendManagedIdentity } from "./workspace-agent-dispatch-backend-managed-identity.mjs";
-import { createBackendReceipts } from "./workspace-agent-dispatch-backend-receipts.mjs";
 import {
   createBackendIntegration,
   createCanonicalCommittedSliceIntegrationAdapter
 } from "./workspace-agent-dispatch-backend-integration.mjs";
-import { createBackendTerminalReview } from "./workspace-agent-dispatch-backend-terminal-review.mjs";
-import { createBackendSliceReview } from "./workspace-agent-dispatch-backend-slice-review.mjs";
+import { createBackendTerminalCandidateCoordination } from
+  "./workspace-agent-dispatch-backend-terminal-candidate-coordination.mjs";
+import { createBackendPostWorkerLifecycle } from
+  "./workspace-agent-dispatch-backend-post-worker-lifecycle.mjs";
 import { createBackendRecovery } from "./workspace-agent-dispatch-backend-recovery.mjs";
-import { createBackendRouting } from "./workspace-agent-dispatch-backend-routing.mjs";
+import { createBackendWorkerRouting } from
+  "./workspace-agent-dispatch-backend-worker-routing.mjs";
+import { resolveDispatchSelection } from "./workspace-agent-dispatch-run-lifecycle-selection.mjs";
+import { createWorkspaceAgentAdvisoryReviewPipeline } from
+  "./workspace-agent-advisory-review-pipeline.mjs";
 
 export const BACKEND_FORBIDDEN_ENVELOPE_TOKENS = DISPATCH_FORBIDDEN_ENVELOPE_TOKENS;
 
@@ -122,32 +130,11 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
 
     proveAssignedSourceReadable = null
   } = options;
-  const correctiveContinuationProofs = new Map();
   const normalizedWorktreeProvisioningConfig = normalizeProvisioningConfig(options.worktreeProvisioning);
 
   const worktreeProvisioningConfig = normalizedWorktreeProvisioningConfig === null
     ? null
-    : {
-        ...normalizedWorktreeProvisioningConfig,
-        deps: {
-          ...(normalizedWorktreeProvisioningConfig.deps ?? {}),
-          resolveCorrectiveContinuationProof({
-            subject,
-            unit_address: unitAddress,
-            slice_ref: sliceRef,
-            slice_tip: sliceTip,
-            worktree_path: worktreePath
-          } = {}) {
-            const retained = correctiveContinuationProofs.get(subject) ?? null;
-            const proof = retained?.proof ?? null;
-            if (proof === null || proof.unit_address !== unitAddress ||
-                proof.slice_ref !== sliceRef || proof.delivered_tip_sha !== sliceTip ||
-                proof.worktree_path !== worktreePath) return null;
-            correctiveContinuationProofs.delete(subject);
-            return proof;
-          }
-        }
-      };
+    : { ...normalizedWorktreeProvisioningConfig };
 
   const requireManagedProvisioning = options.requireManagedProvisioning === true;
   const managedStdioMcpCompositionAuthority =
@@ -165,9 +152,16 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
     testCompositionFact
   });
   const attemptStateAuthority = createLauncherOwnedManagedAttemptStateAuthority();
+  const managedWorktreeProvisioningAuthority =
+    createManagedWorktreeProvisioningAuthority({
+      provisioningConfig: worktreeProvisioningConfig,
+      requireManagedProvisioning,
+      attemptStateAuthority
+    });
   const registeredWorkerScopeSnapshots = new WeakSet();
   const wholeReviewRunContexts = new Map();
   const terminalCandidateRecoveryInFlight = new Map();
+  const terminalCandidateAdvanceExclusions = new Map();
 
   const terminalReviewAttemptContracts = new Map();
   const terminalReviewAttemptContractBySubject = new Map();
@@ -190,13 +184,8 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
 
   const sliceIntegrationCcePolicy = options.sliceIntegrationCcePolicy ?? null;
   const recoveredIntegratedRuns = new Map();
-  const exactSliceReviewReceiptStore = options.exactSliceReviewReceiptStore ??
-    (requireManagedProvisioning && worktreeProvisioningConfig?.mainRepo
-      ? createExactSliceReviewReceiptStore({
-          workspaceDir: worktreeProvisioningConfig.mainRepo,
-          env: options.env
-        })
-      : null);
+
+  const exactSliceReviewReceiptStore = options.exactSliceReviewReceiptStore ?? null;
   const postWorkerSliceLifecycle = typeof options.postWorkerSliceLifecycle === "function"
     ? options.postWorkerSliceLifecycle
     : null;
@@ -207,10 +196,27 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
         ? createCanonicalCommittedSliceIntegrationAdapter(worktreeProvisioningConfig.mainRepo)
         : null;
   const reviewContextRunGit = options.reviewContextRunGit ?? defaultRunGit;
+
+  const postWorkerLifecycleRunGit = options.postWorkerLifecycleRunGit ?? reviewContextRunGit;
   const closedInputCommitCompositionInstalled = hasExactClosedInputCommitComposition(
     options.closedInputCommitComposition
   );
   const runs = new Map();
+
+  const canonicalAdmissionReviewRecordRoot = worktreeProvisioningConfig?.mainRepo ?? null;
+  const resolveCanonicalAdmissionReviewRecord = canonicalAdmissionReviewRecordRoot === null
+    ? null
+    : ({ record_id: recordId } = {}) => {
+      const record = readCanonicalWorkRecord(canonicalAdmissionReviewRecordRoot, recordId);
+      if (record === null || typeof record !== "object" || record.id !== recordId) {
+        return null;
+      }
+      const generationId = computeWorkRecordSourceDigest(record);
+      if (typeof generationId !== "string" || generationId === "") return null;
+      const repository = typeof record.repo === "string" ? record.repo.trim() : "";
+      if (repository === "") return null;
+      return { record, generation_id: generationId, repository };
+    };
 
   const managedWorkerIdentityRequired = requireManagedProvisioning;
   const managedRunIdentityRoot = requireManagedProvisioning
@@ -224,12 +230,12 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
     requireManagedProvisioning,
     attemptStateAuthority,
     registeredWorkerScopeSnapshots,
-    correctiveContinuationProofs,
     runs,
     frozenReviewContextsByTarget,
     currentTerminalReviewTargetByWk,
     wholeReviewRunContexts,
     terminalCandidateRecoveryInFlight,
+    terminalCandidateAdvanceExclusions,
     terminalReviewAttemptContracts,
     terminalReviewAttemptContractBySubject,
     recoverTerminalCandidate,
@@ -247,14 +253,15 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
     postWorkerSliceLifecycle,
     canonicalCommittedSliceIntegration,
     reviewContextRunGit,
+    postWorkerLifecycleRunGit,
     managedRunIdentityRoot,
     managedRunIdentityDeps,
-    managedWorkerIdentityRequired
+    managedWorkerIdentityRequired,
+    managedWorktreeProvisioningAuthority
   };
 
   Object.assign(backendContext, createBackendScope(backendContext));
   Object.assign(backendContext, createBackendManagedIdentity(backendContext));
-  Object.assign(backendContext, createBackendReceipts(backendContext));
   Object.assign(backendContext, createBackendIntegration(backendContext));
 
   const executors = {};
@@ -271,7 +278,8 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
           worktreeProvisioningConfig,
           requireManagedProvisioning,
           attemptStateAuthority,
-          backendContext.validateWorkerScopeSnapshot
+          backendContext.validateWorkerScopeSnapshot,
+          managedWorktreeProvisioningAuthority
         );
         executorRegistryEntries[app] = executors[app];
       } else if (candidate && typeof candidate === "object" && typeof candidate.executor === "function") {
@@ -284,7 +292,8 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
           worktreeProvisioningConfig,
           requireManagedProvisioning,
           attemptStateAuthority,
-          backendContext.validateWorkerScopeSnapshot
+          backendContext.validateWorkerScopeSnapshot,
+          managedWorktreeProvisioningAuthority
         );
         executors[app] = wrapped.executor;
         executorRegistryEntries[app] = wrapped;
@@ -297,10 +306,25 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
       worktreeProvisioningConfig,
       requireManagedProvisioning,
       attemptStateAuthority,
-      backendContext.validateWorkerScopeSnapshot
+      backendContext.validateWorkerScopeSnapshot,
+      managedWorktreeProvisioningAuthority
     );
     executorRegistryEntries.codex = executors.codex;
   }
+
+  backendContext.resolveDispatchSelection = (input = {}) => resolveDispatchSelection({
+    role: input.role,
+    app: input.app ?? null,
+    model: input.model ?? null,
+    target: input.target ?? input.subject ?? null,
+    target_role: input.target_role ?? null,
+    subject: input.subject ?? null,
+    workspaceDir: input.workspace_dir ?? input.workspaceDir ?? null,
+    configRootDir: input.config_root_dir ?? input.configRootDir ?? null
+  });
+  backendContext.executors = executors;
+  backendContext.executorRegistryEntries = executorRegistryEntries;
+  backendContext.familyAwareWiring = familyAwareWiring;
 
   const lifecycle = createDispatchRunLifecycle({
     executors,
@@ -317,8 +341,6 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
     validateWorkerScopeSnapshot: backendContext.validateWorkerScopeSnapshot,
     deriveReviewerLaunchIdentity: backendContext.deriveReviewerLaunchIdentity,
     proveAssignedSourceReadable,
-    captureSliceReviewTerminalResult: backendContext.captureSliceReviewTerminalResult,
-    resolveCorrectiveFindingsContext: backendContext.resolveCorrectiveFindingsContext,
 
     managedWorkerIdentityRequired,
     managedRunIdentityRootPresent: managedRunIdentityRoot !== null,
@@ -327,15 +349,23 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
     bindManagedRunOuterIdentity: backendContext.bindManagedRunOuterIdentity,
     releaseManagedRunSubjectReservationForLaunch: backendContext.releaseManagedRunSubjectReservationForLaunch,
 
-    verifyTerminalReviewAttemptContractAtSpawn: (contract) =>
-      backendContext.verifyTerminalReviewAttemptContractAtSpawn(contract)
+    resolveCanonicalAdmissionReviewRecord,
+    settleFormalReviewAttestation: options.settleFormalReviewAttestation ?? null
   });
   backendContext.lifecycle = lifecycle;
 
-  Object.assign(backendContext, createBackendTerminalReview(backendContext));
-  Object.assign(backendContext, createBackendSliceReview(backendContext));
+  const advisoryReviewPipeline = createWorkspaceAgentAdvisoryReviewPipeline({
+    lifecycle,
+    worktreeProvisioningConfig,
+    runGit: reviewContextRunGit
+  });
+  backendContext.startAdvisoryReview = advisoryReviewPipeline.execute;
+  backendContext.resolveAdvisoryReviewMaterial = advisoryReviewPipeline.resolveMaterial;
+
+  Object.assign(backendContext, createBackendTerminalCandidateCoordination(backendContext));
+  Object.assign(backendContext, createBackendPostWorkerLifecycle(backendContext));
   Object.assign(backendContext, createBackendRecovery(backendContext));
-  Object.assign(backendContext, createBackendRouting(backendContext));
+  Object.assign(backendContext, createBackendWorkerRouting(backendContext));
 
   const getManagedLifecycleCapabilityAuthorityFacts =
     createManagedLifecycleCapabilityAuthorityFacts({
@@ -346,28 +376,57 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
       closedInputCommitCompositionInstalled,
       postWorkerSliceLifecycle
     });
+  const getSelectedBackendCapabilityFacts = createSelectedBackendCapabilityFacts({
+    resolveDispatchSelection: (input = {}) => resolveDispatchSelection({
+      role: input.role,
+      app: input.app ?? null,
+      model: input.model ?? null,
+      target: input.target ?? input.subject ?? null,
+      target_role: input.target_role ?? null,
+      subject: input.subject ?? null,
+      workspaceDir: input.workspace_dir ?? input.workspaceDir ?? null,
+      configRootDir: input.config_root_dir ?? input.configRootDir ?? null
+    }),
+    executors,
+    executorRegistryEntries,
+    familyAwareWiring,
+    resolveBackendRoutingDecision: backendContext.resolveBackendRoutingDecision
+  });
+  const predictRepositoryScope = (input = {}) => {
+    const routing = backendContext.resolveBackendRoutingDecision(input);
+    if (routing?.ok !== true) return routing;
+    if (routing.findings_route?.route === "refuse" || routing.refusal) return Object.freeze({
+      ok: false,
+      selection: routing,
+      refusal: routing.refusal
+    });
+    return backendContext.predictRepositoryScope(input);
+  };
 
   return {
     schema_version: WORKSPACE_AGENT_DISPATCH_BACKEND_SCHEMA_VERSION,
+    startAdvisoryReview: backendContext.startAdvisoryReview,
     startLaunch: backendContext.startLaunch,
+    listRuns: lifecycle.listRuns,
     getRunStatus: lifecycle.getRunStatus,
     waitForRunStatus: lifecycle.waitForRunStatus,
     planLaunch: lifecycle.planLaunch,
     getManagedLifecycleCapabilityAuthorityFacts,
+    getSelectedBackendCapabilityFacts,
+    resolveBackendRoutingDecision: backendContext.resolveBackendRoutingDecision,
+
+    predictRepositoryScope,
     getManagedStdioMcpCompositionCompatibility: () =>
       resolveManagedStdioMcpComposition(),
-    isLauncherOwnedExactSliceReviewAdmission: backendContext.isLauncherOwnedExactSliceReviewAdmission,
-
-    resolveSliceReviewEvidenceSet: backendContext.resolveSliceReviewEvidenceSet,
     requestCommittedSliceIntegration: backendContext.requestCommittedSliceIntegration,
     resolveCommittedSliceIntegrationContinuation: backendContext.resolveCommittedSliceIntegrationContinuation,
     resolveTerminalCandidatePublicationState: backendContext.resolveTerminalCandidatePublicationState,
-    prepareCanonicalCommittedSliceReviewAdmission: backendContext.prepareCanonicalCommittedSliceReviewAdmission,
+    observeTerminalCandidateBoundState: backendContext.observeTerminalCandidateBoundState,
+    withTerminalCandidateAdvanceExclusion: backendContext.withTerminalCandidateAdvanceExclusion,
     ...(backendContext.runPostWorkerSliceLifecycle !== null
       ? {
           runPostWorkerSliceLifecycle: backendContext.runPostWorkerSliceLifecycle,
-          recoverIntegratedWorkerRun: backendContext.recoverIntegratedWorkerRun,
-          recoverExactSliceReviewRun: backendContext.recoverExactSliceReviewRun
+          recoverIntegratedWorkerRun: backendContext.recoverIntegratedWorkerRun
         }
       : {}),
 
@@ -383,6 +442,8 @@ export function createWorkspaceAgentDispatchBackend(options = {}) {
         }
       : {}),
     __resolveCanonicalFindingsOnlyReviewUnit: (mainRepo, wkId) =>
-      resolveCanonicalFindingsOnlyReviewUnit(mainRepo, wkId)
+      resolveCanonicalFindingsOnlyReviewUnit(mainRepo, wkId),
+
+    __resolveCanonicalAdmissionReviewRecord: resolveCanonicalAdmissionReviewRecord
   };
 }

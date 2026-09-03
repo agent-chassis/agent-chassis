@@ -25,8 +25,6 @@ export function buildCodexDispatchWorkerPlanArgs({
   resolvedProfile,
   workspaceAlias,
   workspaceDir,
-  acceptanceCriteria,
-  acceptanceValidation,
   sourceToolSurface,
   terminalStructuredRoleResultMode,
   dispatchWorktreeRoot = null,
@@ -34,10 +32,7 @@ export function buildCodexDispatchWorkerPlanArgs({
   provisioned_worktree_git_binding = null,
   worker_scope_authority = null,
   worktree_provisioning = null,
-
-  configRootDir = null,
-  trustedFrozenReviewContract = null,
-  reviewerDependencyBinds = null
+  advisoryReviewInput = null
 }) {
   const planArgs = {
     role,
@@ -48,25 +43,17 @@ export function buildCodexDispatchWorkerPlanArgs({
     resolvedProfile,
     workspaceAlias,
     workspaceDir,
-    acceptanceCriteria,
-    acceptanceValidation,
     sourceToolSurface,
     terminalStructuredRoleResultMode
   };
+  if (advisoryReviewInput !== null) {
+    planArgs.advisory_review_input = advisoryReviewInput;
+  }
   if (worker_scope_authority !== null) {
     planArgs.worker_scope_authority = worker_scope_authority;
   }
   if (worktree_provisioning !== null) {
     planArgs.worktree_provisioning = worktree_provisioning;
-  }
-  if (typeof configRootDir === "string" && configRootDir.length > 0) {
-    planArgs.config_root_dir = configRootDir;
-  }
-  if (trustedFrozenReviewContract !== null && trustedFrozenReviewContract !== undefined) {
-    planArgs.trusted_frozen_review_contract = trustedFrozenReviewContract;
-  }
-  if (Array.isArray(reviewerDependencyBinds) && reviewerDependencyBinds.length > 0) {
-    planArgs.reviewer_dependency_binds = Object.freeze([...reviewerDependencyBinds]);
   }
   const serverProvisionedWorktreeGitBinding = resolveProvisionedWorktreeGitBinding({
     provisionedWorktreeGitBinding,

@@ -1,0 +1,581 @@
+{
+  "schema_version": "controlled-contract-verification-profile.v1",
+  "profile_id": "proof.dormancy.nonactivation",
+  "profile_version": "2.0.0",
+  "contract_schema_version": "controlled-acceptance-contract.v1",
+  "vocabulary_version": "controlled-contract-vocabulary.v1",
+  "vocabulary_signature_digest": "596a4c44d98aed1d31dd9ab3842fc054be6f8ffa3d62a3867a3966e75ecab742",
+  "vocabulary_algebra_digest": "0fbea1e7377baeef1869cbc55dc588ef5509ed40c768ce2a3c4f58be1133cf9c",
+  "vocabulary_definitions_digest": "bb3d2a63cb6fc8c62b9bc36d29d07549dea6ad85e32badb0cbb3cacfd6ad4759",
+  "vocabulary_complete_digest": "45484504f06968c6b4ac812c24b9f1b6e47e1d34ba21fefebde8dd85d1290fa9",
+  "verification_falsifier_policy": "controlled_complement_per_target",
+  "evaluation_stages": [
+    "pre_dispatch"
+  ],
+  "reference_roles": [
+    {
+      "role": "construction_operation",
+      "allowed_type_terms": [
+        "cc:operation"
+      ],
+      "cardinality": "exactly_one",
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "repository_path",
+        "durable_id"
+      ]
+    },
+    {
+      "role": "registration_operation",
+      "allowed_type_terms": [
+        "cc:operation"
+      ],
+      "cardinality": "exactly_one",
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "repository_path",
+        "durable_id"
+      ]
+    },
+    {
+      "role": "registry",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:resource"
+      ],
+      "cardinality": "exactly_one",
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "repository_path",
+        "durable_id"
+      ]
+    },
+    {
+      "role": "dormant_component",
+      "allowed_type_terms": [
+        "cc:runtime_component",
+        "cc:entity",
+        "cc:resource"
+      ],
+      "cardinality": "exactly_one",
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "repository_path",
+        "durable_id"
+      ]
+    },
+    {
+      "role": "production_graph",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:configuration"
+      ],
+      "cardinality": "exactly_one",
+      "allowed_identity_kinds": [
+        "repository_path",
+        "durable_id"
+      ]
+    },
+    {
+      "role": "graph_node_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one",
+      "allowed_identity_kinds": [
+        "repository_path",
+        "durable_id"
+      ]
+    },
+    {
+      "role": "graph_nodes",
+      "allowed_type_terms": [
+        "cc:operation",
+        "cc:resource",
+        "cc:runtime_component",
+        "cc:entity"
+      ],
+      "cardinality": "one_or_more",
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "repository_path",
+        "durable_id"
+      ]
+    },
+    {
+      "role": "production_entrypoint_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one",
+      "allowed_identity_kinds": [
+        "repository_path",
+        "durable_id"
+      ]
+    },
+    {
+      "role": "production_entrypoints",
+      "allowed_type_terms": [
+        "cc:operation",
+        "cc:resource"
+      ],
+      "cardinality": "one_or_more",
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "repository_path",
+        "durable_id"
+      ]
+    },
+    {
+      "role": "activation_event_population",
+      "allowed_type_terms": [
+        "cc:population"
+      ],
+      "cardinality": "exactly_one",
+      "allowed_identity_kinds": [
+        "repository_path",
+        "durable_id",
+        "runtime_parameter"
+      ]
+    },
+    {
+      "role": "activation_events",
+      "allowed_type_terms": [
+        "cc:event",
+        "cc:evidence"
+      ],
+      "cardinality": "zero_or_more",
+      "allowed_identity_kinds": [
+        "durable_id",
+        "runtime_parameter"
+      ]
+    },
+    {
+      "role": "activation_trace",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:evidence"
+      ],
+      "cardinality": "exactly_one",
+      "allowed_identity_kinds": [
+        "repository_path",
+        "durable_id"
+      ]
+    },
+    {
+      "role": "default_configuration_artifact",
+      "allowed_type_terms": [
+        "cc:artifact",
+        "cc:configuration"
+      ],
+      "cardinality": "exactly_one",
+      "allowed_identity_kinds": [
+        "repository_path",
+        "durable_id"
+      ]
+    },
+    {
+      "role": "default_inactive_state",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one",
+      "allowed_identity_kinds": [
+        "durable_id",
+        "profile_term"
+      ]
+    },
+    {
+      "role": "verification",
+      "allowed_type_terms": [
+        "cc:process",
+        "cc:test"
+      ],
+      "cardinality": "exactly_one",
+      "allowed_identity_kinds": [
+        "code_symbol",
+        "repository_path",
+        "durable_id"
+      ]
+    },
+    {
+      "role": "activation_detected_condition",
+      "allowed_type_terms": [
+        "cc:configuration",
+        "cc:state"
+      ],
+      "cardinality": "exactly_one"
+    }
+  ],
+  "number_roles": [
+    {
+      "role": "activation_event_count",
+      "cardinality": "exactly_one",
+      "number_type": "integer",
+      "minimum": 0,
+      "maximum": 0
+    }
+  ],
+  "distinct_reference_role_sets": [
+    {
+      "roles": [
+        "construction_operation",
+        "registration_operation"
+      ]
+    },
+    {
+      "roles": [
+        "dormant_component",
+        "registry"
+      ]
+    },
+    {
+      "roles": [
+        "production_graph",
+        "graph_node_population",
+        "production_entrypoint_population",
+        "activation_event_population"
+      ]
+    },
+    {
+      "roles": [
+        "activation_trace",
+        "default_configuration_artifact",
+        "production_graph"
+      ]
+    }
+  ],
+  "reference_binding_patterns": [
+    {
+      "pattern_id": "complete-graph-node-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "graph_node_population",
+        "graph_nodes"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    },
+    {
+      "pattern_id": "complete-production-entrypoint-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "production_entrypoint_population",
+        "production_entrypoints"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    },
+    {
+      "pattern_id": "complete-activation-event-population",
+      "required_by_stage": "pre_dispatch",
+      "comparison": "complete_population",
+      "roles": [
+        "activation_event_population",
+        "activation_events"
+      ],
+      "applicability_context": {
+        "mode": "unconditional",
+        "operand_roles": []
+      }
+    }
+  ],
+  "reference_role_count_bindings": [
+    {
+      "reference_role": "activation_events",
+      "number_role": "activation_event_count"
+    }
+  ],
+  "claim_patterns": [
+    {
+      "pattern_id": "component-is-a-graph-node",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "dormant_component",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "graph_node_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "entrypoints-are-graph-nodes",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "production_entrypoint_population",
+        "operator": "reference:subset_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "graph_node_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "default-configuration-is-inactive",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "default_configuration_artifact",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "default_inactive_state"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "activation-trace-records-complete-population",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "evidence",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "activation_trace",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "activation_event_population"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "activation-population-is-empty",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "behavior",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "activation_event_population",
+        "operator": "number:equals",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value_role": "activation_event_count"
+          }
+        ]
+      }
+    },
+    {
+      "pattern_id": "dormancy-verification",
+      "required_by_stage": "pre_dispatch",
+      "claim_kind": "verification",
+      "allowed_modalities": [
+        "MUST"
+      ],
+      "proposition_template": {
+        "subject_role": "verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_roles": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "role": "production_graph"
+          },
+          {
+            "kind": "reference",
+            "role": "production_entrypoint_population"
+          },
+          {
+            "kind": "reference",
+            "role": "dormant_component"
+          },
+          {
+            "kind": "reference",
+            "role": "activation_trace"
+          },
+          {
+            "kind": "reference",
+            "role": "default_configuration_artifact"
+          }
+        ]
+      },
+      "verification_methods": [
+        "analysis",
+        "demonstration",
+        "proof",
+        "test_execution"
+      ],
+      "falsifying_proposition_template": {
+        "subject_role": "activation_event_population",
+        "operator": "number:not_equals",
+        "applicability_context": {
+          "mode": "when",
+          "operand_roles": [
+            "activation_detected_condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value_role": "activation_event_count"
+          }
+        ]
+      }
+    }
+  ],
+  "relation_patterns": [
+    {
+      "pattern_id": "verification-targets-nonactivation",
+      "required_by_stage": "pre_dispatch",
+      "role": "verifies",
+      "source_claim_pattern_id": "dormancy-verification",
+      "target_claim_pattern_id": "activation-population-is-empty"
+    }
+  ],
+  "falsifier_condition_bindings": [
+    {
+      "relation_pattern_id": "verification-targets-nonactivation",
+      "applicability_context": {
+        "mode": "when",
+        "operand_roles": [
+          "activation_detected_condition"
+        ]
+      }
+    }
+  ],
+  "collection_patterns": [],
+  "resolver_fact_patterns": [
+    {
+      "pattern_id": "direct-construction-succeeds",
+      "required_by_stage": "pre_dispatch",
+      "resolver_kind": "direct-construction",
+      "fact_key": "succeeds",
+      "argument_roles": [
+        "construction_operation",
+        "dormant_component"
+      ]
+    },
+    {
+      "pattern_id": "direct-registration-succeeds",
+      "required_by_stage": "pre_dispatch",
+      "resolver_kind": "direct-registration",
+      "fact_key": "succeeds",
+      "argument_roles": [
+        "registration_operation",
+        "registry",
+        "dormant_component"
+      ]
+    },
+    {
+      "pattern_id": "no-production-path-to-component",
+      "required_by_stage": "pre_dispatch",
+      "resolver_kind": "code-reachability",
+      "fact_key": "no-path-from-declared-production-entrypoints",
+      "argument_roles": [
+        "production_graph",
+        "production_entrypoints",
+        "dormant_component"
+      ]
+    },
+    {
+      "pattern_id": "complete-activation-observation-is-empty",
+      "required_by_stage": "pre_dispatch",
+      "resolver_kind": "activation-observation",
+      "fact_key": "complete-population-is-empty",
+      "argument_roles": [
+        "activation_trace",
+        "activation_event_population",
+        "dormant_component"
+      ]
+    }
+  ],
+  "evidence_patterns": [],
+  "satisfaction_expression": {
+    "all_of": [
+      {
+        "pattern": "complete-graph-node-population"
+      },
+      {
+        "pattern": "complete-production-entrypoint-population"
+      },
+      {
+        "pattern": "complete-activation-event-population"
+      },
+      {
+        "pattern": "component-is-a-graph-node"
+      },
+      {
+        "pattern": "entrypoints-are-graph-nodes"
+      },
+      {
+        "pattern": "default-configuration-is-inactive"
+      },
+      {
+        "pattern": "activation-trace-records-complete-population"
+      },
+      {
+        "pattern": "activation-population-is-empty"
+      },
+      {
+        "pattern": "dormancy-verification"
+      },
+      {
+        "pattern": "verification-targets-nonactivation"
+      },
+      {
+        "pattern": "direct-construction-succeeds"
+      },
+      {
+        "pattern": "direct-registration-succeeds"
+      },
+      {
+        "pattern": "no-production-path-to-component"
+      },
+      {
+        "pattern": "complete-activation-observation-is-empty"
+      }
+    ]
+  }
+}

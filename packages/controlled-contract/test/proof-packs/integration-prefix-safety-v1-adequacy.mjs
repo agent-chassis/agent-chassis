@@ -1,12 +1,12 @@
 import { executeDeterministicProjection } from "../../lib/deterministic-projection.mjs";
-import { evaluateVerificationProfileV034 } from
-  "../../lib/verification-profile-v034.mjs";
+import { evaluateStableProofPackFixtureV1 } from
+  "../support/stable-v1-proof-pack-runtime.mjs";
 import { PROOF_PACK_ADEQUACY_RUN_VERSION } from
   "../support/proof-pack-adequacy-constants.mjs";
 
 const GUARANTEE = "For one exact captured complete declared integration DAG, one exact complete integration-unit partition, and one exact declared execution-path and required-branch population, the package-owned integration-prefix-census.v1 transformer derives every independently integrable prefix crossed with every declared path and required branch; that exact derived case population is bound into the profile, every case is declared preserved, the aggregate result records that population, and one verification reads the exact sources, census, every case, and aggregate result with a positive non-preservation falsifier.";
 const PROFILE_DIGEST =
-  "dac9bbac1cfba25f0ae899d631e867e31056764ed884b7a1dca79ba0e7f72a78";
+  "f0ccdd91e638d72aa09c7e3e46dc4d16ae295d602dde297899ea88017729b32c";
 const GUARANTEE_DIGEST =
   "77ffbca9bd9a063e667d13d48668f30e21236d4da2f2eb612db07cd7dc40754e";
 
@@ -188,11 +188,11 @@ function buildPrefixSafetyFixture({
       value: "not-preserved" }
   });
   const contract = {
-    schema_version: "controlled-acceptance-contract.experimental.v0.2",
-    vocabulary_version: "cv.experimental.0.34",
-    profile_id: "acceptance-contract.standard.experimental.v0.2",
+    schema_version: "controlled-acceptance-contract.v1",
+    vocabulary_version: "controlled-contract-vocabulary.v1",
+    profile_id: "acceptance-contract.standard.v1",
     references,
-    propositions: [], claims: [], relations: [], collections: [], residue: [], annotations: []
+    propositions: [], claims: [], relations: [], collections: [], residue: [], annotations: [], test_proof_version: "controlled-contract-test-proof.v1", test_proofs: []
   };
   const addClaim = (id, proposition, kind = "evidence", modality = "MUST",
     verificationMethod = null, falsifierId = null) => {
@@ -267,14 +267,14 @@ function buildPrefixSafetyFixture({
       target_claim_id: `claim-${relation.target_claim_pattern_id}`
     });
   const input = {
-    input_version: "controlled-contract-verification-profile-input.experimental.v0.2",
+    input_version: "controlled-contract-verification-profile-input.v1",
     evaluation_stage: "pre_dispatch",
     reference_bindings: profile.reference_roles.map(({ role }) => ({
       role, reference_ids: [...(roles[role] ?? [])]
     })),
     number_bindings: profile.number_roles.map(({ role }) => ({ role,
       value: role === "case_count" ? count : 0 })),
-    claim_pattern_bindings: [], resolver_facts: [], delivered_evidence: []
+    claim_pattern_bindings: [], resolver_facts: [], delivered_evidence: [], stable_evaluation: {}
   };
   mutateContract?.(contract, input, roles, execution);
   mutateInput?.(input, contract, roles, execution);
@@ -282,7 +282,7 @@ function buildPrefixSafetyFixture({
 }
 
 function satisfaction(fixture) {
-  return evaluateVerificationProfileV034({
+  return evaluateStableProofPackFixtureV1({
     contract: fixture.contract, profile: fixture.profile, evaluation_input: fixture.input
   }).satisfaction;
 }

@@ -9,7 +9,9 @@ import {
 } from "./stdio-mcp-conduit-contract.mjs";
 import { createStdioMcpConduit } from "./stdio-mcp-conduit.mjs";
 import {
+  PackageDocsCarrierCompositionError,
   isTrustedWikiMcpHostServerBinding,
+  probeSpawnedWikiMcpProducerGeneration,
   resolveWikiMcpHostServerBinding
 } from "./wiki-mcp-host-server.mjs";
 import {
@@ -38,7 +40,10 @@ export const STDIO_MCP_CONDUIT_COMPOSITION_GATE_OUTCOMES = Object.freeze([
   "missing_fact",
   "malformed_fact",
   "stale_fact",
-  "backend_generation_mismatch"
+  "backend_generation_mismatch",
+
+  "spawned_producer_generation_mismatch",
+  "spawned_producer_generation_unavailable"
 ]);
 
 const FACT_KEYS = Object.freeze([
@@ -92,6 +97,7 @@ function compositionState(composition) {
       composition.nodeExecutable !== process.execPath ||
       composition.spawnPrimitive !== spawn ||
       composition.conduitConstructor !== createStdioMcpConduit ||
+      typeof composition.probeProducerGeneration !== "function" ||
       !isAuthenticatedStdioMcpConduitProducerDescriptor(composition.producerDescriptor) ||
       !AUTHENTICATED_CONSUMER_DESCRIPTORS.has(composition.consumerDescriptor) ||
       !wellFormedDescriptor(composition.producerDescriptor) ||
@@ -138,23 +144,40 @@ function evaluateFact(authority, fact) {
   return fact.compatibility_state;
 }
 
-export function buildManagedStdioMcpCompositionRefusal(gateOutcome) {
+const SPAWNED_PRODUCER_GATE_OUTCOMES = new Set([
+  "spawned_producer_generation_mismatch",
+  "spawned_producer_generation_unavailable"
+]);
+
+function projectProbedProducer(probed) {
+  if (probed === null || typeof probed !== "object") return null;
+  return Object.freeze({
+    generation: typeof probed.generation === "string" ? probed.generation : null,
+    reason: typeof probed.reason === "string" ? probed.reason : null
+  });
+}
+
+export function buildManagedStdioMcpCompositionRefusal(gateOutcome, probedProducer = null) {
+  const outcome = STDIO_MCP_CONDUIT_COMPOSITION_GATE_OUTCOMES.includes(gateOutcome)
+    ? gateOutcome
+    : "malformed_fact";
   return Object.freeze({
     code: STDIO_MCP_CONDUIT_COMPOSITION_OUTER_BLOCKER,
     cause: STDIO_MCP_CONDUIT_COMPOSITION_REFUSAL_CAUSE,
     recovery: STDIO_MCP_CONDUIT_COMPOSITION_RECOVERY,
-    gate_outcome: STDIO_MCP_CONDUIT_COMPOSITION_GATE_OUTCOMES.includes(gateOutcome)
-      ? gateOutcome
-      : "malformed_fact"
+    gate_outcome: outcome,
+    spawned_producer: SPAWNED_PRODUCER_GATE_OUTCOMES.has(outcome)
+      ? projectProbedProducer(probedProducer)
+      : null
   });
 }
 
 export class ManagedStdioMcpCompositionError extends Error {
-  constructor(gateOutcome) {
+  constructor(gateOutcome, probedProducer = null) {
     super("managed stdio MCP composition is not compatible");
     this.name = "ManagedStdioMcpCompositionError";
     this.code = STDIO_MCP_CONDUIT_COMPOSITION_REFUSAL_CAUSE;
-    this.detail = buildManagedStdioMcpCompositionRefusal(gateOutcome);
+    this.detail = buildManagedStdioMcpCompositionRefusal(gateOutcome, probedProducer);
   }
 }
 
@@ -179,7 +202,12 @@ function mintAuthority(overrides = {}) {
       : STDIO_MCP_CONDUIT_CONSUMER_DESCRIPTOR,
     conduitConstructor: Object.prototype.hasOwnProperty.call(overrides, "conduitConstructor")
       ? overrides.conduitConstructor
-      : createStdioMcpConduit
+      : createStdioMcpConduit,
+
+    probeProducerGeneration:
+      Object.prototype.hasOwnProperty.call(overrides, "probeProducerGeneration")
+        ? overrides.probeProducerGeneration
+        : () => probeSpawnedWikiMcpProducerGeneration({ binding: producerBinding })
   });
   AUTHENTICATED_COMPOSITIONS.add(composition);
   const backendGenerationId = mintBackendGenerationId();
@@ -206,7 +234,22 @@ function mintAuthority(overrides = {}) {
     if (compositionState(composition) !== "compatible") {
       throw new ManagedStdioMcpCompositionError("unknown");
     }
-    return composition.conduitConstructor(input);
+
+    const probed = await composition.probeProducerGeneration();
+    if (probed?.ok !== true) {
+      if (probed?.package_docs_diagnostic?.code ===
+          "package_docs_carrier_composition_incompatible") {
+        throw new PackageDocsCarrierCompositionError(
+          probed.package_docs_diagnostic.reason);
+      }
+      throw new ManagedStdioMcpCompositionError(
+        "spawned_producer_generation_unavailable", probed);
+    }
+    if (probed.generation !== composition.consumerDescriptor.protocol_generation) {
+      throw new ManagedStdioMcpCompositionError(
+        "spawned_producer_generation_mismatch", probed);
+    }
+    return composition.conduitConstructor(input, probed.package_docs_generation ?? null);
   };
   authority = Object.freeze({ getFact, evaluate, createConduit });
   factRecord.authority = authority;
@@ -218,6 +261,10 @@ function mintAuthority(overrides = {}) {
 
 export function createManagedStdioMcpCompositionAuthority() {
   return mintAuthority();
+}
+
+export async function createManagedStdioMcpConduit(input = {}) {
+  return createManagedStdioMcpCompositionAuthority().createConduit(input);
 }
 
 export function assertManagedStdioMcpCompositionAuthority(authority) {

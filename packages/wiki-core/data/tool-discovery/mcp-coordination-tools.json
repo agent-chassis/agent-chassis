@@ -48,7 +48,7 @@
         "packages/wiki-core/src/operations/initiative-status.mjs",
         "packages/wiki-mcp/src/server.mjs"
       ],
-      "notes": "Compact read-only initiative or selected-unit status and next-action lens. Requires initiative or unit; returns bounded action/status guidance and does not dispatch, mutate, lint, or read full records.",
+      "notes": "Compact read-only initiative or selected-unit status and next-action lens. An initiative selector must resolve to an existing canonical IN-#### JSON record: unknown or invalid identities refuse, while a valid initiative with no matching work records returns the zero-member status. The route returns bounded action/status guidance and does not dispatch, mutate, lint, or read full records.",
       "use_when": [
         "initiative_status",
         "initiative_next_action"
@@ -69,8 +69,8 @@
           "initiative_next_action"
         ],
         "arguments": {
-          "initiative": "$known_IN",
-          "unit": "$known_WK_or_slice_unit"
+          "initiative": "$initiative_if_known",
+          "unit": "$unit_if_known"
         },
         "omit_null_arguments": true
       },
@@ -125,10 +125,10 @@
       ],
       "docs_refs": [
         "docs/tool-discovery.md",
-        "the project documentation",
-        "wiki/initiatives/IN-0021.md",
-        "wiki/work-records/WK-1442.json",
-        "wiki/work-records/WK-1443.json"
+        "docs/agent-launch-quickstart.md",
+        "docs/agent-launch-operator-entrypoints.md",
+        "docs/mcp-dispatch-slice-integration.md",
+        "docs/tool-discovery-surfaces.md"
       ],
       "source_files": [
         "packages/wiki-core/data/tool-discovery/manifest.json",

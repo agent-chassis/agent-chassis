@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-chassis.invalid/acceptance-coverage-gap-warning.v1.schema.json",
+  "title": "acceptance-coverage-gap-warning.v1",
+  "type": "object",
+  "required": ["code", "severity", "message", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "code": { "const": "acceptance_coverage_incomplete" },
+    "severity": { "const": "advisory" },
+    "message": { "const": "Acceptance coverage has unresolved gaps." },
+    "payload": { "const": "acceptance-coverage-gap-warning.v1" }
+  }
+}

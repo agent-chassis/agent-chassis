@@ -11,9 +11,12 @@ import {
   LAUNCHER_RUNTIME_HOME_FACT_RESOLUTION_REASON
 } from "./launcher-runtime-home-policy.mjs";
 import {
+  authenticateStdioMcpCompletionCredential,
   buildClaudeStdioMcpRegistrationArgs,
   createStdioMcpConduit
 } from "./stdio-mcp-conduit.mjs";
+
+export const CLAUDE_WORKSPACE_AGENT_MCP_CONDUIT_CONSTRUCTOR = createStdioMcpConduit;
 import { loadWorkRecordById } from "@agent-chassis/wiki-core";
 
 import { resolveLauncherSchemaConstrainedTierIsPaid } from "@agent-chassis/agent-launch-core/src/lib/config.mjs";
@@ -23,7 +26,9 @@ import {
 } from "./workspace-agent-write-scope-verification.mjs";
 import { spawnPlainChildProcess } from "./workspace-agent-claude-run-shaping.mjs";
 import {
-  mintTrustedStdioMcpConduitAuthority
+  mintTrustedStdioMcpConduitAuthority,
+  resolveLauncherAgentSessionContract,
+  resolveLauncherAgentSessionContractFacts
 } from "./stdio-mcp-conduit-authority.mjs";
 import {
   CLAUDE_APPROVED_CREDENTIALS_READ_ONLY_FILES,
@@ -304,6 +309,17 @@ export async function resolveClaudeWritePathMounts({
   return { refusal: null, runtimeRoots: [], writeScopeBaseline: null };
 }
 
+function authenticateClaudeCompletionCredential({
+  completionCredential,
+  authority
+}) {
+  const contract = completionCredential ?? resolveLauncherAgentSessionContract(authority);
+  return authenticateStdioMcpCompletionCredential({
+    credential: contract,
+    expectedFacts: resolveLauncherAgentSessionContractFacts(authority)
+  });
+}
+
 export async function openClaudeStdioMcpConduit({
   createMcpConduit,
   role,
@@ -312,7 +328,10 @@ export async function openClaudeStdioMcpConduit({
   commitTuple,
   workerScopeAuthority,
   canonicalWriteScope,
-  provisioning
+  provisioning,
+  completionCredential = null,
+  completionTransport = null,
+  canonicalRepo = null
 }) {
   const authority = mintTrustedStdioMcpConduitAuthority({
     family: "claude",
@@ -324,14 +343,22 @@ export async function openClaudeStdioMcpConduit({
     provisioning,
     commitTuple
   });
-  return await createMcpConduit({
+
+  const authenticatedCompletionCredential = authenticateClaudeCompletionCredential({
+    completionCredential,
+    authority
+  });
+  const conduitInput = {
     family: "claude",
     role,
     assignedUnit: subject,
     workspaceDir: conduitWorkspaceDir,
     commitTuple,
     authority
-  });
+  };
+
+  conduitInput.sessionContract = authenticatedCompletionCredential;
+  return await createMcpConduit(conduitInput);
 }
 
 export function buildClaudeLaunchCommandLine({
@@ -343,7 +370,7 @@ export function buildClaudeLaunchCommandLine({
   requestedModel,
   workspaceDir,
   probe,
-  findingsOnlyAcceptance,
+  canonicalRepo,
   claudeSettings,
   effectiveNativeRepoWriteMechanism,
   schemaConstrainedTerminalResult,
@@ -359,8 +386,7 @@ export function buildClaudeLaunchCommandLine({
       model: requestedModel,
       workspaceDir,
       probe: probe.detail ?? null,
-      acceptanceCriteria: findingsOnlyAcceptance?.acceptanceCriteria ?? [],
-      acceptanceValidation: findingsOnlyAcceptance?.acceptanceValidation ?? [],
+      canonicalRepo,
       claudeSettingsPath: claudeSettings?.settingsPath ?? null,
       nativeRepoWriteMechanism: effectiveNativeRepoWriteMechanism,
       schemaConstrainedTerminalResult,

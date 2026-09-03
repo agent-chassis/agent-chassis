@@ -30,19 +30,11 @@ function unsupportedKindDiagnostic(kind, targetPath = "record_kind") {
   };
 }
 
-async function resolveKindDirectory(kind) {
-  const manifest = await loadManifest();
-  const definition = manifest?.types?.[kind];
-  if (!definition || typeof definition.directory !== "string" || definition.directory === "") {
-    return null;
-  }
-  return definition.directory;
-}
-
-async function buildKindPrefixIndex() {
+async function loadKindAuthority() {
   const manifest = await loadManifest();
   const types = manifest?.types ?? {};
-  const index = new Map();
+  const byKind = new Map();
+  const byPrefix = new Map();
   for (const [kind, definition] of Object.entries(types)) {
     if (!isSupportedKind(kind)) {
       continue;
@@ -50,90 +42,296 @@ async function buildKindPrefixIndex() {
     if (typeof definition.prefix !== "string" || typeof definition.directory !== "string") {
       continue;
     }
-    index.set(definition.prefix, { kind, directory: definition.directory });
+    const entry = Object.freeze({ kind, prefix: definition.prefix, directory: definition.directory });
+    byKind.set(kind, entry);
+    byPrefix.set(definition.prefix, entry);
   }
-  return index;
+  return { byKind, byPrefix };
 }
 
 function idPrefix(id) {
   return String(id).split("-")[0];
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function canonicalKindRecordId(prefix, id) {
+  return typeof id === "string" &&
+    new RegExp(`^${escapeRegExp(prefix)}-[0-9]{4}$`, "u").test(id);
+}
+
+function canonicalPathFor(authority, id) {
+  return `${authority.directory}/${id}.json`;
+}
+
+function projectionPathFor(authority, id) {
+  return `${authority.directory}/${id}.md`;
+}
+
+function invalidIdentityDiagnostic(id, authority = null) {
+  return {
+    code: "invalid_record_identity",
+    severity: "error",
+    message: authority
+      ? `Record identity must match the canonical ${authority.prefix}-#### grammar`
+      : `Unsupported record identity: ${id}`,
+    path: "id"
+  };
+}
+
+function unresolvedIdentityResult(id, diagnostic) {
+  return {
+    recognized: false,
+    record_id: typeof id === "string" ? id : null,
+    record_kind: null,
+    canonical_record_path: null,
+    projection_path: null,
+    diagnostics: [diagnostic]
+  };
+}
+
+export async function resolveKindRecordIdentity(id) {
+  const authority = await loadKindAuthority();
+  const prefix = idPrefix(id);
+  const resolved = authority.byPrefix.get(prefix);
+  if (!resolved) {
+    const caseMatched = [...authority.byPrefix.values()].find((entry) =>
+      entry.prefix.toLowerCase() === prefix.toLowerCase());
+    return unresolvedIdentityResult(
+      id,
+      caseMatched ? invalidIdentityDiagnostic(id, caseMatched) : unsupportedKindDiagnostic(prefix, "id")
+    );
+  }
+  if (!canonicalKindRecordId(resolved.prefix, id)) {
+    return unresolvedIdentityResult(id, invalidIdentityDiagnostic(id, resolved));
+  }
+  return {
+    recognized: true,
+    record_id: id,
+    record_kind: resolved.kind,
+    canonical_record_path: canonicalPathFor(resolved, id),
+    projection_path: projectionPathFor(resolved, id),
+    diagnostics: []
+  };
+}
+
 export async function getKindRecordPath(kind, id) {
-  if (!isSupportedKind(kind)) {
+  const authority = await loadKindAuthority();
+  const resolved = authority.byKind.get(kind);
+  if (!resolved || !canonicalKindRecordId(resolved.prefix, id)) {
     return null;
   }
-  const directory = await resolveKindDirectory(kind);
-  if (!directory) {
-    return null;
-  }
-  return `${directory}/${id}.json`;
+  return canonicalPathFor(resolved, id);
 }
 
 function markdownPathFor(relativeJsonPath) {
   return relativeJsonPath.replace(/\.json$/, ".md");
 }
 
-export async function loadKindRecordById({ repoRoot = ".", id } = {}) {
-  if (!id) {
-    throw new Error("loadKindRecordById requires id");
-  }
-  const targetRoot = path.resolve(String(repoRoot));
-  const result = {
-    valid: false,
-    source_path: null,
-    source_digest: null,
+function unregisteredSourceResult(sourcePath) {
+  return {
+    recognized: false,
+    source_classification: "unregistered",
+    source_path: typeof sourcePath === "string" ? sourcePath : null,
     record_id: null,
-    record: null,
+    record_kind: null,
+    canonical_record_path: null,
+    diagnostics: [{
+      code: "unregistered_kind_record_source",
+      severity: "error",
+      message: "Path is not an exact registered canonical kind record or generated projection",
+      path: typeof sourcePath === "string" ? sourcePath : null
+    }]
+  };
+}
+
+export async function classifyKindRecordSource(sourcePath) {
+  if (typeof sourcePath !== "string" || sourcePath.length === 0 || path.isAbsolute(sourcePath)) {
+    return unregisteredSourceResult(sourcePath);
+  }
+  const normalized = path.posix.normalize(sourcePath);
+  if (normalized !== sourcePath || normalized.startsWith("../")) {
+    return unregisteredSourceResult(sourcePath);
+  }
+  const extension = path.posix.extname(sourcePath);
+  if (extension !== ".json" && extension !== ".md") {
+    return unregisteredSourceResult(sourcePath);
+  }
+  const id = path.posix.basename(sourcePath, extension);
+  const identity = await resolveKindRecordIdentity(id);
+  if (!identity.recognized) {
+    return unregisteredSourceResult(sourcePath);
+  }
+  const expectedPath = extension === ".json"
+    ? identity.canonical_record_path
+    : identity.projection_path;
+  if (sourcePath !== expectedPath) {
+    return unregisteredSourceResult(sourcePath);
+  }
+  return {
+    recognized: true,
+    source_classification: extension === ".json" ? "canonical" : "projection",
+    source_path: sourcePath,
+    record_id: identity.record_id,
+    record_kind: identity.record_kind,
+    canonical_record_path: identity.canonical_record_path,
     diagnostics: []
   };
+}
 
-  const prefixIndex = await buildKindPrefixIndex();
-  const resolved = prefixIndex.get(idPrefix(id));
-  if (!resolved) {
-    result.diagnostics.push(unsupportedKindDiagnostic(idPrefix(id)));
+function canonicalRecordResult(identity) {
+  return {
+    valid: false,
+    classification: "invalid_identity",
+    source_classification: identity.source_classification ??
+      (identity.recognized ? "canonical" : "unregistered"),
+    record_kind: identity.record_kind,
+    source_path: identity.canonical_record_path,
+    canonical_record_path: identity.canonical_record_path,
+    source_digest: null,
+    id: identity.record_id,
+    record_id: identity.record_id,
+    record: null,
+    diagnostics: [...identity.diagnostics]
+  };
+}
+
+function unreadableRecordDiagnostic(relativePath, error) {
+  return {
+    code: "unreadable_json_record",
+    severity: "error",
+    message: `Could not read canonical kind record JSON: ${relativePath}`,
+    path: relativePath,
+    ...(typeof error?.code === "string" ? { cause_code: error.code } : {})
+  };
+}
+
+async function loadCanonicalKindRecord({ repoRoot, identity, statRecord, readRecord }) {
+  const targetRoot = path.resolve(String(repoRoot));
+  const result = canonicalRecordResult(identity);
+  if (!identity.recognized) {
+    return result;
+  }
+  const relativePath = identity.canonical_record_path;
+  const absolutePath = path.resolve(targetRoot, relativePath);
+  const relativeToRoot = path.relative(targetRoot, absolutePath);
+  if (relativeToRoot.startsWith(`..${path.sep}`) || path.isAbsolute(relativeToRoot) ||
+      relativeToRoot.split(path.sep).join("/") !== relativePath) {
+    result.diagnostics = [invalidIdentityDiagnostic(identity.record_id)];
     return result;
   }
 
-  const relativePath = `${resolved.directory}/${id}.json`;
-  const absolutePath = path.resolve(targetRoot, relativePath);
-  result.source_path = relativePath;
+  try {
+    await statRecord(absolutePath);
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      result.diagnostics = [{
+        code: "missing_json_record",
+        severity: "error",
+        message: `Missing canonical ${identity.record_kind} record JSON: ${relativePath}`,
+        path: relativePath
+      }];
+      result.classification = "missing";
+      return result;
+    }
+    result.diagnostics = [unreadableRecordDiagnostic(relativePath, error)];
+    result.classification = "unreadable";
+    return result;
+  }
 
   let text;
   try {
-    text = await readFile(absolutePath, "utf8");
-  } catch {
-    result.diagnostics.push({
-      code: "missing_json_record",
-      severity: "error",
-      message: `Missing canonical ${resolved.kind} record JSON: ${relativePath}`,
-      path: relativePath
-    });
+    text = await readRecord(absolutePath, "utf8");
+  } catch (error) {
+    result.diagnostics = [unreadableRecordDiagnostic(relativePath, error)];
+    result.classification = "unreadable";
     return result;
   }
 
   let record;
   try {
     record = JSON.parse(text);
-  } catch (error) {
-    result.diagnostics.push({
+  } catch {
+    result.diagnostics = [{
       code: "invalid_json",
       severity: "error",
-      message: `Could not parse ${relativePath}: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
+      message: `Could not parse canonical kind record JSON: ${relativePath}`,
       path: relativePath
-    });
+    }];
+    result.classification = "invalid_record";
     return result;
   }
 
-  const diagnostics = validateRecordByKind(record);
   result.record = record;
-  result.record_id = typeof record?.id === "string" ? record.id : null;
+  const loadedRecordId = typeof record?.id === "string" ? record.id : null;
   result.source_digest = computeWorkRecordSourceDigest(record);
-  result.diagnostics = diagnostics;
-  result.valid = diagnostics.every((entry) => entry.severity !== "error");
+  if (loadedRecordId !== identity.record_id || record?.record_kind !== identity.record_kind) {
+    result.diagnostics = [{
+      code: "record_identity_mismatch",
+      severity: "error",
+      message: "Loaded canonical record identity or kind does not match the requested identity",
+      path: loadedRecordId !== identity.record_id ? "id" : "record_kind"
+    }];
+    result.classification = "invalid_record";
+    return result;
+  }
+  result.diagnostics = validateRecordByKind(record);
+  result.valid = result.diagnostics.every((entry) => entry.severity !== "error");
+  result.classification = result.valid ? "loaded" : "invalid_record";
   return result;
+}
+
+export async function loadKindRecordById({
+  repoRoot = ".",
+  id,
+  statRecord = stat,
+  readRecord = readFile
+} = {}) {
+  if (!id) {
+    throw new Error("loadKindRecordById requires id");
+  }
+  const identity = await resolveKindRecordIdentity(id);
+  return loadCanonicalKindRecord({ repoRoot, identity, statRecord, readRecord });
+}
+
+export async function loadKindRecordByPath({
+  repoRoot = ".",
+  sourcePath,
+  statRecord = stat,
+  readRecord = readFile
+} = {}) {
+  if (!sourcePath) {
+    throw new Error("loadKindRecordByPath requires sourcePath");
+  }
+  const source = await classifyKindRecordSource(sourcePath);
+  if (!source.recognized || source.source_classification !== "canonical") {
+    const identity = {
+      recognized: false,
+      source_classification: source.source_classification,
+      record_id: source.record_id,
+      record_kind: source.record_kind,
+      canonical_record_path: source.canonical_record_path,
+      diagnostics: source.source_classification === "projection"
+        ? [{
+            code: "noncanonical_kind_record_projection",
+            severity: "error",
+            message: "Generated Markdown projection is not a canonical kind record source",
+            path: sourcePath
+          }]
+        : source.diagnostics
+    };
+    return canonicalRecordResult(identity);
+  }
+  const identity = {
+    recognized: true,
+    record_id: source.record_id,
+    record_kind: source.record_kind,
+    canonical_record_path: source.canonical_record_path,
+    diagnostics: []
+  };
+  return loadCanonicalKindRecord({ repoRoot, identity, statRecord, readRecord });
 }
 
 function getKindRecordWriteLockPath(targetRoot) {
@@ -351,12 +549,19 @@ export async function writeValidatedKindRecord({
     );
   }
 
-  const directory = await resolveKindDirectory(kind);
-  if (!directory) {
-    return refusal([unsupportedKindDiagnostic(kind)], sourceDigest);
+  const identity = await resolveKindRecordIdentity(recordId);
+  if (!identity.recognized || identity.record_kind !== kind) {
+    return refusal([
+      identity.diagnostics[0] ?? {
+        code: "record_identity_mismatch",
+        severity: "error",
+        message: "Record identity does not match record_kind",
+        path: "id"
+      }
+    ], sourceDigest);
   }
 
-  const relativeJsonPath = `${directory}/${recordId}.json`;
+  const relativeJsonPath = identity.canonical_record_path;
   const relativeMarkdownPath = markdownPathFor(relativeJsonPath);
   const absoluteJsonPath = path.resolve(targetRoot, relativeJsonPath);
   const absoluteMarkdownPath = path.resolve(targetRoot, relativeMarkdownPath);

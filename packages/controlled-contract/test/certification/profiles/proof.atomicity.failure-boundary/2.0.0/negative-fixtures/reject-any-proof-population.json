@@ -1,0 +1,1065 @@
+{
+  "schema_version": "controlled-contract-proof-pack-negative-fixture.experimental.v0.1",
+  "fixture_id": "reject-any-proof-population",
+  "covers": [
+    {
+      "surface_id": "collection-proof-population-candidate-quantifier",
+      "weakening_class": "population_membership_weakening"
+    }
+  ],
+  "contract": {
+    "schema_version": "controlled-acceptance-contract.v1",
+    "vocabulary_version": "controlled-contract-vocabulary.v1",
+    "profile_id": "acceptance-contract.standard.v1",
+    "references": [
+      {
+        "reference_id": "ref-compound-operation",
+        "type_term": "cc:operation",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ledger:compound-operation"
+        }
+      },
+      {
+        "reference_id": "ref-operation-attempt",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ledger:operation-attempt"
+        }
+      },
+      {
+        "reference_id": "ref-constituent-effect-population",
+        "type_term": "cc:entity",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ledger:constituent-effect-population"
+        }
+      },
+      {
+        "reference_id": "ref-earlier-constituent-effect",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ledger:earlier-constituent-effect"
+        }
+      },
+      {
+        "reference_id": "ref-later-constituent-effect",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ledger:later-constituent-effect"
+        }
+      },
+      {
+        "reference_id": "ref-failure-boundary",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ledger:failure-boundary"
+        }
+      },
+      {
+        "reference_id": "ref-injected-failure",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ledger:injected-failure"
+        }
+      },
+      {
+        "reference_id": "ref-settlement-event",
+        "type_term": "cc:event",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ledger:settlement-event"
+        }
+      },
+      {
+        "reference_id": "ref-earlier-effect-settled-state",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ledger:effect-1-settled-absent"
+        }
+      },
+      {
+        "reference_id": "ref-later-effect-settled-state",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ledger:effect-2-settled-absent"
+        }
+      },
+      {
+        "reference_id": "ref-fully-uncommitted-state",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ledger:population-settled-fully-uncommitted"
+        }
+      },
+      {
+        "reference_id": "ref-earlier-effect-observation",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ledger:earlier-effect-observation"
+        }
+      },
+      {
+        "reference_id": "ref-later-effect-observation",
+        "type_term": "cc:artifact",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ledger:later-effect-observation"
+        }
+      },
+      {
+        "reference_id": "ref-allowed-settlement-states",
+        "type_term": "cc:entity",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ledger:allowed-settlement-states"
+        }
+      },
+      {
+        "reference_id": "ref-fully-committed-state",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ledger:fully-committed-state"
+        }
+      },
+      {
+        "reference_id": "ref-forbidden-partial-state",
+        "type_term": "cc:state",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ledger:forbidden-partial-state"
+        }
+      },
+      {
+        "reference_id": "ref-verification",
+        "type_term": "cc:process",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ledger:verification"
+        }
+      },
+      {
+        "reference_id": "ref-partial-commit-condition",
+        "type_term": "cc:configuration",
+        "identity": {
+          "kind": "profile_term",
+          "term": "ledger:partial-commit-condition"
+        }
+      }
+    ],
+    "propositions": [
+      {
+        "proposition_id": "prop-attempt-performs-compound-operation",
+        "subject_reference_id": "ref-operation-attempt",
+        "operator": "reference:performs",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-compound-operation"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-compound-operation-writes-constituent-effects",
+        "subject_reference_id": "ref-compound-operation",
+        "operator": "reference:writes",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-earlier-constituent-effect"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-later-constituent-effect"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-constituent-effect-population-members",
+        "subject_reference_id": "ref-constituent-effect-population",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-earlier-constituent-effect"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-later-constituent-effect"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-earlier-effect-population-membership",
+        "subject_reference_id": "ref-earlier-constituent-effect",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-constituent-effect-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-later-effect-population-membership",
+        "subject_reference_id": "ref-later-constituent-effect",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-constituent-effect-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-constituent-effect-population-cardinality",
+        "subject_reference_id": "ref-constituent-effect-population",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-constituent-effect-population-plurality",
+        "subject_reference_id": "ref-constituent-effect-population",
+        "operator": "range:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "range",
+            "minimum": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-constituent-effect-order",
+        "subject_reference_id": "ref-earlier-constituent-effect",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "during",
+          "operand_reference_ids": [
+            "ref-operation-attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-later-constituent-effect"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-failure-boundary-follows-earlier-effect",
+        "subject_reference_id": "ref-failure-boundary",
+        "operator": "reference:follows",
+        "applicability_context": {
+          "mode": "during",
+          "operand_reference_ids": [
+            "ref-operation-attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-earlier-constituent-effect"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-failure-boundary-precedes-later-effect",
+        "subject_reference_id": "ref-failure-boundary",
+        "operator": "reference:precedes",
+        "applicability_context": {
+          "mode": "during",
+          "operand_reference_ids": [
+            "ref-operation-attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-later-constituent-effect"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-failure-injected-at-boundary",
+        "subject_reference_id": "ref-injected-failure",
+        "operator": "reference:targets",
+        "applicability_context": {
+          "mode": "during",
+          "operand_reference_ids": [
+            "ref-operation-attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-failure-boundary"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-settlement-follows-injected-failure",
+        "subject_reference_id": "ref-settlement-event",
+        "operator": "reference:follows",
+        "applicability_context": {
+          "mode": "during",
+          "operand_reference_ids": [
+            "ref-operation-attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-injected-failure"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-settlement-follows-later-effect",
+        "subject_reference_id": "ref-settlement-event",
+        "operator": "reference:follows",
+        "applicability_context": {
+          "mode": "during",
+          "operand_reference_ids": [
+            "ref-operation-attempt"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-later-constituent-effect"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-earlier-effect-settled-state",
+        "subject_reference_id": "ref-earlier-constituent-effect",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-settlement-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-earlier-effect-settled-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-later-effect-settled-state",
+        "subject_reference_id": "ref-later-constituent-effect",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-settlement-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-later-effect-settled-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-population-settled-state",
+        "subject_reference_id": "ref-constituent-effect-population",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-settlement-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-fully-uncommitted-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-settled-result-composition",
+        "subject_reference_id": "ref-fully-uncommitted-state",
+        "operator": "reference:contains",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-settlement-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-earlier-effect-settled-state"
+          },
+          {
+            "kind": "reference",
+            "reference_id": "ref-later-effect-settled-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-earlier-effect-observation-record",
+        "subject_reference_id": "ref-earlier-effect-observation",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-settlement-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-earlier-effect-settled-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-later-effect-observation-record",
+        "subject_reference_id": "ref-later-effect-observation",
+        "operator": "reference:records",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-settlement-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-later-effect-settled-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-earlier-effect-observation-read",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-settlement-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-earlier-effect-observation"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-later-effect-observation-read",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:reads",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-settlement-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-later-effect-observation"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-fully-committed-state-allowed",
+        "subject_reference_id": "ref-fully-committed-state",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-allowed-settlement-states"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-fully-uncommitted-state-allowed",
+        "subject_reference_id": "ref-fully-uncommitted-state",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-allowed-settlement-states"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-allowed-settlement-states-closed",
+        "subject_reference_id": "ref-allowed-settlement-states",
+        "operator": "number:has_cardinality",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "number",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-partial-state-not-allowed",
+        "subject_reference_id": "ref-forbidden-partial-state",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-allowed-settlement-states"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-partial-commit-condition-state",
+        "subject_reference_id": "ref-constituent-effect-population",
+        "operator": "reference:has_state",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-partial-commit-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-forbidden-partial-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-settled-outcome-is-fully-uncommitted",
+        "subject_reference_id": "ref-fully-uncommitted-state",
+        "operator": "reference:equals",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-settlement-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-fully-uncommitted-state"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-settled-outcome-within-allowed-states",
+        "subject_reference_id": "ref-fully-uncommitted-state",
+        "operator": "reference:member_of",
+        "applicability_context": {
+          "mode": "after",
+          "operand_reference_ids": [
+            "ref-settlement-event"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-allowed-settlement-states"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-atomic-settlement-verification",
+        "subject_reference_id": "ref-verification",
+        "operator": "reference:covers",
+        "applicability_context": {
+          "mode": "unconditional",
+          "operand_reference_ids": []
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-constituent-effect-population"
+          }
+        ]
+      },
+      {
+        "proposition_id": "prop-falsifier-atomic-settlement-verification",
+        "subject_reference_id": "ref-fully-uncommitted-state",
+        "operator": "reference:not_member_of",
+        "applicability_context": {
+          "mode": "when",
+          "operand_reference_ids": [
+            "ref-partial-commit-condition"
+          ]
+        },
+        "operands": [
+          {
+            "kind": "reference",
+            "reference_id": "ref-allowed-settlement-states"
+          }
+        ]
+      }
+    ],
+    "claims": [
+      {
+        "claim_id": "claim-attempt-performs-compound-operation",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-attempt-performs-compound-operation"
+      },
+      {
+        "claim_id": "claim-compound-operation-writes-constituent-effects",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-compound-operation-writes-constituent-effects"
+      },
+      {
+        "claim_id": "claim-constituent-effect-population-members",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-constituent-effect-population-members"
+      },
+      {
+        "claim_id": "claim-earlier-effect-population-membership",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-earlier-effect-population-membership"
+      },
+      {
+        "claim_id": "claim-later-effect-population-membership",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-later-effect-population-membership"
+      },
+      {
+        "claim_id": "claim-constituent-effect-population-cardinality",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-constituent-effect-population-cardinality"
+      },
+      {
+        "claim_id": "claim-constituent-effect-population-plurality",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-constituent-effect-population-plurality"
+      },
+      {
+        "claim_id": "claim-constituent-effect-order",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-constituent-effect-order"
+      },
+      {
+        "claim_id": "claim-failure-boundary-follows-earlier-effect",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-failure-boundary-follows-earlier-effect"
+      },
+      {
+        "claim_id": "claim-failure-boundary-precedes-later-effect",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-failure-boundary-precedes-later-effect"
+      },
+      {
+        "claim_id": "claim-failure-injected-at-boundary",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-failure-injected-at-boundary"
+      },
+      {
+        "claim_id": "claim-settlement-follows-injected-failure",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-settlement-follows-injected-failure"
+      },
+      {
+        "claim_id": "claim-settlement-follows-later-effect",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-settlement-follows-later-effect"
+      },
+      {
+        "claim_id": "claim-earlier-effect-settled-state",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-earlier-effect-settled-state"
+      },
+      {
+        "claim_id": "claim-later-effect-settled-state",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-later-effect-settled-state"
+      },
+      {
+        "claim_id": "claim-population-settled-state",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-population-settled-state"
+      },
+      {
+        "claim_id": "claim-settled-result-composition",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-settled-result-composition"
+      },
+      {
+        "claim_id": "claim-earlier-effect-observation-record",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-earlier-effect-observation-record"
+      },
+      {
+        "claim_id": "claim-later-effect-observation-record",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-later-effect-observation-record"
+      },
+      {
+        "claim_id": "claim-earlier-effect-observation-read",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-earlier-effect-observation-read"
+      },
+      {
+        "claim_id": "claim-later-effect-observation-read",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-later-effect-observation-read"
+      },
+      {
+        "claim_id": "claim-fully-committed-state-allowed",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-fully-committed-state-allowed"
+      },
+      {
+        "claim_id": "claim-fully-uncommitted-state-allowed",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-fully-uncommitted-state-allowed"
+      },
+      {
+        "claim_id": "claim-allowed-settlement-states-closed",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-allowed-settlement-states-closed"
+      },
+      {
+        "claim_id": "claim-partial-state-not-allowed",
+        "kind": "evidence",
+        "modality": "MUST_NOT",
+        "proposition_id": "prop-partial-state-not-allowed"
+      },
+      {
+        "claim_id": "claim-partial-commit-condition-state",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-partial-commit-condition-state"
+      },
+      {
+        "claim_id": "claim-settled-outcome-is-fully-uncommitted",
+        "kind": "evidence",
+        "modality": "MUST",
+        "proposition_id": "prop-settled-outcome-is-fully-uncommitted"
+      },
+      {
+        "claim_id": "claim-settled-outcome-within-allowed-states",
+        "kind": "behavior",
+        "modality": "MUST",
+        "proposition_id": "prop-settled-outcome-within-allowed-states"
+      },
+      {
+        "claim_id": "claim-atomic-settlement-verification",
+        "kind": "verification",
+        "modality": "MUST",
+        "proposition_id": "prop-atomic-settlement-verification",
+        "verification_method": "test_execution",
+        "falsifying_proposition_id": "prop-falsifier-atomic-settlement-verification"
+      }
+    ],
+    "relations": [
+      {
+        "relation_id": "rel-verification-target-settled-outcome",
+        "role": "verifies",
+        "source_claim_id": "claim-atomic-settlement-verification",
+        "target_claim_id": "claim-settled-outcome-within-allowed-states"
+      }
+    ],
+    "collections": [
+      {
+        "collection_id": "set-proof-sequence-earlier-effect",
+        "collection_kind": "ordered_sequence",
+        "purpose": "profile_proof_sequence_earlier_effect",
+        "member_claim_ids": [
+          "claim-attempt-performs-compound-operation",
+          "claim-constituent-effect-order",
+          "claim-failure-boundary-follows-earlier-effect",
+          "claim-failure-injected-at-boundary",
+          "claim-settlement-follows-injected-failure",
+          "claim-settlement-follows-later-effect",
+          "claim-earlier-effect-settled-state",
+          "claim-earlier-effect-observation-record",
+          "claim-earlier-effect-observation-read"
+        ]
+      },
+      {
+        "collection_id": "set-proof-sequence-later-effect",
+        "collection_kind": "ordered_sequence",
+        "purpose": "profile_proof_sequence_later_effect",
+        "member_claim_ids": [
+          "claim-attempt-performs-compound-operation",
+          "claim-constituent-effect-order",
+          "claim-failure-boundary-precedes-later-effect",
+          "claim-failure-injected-at-boundary",
+          "claim-settlement-follows-injected-failure",
+          "claim-settlement-follows-later-effect",
+          "claim-later-effect-settled-state",
+          "claim-later-effect-observation-record",
+          "claim-later-effect-observation-read"
+        ]
+      },
+      {
+        "collection_id": "set-proof-population",
+        "collection_kind": "closed_set",
+        "purpose": "profile_proof_population",
+        "member_claim_ids": [
+          "claim-attempt-performs-compound-operation",
+          "claim-constituent-effect-order",
+          "claim-failure-boundary-follows-earlier-effect",
+          "claim-failure-boundary-precedes-later-effect",
+          "claim-failure-injected-at-boundary",
+          "claim-settlement-follows-injected-failure",
+          "claim-settlement-follows-later-effect",
+          "claim-earlier-effect-settled-state",
+          "claim-later-effect-settled-state",
+          "claim-population-settled-state",
+          "claim-settled-result-composition",
+          "claim-earlier-effect-observation-record",
+          "claim-later-effect-observation-record",
+          "claim-earlier-effect-observation-read",
+          "claim-later-effect-observation-read"
+        ]
+      },
+      {
+        "collection_id": "set-competing-2",
+        "collection_kind": "closed_set",
+        "purpose": "profile_proof_population",
+        "member_claim_ids": [
+          "claim-attempt-performs-compound-operation",
+          "claim-constituent-effect-order",
+          "claim-failure-boundary-follows-earlier-effect",
+          "claim-failure-boundary-precedes-later-effect",
+          "claim-failure-injected-at-boundary",
+          "claim-settlement-follows-injected-failure",
+          "claim-settlement-follows-later-effect",
+          "claim-earlier-effect-settled-state",
+          "claim-later-effect-settled-state",
+          "claim-population-settled-state",
+          "claim-settled-result-composition",
+          "claim-earlier-effect-observation-record",
+          "claim-later-effect-observation-record",
+          "claim-earlier-effect-observation-read"
+        ]
+      }
+    ],
+    "residue": [],
+    "annotations": [],
+    "test_proof_version": "controlled-contract-test-proof.v1",
+    "test_proofs": []
+  },
+  "evaluation_input": {
+    "input_version": "controlled-contract-verification-profile-input.v1",
+    "evaluation_stage": "pre_dispatch",
+    "reference_bindings": [
+      {
+        "role": "compound_operation",
+        "reference_ids": [
+          "ref-compound-operation"
+        ]
+      },
+      {
+        "role": "operation_attempt",
+        "reference_ids": [
+          "ref-operation-attempt"
+        ]
+      },
+      {
+        "role": "constituent_effect_population",
+        "reference_ids": [
+          "ref-constituent-effect-population"
+        ]
+      },
+      {
+        "role": "constituent_effects",
+        "reference_ids": [
+          "ref-earlier-constituent-effect",
+          "ref-later-constituent-effect"
+        ]
+      },
+      {
+        "role": "earlier_constituent_effect",
+        "reference_ids": [
+          "ref-earlier-constituent-effect"
+        ]
+      },
+      {
+        "role": "later_constituent_effect",
+        "reference_ids": [
+          "ref-later-constituent-effect"
+        ]
+      },
+      {
+        "role": "failure_boundary",
+        "reference_ids": [
+          "ref-failure-boundary"
+        ]
+      },
+      {
+        "role": "injected_failure",
+        "reference_ids": [
+          "ref-injected-failure"
+        ]
+      },
+      {
+        "role": "settlement_event",
+        "reference_ids": [
+          "ref-settlement-event"
+        ]
+      },
+      {
+        "role": "earlier_effect_settled_state",
+        "reference_ids": [
+          "ref-earlier-effect-settled-state"
+        ]
+      },
+      {
+        "role": "later_effect_settled_state",
+        "reference_ids": [
+          "ref-later-effect-settled-state"
+        ]
+      },
+      {
+        "role": "settled_result",
+        "reference_ids": [
+          "ref-fully-uncommitted-state"
+        ]
+      },
+      {
+        "role": "earlier_effect_observation",
+        "reference_ids": [
+          "ref-earlier-effect-observation"
+        ]
+      },
+      {
+        "role": "later_effect_observation",
+        "reference_ids": [
+          "ref-later-effect-observation"
+        ]
+      },
+      {
+        "role": "allowed_settlement_states",
+        "reference_ids": [
+          "ref-allowed-settlement-states"
+        ]
+      },
+      {
+        "role": "fully_committed_state",
+        "reference_ids": [
+          "ref-fully-committed-state"
+        ]
+      },
+      {
+        "role": "fully_uncommitted_state",
+        "reference_ids": [
+          "ref-fully-uncommitted-state"
+        ]
+      },
+      {
+        "role": "forbidden_partial_state",
+        "reference_ids": [
+          "ref-forbidden-partial-state"
+        ]
+      },
+      {
+        "role": "verification",
+        "reference_ids": [
+          "ref-verification"
+        ]
+      },
+      {
+        "role": "partial_commit_condition",
+        "reference_ids": [
+          "ref-partial-commit-condition"
+        ]
+      }
+    ],
+    "number_bindings": [
+      {
+        "role": "constituent_effect_count",
+        "value": 2
+      }
+    ],
+    "claim_pattern_bindings": [],
+    "resolver_facts": [],
+    "delivered_evidence": [],
+    "stable_evaluation": {}
+  }
+}

@@ -5,7 +5,10 @@ import {
   NODE_ENGINE_UNRATIFIED_PLACEHOLDER,
 } from "./work-record-admission-derived-evidence.mjs";
 import { buildNodeEngineWorkerAdmissionValidateBody } from "./node-engine-worker-admission-wire.mjs";
-import { summarizeWorkerAdmissionRecovery } from "./node-engine-worker-admission-recovery.mjs";
+import {
+  WORKER_ADMISSION_RECOVERY_VALIDATION_ISSUES,
+  validateWorkerAdmissionRecovery
+} from "./node-engine-worker-admission-recovery.mjs";
 
 export {
   NODE_ENGINE_WORKER_ADMISSION_PACK_INPUT_SCHEMA_VERSION,
@@ -430,25 +433,25 @@ function isSchemaValidProblemBody(body) {
   return hasText && hasStatus;
 }
 
+const WORKER_ADMISSION_RESULT_SCHEMA_VERSION =
+  "worker_admission.evaluate_work_unit_dispatch.result.v1";
+const WORKER_ADMISSION_RESULT_FIELDS = new Set([
+  "schema_version",
+  "pack",
+  "operation",
+  "decision",
+  "reasons",
+  "accounting",
+  "recovery",
+]);
+
 function readPackResultEffect(body) {
-  if (!isPlainObject(body)) return null;
-  const bound = WORKER_ADMISSION_DOMAIN_PACK_BOUND_IDENTIFIERS;
-
-  const packResult = isPlainObject(body.pack_result) ? body.pack_result : null;
-  if (packResult && packResult.pack === bound.pack_id && packResult.operation === bound.operation_id) {
-    const effect = typeof packResult.decision === "string" ? packResult.decision : packResult.effect ?? null;
-    return WORKER_ADMISSION_PACK_EFFECTS.includes(effect) ? effect : null;
-  }
-
-  if (
-    body.pack_id === bound.pack_id &&
-    body.operation_id === bound.operation_id &&
-    body.operation_version === bound.operation_version
-  ) {
-    const effect = body.pack_result?.effect ?? body.decision?.effect ?? body.effect ?? null;
-    return WORKER_ADMISSION_PACK_EFFECTS.includes(effect) ? effect : null;
-  }
-  return null;
+  const packResult = recognizedPackResultObject(body);
+  return isPlainObject(packResult?.accounting) &&
+    typeof packResult?.decision === "string" &&
+    WORKER_ADMISSION_PACK_EFFECTS.includes(packResult.decision)
+    ? packResult.decision
+    : null;
 }
 
 function recognizedPackResultObject(body) {
@@ -457,14 +460,11 @@ function recognizedPackResultObject(body) {
   const packResult = isPlainObject(body.pack_result) ? body.pack_result : null;
   if (!packResult) return null;
 
-  if (packResult.pack === bound.pack_id && packResult.operation === bound.operation_id) {
-    return packResult;
-  }
-
   if (
-    body.pack_id === bound.pack_id &&
-    body.operation_id === bound.operation_id &&
-    body.operation_version === bound.operation_version
+    Object.keys(packResult).every((key) => WORKER_ADMISSION_RESULT_FIELDS.has(key)) &&
+    packResult.schema_version === WORKER_ADMISSION_RESULT_SCHEMA_VERSION &&
+    packResult.pack === bound.pack_id &&
+    packResult.operation === bound.operation_id
   ) {
     return packResult;
   }
@@ -503,6 +503,25 @@ function summarizePackResultReason(reason) {
   return Object.keys(summary).length > 0 ? summary : null;
 }
 
+function hasValidPresentReasonFieldTypes(reason) {
+  if (!isPlainObject(reason)) return false;
+  if (Object.hasOwn(reason, "code") && typeof reason.code !== "string") return false;
+  if (Object.hasOwn(reason, "field") && typeof reason.field !== "string") return false;
+  if (Object.hasOwn(reason, "observed")) {
+    const observed = reason.observed;
+    if (!(observed === null || typeof observed === "string" || typeof observed === "boolean" ||
+        (typeof observed === "number" && Number.isFinite(observed)))) {
+      return false;
+    }
+  }
+  if (Object.hasOwn(reason, "threshold") &&
+      !(typeof reason.threshold === "number" && Number.isFinite(reason.threshold))) {
+    return false;
+  }
+  if (Object.hasOwn(reason, "evidence") && !isPlainObject(reason.evidence)) return false;
+  return true;
+}
+
 function summarizePackResultReasons(body) {
   const packResult = recognizedPackResultObject(body);
   if (!packResult || !Array.isArray(packResult.reasons)) return [];
@@ -510,6 +529,66 @@ function summarizePackResultReasons(body) {
     .slice(0, PACK_RESULT_REASON_SUMMARY_MAX)
     .map(summarizePackResultReason)
     .filter(Boolean);
+}
+
+function responseProvenance(body) {
+  const packResult = recognizedPackResultObject(body);
+  if (!packResult) return null;
+  return Object.freeze({
+    schema_version: packResult.schema_version,
+    pack: packResult.pack,
+    operation: packResult.operation,
+  });
+}
+
+export const EXACT_POLICY_PAYLOAD_ISSUES = Object.freeze({
+  REASONS_MALFORMED: "decision_reasons_malformed",
+});
+
+const EXACT_POLICY_PAYLOAD_ISSUE_VALUES = new Set([
+  ...Object.values(EXACT_POLICY_PAYLOAD_ISSUES),
+  ...Object.values(WORKER_ADMISSION_RECOVERY_VALIDATION_ISSUES)
+]);
+
+export function isExactPolicyPayloadIssue(value) {
+  return typeof value === "string" && EXACT_POLICY_PAYLOAD_ISSUE_VALUES.has(value);
+}
+
+function exactReasonPayload(packResult, effect) {
+  const reasons = packResult?.reasons;
+  if (reasons === undefined && effect === "admit") {
+    return { authenticated: true, reasons: [], completeReasons: [] };
+  }
+  if (!Array.isArray(reasons) || (effect !== "admit" && reasons.length === 0)) {
+    return { authenticated: false, issue: EXACT_POLICY_PAYLOAD_ISSUES.REASONS_MALFORMED };
+  }
+  const summaries = [];
+  for (const reason of reasons) {
+    if (!hasValidPresentReasonFieldTypes(reason)) {
+      return { authenticated: false, issue: EXACT_POLICY_PAYLOAD_ISSUES.REASONS_MALFORMED };
+    }
+    const summary = summarizePackResultReason(reason);
+    if (summaries.length < PACK_RESULT_REASON_SUMMARY_MAX && summary !== null) summaries.push(summary);
+  }
+  return { authenticated: true, reasons: summaries, completeReasons: reasons };
+}
+
+function authenticateExactPolicyPayload(body, effect, recovery, recoveryValidation = null) {
+  const packResult = recognizedPackResultObject(body);
+  const reasonResult = exactReasonPayload(packResult, effect);
+  if (!reasonResult.authenticated) return { ...reasonResult, reasons: [] };
+  if (Object.hasOwn(packResult, "recovery")) {
+    if (recoveryValidation?.state !== "valid") return {
+      authenticated: false,
+      issue: recoveryValidation?.issue ?? WORKER_ADMISSION_RECOVERY_VALIDATION_ISSUES.MALFORMED,
+      reasons: reasonResult.reasons,
+    };
+  }
+  return {
+    authenticated: true,
+    reasons: reasonResult.reasons,
+    complete_reasons: reasonResult.completeReasons,
+  };
 }
 
 export function buildWorkerAdmissionDomainPackRequest({
@@ -578,15 +657,42 @@ export function classifyWorkerAdmissionDomainPackResponse(
 ) {
   const problemType = recognizedProblemType(result?.parsedBody);
   const recognizedPackResult = recognizedPackResultObject(result?.parsedBody);
-  const recovery = summarizeWorkerAdmissionRecovery(
-    result?.parsedBody,
-    () => recognizedPackResult,
-  );
+  const hasCurrentDecisionRecovery = recognizedPackResult !== null &&
+    Object.hasOwn(recognizedPackResult, "recovery");
+  const rawRecovery = hasCurrentDecisionRecovery
+    ? recognizedPackResult.recovery
+    : recognizedPackResult
+      ? undefined
+      : result?.parsedBody?.recovery;
+  const expectedRecoveryMode = hasCurrentDecisionRecovery
+    ? "bounded_current_decision_recovery"
+    : recognizedPackResult
+      ? null
+      : problemType
+      ? "route_problem_recovery"
+      : null;
+  const digestContext = packDigestContext(digest);
+  const authorityBindingContext = packAuthorityBindingContext(authorityBinding);
+  const recoveryValidation = expectedRecoveryMode === null
+    ? null
+    : validateWorkerAdmissionRecovery(rawRecovery, {
+        expectedProjectionMode: expectedRecoveryMode,
+        diagnosticContext: {
+          response_provenance: responseProvenance(result?.parsedBody),
+          digest_evidence: Object.freeze({ ...digestContext }),
+          authority_binding_evidence: Object.freeze({ ...authorityBindingContext })
+        }
+      });
+  const recovery = recoveryValidation?.recovery ?? null;
   const currentDecisionRecoveryProjectionState =
-    recognizedPackResult && Object.prototype.hasOwnProperty.call(recognizedPackResult, "recovery")
-      ? recovery?.projection_mode === "bounded_current_decision_recovery"
+    recognizedPackResult
+      ? recoveryValidation === null
+        ? "absent"
+        : recoveryValidation.state === "valid"
         ? "valid"
-        : "projection_mismatch"
+        : recoveryValidation.state === "missing"
+          ? "absent"
+          : "invalid"
       : "absent";
 
   const bindingContractRatified =
@@ -606,11 +712,17 @@ export function classifyWorkerAdmissionDomainPackResponse(
     problem_type: problemType,
     redacted_key: result?.redactedKey ?? null,
     node_engine_backed_success: false,
-    ...packDigestContext(digest),
-    ...packAuthorityBindingContext(authorityBinding),
+    ...(recoveryValidation === null ? {} : { recovery_validation: recoveryValidation }),
+    ...digestContext,
+    ...authorityBindingContext,
     ...sourceContext(config),
   };
-  if (recovery && recovery.projection_mode !== "route_problem_recovery") {
+  const recoveryBearingDecision = recognizedPackResult && hasCurrentDecisionRecovery;
+  if (
+    recoveryBearingDecision &&
+    recovery &&
+    recovery.projection_mode !== "route_problem_recovery"
+  ) {
     base.recovery = recovery;
   }
   const routeProblemBase =
@@ -682,12 +794,22 @@ export function classifyWorkerAdmissionDomainPackResponse(
   if (effect === null) {
     return { ...base, outcome: "malformed_result", reason_code: R.MALFORMED_RESULT };
   }
+  const exactPolicyPayload = authenticateExactPolicyPayload(
+    result.parsedBody,
+    effect,
+    recovery,
+    recoveryValidation
+  );
   return {
     ...base,
     outcome: "pack_backed_result",
     reason_code: R.PACK_BACKED_RESULT,
     pack_backed: true,
     effect,
+    exact_policy_payload_authenticated: exactPolicyPayload.authenticated === true,
+    ...(exactPolicyPayload.authenticated !== true
+      ? { exact_policy_payload_issue: exactPolicyPayload.issue }
+      : {}),
     ...(effect === "needs_review"
       ? { recovery_projection_state: currentDecisionRecoveryProjectionState }
       : {}),
@@ -698,7 +820,10 @@ export function classifyWorkerAdmissionDomainPackResponse(
 
     node_engine_binding_ratified: bindingContractRatified,
 
-    pack_result_reasons: summarizePackResultReasons(result?.parsedBody),
+    pack_result_reasons: exactPolicyPayload.reasons,
+    reasons: exactPolicyPayload.complete_reasons ?? [],
+    accounting: recognizedPackResult.accounting,
+    response_provenance: responseProvenance(result?.parsedBody),
     node_engine_backed_success: true,
   };
 }

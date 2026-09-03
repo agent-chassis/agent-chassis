@@ -160,6 +160,38 @@ function projectGenerationServerExit(generation) {
   return typeof settlement?.then === "function" ? settlement : null;
 }
 
+function recordGenerationClientTransportEof(generation, onFailure) {
+  const lifecycle = generation?.lifecycle;
+  if (lifecycle === null || typeof lifecycle !== "object") return false;
+  try {
+    return lifecycle.markClientTransportEof?.() === true;
+  } catch (error) {
+    onFailure(error);
+    return false;
+  }
+}
+
+function projectGenerationClientTransportEof(generation, onFailure) {
+  const lifecycle = generation?.lifecycle;
+  if (lifecycle === null || typeof lifecycle !== "object") return false;
+  try {
+    return lifecycle.isClientTransportEof?.() === true;
+  } catch (error) {
+    onFailure(error);
+    return false;
+  }
+}
+
+function recordAuthenticatedClientPayloadBytes(generation, bytes) {
+  const measurements = generation?.readinessMeasurements;
+  if (measurements === null || typeof measurements !== "object") return;
+  if (!Number.isInteger(measurements.authenticated_client_payload_bytes_before_close) ||
+      measurements.authenticated_client_payload_bytes_before_close < 0) {
+    throw new Error("MCP generation has invalid authenticated client payload accounting");
+  }
+  measurements.authenticated_client_payload_bytes_before_close += bytes.length;
+}
+
 function forwardBufferedBytes(generation, bytes) {
   if (bytes.length === 0) return;
   const input = makeGenerationInput(generation);
@@ -167,6 +199,7 @@ function forwardBufferedBytes(generation, bytes) {
     throw new Error("ready MCP generation has no input stream");
   }
   input.write(bytes);
+  recordAuthenticatedClientPayloadBytes(generation, bytes);
 }
 
 function createStdioMcpConnectionAdmissionInternal({
@@ -293,7 +326,7 @@ function createStdioMcpConnectionAdmissionInternal({
     const state = { socket, bytes: Buffer.alloc(0), finished: false, timer: null, rejectionPublished: false,
       closeGeneration: null,
 
-      established: false, clientTransportEof: false };
+      established: false };
     let finishPromise = null;
     const finish = (reason = null) => {
       if (finishPromise !== null) return finishPromise;
@@ -367,22 +400,29 @@ function createStdioMcpConnectionAdmissionInternal({
           const disposeGeneration = () => {
             if (disposal !== null) return disposal;
             disposal = (async () => {
-              if (state.clientTransportEof) await awaitNaturalServerExit(generation);
+
+              const drained = projectGenerationClientTransportEof(generation, (error) => {
+                cleanupFailure ??= error;
+              });
+              if (drained) await awaitNaturalServerExit(generation);
               return closeGeneration();
             })();
             return disposal;
           };
           state.closeGeneration = disposeGeneration;
           resources.add(closeGeneration);
-          if (closed || state.finished) {
+          if (closed || state.finished || socket.destroyed) {
             reservations.delete(state);
             await closeGeneration();
+            if (socket.destroyed) await finish(null);
             return;
           }
           await awaitReadinessBounded(generation, admissionClosed);
-          if (closed || state.finished) {
+
+          if (closed || state.finished || socket.destroyed) {
             reservations.delete(state);
             await closeGeneration();
+            if (socket.destroyed) await finish(null);
             return;
           }
           const input = makeGenerationInput(generation);
@@ -399,11 +439,12 @@ function createStdioMcpConnectionAdmissionInternal({
           input.on("error", () => {});
 
           socket.on("end", () => {
-            if (state.clientTransportEof) return;
-            state.clientTransportEof = true;
-            try { generation?.lifecycle?.markClientTransportEof?.(); } catch (error) {
+            recordGenerationClientTransportEof(generation, (error) => {
               cleanupFailure ??= error;
-            }
+            });
+          });
+          socket.on("data", (chunk) => {
+            recordAuthenticatedClientPayloadBytes(generation, chunk);
           });
 
           socket.pipe(input);

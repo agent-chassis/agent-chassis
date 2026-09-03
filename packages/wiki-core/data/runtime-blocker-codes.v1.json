@@ -20,7 +20,8 @@
     "graph_impact_persistence",
     "taxonomy",
     "operator_recovery",
-    "read_disclosure"
+    "read_disclosure",
+    "controlled_contract"
   ],
   "actor_recovery_values": [
     "operator",
@@ -47,20 +48,23 @@
           "required_write_scope": [],
           "remediation": {
             "action": "create_or_select_separate_findings_only_review_unit",
-            "summary": "The selected subject is shaped like implementation work, so it is the wrong subject for a findings-only reviewer. Create or select a separate review unit and dispatch the reviewer against that unit.",
-            "suggested_unit_id_examples": [
-              "WK-#####review",
-              "WK-#####implementation-review"
-            ],
-            "work_kind": "review",
-            "write_scope": [],
-            "repo_paths": "the implementation files the review inspects",
-            "depends_on": "the implementation unit",
-            "acceptance": [
-              "Findings-only review.",
-              "Do not modify files.",
-              "Report findings against the inspected files."
-            ]
+            "kind": "structured_route",
+            "summary": "The selected subject is shaped like implementation work, so it is the wrong subject for a findings-only reviewer. Author a separate findings-only unit through the structured ready-slice route and dispatch the reviewer against the server-allocated slice id it returns. shaping_mode selects the technical role, so review shaping is what binds dispatch_intent.intended_agent_role to reviewer; a caller-authored semantic unit id is refused by the route and must not be attempted.",
+            "route": "workspace_work_record_ready_slice",
+            "arguments": {
+              "shaping_mode": "review",
+              "review_purpose": "standalone",
+              "work_kind": "review",
+              "write_scope": []
+            },
+            "argument_bindings": {
+              "unit": "reviewed_parent_wk_unit",
+              "title": "review_objective_title",
+              "repo_paths": "reviewed_implementation_paths",
+              "depends_on": "reviewed_implementation_unit",
+              "acceptance": "review_acceptance_contract"
+            },
+            "success_condition": "workspace_work_record_ready_slice returns a server-allocated findings-only slice whose write_scope is empty and whose review_purpose and derived intended_agent_role are set"
           },
           "not_remediation": [
             "changing the requested role",
@@ -100,8 +104,15 @@
       "category": "work_record_readiness",
       "actor_recovery": "coordinator",
       "blocking": true,
-      "summary": "Target WK or slice is not independently executable (missing acceptance, validation, write_scope, docs, or evidence requirements).",
-      "consumer_notes": "Coordinator must revise the WK; implementation must NOT proceed against an unready record."
+      "summary": "The named WK or slice contract field, check, status, or path is missing or structurally invalid.",
+      "detail": "Use only for an authored or structural defect in the named WK or slice contract that makes the unit independently unexecutable. The refusal must identify the exact missing or invalid field, check, status, or path; absence of an external capability, backend response, or policy envelope is not this code.",
+      "consumer_notes": "Coordinator recovery is limited to correcting the exact named contract field, check, status, or path in the canonical record. Do not prescribe generic WK revision or use this code for launcher, backend, decision-envelope, or CCE policy states.",
+      "recovery": {
+        "kind": "exact_named_contract_defect",
+        "target": "the exact missing or invalid field, check, status, or path named by the refusal",
+        "summary": "Correct the exact named contract defect, then re-run the readiness check.",
+        "success_condition": "The named field, check, status, or path is present and structurally valid in the canonical WK or slice contract."
+      }
     },
     {
       "code": "dispatch_readiness_axis_ambiguous",
@@ -198,20 +209,6 @@
       ]
     },
     {
-      "code": "worker_admission_review_threshold_exceeded",
-      "category": "work_record_readiness",
-      "actor_recovery": "coordinator",
-      "blocking": true,
-      "summary": "Node Engine worker-admission needs review-threshold evidence; it is not a deny/reject result.",
-      "detail": "Use when a pack-backed worker-admission `needs_review` outcome reports `review_threshold_exceeded`. The normal recovery is to narrow or split the selected unit where possible, then record accepted review-attestation evidence for the selected unit/control, or use an operator-approved escalated implementation path if policy chooses it. DEC/ESC/accepted_authorities are separate policy or escalation authorities and are not proof that review was performed.",
-      "consumer_notes": "Dispatch and readiness projections should map this code to review-threshold recovery guidance while keeping selected unit, control, observed, and threshold facts in the dynamic pack-result projection rather than the static compact taxonomy surface.",
-      "aliases": [
-        "review_threshold_exceeded",
-        "worker_admission_remote_needs_review"
-      ],
-      "wk_0532_subset": false
-    },
-    {
       "code": "missing_structured_transport",
       "category": "transport",
       "actor_recovery": "operator",
@@ -225,7 +222,97 @@
       "actor_recovery": "operator",
       "blocking": true,
       "summary": "A required launcher backend, host server, registry, or confinement prerequisite is not reachable.",
-      "consumer_notes": "Distinct from missing transport: the structured transport exists, but its backing service or registry is not usable."
+      "consumer_notes": "Use for configured CCE unavailability or an absent CCE response, and for other required backend absence. Missing launcher declarations and malformed, unratified, contradictory, unknown, or unauthenticated decision envelopes retain their own registered identities. Unratified authority is corrected at its declared owner before retry; invalid decision envelopes have no mechanically supported continuation. The committed-slice integration route uses this as the public recovery limb for launcher-owned backend absence; launcher-owned diagnostic codes and messages remain opaque and are never re-derived, re-spelled, or treated as authority by the public limb."
+    },
+    {
+      "code": "launcher_transition.prospective_lifecycle_unavailable.v1",
+      "category": "work_record_readiness",
+      "actor_recovery": "coordinator",
+      "blocking": true,
+      "summary": "The prospective managed lifecycle is unavailable during launcher transition planning.",
+      "detail": "The launcher cannot begin the prospective transition because lifecycle preflight did not succeed. The bounded recovery is to retry workspace agent dispatch after lifecycle preflight succeeds; this is a transition refusal, not a backend absence or transport failure.",
+      "consumer_notes": "Preserve the launcher-transition code and mechanical authority. Do not alias it to backend_unavailable or runtime_backend_unavailable."
+    },
+    {
+      "code": "launcher_transition.lifecycle_allocation_failed.v1",
+      "category": "work_record_readiness",
+      "actor_recovery": "coordinator",
+      "blocking": true,
+      "summary": "Managed lifecycle allocation failed while advancing the launcher transition.",
+      "detail": "The launcher could not allocate the managed lifecycle required for dispatch. The bounded recovery is launcher allocation recovery followed by retrying workspace agent dispatch; no backend absence is established.",
+      "consumer_notes": "This is a mechanical transition failure. Keep it distinct from runtime_backend_unavailable and from policy refusals."
+    },
+    {
+      "code": "launcher_transition.dependency_identity_unresolved.v1",
+      "category": "work_record_readiness",
+      "actor_recovery": "coordinator",
+      "blocking": true,
+      "summary": "The exact dependency identity required by the launcher transition is unresolved.",
+      "detail": "The transition cannot proceed until the exact dependency is published or integrated. The bounded recovery is to publish or integrate that dependency, then retry workspace agent dispatch.",
+      "consumer_notes": "This is a mechanical dependency/readiness refusal, not runtime backend unavailability."
+    },
+    {
+      "code": "launcher_transition.publication_identity_unresolved.v1",
+      "category": "work_record_readiness",
+      "actor_recovery": "coordinator",
+      "blocking": true,
+      "summary": "The exact landed publication identity required by the launcher transition is unresolved.",
+      "detail": "The transition lacks the forge-confirmed landed publication carrier. The bounded recovery is to obtain that carrier, then retry workspace agent dispatch.",
+      "consumer_notes": "Keep publication identity readiness distinct from runtime backend absence and from transport failures."
+    },
+    {
+      "code": "launcher_transition.cce_policy_refused.v1",
+      "category": "role_policy",
+      "actor_recovery": "coordinator",
+      "blocking": true,
+      "summary": "The exact returned CCE policy refused the launcher transition.",
+      "detail": "A policy authority returned a refusal and its exact recovery must be performed before workspace agent dispatch is retried. The registry does not reinterpret or replace the returned policy.",
+      "consumer_notes": "This is an exact returned policy refusal, not a mechanical backend failure; preserve the returned recovery boundary."
+    },
+    {
+      "code": "launcher_transition.findings_route_authentication_failed.v1",
+      "category": "route",
+      "actor_recovery": "coordinator",
+      "blocking": true,
+      "summary": "Authentication of the canonical findings route failed during launcher transition.",
+      "detail": "The transition cannot authenticate the exact canonical findings unit. The bounded recovery is to dispatch that exact unit through workspace agent dispatch after the route is corrected.",
+      "consumer_notes": "Keep route authentication failure distinct from runtime backend absence and from CCE policy refusal."
+    },
+    {
+      "code": "launcher_transition.runtime_backend_unavailable.v1",
+      "category": "backend",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The launcher-owned runtime backend required for transition is unavailable.",
+      "detail": "The launcher established that the registered runtime backend is absent or unavailable. Operator recovery is to restore the registered launcher backend, then retry workspace agent dispatch.",
+      "consumer_notes": "Use only for demonstrated launcher-owned backend absence. Do not alias transport/mechanical causes or authenticated refusals to this code."
+    },
+    {
+      "code": "launcher_transition.authenticated_backend_refusal_unclassified.v1",
+      "category": "backend",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "An authenticated backend refusal did not match the closed launcher-transition vocabulary.",
+      "detail": "A backend authenticated its refusal, but its valid cause is not yet classified by the closed transition vocabulary. Preserve the exact bounded cause evidence and have the operator classify or remediate the backend refusal before retrying dispatch.",
+      "consumer_notes": "This is the explicit authenticated-unclassified refusal code. It must not fall back to runtime_backend_unavailable, and malformed causes must fail loudly rather than select this code."
+    },
+    {
+      "code": "launcher_transition.backend_refusal_identity_missing.v1",
+      "category": "validation",
+      "actor_recovery": "none",
+      "blocking": true,
+      "summary": "A launcher-transition backend refusal supplied no usable string identity.",
+      "detail": "The refusal remains fail-closed at the launcher-transition boundary. No mechanically supported continuation exists because an authenticated backend cause was not supplied.",
+      "consumer_notes": "Publish this identity directly for missing and non-string backend-refusal codes; do not infer a cause from diagnostics or select break-glass recovery."
+    },
+    {
+      "code": "launcher_transition.backend_refusal_identity_unknown.v1",
+      "category": "validation",
+      "actor_recovery": "none",
+      "blocking": true,
+      "summary": "A launcher-transition backend refusal supplied an undeclared string identity.",
+      "detail": "The refusal remains fail-closed at the launcher-transition boundary. The undeclared value cannot select semantics, and no mechanically supported continuation exists.",
+      "consumer_notes": "Publish this identity directly after registered-code pass-through and declared-namespace projection have both failed; suppress the undeclared value."
     },
     {
       "code": "managed_lifecycle_required",
@@ -234,15 +321,18 @@
       "blocking": true,
       "summary": "Implementation dispatch requires the managed lifecycle; unmanaged direct execution is not an implementation route.",
       "detail": "Use when an implementation request is outside the server-owned managed lifecycle. This code does not imply that structured dispatch, native editing, repository reads, or commit are unavailable; each capability is reported independently by coordination preflight.",
-      "consumer_notes": "Recovery is a structured preflight followed by structured dispatch only. Consumers must not turn this blocker into caller-selected lifecycle configuration.",
+      "consumer_notes": "Recovery is a structured preflight followed by structured dispatch only. Consumers must not turn this blocker into caller-selected lifecycle configuration. The preflight is scoped to the dispatch role the refusal actually names: a capability fact obtained for another role neither answers nor discharges this refusal.",
       "recovery": {
         "kind": "structured_route",
         "route": "workspace_coordination_preflight",
         "arguments": {
-          "role": "coordinator",
-          "target_dispatch_role": "worker"
+          "role": "coordinator"
         },
-        "success_condition": "managed lifecycle capability facts are fresh and the required planes report available"
+        "argument_bindings": {
+          "target_dispatch_role": "refused_dispatch_role"
+        },
+        "prerequisite": "no fresh managed-lifecycle capability fact exists for the dispatch role the refusal names",
+        "success_condition": "workspace_coordination_preflight reports fresh, available managed lifecycle capability facts for the dispatch role the refusal names"
       }
     },
     {
@@ -275,45 +365,13 @@
         "kind": "structured_route",
         "route": "workspace_agent_dispatch",
         "arguments": {
-          "role": "reviewer",
-          "subject": "<exact-slice-subject-from-refusal>"
+          "role": "reviewer"
+        },
+        "argument_bindings": {
+          "subject": "slice_subject"
         },
         "success_condition": "the retained slice delivery reaches the exact-slice review surface, or the canonical WK base already contains it"
       }
-    },
-    {
-      "code": "managed_corrective_status_reconciliation_required",
-      "category": "work_record_readiness",
-      "actor_recovery": "coordinator",
-      "blocking": true,
-      "summary": "Managed corrective continuation found a canonical parent/slice status tuple that requires coordinator reconciliation before redispatch.",
-      "detail": "Use only for the reviewed-integrated-delivery case where the server observed parent=todo and slice=todo. The bounded recovery facts identify the observed parent and slice status, the expected parent=active and slice=todo tuple, the exact parent unit whose status must be repaired, and the exact subject for a subsequent redispatch. This code grants no automatic status mutation and does not change lifecycle or admission authority.",
-      "consumer_notes": "Coordinator-owned recovery: inspect the server-derived observed_canonical_status, confirm the expected parent=active and slice=todo tuple, repair status on the exact parent unit, then redispatch the exact slice subject through workspace_agent_dispatch. Do not infer or substitute units, statuses, or subjects from message text.",
-      "recovery": {
-        "kind": "structured_route",
-        "route": "workspace_work_record_set_status",
-        "arguments": {
-          "unit": "<exact-parent-unit>",
-          "status": "active"
-        },
-        "next_call": {
-          "route": "workspace_agent_dispatch",
-          "arguments": {
-            "role": "worker",
-            "subject": "<exact-slice-subject>"
-          }
-        },
-        "success_condition": "the exact parent unit is reconciled to active while the exact slice remains todo, then the exact slice subject is redispatched"
-      }
-    },
-    {
-      "code": "managed_parent_wk_review_blocks_worker_dispatch",
-      "category": "work_record_readiness",
-      "actor_recovery": "coordinator",
-      "blocking": true,
-      "summary": "Managed worker dispatch is blocked because the parent WK is in whole-WK review; the coordinator must move the parent out of review before dispatching its slice.",
-      "detail": "Use when a managed implementation-worker dispatch targets a slice whose parent WK is at status=review. The post-worker slice-review lifecycle requires the parent to be out of whole-WK review before this dispatch can proceed, so the coordinator must reconcile the parent WK status and then redispatch the exact slice subject. This code is distinct from managed_corrective_status_reconciliation_required, which is limited to the parent=todo and slice=todo corrective-continuation case.",
-      "consumer_notes": "Coordinator-owned recovery: move the exact parent WK out of whole-WK review, then redispatch the exact slice subject through workspace_agent_dispatch. Do not treat this as an operator-only recovery or reuse the corrective-continuation code."
     },
     {
       "code": "read_only_mount",
@@ -555,7 +613,7 @@
       "actor_recovery": "coordinator",
       "blocking": true,
       "summary": "Structured validation step (lint, work-record schema, closure schema, docs-policy) reported an error.",
-      "consumer_notes": "Diagnostics array carries the underlying validation findings."
+      "consumer_notes": "Diagnostics array carries the underlying validation findings. The committed-slice integration route uses this as the public recovery limb for launcher-owned structured validation failure; diagnostic code and message spelling remain non-authoritative."
     },
     {
       "code": "unsupported_route",
@@ -604,6 +662,69 @@
       "blocking": true,
       "summary": "MCP reviewer dispatch route exists but the runtime launch/monitor channel failed.",
       "consumer_notes": "Distinct from mcp_reviewer_dispatch_missing: the route is shipped, but the current invocation cannot complete."
+    },
+    {
+      "code": "agent_launch.findings_snapshot.canonical_unit_mutation_authority_invalid.v1",
+      "category": "review_transport",
+      "actor_recovery": "none",
+      "blocking": true,
+      "summary": "The immutable findings snapshot request did not carry launcher-authenticated empty mutation authority.",
+      "detail": "The findings action is refused before launch. No public recovery route can mint source authority; a new independently authenticated dispatch is required.",
+      "consumer_notes": "Preserve this exact identity. Never project it as managed_lifecycle_required."
+    },
+    {
+      "code": "agent_launch.findings_snapshot.review_source_unresolvable.v1",
+      "category": "review_transport",
+      "actor_recovery": "none",
+      "blocking": true,
+      "summary": "The launcher-authenticated findings source could not be resolved once to an immutable commit.",
+      "detail": "The attempt has no authenticated source snapshot. There is no in-protocol recovery route; a later independently authenticated dispatch may retry after repository transport is repaired.",
+      "consumer_notes": "Preserve this exact identity and a null supported recovery route."
+    },
+    {
+      "code": "agent_launch.review_target_resolution.failed.v1",
+      "category": "review_transport",
+      "actor_recovery": "caller_retry",
+      "blocking": true,
+      "summary": "The launcher could not normalize the requested findings target to one exact repository/base/target identity.",
+      "detail": "Both full commit-object identities are required on the explicit path. Canonical slice and terminal whole-WK selectors use the same normalizer. A corrected independent call may retry; neither locator form grants mutation or lifecycle authority.",
+      "consumer_notes": "Refuse only the current call before snapshot, receipt, executor, run, monitor, or persistent-WK effects. Preserve the bounded target_resolution_reason and do not create persistent recovery state."
+    },
+    {
+      "code": "agent_launch.findings_snapshot.materialization_failed.v1",
+      "category": "review_transport",
+      "actor_recovery": "none",
+      "blocking": true,
+      "summary": "Atomic immutable findings snapshot capture or materialization failed.",
+      "detail": "No findings child was launched from partial bytes. There is no in-protocol repair route; a later independently authenticated dispatch may retry after the immutable object store or retained worktree substrate is repaired.",
+      "consumer_notes": "Preserve this exact identity and never replace it with a persistent lifecycle refusal."
+    },
+    {
+      "code": "agent_launch.findings_snapshot.controlled_contract_generation_required_absent.v1",
+      "category": "review_transport",
+      "actor_recovery": "none",
+      "blocking": true,
+      "summary": "A controlled findings unit has no complete authenticated carrier generation.",
+      "detail": "The immutable snapshot owner refuses before launch. Canonical carrier publication is coordinator-owned and no findings-action recovery route can create the missing generation.",
+      "consumer_notes": "Preserve this exact identity with a truthful null route; never project managed_lifecycle_required."
+    },
+    {
+      "code": "launcher_durable_state_root_unwritable",
+      "category": "filesystem",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The launcher-authenticated durable state root cannot be created or written.",
+      "detail": "The launcher refuses before publishing a run or monitor handle because durable attempt-lineage evidence cannot be persisted. No agent-callable route can repair host filesystem ownership or permissions; an operator must restore the launcher-owned durable root and retry the original dispatch.",
+      "consumer_notes": "Preserve this exact identity and bounded durable-root facts through launch and public projection. Do not replace it with review_attempt_lineage_persistence_failed, managed_lifecycle_required, role_outcome_mismatch, or response-truncation diagnostics."
+    },
+    {
+      "code": "launcher_findings_settlement_invariant_violation",
+      "category": "review_transport",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The findings settlement owner received an untyped or malformed post-election failure.",
+      "detail": "Election already committed one server-minted findings lineage, but the receipt transition failed without a registered durable-state identity. The launcher publishes that same run and monitor with bounded operator recovery and retains this invariant identity as the originating failure.",
+      "consumer_notes": "Only the findings settlement owner emits this code. Arbitrary exception codes and synthetic fallback strings must map to this identity before mutation and must never enter the closed attempt-lineage conflict_class vocabulary. Exact retry must settle or resume the retained elected lineage rather than minting a replacement."
     },
     {
       "code": "mandatory_review_transport_blocked",
@@ -735,12 +856,193 @@
       "consumer_notes": "Reported when the descriptor file is missing, malformed, or unreadable."
     },
     {
+      "code": "review_target_unresolved",
+      "category": "review_transport",
+      "actor_recovery": "coordinator",
+      "blocking": true,
+      "summary": "The committed review target could not be resolved to one exact repository commit.",
+      "consumer_notes": "Preserve the review-target owner and exact resolution condition; this is a modeled target-resolution failure, never operator_recovery_needed."
+    },
+    {
+      "code": "review_target_binding_mismatch",
+      "category": "review_transport",
+      "actor_recovery": "coordinator",
+      "blocking": true,
+      "summary": "The committed review target does not match its authenticated repository, base, or subject binding."
+    },
+    {
+      "code": "frozen_worktree_unavailable",
+      "category": "filesystem",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The launcher could not materialize the already-selected immutable review worktree."
+    },
+    {
+      "code": "review_target_ref_unresolved",
+      "category": "review_transport",
+      "actor_recovery": "coordinator",
+      "blocking": true,
+      "summary": "The review target reference did not resolve to one exact commit."
+    },
+    {
+      "code": "launcher_declaration_missing",
+      "category": "transport",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "A required launcher declaration is absent from the authenticated launcher composition."
+    },
+    {
+      "code": "authority_binding_unratified",
+      "category": "validation",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The configured authority binding is present but not ratified for this operation.",
+      "consumer_notes": "Publish authority_binding_unratified directly. The configured authority owner must ratify the binding before the original operation is retried."
+    },
+    {
+      "code": "decision_envelope_malformed",
+      "category": "validation",
+      "actor_recovery": "none",
+      "blocking": true,
+      "summary": "The decision envelope is malformed and cannot authenticate a tooling decision.",
+      "consumer_notes": "Publish decision_envelope_malformed directly with no supported next call; malformed values cannot select recovery."
+    },
+    {
+      "code": "decision_envelope_unknown",
+      "category": "validation",
+      "actor_recovery": "none",
+      "blocking": true,
+      "summary": "The decision envelope declares an unsupported version or member.",
+      "consumer_notes": "Publish decision_envelope_unknown directly with no supported next call; unknown values cannot select recovery."
+    },
+    {
+      "code": "decision_envelope_contradictory",
+      "category": "validation",
+      "actor_recovery": "none",
+      "blocking": true,
+      "summary": "Authenticated decision-envelope facts contradict one another.",
+      "consumer_notes": "Publish decision_envelope_contradictory directly with no supported next call; contradictory facts cannot select recovery."
+    },
+    {
+      "code": "decision_envelope_unauthenticated",
+      "category": "validation",
+      "actor_recovery": "none",
+      "blocking": true,
+      "summary": "The decision envelope could not authenticate its claimed authority or identity.",
+      "consumer_notes": "Publish decision_envelope_unauthenticated directly with no supported next call; unauthenticated values cannot select recovery."
+    },
+    {
+      "code": "runtime_materialization_failed",
+      "category": "backend",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "The launcher failed to materialize the modeled runtime required by the selected operation."
+    },
+    {
+      "code": "worker_admission_recovery_missing",
+      "category": "validation",
+      "actor_recovery": "none",
+      "blocking": true,
+      "summary": "A CCE non-admit decision omitted its required recovery.v1 envelope."
+    },
+    {
+      "code": "worker_admission_recovery_malformed",
+      "category": "validation",
+      "actor_recovery": "none",
+      "blocking": true,
+      "summary": "A CCE recovery.v1 envelope is not a valid object."
+    },
+    {
+      "code": "worker_admission_recovery_unknown_version",
+      "category": "validation",
+      "actor_recovery": "none",
+      "blocking": true,
+      "summary": "A CCE recovery envelope declares an unsupported schema version."
+    },
+    {
+      "code": "worker_admission_recovery_unknown_field",
+      "category": "validation",
+      "actor_recovery": "none",
+      "blocking": true,
+      "summary": "A CCE recovery.v1 envelope contains a member outside the closed contract."
+    },
+    {
+      "code": "worker_admission_recovery_wrong_projection_mode",
+      "category": "validation",
+      "actor_recovery": "none",
+      "blocking": true,
+      "summary": "A CCE recovery.v1 envelope uses a projection mode that contradicts its response boundary."
+    },
+    {
+      "code": "worker_admission_recovery_authority_mismatch",
+      "category": "validation",
+      "actor_recovery": "none",
+      "blocking": true,
+      "summary": "A CCE recovery.v1 envelope claims an authority posture outside the advisory-only contract."
+    },
+    {
+      "code": "worker_admission_recovery_resubmission_mismatch",
+      "category": "validation",
+      "actor_recovery": "none",
+      "blocking": true,
+      "summary": "A CCE recovery.v1 envelope does not require a fresh CCE decision after remediation."
+    },
+    {
+      "code": "worker_admission_recovery_truncated",
+      "category": "validation",
+      "actor_recovery": "none",
+      "blocking": true,
+      "summary": "A CCE recovery.v1 envelope is explicitly incomplete and cannot select continuation."
+    },
+    {
+      "code": "worker_admission_recovery_actions_malformed",
+      "category": "validation",
+      "actor_recovery": "none",
+      "blocking": true,
+      "summary": "One or more recovery.v1 actions violate the shared bounded action contract."
+    },
+    {
+      "code": "worker_admission_recovery_route_unavailable",
+      "category": "transport",
+      "actor_recovery": "none",
+      "blocking": true,
+      "summary": "No mechanically supported continuation route exists for the typed recovery-contract outcome."
+    },
+    {
+      "code": "workspace_repo_resolution_invalid",
+      "category": "validation",
+      "actor_recovery": "caller_retry",
+      "blocking": true,
+      "summary": "The repo argument does not identify a configured workspace repository.",
+      "recovery": {
+        "kind": "explicit_argument",
+        "argument": "repo",
+        "summary": "Re-call with one of the configured workspace repository aliases.",
+        "success_condition": "The repo argument exactly matches a configured workspace repository alias."
+      }
+    },
+    {
+      "code": "mcp_response.handler_exception.v1",
+      "category": "validation",
+      "actor_recovery": "none",
+      "blocking": true,
+      "summary": "A registered MCP handler raised a modeled exception without a more specific registered identity.",
+      "consumer_notes": "This is a portfolio defect boundary with no claimed continuation, never an external operator-recovery condition."
+    },
+    {
+      "code": "mcp_response.platform_failure.v1",
+      "category": "filesystem",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "A registered MCP handler failed at a host platform boundary rather than in its semantic contract."
+    },
+    {
       "code": "operator_recovery_needed",
       "category": "operator_recovery",
       "actor_recovery": "operator",
       "blocking": true,
-      "summary": "Recovery is human/operator-only: the agent must stop and surface the recovery condition, not retry or escalate inline.",
-      "consumer_notes": "Use when the blocker requires operator action (registry reset, secret rotation, sandbox profile change, mount remount, drift fix) that no agent role is authorized to perform."
+      "summary": "An authenticated unexpected condition originating outside the tooling model requires operator recovery.",
+      "consumer_notes": "Break-glass only. Never use for validation, refusal, threshold, envelope, projection, backend, route, handler, throw, portfolio-defect, unknown, or default branches. The exact authenticated external condition must be preserved."
     },
     {
       "code": "stdio_mcp_lifecycle_protocol_incompatible",
@@ -750,7 +1052,43 @@
       "summary": "The active managed launcher composition cannot authenticate one compatible wiki-MCP stdio lifecycle protocol generation.",
       "detail": "Managed worker, reviewer, and redteam child creation is refused before spawn. Route registration remains observable, but effective structured dispatch is unavailable.",
       "recovery": "deploy one coherent build and restart the long-lived backend",
-      "consumer_notes": "Publish as the bounded cause beneath operator_recovery_needed. Do not disclose producer paths, raw errors, environment, process output, or implementation details."
+      "consumer_notes": "Publish stdio_mcp_lifecycle_protocol_incompatible directly. The supported continuation is to deploy one coherent build, restart the long-lived backend, and then retry the original structured operation. Do not disclose producer paths, raw errors, environment, process output, or implementation details."
+    },
+    {
+      "code": "controlled_contract_proof_plan_request_missing",
+      "category": "read_disclosure",
+      "actor_recovery": "caller_retry",
+      "blocking": false,
+      "summary": "The controlled-contract proof-plan request carrier is absent; author the request and re-call the assessment with the corrected carrier state.",
+      "detail": "actor_recovery=caller_retry: re-call with CORRECTED controlled-contract carrier arguments by authoring the proof_plan_request first, not an identical retry. This is an agent-recoverable next-call state and preserves the known contract identity.",
+      "consumer_notes": "read_disclosure nudge label: non-blocking and self-recoverable. Filtered OUT of the dispatch-facing blocker catalog via RUNTIME_BLOCKER_DISPATCH_FACING_CATEGORIES."
+    },
+    {
+      "code": "controlled_contract_evaluation_input_missing",
+      "category": "read_disclosure",
+      "actor_recovery": "caller_retry",
+      "blocking": false,
+      "summary": "A required controlled-contract evaluation input carrier is absent; author the input and re-call the assessment with the corrected carrier state.",
+      "detail": "actor_recovery=caller_retry: re-call with CORRECTED controlled-contract carrier arguments by authoring the required evaluation_input first, not an identical retry. This is an agent-recoverable next-call state.",
+      "consumer_notes": "read_disclosure nudge label: non-blocking and self-recoverable. Filtered OUT of the dispatch-facing blocker catalog via RUNTIME_BLOCKER_DISPATCH_FACING_CATEGORIES."
+    },
+    {
+      "code": "controlled_contract_proof_plan_missing",
+      "category": "read_disclosure",
+      "actor_recovery": "caller_retry",
+      "blocking": false,
+      "summary": "The controlled-contract proof-plan carrier is absent; build the proof plan and re-call the assessment with the corrected carrier state.",
+      "detail": "actor_recovery=caller_retry: re-call with CORRECTED controlled-contract carrier arguments by building the proof_plan with the required focus and expected content digest, not an identical retry. This is an agent-recoverable next-call state.",
+      "consumer_notes": "read_disclosure nudge label: non-blocking and self-recoverable. Filtered OUT of the dispatch-facing blocker catalog via RUNTIME_BLOCKER_DISPATCH_FACING_CATEGORIES."
+    },
+    {
+      "code": "controlled_contract_proof_plan_stale",
+      "category": "read_disclosure",
+      "actor_recovery": "caller_retry",
+      "blocking": false,
+      "summary": "The controlled-contract proof-plan carrier is present but stale; rebuild it using its current carrier digest and re-call the assessment.",
+      "detail": "actor_recovery=caller_retry: re-call with CORRECTED controlled-contract carrier arguments by rebuilding the present stale proof_plan against its current content digest, not an identical retry. This state is distinct from an absent proof-plan carrier.",
+      "consumer_notes": "read_disclosure nudge label: non-blocking and self-recoverable. Filtered OUT of the dispatch-facing blocker catalog via RUNTIME_BLOCKER_DISPATCH_FACING_CATEGORIES; a present stale carrier must not be labelled missing."
     },
     {
       "code": "compact_first_required",
@@ -850,8 +1188,240 @@
       "summary": "A valid compact_read_token was presented but the large unscoped expensive read stays bounded; re-call scoped to a specific selected_slice/selected_record instead of requesting the whole record.",
       "detail": "actor_recovery=caller_retry: re-call with CORRECTED (narrowed) arguments naming the selected_slice or selected_record, not an identical retry. Emitted by the compact-read gate when validateToken accepts the token but the request is still large and unscoped (the refusalDecision branch). Distinct from selected_slice_compact_detail_required (the pre-token bounded-detail nudge).",
       "consumer_notes": "read_disclosure nudge label: non-blocking, self-recoverable, excluded from the dispatch-facing blocker catalog."
+    },
+    {
+      "code": "agent_launch.terminal_candidate.status.candidate_absent.v1", "category": "backend", "actor_recovery": "none", "blocking": false,
+      "summary": "The fixed terminal-candidate ref is absent and status advertised no unsupported recovery."
+    },
+    {
+      "code": "agent_launch.terminal_candidate.status.candidate_identity_invalid_or_moved.v1", "category": "backend", "actor_recovery": "operator", "blocking": true,
+      "summary": "Candidate, repository, B/W, schema, record, or bound-state identity is invalid or moved."
+    },
+    {
+      "code": "agent_launch.terminal_candidate.status.candidate_bound.v1", "category": "backend", "actor_recovery": "none", "blocking": false,
+      "summary": "The exact candidate is retained by an active terminal-review context."
+    },
+    {
+      "code": "agent_launch.terminal_candidate.status.live_coordination_inadmissible.v1", "category": "work_record_readiness", "actor_recovery": "coordinator", "blocking": true,
+      "summary": "Live canonical terminal-review coordination is mechanically inadmissible."
+    },
+    {
+      "code": "agent_launch.terminal_candidate.status.candidate_stale_w.v1", "category": "backend", "actor_recovery": "coordinator", "blocking": true,
+      "summary": "The authenticated candidate embeds an older W and may use the closed advance route."
+    },
+    {
+      "code": "agent_launch.terminal_candidate.status.candidate_authored_contract_divergent.v1", "category": "work_record_readiness", "actor_recovery": "coordinator", "blocking": true,
+      "summary": "The unchanged-W v2 candidate differs from live canonical authored contract content."
+    },
+    {
+      "code": "agent_launch.terminal_candidate.status.candidate_healthy.v1", "category": "backend", "actor_recovery": "automatic_proceed", "blocking": false,
+      "summary": "The exact candidate is healthy and any reviewer next call is mechanically demonstrated."
+    },
+    {
+      "code": "agent_launch.terminal_candidate.canonical_root_invalid.v1", "category": "filesystem", "actor_recovery": "operator", "blocking": true,
+      "summary": "The launcher-owned canonical repository root is not exact or readable."
+    },
+    {
+      "code": "agent_launch.terminal_candidate.canonical_record_unreadable.v1", "category": "filesystem", "actor_recovery": "operator", "blocking": true,
+      "summary": "The canonical WK record cannot be read and parsed from the launcher-owned repository."
+    },
+    {
+      "code": "agent_launch.terminal_candidate.transport_failure.v1", "category": "transport", "actor_recovery": "caller_retry", "blocking": true,
+      "summary": "A launcher-owned candidate or bound-state observation failed at the Git transport boundary."
+    },
+    {
+      "code": "agent_launch.terminal_candidate.continuation_invalid.v1", "category": "route", "actor_recovery": "caller_retry", "blocking": true,
+      "summary": "The opaque status continuation is malformed, exhausted, or unauthenticated."
+    },
+    {
+      "code": "agent_launch.terminal_candidate.continuation_stale.v1", "category": "route", "actor_recovery": "caller_retry", "blocking": true,
+      "summary": "A fact bound into the opaque divergence continuation moved."
+    },
+    {
+      "code": "agent_launch.terminal_candidate.route_failure.v1", "category": "route", "actor_recovery": "operator", "blocking": true,
+      "summary": "The terminal-candidate route encountered an unclassified internal failure without disclosing raw details."
+    },
+    {
+      "code": "agent_launch.terminal_candidate.advance_not_stale.v1", "category": "backend", "actor_recovery": "caller_retry", "blocking": true,
+      "summary": "Advance did not receive the evaluator-owned stale-W authority snapshot."
+    },
+    {
+      "code": "agent_launch.terminal_candidate.advance_schema_refused.v1", "category": "backend", "actor_recovery": "operator", "blocking": true,
+      "summary": "The exact current-W record did not select one supported v2 or v3 advance schema."
+    },
+    {
+      "code": "agent_launch.terminal_candidate.advance_input_moved.v1", "category": "backend", "actor_recovery": "caller_retry", "blocking": true,
+      "summary": "B or W moved or became absent between status authority and schema-specific freeze."
+    },
+    {
+      "code": "agent_launch.terminal_candidate.advance_final_recheck_failed.v1", "category": "backend", "actor_recovery": "caller_retry", "blocking": true,
+      "summary": "Canonical terminal-review authority changed before the candidate ref CAS."
+    },
+    {
+      "code": "agent_launch.terminal_candidate.advance_generation_absent.v1", "category": "backend", "actor_recovery": "operator", "blocking": true,
+      "summary": "The exact current-W controlled-contract generation required for terminal-candidate advance is absent."
+    },
+    {
+      "code": "agent_launch.terminal_candidate.exclusion_refused.v1", "category": "backend", "actor_recovery": "caller_retry", "blocking": true,
+      "summary": "The per-WK advance exclusion refused entry, recheck, reviewer bind, or recovery binding."
+    },
+    {
+      "code": "agent_launch.terminal_wk_candidate.invalid_argument.v1", "category": "route", "actor_recovery": "caller_retry", "blocking": true,
+      "summary": "A launcher-internal terminal-candidate call received an invalid closed input."
+    },
+    {
+      "code": "agent_launch.terminal_wk_candidate.git_failed.v1", "category": "transport", "actor_recovery": "caller_retry", "blocking": true,
+      "summary": "A Git operation required by exact terminal-candidate authority failed."
+    },
+    {
+      "code": "agent_launch.terminal_wk_candidate.base_invalid.v1", "category": "backend", "actor_recovery": "operator", "blocking": true,
+      "summary": "The exact lifecycle base is not a valid ancestor of W."
+    },
+    {
+      "code": "agent_launch.terminal_wk_candidate.input_moved.v1", "category": "backend", "actor_recovery": "caller_retry", "blocking": true,
+      "summary": "A frozen terminal-candidate input moved before deterministic derivation or publication."
+    },
+    {
+      "code": "agent_launch.terminal_wk_candidate.candidate_invalid.v1", "category": "backend", "actor_recovery": "operator", "blocking": true,
+      "summary": "Terminal-candidate bytes, topology, metadata, or exact record observation are invalid."
+    },
+    {
+      "code": "agent_launch.terminal_wk_candidate.candidate_ref_disagrees.v1", "category": "backend", "actor_recovery": "caller_retry", "blocking": true,
+      "summary": "The fixed candidate-ref CAS lost without an exact same-input winner."
+    },
+    {
+      "code": "agent_launch.terminal_wk_candidate.binding_mismatch.v1", "category": "backend", "actor_recovery": "operator", "blocking": true,
+      "summary": "An exact direct candidate authority ref is malformed, indirect, ambiguous, or non-commit."
+    },
+    {
+      "code": "mcp_response.spill_persistence_failed.v1",
+      "category": "transport",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "An oversized MCP response could not be persisted for ranged retrieval, so neither the inline payload nor a content reference could be returned.",
+      "detail": "WK-2359 registers this identity because it is published on a public MCP envelope and was previously defined only in packages/wiki-mcp/src/lib/mcp-response.mjs, where no registry described it and no consumer could enumerate it. It is the deliberate refusal emitted when spill persistence fails: there is nothing to continue from, so the envelope carries the ordinary cause diagnostic, any structured sensitive-component redactions, and no content reference.",
+      "consumer_notes": "Operator-owned. The response was neither truncated nor silently dropped; it could not be delivered at all. Read `cause_diagnostic` and `cause_diagnostic_redactions` for the reason and `total_bytes` for the size that could not be persisted."
+    },
+    {
+      "code": "mcp_response.content_reference_ranged_read_unavailable.v1",
+      "category": "transport",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "A ranged read against a spilled MCP content reference could not be served.",
+      "detail": "WK-2359 registers this identity for the same reason as its sibling above: it crosses a public MCP boundary and must be enumerable from the canonical registry rather than defined only at its producer. It reports that a previously issued content reference cannot be read, so the complete response is not currently reachable through the documented retrieval route.",
+      "consumer_notes": "Operator-owned. The refusal names the failing `limb` and a bounded `reason`; the reference path is server substrate and is never published."
+    },
+    {
+      "code": "authoring_ergonomics_snapshot_unavailable",
+      "category": "route",
+      "actor_recovery": "caller_retry",
+      "blocking": true,
+      "summary": "The authenticated authoring-ergonomics snapshot is expired, unknown, evicted, restarted, or bound to a different source.",
+      "detail": "The typed query refuses instead of rereading live evidence or reconstructing an obsolete whole response. When the original source request remains available, rerun workspace_authoring_ergonomics_report to create a new immutable snapshot.",
+      "consumer_notes": "Use only the canonical next_calls recovery carried by the refusal. Do not retry the stale cursor or infer current evidence from an earlier page."
+    },
+    {
+      "code": "authoring_ergonomics_query_invalid",
+      "category": "route",
+      "actor_recovery": "caller_retry",
+      "blocking": true,
+      "summary": "The authoring-ergonomics typed query uses an unknown collection, invalid selector, incompatible cursor fields, invalid range, or unsupported bound.",
+      "detail": "The query is refused before returning a page. Use the published closed query schema and the collection inventory from the compact initial report.",
+      "consumer_notes": "The refusal grants no policy authority. Correct the typed request; no report-local fallback, whole-response export, or live reread exists."
+    },
+    {
+      "code": "controlled_contract_platform_failure",
+      "category": "controlled_contract",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "A controlled-contract operation failed against the host platform (filesystem, process, or module loader) rather than against its own contract.",
+      "detail": "A platform failure reaching the controlled-contract public boundary is translated exactly once into this identity, so a host errno is never published as a semantic reason code. The host condition travels as a bounded `platform_condition` class on the refusal detail.",
+      "consumer_notes": "Operator-owned. Read the bounded `platform_condition` class on the refusal detail; the originating path is server substrate and is never published. No caller retry changes a host condition, so no recovery route is declared."
+    },
+    {
+      "code": "controlled_contract_document_parse_failed",
+      "category": "controlled_contract",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "A controlled-contract operation could not parse a document or compile a schema, and the failure arrived untyped rather than as a package-defined carrier refusal.",
+      "detail": "Covers a raw parser or schema-compilation failure that reaches the public boundary without a package-defined controlled-contract code. Package-typed parse codes are preserved unchanged; this identity keeps a raw parser message out of the public reason field.",
+      "consumer_notes": "Operator-owned. Seeing this instead of a package-defined parse code means the raising path is missing its typed wrapper; that is the defect to fix."
+    },
+    {
+      "code": "controlled_contract_internal_invariant",
+      "category": "controlled_contract",
+      "actor_recovery": "operator",
+      "blocking": true,
+      "summary": "An unexpected internal exception crossed a controlled-contract public boundary; the operation, stage, owning boundary, and correlation identity are reported and no recovery is claimed.",
+      "detail": "An unexpected internal exception at a public boundary is a programming defect, not a caller-correctable refusal. This identity carries the exact operation, stage, owning boundary, and a deterministic correlation identity, and declares no retry or recovery because no named prerequisite is known to be false.",
+      "consumer_notes": "Operator-owned and never caller-correctable. The complete ordinary diagnostic names the exception class and preserves its text; only structured genuine-sensitive components are removed and signalled. Report the correlation identity when escalating."
     }
   ],
+  "package_local_identity_namespaces": [
+    { "namespace": "agent_dispatch_identity", "owner_package": "wiki-core", "public_projection": "caller_supplied_identity" },
+    { "namespace": "agent_launch", "owner_package": "agent-launch-cli", "registered_members": true, "public_projection": "runtime_materialization_failed" },
+    { "namespace": "authoring_ergonomics", "owner_package": "wiki-core" },
+    { "namespace": "behavioral_preservation_pair", "owner_package": "agent-launch-cli", "public_projection": "validation_failure" },
+    { "namespace": "behavioral_preservation_pair_receipt", "owner_package": "agent-launch-cli", "public_projection": "validation_failure" },
+    { "namespace": "commit", "owner_package": "wiki-mcp", "public_projection": "validation_failure" },
+    { "namespace": "controlled_contract", "owner_package": "controlled-contract", "public_projection": "validation_failure" },
+    { "namespace": "controlled_contract_carrier_set_manifest", "owner_package": "wiki-core", "public_projection": "validation_failure" },
+    { "namespace": "controlled_contract_generation_authentication", "owner_package": "wiki-core", "public_projection": "validation_failure" },
+    { "namespace": "delivery_envelope", "owner_package": "agent-launch-cli" },
+    { "namespace": "graph_impact_bridge", "owner_package": "agent-launch-cli", "public_projection": "graph_impact_unavailable" },
+    { "namespace": "launcher_transition", "owner_package": "agent-launch-core", "registered_members": true, "public_projection": "launcher_transition.authenticated_backend_refusal_unclassified.v1" },
+    { "namespace": "managed_worker_declared_test", "owner_package": "agent-launch-cli", "public_projection": "validation_failure" },
+    { "namespace": "managed_worker_test_run_authority", "owner_package": "agent-launch-cli", "public_projection": "validation_failure" },
+    { "namespace": "mcp_response", "owner_package": "wiki-mcp", "registered_members": true },
+    { "namespace": "node_engine_api_client", "owner_package": "wiki-core", "public_projection": "backend_unavailable" },
+    { "namespace": "node_engine_cli", "owner_package": "wiki-cli", "public_projection": "backend_unavailable" },
+    { "namespace": "pack_owned", "owner_package": "wiki-cli" },
+    { "namespace": "review_attestation", "owner_package": "wiki-core", "public_projection": "validation_failure" },
+    { "namespace": "slice_review_acceptance", "owner_package": "wiki-core", "public_projection": "validation_failure" },
+    { "namespace": "submit_for_review", "owner_package": "wiki-mcp", "public_projection": "missing_structured_transport" },
+    { "namespace": "test_proof_provider_registry", "owner_package": "agent-launch-cli", "public_projection": "validation_failure" },
+    { "namespace": "wiki_core", "owner_package": "wiki-core", "public_projection": "validation_failure" },
+    { "namespace": "work_record", "owner_package": "wiki-core", "public_projection": "work_record_readiness_failure" },
+    { "namespace": "work_unit_feature_vector", "owner_package": "wiki-core", "public_projection": "work_record_readiness_failure" },
+    { "namespace": "worker_admission", "owner_package": "wiki-core" },
+    { "namespace": "worker_run_declared_test", "owner_package": "wiki-mcp", "public_projection": "validation_failure" },
+    { "namespace": "workspace_agent_validation_runner", "owner_package": "agent-launch-cli", "public_projection": "validation_failure" },
+    { "namespace": "workspace_run_validation", "owner_package": "wiki-mcp", "public_projection": "validation_failure" },
+    { "namespace": "wrapper", "owner_package": "agent-launch-cli", "public_projection": "unsupported_route" }
+  ],
+  "private_cause_declarations": [
+    {
+      "kind": "launcher_action_token",
+      "owner_package": "agent-launch-core",
+      "reason": "Launcher transition plans carry imperative PRIVATE action tokens. They are flat snake_case and therefore indistinguishable by grammar from a public mechanical code, which is exactly how an uncallable token reaches an agent as if it were a route. They are declared here so the registry can refuse them by NAME, and they are deliberately not registered as codes.",
+      "causes": [
+        "consume_selected_result",
+        "poll_selected_attempt",
+        "reconcile_slice_tip",
+        "restore_wk_lifecycle",
+        "retry_launch",
+        "retry_lineage_settlement",
+        "retry_workspace_agent_dispatch_after_lifecycle_preflight_succeeds"
+      ]
+    },
+    {
+      "kind": "launcher_transition_cause",
+      "owner_package": "agent-launch-core",
+      "reason": "Launcher-private transition causes. WK-2388 owns the classification that consumes them and requires that they stay unpublished: such a cause may select an existing mechanical transition tuple, but exposing it merely to classify the transition is refused. Registering one here would publish it as a public mechanical identity, so a private cause is NOT registered merely because it exists.",
+      "causes": [
+        "findings_shape_mismatch",
+        "frozen_standalone_findings_contract_invalid"
+      ]
+    }
+  ],
+  "non_registrable_authority_identities": {
+    "description": "Identities owned by an external authority rather than by this local mechanical registry. They are transported verbatim inside an authenticated carrier and are never registered as local public mechanical codes, because registering one would give a local module a semantic opinion about a decision it did not make.",
+    "owner": "authenticated CCE policy result",
+    "identities": [
+      "exact_returned_policy",
+      "worker_admission_review_threshold_exceeded"
+    ]
+  },
   "graph_impact_state_map": {
     "description": "Exhaustive deterministic mapping from (graph_state, staleness, dirty_state, overlay_state) to runtime blocker codes consumed by workspace_coordination_preflight and workspace_agent_dispatch readiness. The first matching rule wins. A null/unspecified field matches any value. WK-1590 current-HEAD ruling (2026-07-18, recorded on WK-1590): the graph baseline is derived from the current committed HEAD, so a stale, older-base, missing-overlay, or rebuild_required state is rebuilt at current HEAD rather than blocking -- staleness alone is never a blocking refusal. A valid dirty-worktree overlay is optional enrichment merged over the base (non-blocking graph_impact_degraded_overlay). Only a current-HEAD baseline that genuinely cannot be produced or validated (graph_state unavailable/error/query_error) is a zero-backend blocking refusal before CCE.",
     "rules": [

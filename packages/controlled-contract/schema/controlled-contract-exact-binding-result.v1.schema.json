@@ -26,7 +26,7 @@
     "satisfaction":{"enum":["satisfied","unsatisfied","indeterminate","invalid"]},
     "binding_set_sha256":{"$ref":"#/$defs/sha256"},
     "bindings":{"type":"array","uniqueItems":true,"items":{"$ref":"#/$defs/binding"}},
-    "relation_results":{"type":"array","uniqueItems":true,"items":{"oneOf":[{"$ref":"#/$defs/content_relation"},{"$ref":"#/$defs/capture_relation"},{"$ref":"#/$defs/source_descriptor_relation"},{"$ref":"#/$defs/projection_relation"}]}},
+    "relation_results":{"type":"array","uniqueItems":true,"items":{"oneOf":[{"$ref":"#/$defs/content_relation"},{"$ref":"#/$defs/distinct_content_relation"},{"$ref":"#/$defs/capture_relation"},{"$ref":"#/$defs/source_descriptor_relation"},{"$ref":"#/$defs/projection_relation"}]}},
     "diagnostics":{"type":"array","items":{"$ref":"#/$defs/diagnostic"}}
   },
   "$defs":{
@@ -50,8 +50,9 @@
       "type":"object","additionalProperties":false,"required":["role","coverage","projection","reference_ids"],
       "properties":{
         "role":{"$ref":"#/$defs/id"},"coverage":{"const":"exact"},
-        "projection":{"enum":["artifact_subject","snapshot_subject","snapshot_population","projection_result_population"]},
+        "projection":{"enum":["artifact_subject","snapshot_subject","snapshot_population","projection_result_population","projection_result_reference"]},
         "population_id":{"$ref":"#/$defs/id"},
+        "projection_id":{"$ref":"#/$defs/id"},
         "reference_ids":{"type":"array","uniqueItems":true,"items":{"type":"string","minLength":1}}
       }
     },
@@ -72,7 +73,7 @@
       "type":"object","required":["relation_id","operator","requirement_ids","status"],
       "properties":{
         "relation_id":{"$ref":"#/$defs/id"},
-        "operator":{"enum":["same_content_sha256","distinct_capture_id","distinct_source_descriptor"]},
+        "operator":{"enum":["same_content_sha256","distinct_content_sha256","distinct_capture_id","distinct_source_descriptor"]},
         "requirement_ids":{"type":"array","minItems":2,"uniqueItems":true,"items":{"$ref":"#/$defs/id"}},
         "status":{"enum":["satisfied","unsatisfied"]}
       }
@@ -82,6 +83,13 @@
         {"$ref":"#/$defs/relation_common"},
         {"type":"object","additionalProperties":false,"required":["relation_id","operator","requirement_ids","status","observed_content_sha256"],
          "properties":{"relation_id":{"$ref":"#/$defs/id"},"operator":{"const":"same_content_sha256"},"requirement_ids":{"type":"array","minItems":2,"uniqueItems":true,"items":{"$ref":"#/$defs/id"}},"status":{"enum":["satisfied","unsatisfied"]},"observed_content_sha256":{"type":"array","minItems":2,"items":{"$ref":"#/$defs/sha256"}}}}
+      ]
+    },
+    "distinct_content_relation":{
+      "allOf":[
+        {"$ref":"#/$defs/relation_common"},
+        {"type":"object","additionalProperties":false,"required":["relation_id","operator","requirement_ids","status","observed_content_sha256"],
+         "properties":{"relation_id":{"$ref":"#/$defs/id"},"operator":{"const":"distinct_content_sha256"},"requirement_ids":{"type":"array","minItems":2,"uniqueItems":true,"items":{"$ref":"#/$defs/id"}},"status":{"enum":["satisfied","unsatisfied"]},"observed_content_sha256":{"type":"array","minItems":2,"items":{"$ref":"#/$defs/sha256"}}}}
       ]
     },
     "capture_relation":{

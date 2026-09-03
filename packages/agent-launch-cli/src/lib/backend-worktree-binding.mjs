@@ -1,37 +1,15 @@
 
 
 import path from "node:path";
-import { BACKEND_REFUSAL_CODES } from "@agent-chassis/agent-launch-core";
-import { resolveVerifiedSparseExactUnitBinding } from "./worktree-substrate.mjs";
-
-import { allocateFullSliceExactUnitWorktree } from "./worktree-substrate-exact-unit.mjs";
 import {
-  assertCompleteManagedProvisioningResult,
-  provisionManagedWorktreesAtDispatch
-} from "./worktree-provisioning-dispatch.mjs";
-import {
-  CALLER_SCOPE_CARRIERS,
-  CALLER_MANAGED_LIFECYCLE_CARRIERS,
-  CONFIG_ATTEMPT_STATE_CARRIERS,
-  WORKER_SCOPE_AUTHORITY_INVALID_BLOCKER,
-  WORKER_READ_BOUNDARY_UNSUPPORTED_BLOCKER,
-  SUPPORTED_WORKER_READ_BOUNDARY_FAMILIES,
-  SUPPORTED_WORKER_READ_BOUNDARY_BACKENDS
+  WORKER_SCOPE_AUTHORITY_INVALID_BLOCKER
 } from "./backend-constants.mjs";
-import { isPlainObject, hasManagedConfinementActivation } from "./backend-review-identity.mjs";
+import { isPlainObject } from "./backend-review-identity.mjs";
 import {
-  firstOwnField,
   scopeAuthorityRefusal,
   assertProvisionedScopeAuthority
 } from "./backend-scope-authority.mjs";
-import {
-  managedRefusal,
-  MANAGED_PROVISIONING_UNAVAILABLE,
-  MANAGED_LIFECYCLE_REQUIRED,
-  resolveProvisioningInitiative,
-  resolveProvisioningAttemptState,
-  provisioningRefusal
-} from "./backend-provisioning-state.mjs";
+import { resolveProvisioningAttemptState } from "./backend-provisioning-state.mjs";
 
 function firstStringField(source, names) {
   for (const name of names) {
@@ -86,62 +64,88 @@ function deriveProvisionedWorktreeGitBinding(provisioning) {
   });
 }
 
+function preparationRefusal(result) {
+  return Object.freeze({
+    ok: false,
+    refusal: result?.refusal ?? result
+  });
+}
+
+export function createManagedWorktreeProvisioningAuthority({
+  provisioningConfig: _provisioningConfig,
+  requireManagedProvisioning: _requireManagedProvisioning,
+  attemptStateAuthority
+} = {}) {
+  const prepared = new WeakMap();
+
+  function admitEstablished({ input = {}, app, state } = {}) {
+    if (!isPlainObject(state) || state.provisioning?.complete !== true ||
+        state.subject !== input.subject || state.run_id !== input.run_id ||
+        state.monitor_handle !== input.monitor_handle || state.app !== app) {
+      return preparationRefusal(scopeAuthorityRefusal(
+        WORKER_SCOPE_AUTHORITY_INVALID_BLOCKER,
+        { reason: "launcher_private_provisioning_unavailable" }
+      ));
+    }
+    const ticket = Object.freeze({});
+    prepared.set(ticket, Object.freeze({ ...state }));
+    return Object.freeze({ ok: true, ticket });
+  }
+
+  function resolve({ ticket, input = null, app = null, consume = false } = {}) {
+    const state = ticket !== null && typeof ticket === "object"
+      ? prepared.get(ticket) ?? null
+      : null;
+    if (state === null) return null;
+    if (input !== null && (
+      state.app !== app ||
+      state.subject !== input.subject ||
+      state.run_id !== input.run_id ||
+      state.monitor_handle !== input.monitor_handle
+    )) return null;
+    if (consume) prepared.delete(ticket);
+    return state;
+  }
+
+  const resolveAttemptState = ({ input, initiative }) =>
+    resolveProvisioningAttemptState({ attemptStateAuthority, input, initiative });
+
+  return Object.freeze({ admitEstablished, resolve, resolveAttemptState });
+}
+
 export function maybeWrapExecutorWithWorktreeProvisioning(
   executor,
   app,
   provisioningConfig,
   requireManagedProvisioning,
   attemptStateAuthority,
-  validateWorkerScopeSnapshot
+  validateWorkerScopeSnapshot,
+  provisioningAuthority = null
 ) {
   if (typeof executor !== "function") return executor;
   if (provisioningConfig === null && requireManagedProvisioning !== true) return executor;
+  const authority = provisioningAuthority ?? createManagedWorktreeProvisioningAuthority({
+    provisioningConfig,
+    requireManagedProvisioning,
+    attemptStateAuthority
+  });
   return async function provisionedWorkspaceAgentExecutor(input = {}) {
-    if (input.role !== "worker") {
-      return executor(input);
-    }
+    if (input.role !== "worker") return executor(input);
 
-    if (provisioningConfig === null) {
-      return managedRefusal(MANAGED_PROVISIONING_UNAVAILABLE, { capability: "managed_worktree_provisioning" });
-    }
-    const callerCarrier = firstOwnField(input, CALLER_SCOPE_CARRIERS);
-    const lifecycleCarrier = firstOwnField(input, CALLER_MANAGED_LIFECYCLE_CARRIERS);
-    const configCarrier = firstOwnField(provisioningConfig, CALLER_SCOPE_CARRIERS);
-    const configAttemptCarrier = firstOwnField(provisioningConfig, CONFIG_ATTEMPT_STATE_CARRIERS);
-    if (callerCarrier !== null || lifecycleCarrier !== null || configCarrier !== null || configAttemptCarrier !== null) {
-      return scopeAuthorityRefusal(WORKER_SCOPE_AUTHORITY_INVALID_BLOCKER, {
-        reason: lifecycleCarrier !== null || configAttemptCarrier !== null
-          ? "caller_carried_managed_lifecycle_forbidden"
-          : "caller_carried_scope_forbidden",
-        field: callerCarrier ?? lifecycleCarrier ?? configCarrier ?? configAttemptCarrier,
-        carrier: callerCarrier !== null || lifecycleCarrier !== null ? "dispatch_input" : "provisioning_config"
-      });
-    }
-    if (!SUPPORTED_WORKER_READ_BOUNDARY_FAMILIES.includes(app)) {
-      return scopeAuthorityRefusal(WORKER_READ_BOUNDARY_UNSUPPORTED_BLOCKER, {
-        reason: "unsupported_family",
-        family: app,
-        supported_families: SUPPORTED_WORKER_READ_BOUNDARY_FAMILIES
-      });
-    }
-    const boundaryBackend = provisioningConfig.readBoundaryBackend
-      ?? provisioningConfig.read_boundary_backend
-      ?? provisioningConfig.isolationBackend
-      ?? provisioningConfig.isolation_backend
-      ?? "bwrap";
-    if (!SUPPORTED_WORKER_READ_BOUNDARY_BACKENDS.includes(boundaryBackend)) {
-      return scopeAuthorityRefusal(WORKER_READ_BOUNDARY_UNSUPPORTED_BLOCKER, {
-        reason: "unsupported_backend",
-        backend: boundaryBackend,
-        supported_backends: SUPPORTED_WORKER_READ_BOUNDARY_BACKENDS
-      });
-    }
     const frozenScopeSnapshot = input.frozen_worker_scope_snapshot ?? null;
+    const ticket = frozenScopeSnapshot?.managed_provisioning_ticket ?? null;
+    const preparedState = authority.resolve({ ticket, input, app, consume: true });
+    if (preparedState === null) {
+      return scopeAuthorityRefusal(WORKER_SCOPE_AUTHORITY_INVALID_BLOCKER, {
+        reason: "launcher_private_provisioning_unavailable"
+      });
+    }
+    const { provisioning, initiative, retry_id: provisioningRetryId } = preparedState;
     const snapshotValidation = typeof validateWorkerScopeSnapshot === "function"
       ? await validateWorkerScopeSnapshot({
           snapshot: frozenScopeSnapshot,
           consumer: "provisioning",
-          result: null
+          result: provisioning
         })
       : null;
     if (!snapshotValidation?.ok) {
@@ -154,116 +158,6 @@ export function maybeWrapExecutorWithWorktreeProvisioning(
       };
     }
     const frozenScopeAuthority = frozenScopeSnapshot.authority;
-    if (!hasManagedConfinementActivation(provisioningConfig)) {
-      return managedRefusal(MANAGED_LIFECYCLE_REQUIRED, {
-        capability: "repository_read_boundary",
-        dependency: "WK-1455",
-        message: "managed worker spawn remains disabled until the exact confinement/provisioning capability binding is available"
-      });
-    }
-
-    let provisioning;
-    let initiative;
-    let provisioningRetryId;
-
-    try {
-      initiative = resolveProvisioningInitiative({
-        readiness: input.readiness ?? null,
-        mainRepo: provisioningConfig.mainRepo,
-        subject: input.subject
-      });
-      if (initiative === null) {
-        return {
-          accepted: false,
-          refusal: {
-            code: BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
-            reason: "worktree_provisioning_initiative_unresolved",
-            detail: { subject: input.subject ?? null }
-          }
-        };
-      }
-      const attempt = await resolveProvisioningAttemptState({
-        attemptStateAuthority,
-        input,
-        initiative
-      });
-      if (!attempt.ok) {
-        return attempt.refusal;
-      }
-      provisioningRetryId = attempt.state.retryId;
-      const confirmPriorWorkerTerminated =
-        attempt.state.livenessDeps?.confirmPriorWorkerTerminated ?? null;
-      if (confirmPriorWorkerTerminated !== null) {
-        const priorIdentity = attempt.state.priorIdentity;
-        const confirmed = await confirmPriorWorkerTerminated({
-          launchRef: input.monitor_handle,
-          runId: input.run_id,
-          retryId: provisioningRetryId,
-          priorIdentity,
-          unitAddress: `${initiative}/${input.subject.replace("#", "/")}`
-        });
-        if (confirmed !== true) {
-          return {
-            accepted: false,
-            refusal: {
-              code: BACKEND_REFUSAL_CODES.LAUNCH_REFUSED,
-              reason: "worktree_provisioning_prior_worker_liveness_unconfirmed",
-              detail: { retry_id: provisioningRetryId }
-            }
-          };
-        }
-      }
-
-      const configuredAllocateSlice = provisioningConfig.deps?.allocateFullSliceExactUnitWorktree
-        ?? allocateFullSliceExactUnitWorktree;
-      provisioning = provisionManagedWorktreesAtDispatch({
-        mainRepo: provisioningConfig.mainRepo,
-        initiative,
-        subject: input.subject,
-        launchRef: input.monitor_handle,
-        runId: input.run_id,
-        retryId: provisioningRetryId,
-        worktreeRoot: provisioningConfig.worktreeRoot,
-        deps: {
-          ...(provisioningConfig.deps ?? {}),
-          allocateFullSliceExactUnitWorktree: (args) => {
-            const configuredVerifyBinding = args.deps?.verifyBinding
-              ?? resolveVerifiedSparseExactUnitBinding;
-            const binding = configuredAllocateSlice({
-              ...args,
-              deps: {
-                ...(args.deps ?? {}),
-                verifyBinding: (verifyArgs) => {
-                  const verified = configuredVerifyBinding(verifyArgs);
-                  assertProvisionedScopeAuthority(verified, frozenScopeAuthority);
-                  return verified;
-                }
-              }
-            });
-            assertProvisionedScopeAuthority(binding, frozenScopeAuthority);
-            return binding;
-          }
-        }
-      });
-    } catch (error) {
-      return provisioningRefusal(error);
-    }
-
-    try {
-
-      assertCompleteManagedProvisioningResult({
-        provisioning,
-        mainRepo: provisioningConfig.mainRepo,
-        initiative,
-        subject: input.subject,
-        launchRef: input.monitor_handle,
-        runId: input.run_id,
-        retryId: provisioningRetryId,
-        worktreeRoot: provisioningConfig.worktreeRoot
-      });
-    } catch (error) {
-      return provisioningRefusal(error);
-    }
     try {
 
       assertProvisionedScopeAuthority(provisioning.slice_binding, frozenScopeAuthority);
@@ -339,7 +233,8 @@ export function maybeWrapRegistryEntryWithWorktreeProvisioning(
   provisioningConfig,
   requireManagedProvisioning,
   attemptStateAuthority,
-  validateWorkerScopeSnapshot
+  validateWorkerScopeSnapshot,
+  provisioningAuthority = null
 ) {
   if (!entry || typeof entry !== "object" || typeof entry.executor !== "function") {
     return entry;
@@ -352,7 +247,8 @@ export function maybeWrapRegistryEntryWithWorktreeProvisioning(
       provisioningConfig,
       requireManagedProvisioning,
       attemptStateAuthority,
-      validateWorkerScopeSnapshot
+      validateWorkerScopeSnapshot,
+      provisioningAuthority
     )
   };
 }

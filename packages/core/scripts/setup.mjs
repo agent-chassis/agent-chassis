@@ -11,15 +11,13 @@ export const SETUP_AGENTS = Object.freeze([
     key: "claude",
     label: "Claude",
     command: "claude",
-    template: "agent-launch.claude.toml",
-    guidanceFile: "CLAUDE.md"
+    template: "agent-launch.claude.toml"
   }),
   Object.freeze({
     key: "codex",
     label: "Codex",
     command: "codex",
-    template: "agent-launch.codex.toml",
-    guidanceFile: "AGENTS.md"
+    template: "agent-launch.codex.toml"
   })
 ]);
 
@@ -29,11 +27,10 @@ Runs first-time AgentChassis setup from a consumer repo root:
   - npx wiki bootstrap --profile standard
   - copy the matching launcher template to agent-launch.toml when absent
   - npx agent-launch init-config
-  - print the next code-index and orchestrator commands
+  - print operator-owned root-guidance, staging, code-index, and orchestrator commands
 
-The selected root guidance file is created only as an empty placeholder/checkpoint
-when absent. Setup never copies wiki/templates/AGENTS.md.boilerplate.md into a
-root guidance file; review and adapt repo-specific guidance before relying on it.`;
+This command is for a new repository. Setup never creates, reads, modifies, or
+deletes root AGENTS.md or CLAUDE.md. Run the printed commands to create them.`;
 
 function packageRoot() {
   return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -159,48 +156,14 @@ function copyLauncherTemplate({ agent, dryRun }) {
   fs.copyFileSync(source, target, fs.constants.COPYFILE_EXCL);
 }
 
-export function guidancePlaceholderForAgent(agent) {
-  return agent?.guidanceFile ?? null;
-}
-
-export function touchGuidancePlaceholder({ agent, dryRun }) {
-  const guidanceFile = guidancePlaceholderForAgent(agent);
-  if (guidanceFile === null) {
-    process.stdout.write("Skipped root guidance placeholder because no launcher template was selected.\n");
-    return null;
-  }
-
-  const target = path.resolve(process.cwd(), guidanceFile);
-  if (fs.existsSync(target)) {
-    process.stdout.write(
-      `${guidanceFile} already exists; leaving existing root guidance unchanged.\n`
-    );
-    return guidanceFile;
-  }
-
-  process.stdout.write([
-    `${guidanceFile} checkpoint:`,
-    `  Create an empty ${guidanceFile} placeholder for the selected ${agent.label} setup.`,
-    "  This file is only a placeholder/checkpoint until reviewed and adapted for this repo.",
-    "  Setup does not copy wiki/templates/AGENTS.md.boilerplate.md into any root guidance file."
-  ].join("\n"));
-  process.stdout.write("\n");
-
-  if (dryRun) {
-    return guidanceFile;
-  }
-
-  fs.closeSync(fs.openSync(target, "wx"));
-  return guidanceFile;
-}
-
-export function renderNextCommands({ guidanceFile }) {
-  const guidancePath = guidanceFile ?? "<selected-guidance-file>";
+export function renderNextCommands() {
   return [
     "",
-    "Next commands:",
+    "Next commands for a new repository with no existing root agent guidance:",
+    "  cat wiki/templates/AGENTS.md.boilerplate.md >> AGENTS.md",
+    "  printf '@AGENTS.md\\n' > CLAUDE.md",
     "  git status --short",
-    `  git add ${guidancePath} wiki .gitignore agent-launch.toml`,
+    "  git add AGENTS.md CLAUDE.md wiki .gitignore agent-launch.toml",
     "  git commit -m \"bootstrap AgentChassis wiki adoption\"",
     "  npx wiki code-index build --json",
     "  npx agent-launch orchestrator IN-0001",
@@ -208,10 +171,8 @@ export function renderNextCommands({ guidanceFile }) {
   ].join("\n");
 }
 
-function printNextCommands({ guidanceFile }) {
-  process.stdout.write([
-    renderNextCommands({ guidanceFile })
-  ].join("\n"));
+function printNextCommands() {
+  process.stdout.write(renderNextCommands());
 }
 
 export async function runSetup({ argv = process.argv.slice(2) } = {}) {
@@ -230,9 +191,6 @@ export async function runSetup({ argv = process.argv.slice(2) } = {}) {
   printStep("Bootstrap wiki surfaces");
   runCommand("npx", ["wiki", "bootstrap", "--profile", "standard"], options);
 
-  printStep("Create root guidance placeholder");
-  const guidanceFile = touchGuidancePlaceholder({ agent, dryRun: options.dryRun });
-
   printStep("Configure launcher template");
   if (agent === null) {
     process.stdout.write("Skipped agent-launch.toml copy because no launcher template was selected.\n");
@@ -243,7 +201,7 @@ export async function runSetup({ argv = process.argv.slice(2) } = {}) {
   printStep("Initialize launcher config");
   runCommand("npx", ["agent-launch", "init-config"], options);
 
-  printNextCommands({ guidanceFile });
+  printNextCommands();
 }
 
 if (path.resolve(process.argv[1] ?? "") === fileURLToPath(import.meta.url)) {

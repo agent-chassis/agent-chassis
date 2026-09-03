@@ -1,13 +1,25 @@
 
 
-import { spawn } from "node:child_process";
 import { chmodSync, lstatSync, mkdirSync, mkdtempSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { resolveWikiMcpHostServerBinding } from "./wiki-mcp-host-server.mjs";
+import {
+  PackageDocsCarrierCompositionError,
+  assertWikiMcpHostServerSpawnPin,
+  serializePackageDocsHostCompositionBinding,
+  resolveWikiMcpHostServerBinding
+} from "./wiki-mcp-host-server.mjs";
+import {
+  spawnStdioMcpServerWithTranscriptCapture
+} from "./stdio-mcp-transcript-capture.mjs";
 import { resolveLauncherRoleToolNamesForEnv } from "./launcher-role-tool-profile.mjs";
-import { createStdioMcpConduitWithTrustedDependencies } from "./stdio-mcp-conduit-core.mjs";
+import {
+  authenticateStdioMcpCompletionCredential,
+  createStdioMcpConduitWithTrustedDependencies,
+  mintStdioMcpCompletionCredential,
+  STDIO_MCP_COMPLETION_CREDENTIAL_SCHEMA_VERSION
+} from "./stdio-mcp-conduit-core.mjs";
 import {
   STDIO_MCP_CLIENT_READINESS_TIMEOUT_MS,
   STDIO_MCP_CONDUIT_ERROR_CODES,
@@ -23,6 +35,12 @@ import {
 } from "@agent-chassis/wiki-core/src/lib/node-engine-env-bootstrap.mjs";
 
 export * from "./stdio-mcp-conduit-contract.mjs";
+
+export {
+  authenticateStdioMcpCompletionCredential,
+  mintStdioMcpCompletionCredential,
+  STDIO_MCP_COMPLETION_CREDENTIAL_SCHEMA_VERSION
+};
 
 const CONDUIT_DIRECTORY_PREFIX = "agent-launch-wiki-mcp-";
 
@@ -145,13 +163,37 @@ function makeLauncherPrivateDirectory(workspaceDir = null) {
   return directory;
 }
 
-export function resolveTrustedStdioMcpConduitDependencies({ workspaceDir = null } = {}) {
+export function resolveTrustedStdioMcpConduitDependencies({
+  workspaceDir = null
+} = {}) {
   const hostServerBinding = resolveWikiMcpHostServerBinding();
+  const packageDocsGeneration = hostServerBinding.packageDocsGeneration;
+  let spawnServer = spawnStdioMcpServerWithTranscriptCapture;
+  if (hostServerBinding.packageDocsGeneration !== null) {
+    assertWikiMcpHostServerSpawnPin(hostServerBinding, packageDocsGeneration);
+    spawnServer = (...args) => {
+
+      assertWikiMcpHostServerSpawnPin(hostServerBinding, packageDocsGeneration);
+      const child = spawnStdioMcpServerWithTranscriptCapture(...args);
+      const readinessChannel = child?.stdio?.[3];
+      if (readinessChannel === null || readinessChannel === undefined ||
+          typeof readinessChannel.write !== "function") {
+        child?.kill?.("SIGTERM");
+        throw new PackageDocsCarrierCompositionError("probe_mismatch");
+      }
+      readinessChannel.write(serializePackageDocsHostCompositionBinding(
+        hostServerBinding,
+        packageDocsGeneration
+      ));
+      return child;
+    };
+  }
   return Object.freeze({
 
     serverPath: hostServerBinding.entrypoint,
     execPath: process.execPath,
-    spawnServer: spawn,
+
+    spawnServer,
     makePrivateDirectory: () => makeLauncherPrivateDirectory(workspaceDir),
     resolveRoleToolNames: resolveLauncherRoleToolNamesForEnv,
     bootstrapNodeEngineEnv: (env, workspaceDir) => bootstrapNodeEngineEnvFromFile({

@@ -1,0 +1,55 @@
+{
+  "schema_version": "tool-discovery.v1",
+  "kind": "tool-discovery-fragment",
+  "repository": "agent-chassis/agent-chassis",
+  "fragment": "frozen-review-contract-tools.json",
+  "summary": "Operator-only frozen findings-contract diagnostic query.",
+  "tool_count": 1,
+  "tools": [
+    {
+      "tool_name": "workspace_frozen_review_contract_query",
+      "display_name": "Query frozen review contract",
+      "kind": "mcp_tool",
+      "entrypoint": "workspace_frozen_review_contract_query",
+      "task_ids": ["read-canonical"],
+      "runtime_posture": "supported",
+      "recommended_route": "mcp",
+      "audience": ["operator"],
+      "priority": 112,
+      "install_state": "installed",
+      "side_effects": ["read_only"],
+      "authority": ["checked_in_descriptor", "launcher_backend", "runtime_env"],
+      "tier_visibility": ["free_local", "paid_cce"],
+      "request_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "target": {
+            "type": "string",
+            "enum": ["acceptance_criteria", "acceptance_validation"]
+          },
+          "cursor": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "docs_refs": ["docs/mcp-dispatch-runtime-contract.md"],
+      "source_files": ["packages/wiki-mcp/src/lib/frozen-review-contract-tools.mjs"],
+      "use_when": [
+        "An operator is diagnosing a launcher-frozen findings contract artifact for the exact authenticated current run."
+      ],
+      "do_not_use_when": [
+        "A reviewer or redteam client needs its acceptance source; findings clients read the assigned WK JSON inside their already-bound immutable snapshot.",
+        "Current repository work-record state is needed instead of the frozen review contract."
+      ],
+      "authoritative_for": [
+        "operator-only diagnosis of launcher-frozen findings acceptance bytes bound to the current run; it is not findings acceptance transport or a launch prerequisite, and discovery visibility is not authorization"
+      ],
+      "recommended_first_call": {
+        "operation": "read frozen review contract index",
+        "arguments": {}
+      }
+    }
+  ]
+}

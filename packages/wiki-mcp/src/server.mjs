@@ -9,7 +9,9 @@ import {
   LAUNCHER_READINESS_SCHEMA_VERSIONS
 } from "./lib/launcher-readiness-observer.mjs";
 import { z } from "zod";
+import path from "node:path";
 import { writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import {
   readContractFile,
   setWorkRecordStatusByUnit,
@@ -26,8 +28,9 @@ import {
 import {
   jsonContent,
   errorContent,
-  installProcessErrorGuards,
-  readSpilledMcpContentReference
+  createDiagnosticSink,
+  createStdioShutdownController,
+  installProcessErrorGuards
 } from "./lib/mcp-response.mjs";
 import {
   parseToolProfile,
@@ -36,12 +39,26 @@ import {
 
 import { createRegisterTool } from "./lib/register-tool.mjs";
 import {
-  loadToolDiscoveryDescriptor,
-  resolveToolTierVisibility
-} from "@agent-chassis/wiki-core/src/lib/tool-discovery.mjs";
+  consumeLauncherNoCceAuthorityCapability
+} from "./lib/launcher-no-cce-authority.mjs";
 import {
-  workspaceToolRouterRecommend
-} from "../../wiki-core/src/operations/tool-router.mjs";
+  consumeLauncherCommonProofResolverCapability,
+  createLauncherCommonProofResolverFromCapability
+} from "./lib/launcher-common-proof-resolver-capability.mjs";
+
+import {
+  augmentWorkspaceToolDiscoveryDescriptor,
+  createProductionToolUsageAuditOrigin,
+  createProductionToolUsageAuditSelectedContext,
+  loadMcpToolTierRegistrationPolicy,
+  structuredLog,
+  trimmed
+} from "./lib/server-composition-helpers.mjs";
+
+import { registerMcpContentReferenceTools } from "./lib/mcp-content-reference-tools.mjs";
+import { registerToolRouterTools } from "./lib/tool-router-tools.mjs";
+import { registerInitiativeStatusTools } from "./lib/initiative-status-tools.mjs";
+import { registerSubmitForReviewTools } from "./lib/submit-for-review-tools.mjs";
 import {
   shapeWriteResponse,
   createCompactWorkRecordEditResponse,
@@ -62,9 +79,6 @@ import {
 
 import { registerGraphImpactPersistenceTools } from "./lib/graph-impact-persistence-tools.mjs";
 
-import { registerReviewAttestationTools } from "./lib/review-attestation-tools.mjs";
-import { registerReviewResultEvidenceTools } from "./lib/review-result-evidence-tools.mjs";
-
 import { registerStaticResources } from "./lib/static-resources.mjs";
 
 import { registerWorkRecordReadTools } from "./lib/work-record-read-tools.mjs";
@@ -72,13 +86,29 @@ import { registerIntegrationStatusTools } from "./lib/integration-status-tools.m
 import { registerIntegrationPromoteCheckTools } from "./lib/integration-promote-check-tools.mjs";
 
 import { registerAgentFaqTools } from "./lib/agent-faq-tools.mjs";
+
+import { registerAuthoringErgonomicsTools } from "./lib/authoring-ergonomics-tools.mjs";
 import {
   createToolUsageAuditBoundaryRecorder,
   registerToolUsageAuditTools
 } from "./lib/tool-usage-audit-mcp-tools.mjs";
 
 import { registerToolDiscoveryTools } from "./lib/tool-discovery-tools.mjs";
+
+import {
+  bindPackageDocsCarrier,
+  registerToolDocReadTools,
+  toDocumentationProjectionCarrier
+} from "./lib/tool-doc-read-tools.mjs";
+
 import { registerControlledContractTools } from "./lib/controlled-contract-tools.mjs";
+import {
+  persistControlledContractGeneration,
+  resolveControlledContractGenerationBinding
+} from "../../agent-launch-cli/src/lib/controlled-carrier-attachment-primitive.mjs";
+import {
+  bindSpawnedPackageDocsCarrierFromLauncher
+} from "../../agent-launch-cli/src/lib/wiki-mcp-host-server.mjs";
 
 import { registerWikiCoreTools } from "./lib/wiki-core-tools.mjs";
 
@@ -87,6 +117,8 @@ import { registerKindRecordWriteTools } from "./lib/kind-record-write-tools.mjs"
 import { registerWorkspaceCommitTool } from "./lib/workspace-commit-tool.mjs";
 
 import { registerWorkerDeclaredTestTool } from "./lib/worker-declared-test-tool.mjs";
+
+import { registerFrozenReviewContractTools } from "./lib/frozen-review-contract-tools.mjs";
 
 import { registerDispatchTools } from "./lib/dispatch-tools.mjs";
 
@@ -97,180 +129,30 @@ import { bootstrapWikiMcpNodeEngineEnv } from "./lib/node-engine-env-bootstrap.m
 const SERVER_VERSION = "0.2.0";
 const WORKSPACE_WORK_RECORD_SET_STATUS_TOOL_NAME = "workspace_work_record_set_status";
 const WORKSPACE_WORK_RECORD_SET_TASK_TOOL_NAME = "workspace_work_record_set_task";
-const WORKSPACE_INITIATIVE_STATUS_TOOL_NAME = "workspace_initiative_status";
-const WORKSPACE_TOOL_ROUTER_RECOMMEND_TOOL_NAME = "workspace_tool_router_recommend";
-const WORKSPACE_SUBMIT_FOR_REVIEW_TOOL_NAME = "workspace_submit_for_review";
 
-function structuredLog(data) {
-  process.stderr.write(
-    `${JSON.stringify({ timestamp: new Date().toISOString(), ...data })}\n`
-  );
-}
+const diagnosticSink = createDiagnosticSink();
+const shutdownController = createStdioShutdownController({
+  disableDiagnostics: () => diagnosticSink.disable()
+});
 
-installProcessErrorGuards({ log: structuredLog });
+installProcessErrorGuards({
+  log: structuredLog,
+  diagnostics: diagnosticSink,
+  requestShutdown: (code) => shutdownController.requestShutdown(code)
+});
 
 const emptySchema = z.object({});
 const extensionNamespacesSchema = z.array(z.string()).optional();
 
-function augmentWorkspaceToolDiscoveryDescriptor(descriptor) {
-
-  return descriptor;
-}
-
-const DESCRIPTOR_LOAD_FAILURE_FREE_LOCAL_MCP_TOOL_NAMES = new Set([
-  "workspace_tools_list",
-  "workspace_tools_describe",
-  "workspace_tools_query",
-  "workspace_controlled_contract_carrier_read",
-  "workspace_controlled_contract_carrier_write",
-  "workspace_controlled_contract_carrier_create",
-  "workspace_controlled_contract_carrier_query",
-  "workspace_controlled_contract_carrier_patch",
-  "workspace_controlled_contract_authoring_describe",
-  "workspace_controlled_vocabulary_query",
-  "workspace_controlled_proof_intents_discover",
-  "workspace_controlled_proof_packs_select",
-  "workspace_controlled_proof_pack_describe",
-  "workspace_controlled_proof_pack_bindings_inspect",
-  "workspace_controlled_proof_plan_build",
-  "workspace_controlled_contract_assess",
-  "workspace_controlled_contract_artifact_read",
-  "workspace_read_mcp_content_reference",
-  "get_contract_manifest",
-  "workspace_agent_dispatch_identity_contract",
-  "workspace_search_repo",
-  "workspace_build_search_index",
-  "workspace_read_page",
-  "workspace_get_record",
-  "workspace_validate_dispatch",
-  "workspace_generate_and_lint",
-  "workspace_lint_repo",
-  "workspace_autofix_docs_backlinks",
-  "workspace_docs_policy_validate",
-  "workspace_agent_faq",
-  "workspace_run_validation",
-  "workspace_create_record",
-  "workspace_work_record_validate",
-  "workspace_work_record_set_status",
-  "workspace_work_record_set_task",
-  "workspace_work_record_set_closure",
-  "workspace_work_record_summary",
-  "workspace_tool_router_recommend",
-  "workspace_work_record_upsert_slice",
-  "workspace_work_record_delete_slice",
-  "workspace_work_record_set_list_field",
-  "workspace_work_record_set_acceptance",
-  "workspace_work_record_shape_review_unit",
-  "workspace_agent_dispatch",
-  "workspace_agent_run_status",
-  "workspace_agent_run_wait",
-  "workspace_integrate_committed_slice",
-  "workspace_runtime_blocker_taxonomy",
-  "workspace_coordination_preflight",
-
-  "commit",
-  "workspace_submit_for_review",
-
-  "workspace_worker_run_declared_test"
-]);
-
-async function loadMcpToolTierRegistrationPolicy() {
-  try {
-    const descriptor = await loadToolDiscoveryDescriptor();
-    const freeLocalToolNames = new Set();
-    for (const tool of Array.isArray(descriptor?.tools) ? descriptor.tools : []) {
-      if (!tool || typeof tool.tool_name !== "string" || tool.kind !== "mcp_tool") {
-        continue;
-      }
-      const visibility = resolveToolTierVisibility(tool);
-      if (visibility.includes("free_local")) {
-        freeLocalToolNames.add(tool.tool_name);
-      }
-    }
-    return {
-      descriptorLoaded: true,
-      freeLocalToolNames,
-      freeLocalFallbackToolNames: null
-    };
-  } catch (error) {
-    structuredLog({
-      level: "warning",
-      event: "tool_tier_registration_descriptor_load_failed",
-      message:
-        "Tool discovery descriptor tier metadata could not be loaded; free/local MCP registration is limited to the safe free/local fallback set.",
-      error: error instanceof Error ? error.message : String(error)
-    });
-    return {
-      descriptorLoaded: false,
-      freeLocalToolNames: null,
-      freeLocalFallbackToolNames: DESCRIPTOR_LOAD_FAILURE_FREE_LOCAL_MCP_TOOL_NAMES
-    };
-  }
-}
-
-function trimmed(value) {
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
-}
-
-function auditToolProfileBucket(toolProfile) {
-  if (toolProfile === "agent-safe") return "agent_safe";
-  if (toolProfile === "worker") return "worker";
-  return "full_profile";
-}
-
-function auditCallerKind(toolProfile) {
-  return toolProfile === "full" ? "operator" : "agent";
-}
-
-function auditSessionKind(toolProfile) {
-  return toolProfile === "full" ? "mcp_client" : "role_session";
-}
-
-function createProductionToolUsageAuditOrigin({ toolProfile, dispatchSessionIdentity }) {
-  return {
-    caller_kind: auditCallerKind(toolProfile),
-    session_kind: auditSessionKind(toolProfile),
-    tool_profile: auditToolProfileBucket(toolProfile),
-    client_origin: dispatchSessionIdentity
-  };
-}
-
-function createProductionToolUsageAuditSelectedContext({ workspaceRepos, assignedUnit }) {
-  const selected = {};
-  if (workspaceRepos?.currentAlias) {
-    selected.workspace_repo = workspaceRepos.currentAlias;
-  }
-  if (assignedUnit) {
-    selected.selected_unit = assignedUnit;
-  }
-  return selected;
-}
-
-function createSubmitForReviewRefusal(decisionCode, reasons, extra = {}) {
-  return {
-    tool: WORKSPACE_SUBMIT_FOR_REVIEW_TOOL_NAME,
-    submitted: false,
-    valid: false,
-    written: false,
-    no_op: false,
-    decision_code: decisionCode,
-    reasons: Array.isArray(reasons) ? reasons : [reasons],
-    ...extra
-  };
-}
-
-function createSubmitForReviewResponse(workspaceRepo, assignedUnit, result) {
-  return {
-    tool: WORKSPACE_SUBMIT_FOR_REVIEW_TOOL_NAME,
-    submitted: Boolean(result?.valid) && (Boolean(result?.written) || Boolean(result?.no_op)),
-    assigned_unit: assignedUnit,
-    ...createCompactWorkRecordEditResponse(workspaceRepo, result)
-  };
-}
-
-async function registerTools(server) {
+async function registerTools(server, {
+  packageDocsCarrier = null,
+  launcherNoCceAuthorityCapability = null,
+  resolveLauncherReceipt = null
+} = {}) {
   const workspaceRepos = await parseWorkspaceRepos();
   const toolProfile = parseToolProfile();
+
+  const boundPackageDocsCarrier = await bindPackageDocsCarrier(packageDocsCarrier);
 
   const registeredTier = resolveRegisteredTier(process.env);
   const mcpToolTierRegistrationPolicy = await loadMcpToolTierRegistrationPolicy();
@@ -282,7 +164,11 @@ async function registerTools(server) {
     wkForgeHandoffAdapter,
     runTerminalCandidateValidationForUnit
   } =
-    buildDispatchRuntime(process.env, { registeredTier });
+    buildDispatchRuntime(process.env, {
+      registeredTier,
+      workspaceRepos,
+      resolveWorkspaceRepo
+    });
   const toolUsageAuditBoundary = createToolUsageAuditBoundaryRecorder({
     origin: () => createProductionToolUsageAuditOrigin({ toolProfile, dispatchSessionIdentity }),
     selected: () => createProductionToolUsageAuditSelectedContext({
@@ -308,31 +194,7 @@ async function registerTools(server) {
     structuredLog
   });
 
-  registerTool(
-    "workspace_read_mcp_content_reference",
-    {
-      description:
-        "Read a byte range from a server-side MCP response content reference created when an oversized lossless tool response is spilled instead of inlined. Use offset and length to reassemble the complete payload; length must not exceed the returned max_length.",
-      inputSchema: {
-        ref_id: z.string(),
-        offset: z.number().optional(),
-        length: z.number().optional()
-      }
-    },
-    async (args) => {
-      try {
-        return jsonContent(
-          readSpilledMcpContentReference({
-            ref_id: args.ref_id,
-            offset: args.offset ?? 0,
-            length: args.length ?? null
-          })
-        );
-      } catch (error) {
-        return errorContent(error);
-      }
-    }
-  );
+  registerMcpContentReferenceTools({ registerTool, z, jsonContent, errorContent });
 
   registerToolDiscoveryTools({
     registerTool,
@@ -340,7 +202,20 @@ async function registerTools(server) {
     errorContent,
     augmentDescriptor: augmentWorkspaceToolDiscoveryDescriptor,
 
-    registeredTier
+    registeredTier,
+
+    docsCarrier: toDocumentationProjectionCarrier(boundPackageDocsCarrier)
+  });
+
+  registerToolDocReadTools({
+    registerTool,
+    z,
+    jsonContent,
+    errorContent,
+    docsCarrier: boundPackageDocsCarrier,
+    sessionRole: toolProfile,
+    registeredTier,
+    augmentDescriptor: augmentWorkspaceToolDiscoveryDescriptor
   });
 
   registerControlledContractTools({
@@ -349,7 +224,10 @@ async function registerTools(server) {
     z,
     jsonContent,
     errorContent,
-    resolveWorkspaceRepo
+    resolveWorkspaceRepo,
+    resolveControlledContractGenerationBinding,
+    persistControlledContractGeneration,
+    resolveLauncherReceipt
   });
 
   registerDispatchTools({
@@ -362,6 +240,7 @@ async function registerTools(server) {
     resolveWorkspaceRepo,
     dispatchBackend,
     dispatchSessionIdentity,
+    launcherNoCceAuthorityCapability,
 
     wkForgeHandoffAdapter,
 
@@ -412,99 +291,27 @@ async function registerTools(server) {
     resolveWorkspaceRepo
   });
 
-  registerTool(
-    WORKSPACE_TOOL_ROUTER_RECOMMEND_TOOL_NAME,
-    {
-      description:
-        "Compact read-only guidance for which repo tool to call first for a task. Returns matched, ambiguous, or unknown router output with recommended first tool, suggested arguments when derivable, do-not-start-with guidance, allowed next calls, and a short reason.",
-      inputSchema: z
-        .object({
-          task_description: z.string().optional(),
-          task: z.string().optional(),
-          initiative: z.string().optional(),
-          unit: z.string().optional(),
-          slice_unit: z.string().optional(),
-          slice_id: z.string().optional(),
-          role: z.string().optional(),
-          monitor_handle: z.string().optional(),
-          known_resources: z.record(z.union([z.string(), z.array(z.string())])).optional()
-        })
-        .strict()
-        .refine(
-          (value) =>
-            Boolean(
-              trimmed(value.task_description) ||
-                trimmed(value.task) ||
-                trimmed(value.initiative) ||
-                trimmed(value.unit) ||
-                trimmed(value.slice_unit) ||
-                trimmed(value.monitor_handle)
-            ),
-          {
-            message:
-              "workspace_tool_router_recommend requires a task_description, task, or known identifier"
-          }
-        )
-    },
-    async (args) => {
-      try {
-        return jsonContent(await workspaceToolRouterRecommend(args));
-      } catch (error) {
-        return errorContent(error);
-      }
-    }
-  );
+  registerToolRouterTools({ registerTool, z, jsonContent, errorContent });
 
-  const initiativeStatusModule = await import("../../wiki-core/src/operations/initiative-status.mjs");
-  const initiativeStatusHandler =
-    initiativeStatusModule.workspace_initiative_status ??
-    initiativeStatusModule.workspaceInitiativeStatus ??
-    initiativeStatusModule.initiativeStatus ??
-    initiativeStatusModule.summarizeInitiativeStatus ??
-    initiativeStatusModule.default;
-
-  if (typeof initiativeStatusHandler !== "function") {
-    throw new Error("workspace_initiative_status operation is unavailable");
-  }
-
-  registerTool(
-    WORKSPACE_INITIATIVE_STATUS_TOOL_NAME,
-    {
-      description:
-        "Compact read-only initiative status and next-action surface. Requires initiative or unit. Use selected_action_id to pin a candidate action, top_action_limit to bound the ranked action list, and verbose for the fuller evidence view.",
-      inputSchema: z
-        .object({
-          repo: z.string().optional(),
-          initiative: z.string().optional(),
-          unit: z.string().optional(),
-          selected_action_id: z.string().optional(),
-          top_action_limit: z.number().int().positive().max(20).optional(),
-          verbose: z.boolean().optional()
-        })
-        .strict()
-        .refine((value) => Boolean(value.initiative || value.unit), {
-          message: "workspace_initiative_status requires initiative or unit"
-        })
-    },
-    async (args) => {
-      try {
-        const workspace = resolveWorkspaceRepo(workspaceRepos, args.repo);
-        const result = await initiativeStatusHandler({
-          repoRoot: workspace.dir,
-          initiative: args.initiative ?? null,
-          unit: args.unit ?? null,
-          selected_action_id: args.selected_action_id ?? null,
-          top_action_limit: args.top_action_limit ?? null,
-          verbose: Boolean(args.verbose)
-        });
-        return jsonContent({ workspaceRepo: workspace.repo, ...result });
-      } catch (error) {
-        return errorContent(error);
-      }
-    }
-  );
+  await registerInitiativeStatusTools({
+    registerTool,
+    workspaceRepos,
+    z,
+    jsonContent,
+    errorContent,
+    resolveWorkspaceRepo
+  });
 
   registerAgentFaqTools({ registerTool, z, jsonContent, errorContent, registeredTier });
+
+  registerAuthoringErgonomicsTools({
+    registerTool,
+    z,
+    jsonContent,
+    errorContent,
+    workspaceRepos,
+    resolveWorkspaceRepo
+  });
 
   registerToolUsageAuditTools({
     registerTool,
@@ -534,36 +341,20 @@ async function registerTools(server) {
     resolveWorkspaceRepo
   });
 
-  registerTool(
-    WORKSPACE_SUBMIT_FOR_REVIEW_TOOL_NAME,
-    {
-      description:
-        "Worker-only affordance: submit the launcher-assigned WK or slice for findings-only review by setting the WIKI_MCP_ASSIGNED_UNIT-minted unit status to review. The tool accepts no caller-supplied unit, status, or other fields.",
-      inputSchema: z.object({}).strict()
-    },
-    async () => {
-      try {
-        const assignedUnit = trimmed(process.env.WIKI_MCP_ASSIGNED_UNIT);
-        if (!assignedUnit) {
-          return jsonContent(
-            createSubmitForReviewRefusal("submit_for_review.missing_assigned_unit.v1", [
-              "WIKI_MCP_ASSIGNED_UNIT is not set; workspace_submit_for_review is only available for launcher-assigned worker-profile sessions"
-            ])
-          );
-        }
+  registerFrozenReviewContractTools({
+    registerTool,
+    z
+  });
 
-        const workspace = resolveWorkspaceRepo(workspaceRepos);
-        const result = await setWorkRecordStatusByUnit({
-          dir: workspace.dir,
-          unitAddress: assignedUnit,
-          status: "review"
-        });
-        return jsonContent(createSubmitForReviewResponse(workspace.repo, assignedUnit, result));
-      } catch (error) {
-        return errorContent(error);
-      }
-    }
-  );
+  registerSubmitForReviewTools({
+    registerTool,
+    workspaceRepos,
+    z,
+    jsonContent,
+    errorContent,
+    resolveWorkspaceRepo,
+    setWorkRecordStatusByUnit
+  });
 
   registerWorkRecordWriteTools({
     registerTool,
@@ -608,28 +399,6 @@ async function registerTools(server) {
     createGraphImpactToolResponse
   });
 
-  registerReviewAttestationTools({
-    registerTool,
-    workspaceRepos,
-    z,
-    jsonContent,
-    errorContent,
-    resolveWorkspaceRepo,
-    dispatchBackend,
-    dispatchSessionIdentity
-  });
-
-  registerReviewResultEvidenceTools({
-    registerTool,
-    workspaceRepos,
-    z,
-    jsonContent,
-    errorContent,
-    resolveWorkspaceRepo,
-    dispatchBackend,
-    dispatchSessionIdentity
-  });
-
   registerWikiCoreTools({
     registerTool,
     workspaceRepos,
@@ -648,7 +417,15 @@ async function registerTools(server) {
   });
 }
 
-async function main() {
+export async function startWikiMcpServer({
+  packageDocsCarrier = null,
+  launcherNoCceAuthorityCapability = null,
+  resolveLauncherReceipt = null
+} = {}) {
+
+  const effectivePackageDocsCarrier = bindSpawnedPackageDocsCarrierFromLauncher({
+    packageDocsCarrier
+  });
 
   const nodeEngineEnvBootstrap = bootstrapWikiMcpNodeEngineEnv({ env: process.env });
   structuredLog({
@@ -662,7 +439,11 @@ async function main() {
     version: SERVER_VERSION
   });
 
-  const registration = await registerTools(server);
+  const registration = await registerTools(server, {
+    packageDocsCarrier: effectivePackageDocsCarrier,
+    launcherNoCceAuthorityCapability,
+    resolveLauncherReceipt
+  });
   registerStaticResources(server, { readContractFile, jsonContent, errorContent });
 
   const launcherReadyFd = Number.parseInt(
@@ -683,10 +464,11 @@ async function main() {
         code: failure.code,
         ...failure.detail
       });
-      await server.close();
-      process.exitCode = 1;
+
+      shutdownController.requestShutdown(1);
     },
-    onCleanupTimeout: () => { process.exit(1); }
+
+    onCleanupTimeout: () => { shutdownController.requestShutdown(1); }
   });
   const writeLauncherEvent = (event) => { launcherEventWriter.emit(event); };
 
@@ -704,11 +486,7 @@ async function main() {
   await server.connect(transport);
   transport.assertObservationInstalled();
 
-  process.stdin.once("end", () => {
-    void server.close().finally(() => {
-      process.exitCode = 0;
-    });
-  });
+  shutdownController.setServerCloseHook(() => server.close());
 
   writeLauncherEvent({
     schema_version: LAUNCHER_READINESS_SCHEMA_VERSIONS.SERVER_READY,
@@ -725,10 +503,22 @@ async function main() {
   });
 }
 
-main().catch((error) => {
-  structuredLog({
-    level: "error",
-    message: error instanceof Error ? error.message : String(error)
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const launcherNoCceAuthorityCapability = consumeLauncherNoCceAuthorityCapability();
+  let resolveLauncherReceipt = null;
+  try {
+    const capability = consumeLauncherCommonProofResolverCapability();
+    resolveLauncherReceipt = capability === null
+      ? null
+      : createLauncherCommonProofResolverFromCapability(capability);
+  } catch (capabilityError) {
+    resolveLauncherReceipt = async () => { throw capabilityError; };
+  }
+  startWikiMcpServer({ launcherNoCceAuthorityCapability, resolveLauncherReceipt }).catch((error) => {
+    structuredLog({
+      level: "error",
+      message: error instanceof Error ? error.message : String(error)
+    });
+    process.exitCode = 1;
   });
-  process.exitCode = 1;
-});
+}

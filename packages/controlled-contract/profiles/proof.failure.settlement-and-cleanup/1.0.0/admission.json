@@ -2,7 +2,7 @@
   "schema_version": "controlled-contract-admitted-proof-pack.v1",
   "profile_id": "proof.failure.settlement-and-cleanup",
   "profile_version": "1.0.0",
-  "profile_digest": "1af959a8f2761f1be941d5482e09849354e9f8de50f6dae73b312ab0e69d48ca",
+  "profile_digest": "b00d758360ad7a8c8e03000647f544b43b59592aeb385717913900a88a61b4cd",
   "guarantee": "Given one grounded operation attempt, one declared failure injection and injected failure carrying one grounded original cause, one cleanup event, one settlement event after both failure and cleanup, one complete declared residue population whose integer cardinality may be zero or greater, complete cause-state observations at failure and after settlement, and a settled failure record: satisfaction establishes that the injected failure targets the operation during the attempt, cleanup targets the residue population after failure, settlement follows cleanup and failure, the complete residue population has cardinality zero after settlement, the settled failure record retains the same cause, and the cause state after settlement equals its state at failure.",
   "guarantee_digest": "a29c4f79b079c6dbf4b8b35bc31e426c08a56a114376f79565566124499eccbc",
   "explicit_exclusions": [
@@ -18,8 +18,8 @@
   ],
   "certification": {
     "method": "executable_adequacy_full_negative_corpus",
-    "adequacy_declaration_digest": "e06fa21f03e684c4b5b45653e5716d310ffab076f45aa1091ad837c65d487296",
-    "adequacy_result_digest": "3efb62b7b095f84314c09048c4724b37aa312556ba0ac1f8936784ef0b9212f2",
+    "adequacy_declaration_digest": "7b61c786eab93cf3160d100f23d58451cfa98c0db0f7f73e2d5966fb6189766f",
+    "adequacy_result_digest": "7d2146dbccc65bf224a7e1162f85e993a318cd72d88b9c999ee820741e74e964",
     "executable_control_count": 40,
     "negative_fixture_count": 15,
     "coverage_witness_count": 150

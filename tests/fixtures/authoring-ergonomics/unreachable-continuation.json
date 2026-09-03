@@ -1,0 +1,158 @@
+{
+  "schema_version": "authoring-ergonomics-trace.v1",
+  "trace_id": "FIXTURE-D-unreachable-continuation",
+  "source": {
+    "source_kind": "abstract_counterexample",
+    "source_locator": "fixture://authoring-ergonomics/unreachable-continuation",
+    "source_digest": null,
+    "source_ordinal": 0
+  },
+  "observed_identities": {
+    "repository": "REPO-DELTA",
+    "records": ["UNIT-D"],
+    "focus": "FOCUS-DELTA"
+  },
+  "workload_fixture": null,
+  "workflows": [{ "workflow_token": "WF-D1", "source_ordinal": 0 }],
+  "coverage": {
+    "declarations": [
+      {
+        "workload": "abstract-continuation-reachability",
+        "event_families": ["tool_discovery", "tool_call"],
+        "population_class": "normal_and_failure",
+        "normal_success_population_complete": false
+      }
+    ]
+  },
+  "events": [
+    {
+      "event_index": 0,
+      "event_kind": "tool_discovery",
+      "actor_kind": "producer",
+      "workflow_token": "WF-D1",
+      "producer_boundary": {
+        "boundary_kind": "mcp_tool",
+        "boundary_id": "authoring.contract",
+        "producer_family": "contract_authoring"
+      },
+      "advertised_invariants": [
+        {
+          "invariant_id": "INV-CONTINUATION-ROUTE",
+          "invariant_kind": "relation",
+          "invariant_family": "continuation_reachability"
+        }
+      ]
+    },
+    {
+      "event_index": 1,
+      "event_kind": "tool_call",
+      "actor_kind": "consumer",
+      "workflow_token": "WF-D1",
+      "producer_boundary": {
+        "boundary_kind": "mcp_tool",
+        "boundary_id": "authoring.contract",
+        "producer_family": "contract_authoring"
+      },
+      "target_identity": { "target_kind": "contract", "target_id": "CT-D" },
+      "authoritative_input_identity": {
+        "identity_kind": "carrier_generation",
+        "identity_value": "GEN-D1",
+        "descriptor_digest": "sha256:gen-d1"
+      },
+      "request": { "request_id": "REQ-D1", "tool": "authoring.contract_submit", "diagnostic": false },
+      "response": {
+        "response_id": "RES-D1",
+        "transport_status": "ok",
+        "application_status": "rejected",
+        "reason_codes": ["contract_submission_rejected"],
+        "invariant_family": "continuation_reachability"
+      },
+      "continuation": {
+        "route_present": true,
+        "template_only": false,
+        "replacement_call": {
+          "tool": "authoring.continue",
+          "ingress": "public.authoring_ingress",
+          "named_tool_available": true,
+          "structural_only": false
+        },
+        "replacement_call_outcome": "not_attempted"
+      },
+      "provenance_note": "the advertised replacement call looks executable at this point"
+    },
+    {
+      "event_index": 2,
+      "event_kind": "tool_call",
+      "actor_kind": "consumer",
+      "workflow_token": "WF-D1",
+      "producer_boundary": {
+        "boundary_kind": "mcp_tool",
+        "boundary_id": "authoring.contract",
+        "producer_family": "contract_authoring"
+      },
+      "target_identity": { "target_kind": "contract", "target_id": "CT-D" },
+      "authoritative_input_identity": {
+        "identity_kind": "carrier_generation",
+        "identity_value": "GEN-D1",
+        "descriptor_digest": "sha256:gen-d1"
+      },
+      "request": { "request_id": "REQ-D2", "tool": "authoring.describe", "diagnostic": true },
+      "response": {
+        "response_id": "RES-D2",
+        "transport_status": "ok",
+        "application_status": "normal",
+        "reason_codes": [],
+        "advertised_invariants": [
+          {
+            "invariant_id": "INV-CONTINUATION-ROUTE",
+            "invariant_kind": "relation",
+            "invariant_family": "continuation_reachability"
+          }
+        ]
+      },
+      "provenance_note": "diagnostic fidelity is intact: the describe response is accurate and typed"
+    },
+    {
+      "event_index": 3,
+      "event_kind": "tool_call",
+      "actor_kind": "consumer",
+      "workflow_token": "WF-D1",
+      "producer_boundary": {
+        "boundary_kind": "public_ingress",
+        "boundary_id": "public.authoring_ingress",
+        "producer_family": "public_authoring"
+      },
+      "target_identity": { "target_kind": "contract", "target_id": "CT-D" },
+      "authoritative_input_identity": {
+        "identity_kind": "carrier_generation",
+        "identity_value": "GEN-D1",
+        "descriptor_digest": "sha256:gen-d1"
+      },
+      "request": {
+        "request_id": "REQ-D3",
+        "tool": "authoring.continue",
+        "ingress": "public.authoring_ingress",
+        "diagnostic": false
+      },
+      "response": {
+        "response_id": "RES-D3",
+        "transport_status": "ok",
+        "application_status": "rejected",
+        "reason_codes": ["tool_not_registered_at_ingress"],
+        "invariant_family": "continuation_reachability"
+      },
+      "continuation": {
+        "route_present": true,
+        "template_only": false,
+        "replacement_call": {
+          "tool": "authoring.continue",
+          "ingress": "public.authoring_ingress",
+          "named_tool_available": true,
+          "structural_only": false
+        },
+        "replacement_call_outcome": "rejected"
+      },
+      "provenance_note": "the only live public ingress rejected the advertised replacement call"
+    }
+  ]
+}

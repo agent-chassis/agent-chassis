@@ -64,3 +64,5 @@ lint-findings.json
 internal/scratch/*
 docs/scratch/*
 scratch/*
+
+*.bak

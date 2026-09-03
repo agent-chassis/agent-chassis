@@ -38,13 +38,45 @@
         "coverage_witness_count"
       ],
       "properties": {
-        "method": { "const": "executable_adequacy_full_negative_corpus" },
+        "method": {
+          "enum": [
+            "executable_adequacy_full_negative_corpus",
+            "executable_semantic_adequacy"
+          ]
+        },
         "adequacy_declaration_digest": { "$ref": "#/$defs/sha256" },
         "adequacy_result_digest": { "$ref": "#/$defs/sha256" },
         "executable_control_count": { "type": "integer", "minimum": 1 },
-        "negative_fixture_count": { "type": "integer", "minimum": 1 },
-        "coverage_witness_count": { "type": "integer", "minimum": 1 }
-      }
+        "negative_fixture_count": { "type": "integer", "minimum": 0 },
+        "coverage_witness_count": { "type": "integer", "minimum": 0 }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "method": { "const": "executable_adequacy_full_negative_corpus" }
+            }
+          },
+          "then": {
+            "properties": {
+              "coverage_witness_count": { "type": "integer", "minimum": 1 }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "method": { "const": "executable_semantic_adequacy" }
+            }
+          },
+          "then": {
+            "properties": {
+              "negative_fixture_count": { "type": "integer", "const": 0 },
+              "coverage_witness_count": { "type": "integer", "const": 0 }
+            }
+          }
+        }
+      ]
     },
     "exact_binding": {
       "type": "object",
@@ -77,7 +109,7 @@
         "relation_operators": {
           "type": "array",
           "uniqueItems": true,
-          "items": { "enum": ["same_content_sha256", "distinct_capture_id", "distinct_source_descriptor", "deterministic_projection"] }
+          "items": { "enum": ["same_content_sha256", "distinct_content_sha256", "distinct_capture_id", "distinct_source_descriptor", "deterministic_projection"] }
         },
         "corpus_id": { "$ref": "#/$defs/id" },
         "corpus_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },

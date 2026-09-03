@@ -1,0 +1,1087 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-chassis.invalid/schemas/integration-test-design-assessment-result.experimental.v0.1.schema.json",
+  "title": "Integration-test design assessment result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "assessment_kind",
+    "state",
+    "guarantee",
+    "non_guarantees",
+    "subject",
+    "input_digest",
+    "denominators",
+    "coverage",
+    "axis_results",
+    "lossless_denominators",
+    "lossless_joins",
+    "diagnostic_summary",
+    "diagnostics"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "integration-test-design-assessment-result.experimental.v0.1"
+    },
+    "assessment_kind": {
+      "const": "design_time_declared_integration_sufficiency"
+    },
+    "state": {
+      "enum": [
+        "pass",
+        "fail",
+        "incomplete",
+        "unevaluable",
+        "review_only"
+      ]
+    },
+    "guarantee": {
+      "type": "string",
+      "minLength": 1
+    },
+    "non_guarantees": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "subject": {
+      "$ref": "#/$defs/subject"
+    },
+    "input_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "denominators": {
+      "$ref": "#/$defs/denominators"
+    },
+    "coverage": {
+      "$ref": "#/$defs/coverageCounts"
+    },
+    "axis_results": {
+      "type": "array",
+      "minItems": 10,
+      "maxItems": 10,
+      "items": {
+        "$ref": "#/$defs/axisResult"
+      }
+    },
+    "lossless_denominators": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "axis_applicability",
+        "requirements",
+        "obligations",
+        "population_censuses",
+        "population_members",
+        "declared_integration_tests",
+        "integration_scenario_ids",
+        "interaction_requirement_ids",
+        "review_question_ids"
+      ],
+      "properties": {
+        "axis_applicability": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/axisApplicability"
+          }
+        },
+        "requirements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/requirement"
+          }
+        },
+        "obligations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/obligation"
+          }
+        },
+        "population_censuses": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/census"
+          }
+        },
+        "population_members": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/populationMember"
+          }
+        },
+        "declared_integration_tests": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/test"
+          }
+        },
+        "integration_scenario_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "interaction_requirement_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "review_question_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "lossless_joins": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requirement_to_obligations",
+        "population_member_to_obligations",
+        "obligation_to_scenarios",
+        "population_member_to_sufficient_scenarios",
+        "interaction_to_scenarios"
+      ],
+      "properties": {
+        "requirement_to_obligations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/requirementJoin"
+          }
+        },
+        "population_member_to_obligations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/memberObligationJoin"
+          }
+        },
+        "obligation_to_scenarios": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/obligationScenarioJoin"
+          }
+        },
+        "population_member_to_sufficient_scenarios": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/memberScenarioJoin"
+          }
+        },
+        "interaction_to_scenarios": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/interactionScenarioJoin"
+          }
+        }
+      }
+    },
+    "diagnostic_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fail",
+        "incomplete",
+        "unevaluable",
+        "review_only"
+      ],
+      "properties": {
+        "fail": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "incomplete": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unevaluable": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "review_only": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/diagnostic"
+      }
+    }
+  },
+  "$defs": {
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository_id",
+        "wk_id",
+        "selected_unit_address",
+        "work_record_digest",
+        "contract_generation_id",
+        "contract_manifest_digest",
+        "contract_digest",
+        "proof_plan_generation_id",
+        "proof_plan_digest",
+        "selected_pack_digest",
+        "obligation_source_digest",
+        "obligation_source_current",
+        "acceptance_coverage_digest",
+        "acceptance_coverage_current"
+      ],
+      "properties": {
+        "repository_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "wk_id": {
+          "type": "string",
+          "pattern": "^WK-[0-9]{4}$"
+        },
+        "selected_unit_address": {
+          "type": "string",
+          "pattern": "^WK-[0-9]{4}(?:#SLICE-[0-9]{3,})?$"
+        },
+        "work_record_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "contract_generation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "contract_manifest_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "contract_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "proof_plan_generation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "proof_plan_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "selected_pack_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "obligation_source_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "obligation_source_current": {
+          "type": "boolean"
+        },
+        "acceptance_coverage_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "acceptance_coverage_current": {
+          "type": "boolean"
+        }
+      }
+    },
+    "denominators": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requirements",
+        "obligations",
+        "integration_required_obligations",
+        "applicable_complete_census_members",
+        "declared_integration_tests",
+        "integration_scenarios",
+        "interaction_requirements",
+        "review_questions",
+        "adequacy_axes"
+      ],
+      "properties": {
+        "requirements": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "obligations": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "integration_required_obligations": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "applicable_complete_census_members": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "declared_integration_tests": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "integration_scenarios": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "interaction_requirements": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "review_questions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "adequacy_axes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "coverageCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requirements_with_obligations",
+        "integration_required_obligations_with_scenarios",
+        "applicable_complete_census_members_with_scenarios",
+        "axes_decided"
+      ],
+      "properties": {
+        "requirements_with_obligations": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "integration_required_obligations_with_scenarios": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "applicable_complete_census_members_with_scenarios": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "axes_decided": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "axisResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "axis",
+        "applicability",
+        "census_id",
+        "denominator_state",
+        "counts",
+        "populations"
+      ],
+      "properties": {
+        "axis": {
+          "enum": [
+            "registered_routes",
+            "selector_partitions",
+            "authority_producer_consumer_edges",
+            "role_tool_profiles",
+            "failure_phases",
+            "result_schema_population",
+            "persistent_refs_and_state",
+            "concurrency_and_interleavings",
+            "declared_mutants",
+            "prohibited_stubs"
+          ]
+        },
+        "applicability": {
+          "enum": [
+            "required",
+            "not_applicable",
+            "review_only",
+            "unevaluable",
+            "undetermined"
+          ]
+        },
+        "census_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "denominator_state": {
+          "enum": [
+            "complete",
+            "incomplete",
+            "unsupported",
+            "not_applicable"
+          ]
+        },
+        "counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "required",
+            "declared",
+            "matched",
+            "missing",
+            "extra",
+            "contradictory",
+            "unsupported",
+            "omitted"
+          ],
+          "properties": {
+            "required": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "declared": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "matched": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "missing": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "extra": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "contradictory": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unsupported": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "omitted": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "populations": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "required",
+            "declared",
+            "matched",
+            "missing",
+            "extra",
+            "contradictory",
+            "unsupported",
+            "omitted"
+          ],
+          "properties": {
+            "required": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "declared": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "matched": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "missing": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "extra": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "contradictory": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "unsupported": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "omitted": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "axisApplicability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "axis",
+        "status",
+        "census_id",
+        "rationale"
+      ],
+      "properties": {
+        "axis": {
+          "enum": [
+            "registered_routes",
+            "selector_partitions",
+            "authority_producer_consumer_edges",
+            "role_tool_profiles",
+            "failure_phases",
+            "result_schema_population",
+            "persistent_refs_and_state",
+            "concurrency_and_interleavings",
+            "declared_mutants",
+            "prohibited_stubs"
+          ]
+        },
+        "status": {
+          "enum": [
+            "required",
+            "not_applicable",
+            "review_only",
+            "unevaluable",
+            "undetermined"
+          ]
+        },
+        "census_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "requirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requirement_id",
+        "source_pointer",
+        "text_digest"
+      ],
+      "properties": {
+        "requirement_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_pointer": {
+          "type": "string",
+          "minLength": 1
+        },
+        "text_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "obligation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "obligation_id",
+        "integration_required",
+        "proof_rigor"
+      ],
+      "properties": {
+        "obligation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "integration_required": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "proof_rigor": {
+          "enum": [
+            "standard",
+            "critical_semantic",
+            "unspecified"
+          ]
+        }
+      }
+    },
+    "census": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "census_id",
+        "axis",
+        "source_kind",
+        "provider_id",
+        "owner_id",
+        "generation_id",
+        "content_digest",
+        "completeness",
+        "currentness",
+        "omissions",
+        "member_count"
+      ],
+      "properties": {
+        "census_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "axis": {
+          "enum": [
+            "registered_routes",
+            "selector_partitions",
+            "authority_producer_consumer_edges",
+            "role_tool_profiles",
+            "failure_phases",
+            "result_schema_population",
+            "persistent_refs_and_state",
+            "concurrency_and_interleavings",
+            "declared_mutants",
+            "prohibited_stubs"
+          ]
+        },
+        "source_kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "provider_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "generation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "content_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "completeness": {
+          "enum": [
+            "complete",
+            "partial",
+            "unsupported",
+            "ambiguous"
+          ]
+        },
+        "currentness": {
+          "enum": [
+            "current",
+            "stale",
+            "non_current",
+            "unsupported"
+          ]
+        },
+        "omissions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "member_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "populationMember": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "census_id",
+        "axis",
+        "source_kind",
+        "provider_id",
+        "owner_id",
+        "generation_id",
+        "content_digest",
+        "completeness",
+        "currentness",
+        "member_id"
+      ],
+      "properties": {
+        "census_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "axis": {
+          "enum": [
+            "registered_routes",
+            "selector_partitions",
+            "authority_producer_consumer_edges",
+            "role_tool_profiles",
+            "failure_phases",
+            "result_schema_population",
+            "persistent_refs_and_state",
+            "concurrency_and_interleavings",
+            "declared_mutants",
+            "prohibited_stubs"
+          ]
+        },
+        "source_kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "provider_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "generation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "content_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "completeness": {
+          "enum": [
+            "complete",
+            "partial",
+            "unsupported",
+            "ambiguous"
+          ]
+        },
+        "currentness": {
+          "enum": [
+            "current",
+            "stale",
+            "non_current",
+            "unsupported"
+          ]
+        },
+        "member_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "test": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "test_id",
+        "repository_path"
+      ],
+      "properties": {
+        "test_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repository_path": {
+          "type": "string",
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+        }
+      }
+    },
+    "requirementJoin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requirement_id",
+        "obligation_ids"
+      ],
+      "properties": {
+        "requirement_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "obligation_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "memberObligationJoin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "census_id",
+        "member_id",
+        "obligation_ids"
+      ],
+      "properties": {
+        "census_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "member_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "obligation_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "obligationScenarioJoin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "obligation_id",
+        "scenario_ids"
+      ],
+      "properties": {
+        "obligation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scenario_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "memberScenarioJoin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "census_id",
+        "member_id",
+        "scenario_ids"
+      ],
+      "properties": {
+        "census_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "member_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scenario_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "interactionScenarioJoin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "interaction_id",
+        "coverage_mode",
+        "required_population_members",
+        "scenario_ids"
+      ],
+      "properties": {
+        "interaction_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "coverage_mode": {
+          "enum": [
+            "single_scenario",
+            "collective"
+          ]
+        },
+        "required_population_members": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "scenario_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "state",
+        "finding_kind",
+        "message",
+        "subject",
+        "axis",
+        "missing",
+        "related_ids",
+        "supported_next_action"
+      ],
+      "properties": {
+        "code": {
+          "enum": [
+            "PAA-AUTHORITY-PRODUCER-SUBSTITUTED-IN-DESIGN.v1",
+            "PAA-AXIS-APPLICABILITY-REQUIRES-REVIEW.v1",
+            "PAA-AXIS-APPLICABILITY-UNDECLARED.v1",
+            "PAA-AXIS-COVERAGE-DESIGN-UNDERSPECIFIED.v1",
+            "PAA-AXIS-UNEVALUABLE.v1",
+            "PAA-CANONICAL-ACCEPTANCE-COVERAGE-NONCURRENT.v1",
+            "PAA-CANONICAL-OBLIGATION-SOURCE-NONCURRENT.v1",
+            "PAA-CENSUS-COMPLETENESS-UNSUPPORTED.v1",
+            "PAA-CENSUS-CONTRADICTS-NOT-APPLICABLE-AXIS.v1",
+            "PAA-CENSUS-IDENTITY-INCOMPLETE.v1",
+            "PAA-CENSUS-MEMBER-WITHOUT-OBLIGATION.v1",
+            "PAA-CRITICAL-PROOF-SPECIFICATION-INCOMPLETE.v1",
+            "PAA-DECLARED-REVIEW-ONLY-RESIDUE.v1",
+            "PAA-DECLARED-TEST-NOT-INTEGRATION-CLASSIFIED.v1",
+            "PAA-DUPLICATE-IDENTITY.v1",
+            "PAA-EXPECTED-RESULT-BINDING-ABSENT.v1",
+            "PAA-FIXTURE-PRECREATES-FORBIDDEN-STATE.v1",
+            "PAA-INTEGRATION-APPLICABILITY-UNDECLARED.v1",
+            "PAA-INTEGRATION-OBLIGATION-WITHOUT-SCENARIO.v1",
+            "PAA-INTEGRATION-SCENARIO-UNDERSPECIFIED.v1",
+            "PAA-INTERACTION-COVERAGE-MODE-UNSUPPORTED.v1",
+            "PAA-INTERACTION-FRAGMENTED-ACROSS-SCENARIOS.v1",
+            "PAA-OBLIGATION-REFERENCES-UNKNOWN-POPULATION-MEMBER.v1",
+            "PAA-OBLIGATION-REFERENCES-UNKNOWN-REQUIREMENT.v1",
+            "PAA-OBLIGATION-SOURCE-BINDING-ABSENT.v1",
+            "PAA-OBLIGATION-WITHOUT-VERIFICATION-CLAIM.v1",
+            "PAA-POPULATION-SCENARIO-JOIN-UNAVAILABLE.v1",
+            "PAA-PROOF-RIGOR-UNDECLARED.v1",
+            "PAA-PUBLIC-BOUNDARY-DESIGN-BYPASSED.v1",
+            "PAA-REQUIRED-AXIS-CENSUS-ABSENT.v1",
+            "PAA-REQUIRED-POPULATION-MEMBER-WITHOUT-INTEGRATION-SCENARIO.v1",
+            "PAA-REQUIREMENT-OBLIGATION-JOIN-UNAVAILABLE.v1",
+            "PAA-REQUIREMENT-WITHOUT-OBLIGATION.v1",
+            "PAA-SCENARIO-COVERS-UNKNOWN-POPULATION-MEMBER.v1",
+            "PAA-SCENARIO-REFERENCES-UNKNOWN-OBLIGATION.v1",
+            "PAA-SCENARIO-TEST-BINDING-ABSENT.v1",
+            "PAA-SELECTOR-PARTITION-INPUT-ABSENT.v1",
+            "PAA-UNKNOWN-AXIS.v1"
+          ]
+        },
+        "state": {
+          "enum": [
+            "fail",
+            "incomplete",
+            "unevaluable",
+            "review_only"
+          ]
+        },
+        "finding_kind": {
+          "enum": [
+            "omission",
+            "contradiction",
+            "absence",
+            "unsupported",
+            "semantic_residue"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        },
+        "subject": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/diagnosticSubject"
+            }
+          ]
+        },
+        "axis": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "enum": [
+                "registered_routes",
+                "selector_partitions",
+                "authority_producer_consumer_edges",
+                "role_tool_profiles",
+                "failure_phases",
+                "result_schema_population",
+                "persistent_refs_and_state",
+                "concurrency_and_interleavings",
+                "declared_mutants",
+                "prohibited_stubs"
+              ]
+            }
+          ]
+        },
+        "missing": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "related_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "supported_next_action": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        }
+      }
+    },
+    "diagnosticSubject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

@@ -152,11 +152,16 @@
     "role_constraints": {
       "type": "object",
       "required": [
-        "distinct_reference_role_sets", "reference_binding_patterns",
+        "binding_constraint_patterns", "distinct_reference_role_sets",
+        "reference_binding_patterns",
         "reference_role_count_bindings"
       ],
       "additionalProperties": false,
       "properties": {
+        "binding_constraint_patterns": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/pattern_object" }
+        },
         "distinct_reference_role_sets": {
           "type": "array",
           "items": {
@@ -190,7 +195,49 @@
       "additionalProperties": false,
       "properties": {
         "population_role": { "type": "string", "minLength": 1 },
-        "member_role": { "type": "string", "minLength": 1 }
+        "member_role": { "type": "string", "minLength": 1 },
+        "complete_population_pattern_id": { "type": "string", "minLength": 1 },
+        "quantifier": { "const": "universal" },
+        "empty_behavior": { "const": "vacuously_satisfied" },
+        "association_bindings": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/association_binding" }
+        }
+      }
+    },
+    "association_binding": {
+      "type": "object",
+      "required": [
+        "associated_role", "operator", "member_position",
+        "associated_position", "applicability_context",
+        "complete_population_pattern_id"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "associated_role": { "type": "string", "minLength": 1 },
+        "operator": { "type": "string", "minLength": 1 },
+        "member_position": {
+          "enum": ["subject", "reference_operand"]
+        },
+        "associated_position": {
+          "enum": ["subject", "reference_operand"]
+        },
+        "applicability_context": {
+          "type": "object",
+          "required": ["mode", "operand_roles"],
+          "additionalProperties": false,
+          "properties": {
+            "mode": { "type": "string", "minLength": 1 },
+            "operand_roles": { "$ref": "#/$defs/string_set" }
+          }
+        },
+        "complete_population_pattern_id": {
+          "type": "string", "minLength": 1
+        },
+        "associated_cardinality": {
+          "enum": ["exactly_one", "one_or_more"]
+        }
       }
     },
     "claim_pattern": {
@@ -229,7 +276,8 @@
       "required": [
         "claim_patterns", "relation_patterns", "collection_patterns",
         "resolver_fact_patterns", "evidence_patterns",
-        "falsifier_condition_bindings", "verification_falsifier_policy",
+        "falsifier_condition_bindings", "falsifier_occurrence_bindings",
+        "verification_falsifier_policy",
         "satisfaction_expression"
       ],
       "additionalProperties": false,
@@ -266,6 +314,10 @@
             }
           }
         },
+        "falsifier_occurrence_bindings": {
+          "type": "array",
+          "items": { "type": "object", "minProperties": 1 }
+        },
         "verification_falsifier_policy": {
           "const": "controlled_complement_per_target"
         },
@@ -275,20 +327,24 @@
     "counts": {
       "type": "object",
       "required": [
-        "reference_roles", "number_roles", "reference_binding_patterns",
+        "reference_roles", "number_roles", "binding_constraint_patterns",
+        "reference_binding_patterns",
         "claim_patterns", "relation_patterns", "collection_patterns",
-        "resolver_fact_patterns", "evidence_patterns"
+        "resolver_fact_patterns", "evidence_patterns",
+        "falsifier_occurrence_bindings"
       ],
       "additionalProperties": false,
       "properties": {
         "reference_roles": { "type": "integer", "minimum": 0 },
         "number_roles": { "type": "integer", "minimum": 0 },
+        "binding_constraint_patterns": { "type": "integer", "minimum": 0 },
         "reference_binding_patterns": { "type": "integer", "minimum": 0 },
         "claim_patterns": { "type": "integer", "minimum": 0 },
         "relation_patterns": { "type": "integer", "minimum": 0 },
         "collection_patterns": { "type": "integer", "minimum": 0 },
         "resolver_fact_patterns": { "type": "integer", "minimum": 0 },
-        "evidence_patterns": { "type": "integer", "minimum": 0 }
+        "evidence_patterns": { "type": "integer", "minimum": 0 },
+        "falsifier_occurrence_bindings": { "type": "integer", "minimum": 0 }
       }
     },
     "source_digests": {

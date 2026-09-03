@@ -390,7 +390,6 @@ export function validateSliceReviewAcceptanceProof(proof, expectation = {}) {
 export function sliceReviewAcceptanceAuthorityEffects() {
   return Object.freeze({
     authorizes_slice_integration: true,
-    satisfies_mandatory_review: false,
     grants_dispatch_authority: false,
     writes_accepted_authorities: false,
     creates_review_attestation: false,

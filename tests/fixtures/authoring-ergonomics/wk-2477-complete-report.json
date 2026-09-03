@@ -1,0 +1,213 @@
+{
+  "schema_version": "authoring-ergonomics-report-operation.v1",
+  "owner": "authoring-ergonomics-trace",
+  "authority": {
+    "kind": "advisory_evidence",
+    "confers": [],
+    "note": "Fixture evidence authorizes nothing."
+  },
+  "side_effects": ["read_only"],
+  "source": {
+    "source_kind": "workspace_errors_log",
+    "adapter": "errors_log",
+    "adapters_supported": ["errors_log", "retained_smoke"],
+    "trace_id": "WK-2477-COMPLETE",
+    "locator": "<redacted-root>/errors.log",
+    "source_digest": "sha256:wk-2477-fixture",
+    "source_ordinal": 0,
+    "observed_identities": { "repository": "fixture", "records": [], "focus": null },
+    "ordering_authority": "source_ordinal_then_event_index",
+    "redactions": [
+      {
+        "kind": "installation_root_redacted",
+        "field": "source.locator",
+        "detail": "an absolute location was reduced to its final segment",
+        "occurrences": 2
+      }
+    ]
+  },
+  "coverage": {
+    "declarations": [
+      {
+        "workload": "fixture-failure-journal",
+        "event_families": ["tool_call"],
+        "population_class": "failure_only",
+        "normal_success_population_complete": false
+      },
+      {
+        "workload": "fixture-routing",
+        "event_families": ["tool_discovery"],
+        "population_class": "normal_and_failure",
+        "normal_success_population_complete": false
+      }
+    ],
+    "declared_event_families": ["tool_call", "tool_discovery"],
+    "undeclared_event_families": [],
+    "adapter_summary": [
+      {
+        "event_families": ["tool_call"],
+        "population_class": "failure_only",
+        "normal_success_population_complete": false,
+        "basis": "fixture failure journal"
+      }
+    ],
+    "normal_success_population_complete": false
+  },
+  "denominators": {
+    "raw_event_count": 16,
+    "tool_call_event_count": 16,
+    "workflow_count": 2,
+    "unknown_workflow_event_count": 0,
+    "episode_count": 16,
+    "finding_count": 9,
+    "cluster_count": 9
+  },
+  "metrics": {
+    "metric_names": ["refusal_count", "attempt_count"],
+    "entries": [
+      { "metric": "refusal_count", "value": 9, "evidence_state": "observed", "eligible_population": { "population_class": "failure_only" } },
+      { "metric": "attempt_count", "value": 16, "evidence_state": "observed", "eligible_population": { "population_class": "failure_only" } }
+    ]
+  },
+  "workflows": [
+    { "workflow_token": "WF-001", "source_ordinal": 0, "event_orders": [0, 1, 2, 3, 4, 5, 6, 7] },
+    { "workflow_token": "WF-002", "source_ordinal": 1, "event_orders": [8, 9, 10, 11, 12, 13, 14, 15] }
+  ],
+  "episodes": [
+    { "episode_id": "EP-001", "workflow_token": "WF-001", "event_orders": [0], "attempt_count": 1 },
+    { "episode_id": "EP-002", "workflow_token": "WF-001", "event_orders": [1], "attempt_count": 1 },
+    { "episode_id": "EP-003", "workflow_token": "WF-001", "event_orders": [2], "attempt_count": 1 },
+    { "episode_id": "EP-004", "workflow_token": "WF-001", "event_orders": [3], "attempt_count": 1 },
+    { "episode_id": "EP-005", "workflow_token": "WF-001", "event_orders": [4], "attempt_count": 1 },
+    { "episode_id": "EP-006", "workflow_token": "WF-001", "event_orders": [5], "attempt_count": 1 },
+    { "episode_id": "EP-007", "workflow_token": "WF-001", "event_orders": [6], "attempt_count": 1 },
+    { "episode_id": "EP-008", "workflow_token": "WF-001", "event_orders": [7], "attempt_count": 1 },
+    { "episode_id": "EP-009", "workflow_token": "WF-002", "event_orders": [8], "attempt_count": 1 },
+    { "episode_id": "EP-010", "workflow_token": "WF-002", "event_orders": [9], "attempt_count": 1 },
+    { "episode_id": "EP-011", "workflow_token": "WF-002", "event_orders": [10], "attempt_count": 1 },
+    { "episode_id": "EP-012", "workflow_token": "WF-002", "event_orders": [11], "attempt_count": 1 },
+    { "episode_id": "EP-013", "workflow_token": "WF-002", "event_orders": [12], "attempt_count": 1 },
+    { "episode_id": "EP-014", "workflow_token": "WF-002", "event_orders": [13], "attempt_count": 1 },
+    { "episode_id": "EP-015", "workflow_token": "WF-002", "event_orders": [14], "attempt_count": 1 },
+    { "episode_id": "EP-016", "workflow_token": "WF-002", "event_orders": [15], "attempt_count": 1 }
+  ],
+  "findings": {
+    "detectors": ["unreachable_continuation", "repeated_refusal", "unverified_effect_response"],
+    "observations": [
+      { "observation_id": "ERG-001", "detector": "repeated_refusal", "axis": "producer", "finding": true, "outcome": "repeated_refusal", "evidence_state": "observed", "invariant_family": "fixture_family_a", "producer_boundary": { "boundary_kind": "public_ingress", "boundary_id": "fixture_tool", "producer_family": "fixture.v1" }, "target_identity": { "target_kind": "work_record", "target_id": "WK-FIXTURE" }, "authoritative_input_identity": { "identity_kind": "carrier_generation", "identity_value": "GEN-FIXTURE", "descriptor_digest": "sha256:fixture" }, "identity_state": "known", "identity_scope_key": "carrier_generation:GEN-FIXTURE:sha256:fixture", "episode_id": "EP-001", "event_orders": [0], "evidence": { "reason_code": "fixture_1" } },
+      { "observation_id": "ERG-002", "detector": "unreachable_continuation", "axis": "consumer", "finding": true, "outcome": "route_unreachable", "evidence_state": "observed", "invariant_family": "fixture_continuation_a", "producer_boundary": { "boundary_kind": "public_ingress", "boundary_id": "fixture_tool", "producer_family": "fixture.v1" }, "target_identity": { "target_kind": "work_record", "target_id": "WK-FIXTURE" }, "authoritative_input_identity": { "identity_kind": "carrier_generation", "identity_value": "GEN-FIXTURE", "descriptor_digest": "sha256:fixture" }, "identity_state": "known", "identity_scope_key": "carrier_generation:GEN-FIXTURE:sha256:fixture", "episode_id": "EP-002", "event_orders": [1], "evidence": { "reason_code": "fixture_2" } },
+      { "observation_id": "ERG-003", "detector": "unverified_effect_response", "axis": "persistence_lifecycle", "finding": true, "outcome": "effect_unverified", "evidence_state": "observed", "invariant_family": "fixture_persistence_a", "producer_boundary": { "boundary_kind": "public_ingress", "boundary_id": "fixture_tool", "producer_family": "fixture.v1" }, "target_identity": { "target_kind": "work_record", "target_id": "WK-FIXTURE" }, "authoritative_input_identity": { "identity_kind": "carrier_generation", "identity_value": "GEN-FIXTURE", "descriptor_digest": "sha256:fixture" }, "identity_state": "known", "identity_scope_key": "carrier_generation:GEN-FIXTURE:sha256:fixture", "episode_id": "EP-003", "event_orders": [2], "evidence": { "reason_code": "fixture_3" } },
+      { "observation_id": "ERG-004", "detector": "repeated_refusal", "axis": "record_quality", "finding": true, "outcome": "repeated_refusal", "evidence_state": "observed", "invariant_family": "fixture_record_a", "producer_boundary": { "boundary_kind": "public_ingress", "boundary_id": "fixture_tool", "producer_family": "fixture.v1" }, "target_identity": { "target_kind": "work_record", "target_id": "WK-FIXTURE" }, "authoritative_input_identity": { "identity_kind": "carrier_generation", "identity_value": "GEN-FIXTURE", "descriptor_digest": "sha256:fixture" }, "identity_state": "known", "identity_scope_key": "carrier_generation:GEN-FIXTURE:sha256:fixture", "episode_id": "EP-004", "event_orders": [3], "evidence": { "reason_code": "fixture_4" } },
+      { "observation_id": "ERG-005", "detector": "unreachable_continuation", "axis": "workload", "finding": true, "outcome": "route_unreachable", "evidence_state": "observed", "invariant_family": "fixture_workload", "producer_boundary": null, "target_identity": null, "authoritative_input_identity": null, "identity_state": "known", "identity_scope_key": "workload_result", "episode_id": null, "event_orders": [4], "evidence": { "reason_code": "fixture_5" } },
+      { "observation_id": "ERG-001", "detector": "repeated_refusal", "axis": "producer", "finding": true, "outcome": "repeated_refusal", "evidence_state": "observed", "invariant_family": "fixture_family_b", "producer_boundary": { "boundary_kind": "public_ingress", "boundary_id": "fixture_tool", "producer_family": "fixture.v1" }, "target_identity": { "target_kind": "work_record", "target_id": "WK-FIXTURE" }, "authoritative_input_identity": { "identity_kind": "carrier_generation", "identity_value": "GEN-FIXTURE", "descriptor_digest": "sha256:fixture" }, "identity_state": "known", "identity_scope_key": "carrier_generation:GEN-FIXTURE:sha256:fixture", "episode_id": "EP-001", "event_orders": [0], "evidence": { "reason_code": "fixture_6" } },
+      { "observation_id": "ERG-007", "detector": "repeated_refusal", "axis": "consumer", "finding": true, "outcome": "repeated_refusal", "evidence_state": "observed", "invariant_family": "fixture_continuation_b", "producer_boundary": { "boundary_kind": "public_ingress", "boundary_id": "fixture_tool", "producer_family": "fixture.v1" }, "target_identity": { "target_kind": "work_record", "target_id": "WK-FIXTURE" }, "authoritative_input_identity": { "identity_kind": "carrier_generation", "identity_value": "GEN-FIXTURE", "descriptor_digest": "sha256:fixture" }, "identity_state": "known", "identity_scope_key": "carrier_generation:GEN-FIXTURE:sha256:fixture", "episode_id": "EP-007", "event_orders": [6], "evidence": { "reason_code": "fixture_7" } },
+      { "observation_id": "ERG-008", "detector": "unreachable_continuation", "axis": "persistence_lifecycle", "finding": true, "outcome": "route_unreachable", "evidence_state": "observed", "invariant_family": "fixture_persistence_b", "producer_boundary": { "boundary_kind": "public_ingress", "boundary_id": "fixture_tool", "producer_family": "fixture.v1" }, "target_identity": { "target_kind": "work_record", "target_id": "WK-FIXTURE" }, "authoritative_input_identity": { "identity_kind": "carrier_generation", "identity_value": "GEN-FIXTURE", "descriptor_digest": "sha256:fixture" }, "identity_state": "known", "identity_scope_key": "carrier_generation:GEN-FIXTURE:sha256:fixture", "episode_id": "EP-008", "event_orders": [7], "evidence": { "reason_code": "fixture_8" } },
+      { "observation_id": "ERG-009", "detector": "unverified_effect_response", "axis": "record_quality", "finding": true, "outcome": "effect_unverified", "evidence_state": "observed", "invariant_family": "fixture_record_b", "producer_boundary": { "boundary_kind": "public_ingress", "boundary_id": "fixture_tool", "producer_family": "fixture.v1" }, "target_identity": { "target_kind": "work_record", "target_id": "WK-FIXTURE" }, "authoritative_input_identity": { "identity_kind": "carrier_generation", "identity_value": "GEN-FIXTURE", "descriptor_digest": "sha256:fixture" }, "identity_state": "known", "identity_scope_key": "carrier_generation:GEN-FIXTURE:sha256:fixture", "episode_id": "EP-009", "event_orders": [8], "evidence": { "reason_code": "fixture_9" } }
+    ],
+    "clusters": [
+      { "cluster_id": "CL-001", "axis": "producer", "producer_boundary": { "boundary_kind": "public_ingress", "boundary_id": "fixture_tool", "producer_family": "fixture.v1" }, "invariant_family": "fixture_family_a", "target_identity": { "target_kind": "work_record", "target_id": "WK-FIXTURE" }, "authoritative_input_identity": { "identity_kind": "carrier_generation", "identity_value": "GEN-FIXTURE", "descriptor_digest": "sha256:fixture" }, "identity_state": "known", "identity_scope_key": "carrier_generation:GEN-FIXTURE:sha256:fixture", "observation_ids": ["ERG-001"], "detectors": ["repeated_refusal"], "episode_ids": ["EP-001"], "raw_event_orders": [0], "raw_counts": { "attempt_count": 1, "rejected_submission_count": 1, "diagnostic_call_count": 0, "event_count": 1 }, "denominators": { "trace_tool_call_count": 16, "trace_refusal_count": 9, "trace_episode_count": 16, "eligible_population": { "event_families": ["tool_call"], "population_class": "failure_only", "normal_success_population_complete": false } } },
+      { "cluster_id": "CL-002", "axis": "consumer", "producer_boundary": { "boundary_kind": "public_ingress", "boundary_id": "fixture_tool", "producer_family": "fixture.v1" }, "invariant_family": "fixture_continuation_a", "target_identity": { "target_kind": "work_record", "target_id": "WK-FIXTURE" }, "authoritative_input_identity": { "identity_kind": "carrier_generation", "identity_value": "GEN-FIXTURE", "descriptor_digest": "sha256:fixture" }, "identity_state": "known", "identity_scope_key": "carrier_generation:GEN-FIXTURE:sha256:fixture", "observation_ids": ["ERG-002"], "detectors": ["unreachable_continuation"], "episode_ids": ["EP-002"], "raw_event_orders": [1], "raw_counts": { "attempt_count": 1, "rejected_submission_count": 1, "diagnostic_call_count": 0, "event_count": 1 }, "denominators": { "trace_tool_call_count": 16, "trace_refusal_count": 9, "trace_episode_count": 16, "eligible_population": { "event_families": ["tool_call"], "population_class": "failure_only", "normal_success_population_complete": false } } },
+      { "cluster_id": "CL-003", "axis": "persistence_lifecycle", "producer_boundary": { "boundary_kind": "public_ingress", "boundary_id": "fixture_tool", "producer_family": "fixture.v1" }, "invariant_family": "fixture_persistence_a", "target_identity": { "target_kind": "work_record", "target_id": "WK-FIXTURE" }, "authoritative_input_identity": { "identity_kind": "carrier_generation", "identity_value": "GEN-FIXTURE", "descriptor_digest": "sha256:fixture" }, "identity_state": "known", "identity_scope_key": "carrier_generation:GEN-FIXTURE:sha256:fixture", "observation_ids": ["ERG-003"], "detectors": ["unverified_effect_response"], "episode_ids": ["EP-003"], "raw_event_orders": [2], "raw_counts": { "attempt_count": 1, "rejected_submission_count": 1, "diagnostic_call_count": 0, "event_count": 1 }, "denominators": { "trace_tool_call_count": 16, "trace_refusal_count": 9, "trace_episode_count": 16, "eligible_population": { "event_families": ["tool_call"], "population_class": "failure_only", "normal_success_population_complete": false } } },
+      { "cluster_id": "CL-004", "axis": "record_quality", "producer_boundary": { "boundary_kind": "public_ingress", "boundary_id": "fixture_tool", "producer_family": "fixture.v1" }, "invariant_family": "fixture_record_a", "target_identity": { "target_kind": "work_record", "target_id": "WK-FIXTURE" }, "authoritative_input_identity": { "identity_kind": "carrier_generation", "identity_value": "GEN-FIXTURE", "descriptor_digest": "sha256:fixture" }, "identity_state": "known", "identity_scope_key": "carrier_generation:GEN-FIXTURE:sha256:fixture", "observation_ids": ["ERG-004"], "detectors": ["repeated_refusal"], "episode_ids": ["EP-004"], "raw_event_orders": [3], "raw_counts": { "attempt_count": 1, "rejected_submission_count": 1, "diagnostic_call_count": 0, "event_count": 1 }, "denominators": { "trace_tool_call_count": 16, "trace_refusal_count": 9, "trace_episode_count": 16, "eligible_population": { "event_families": ["tool_call"], "population_class": "failure_only", "normal_success_population_complete": false } } },
+      { "cluster_id": "CL-005", "axis": "workload", "producer_boundary": null, "invariant_family": "fixture_workload", "target_identity": null, "authoritative_input_identity": null, "identity_state": "known", "identity_scope_key": "workload_result", "observation_ids": ["ERG-005"], "detectors": ["unreachable_continuation"], "episode_ids": [], "raw_event_orders": [4], "raw_counts": { "attempt_count": 0, "rejected_submission_count": 0, "diagnostic_call_count": 0, "event_count": 1 }, "denominators": { "trace_tool_call_count": 16, "trace_refusal_count": 9, "trace_episode_count": 16, "eligible_population": { "event_families": ["tool_call"], "population_class": "failure_only", "normal_success_population_complete": false } } },
+      { "cluster_id": "CL-006", "axis": "producer", "producer_boundary": { "boundary_kind": "public_ingress", "boundary_id": "fixture_tool", "producer_family": "fixture.v1" }, "invariant_family": "fixture_family_b", "target_identity": { "target_kind": "work_record", "target_id": "WK-FIXTURE" }, "authoritative_input_identity": { "identity_kind": "carrier_generation", "identity_value": "GEN-FIXTURE", "descriptor_digest": "sha256:fixture" }, "identity_state": "known", "identity_scope_key": "carrier_generation:GEN-FIXTURE:sha256:fixture", "observation_ids": ["ERG-001"], "detectors": ["repeated_refusal"], "episode_ids": ["EP-001"], "raw_event_orders": [0], "raw_counts": { "attempt_count": 1, "rejected_submission_count": 1, "diagnostic_call_count": 0, "event_count": 1 }, "denominators": { "trace_tool_call_count": 16, "trace_refusal_count": 9, "trace_episode_count": 16, "eligible_population": { "event_families": ["tool_call"], "population_class": "failure_only", "normal_success_population_complete": false } } },
+      { "cluster_id": "CL-007", "axis": "consumer", "producer_boundary": { "boundary_kind": "public_ingress", "boundary_id": "fixture_tool", "producer_family": "fixture.v1" }, "invariant_family": "fixture_continuation_b", "target_identity": { "target_kind": "work_record", "target_id": "WK-FIXTURE" }, "authoritative_input_identity": { "identity_kind": "carrier_generation", "identity_value": "GEN-FIXTURE", "descriptor_digest": "sha256:fixture" }, "identity_state": "known", "identity_scope_key": "carrier_generation:GEN-FIXTURE:sha256:fixture", "observation_ids": ["ERG-007"], "detectors": ["repeated_refusal"], "episode_ids": ["EP-007"], "raw_event_orders": [6], "raw_counts": { "attempt_count": 1, "rejected_submission_count": 1, "diagnostic_call_count": 0, "event_count": 1 }, "denominators": { "trace_tool_call_count": 16, "trace_refusal_count": 9, "trace_episode_count": 16, "eligible_population": { "event_families": ["tool_call"], "population_class": "failure_only", "normal_success_population_complete": false } } },
+      { "cluster_id": "CL-008", "axis": "persistence_lifecycle", "producer_boundary": { "boundary_kind": "public_ingress", "boundary_id": "fixture_tool", "producer_family": "fixture.v1" }, "invariant_family": "fixture_persistence_b", "target_identity": { "target_kind": "work_record", "target_id": "WK-FIXTURE" }, "authoritative_input_identity": { "identity_kind": "carrier_generation", "identity_value": "GEN-FIXTURE", "descriptor_digest": "sha256:fixture" }, "identity_state": "known", "identity_scope_key": "carrier_generation:GEN-FIXTURE:sha256:fixture", "observation_ids": ["ERG-008"], "detectors": ["unreachable_continuation"], "episode_ids": ["EP-008"], "raw_event_orders": [7], "raw_counts": { "attempt_count": 1, "rejected_submission_count": 1, "diagnostic_call_count": 0, "event_count": 1 }, "denominators": { "trace_tool_call_count": 16, "trace_refusal_count": 9, "trace_episode_count": 16, "eligible_population": { "event_families": ["tool_call"], "population_class": "failure_only", "normal_success_population_complete": false } } },
+      { "cluster_id": "CL-009", "axis": "record_quality", "producer_boundary": { "boundary_kind": "public_ingress", "boundary_id": "fixture_tool", "producer_family": "fixture.v1" }, "invariant_family": "fixture_record_b", "target_identity": { "target_kind": "work_record", "target_id": "WK-FIXTURE" }, "authoritative_input_identity": { "identity_kind": "carrier_generation", "identity_value": "GEN-FIXTURE", "descriptor_digest": "sha256:fixture" }, "identity_state": "known", "identity_scope_key": "carrier_generation:GEN-FIXTURE:sha256:fixture", "observation_ids": ["ERG-009"], "detectors": ["unverified_effect_response"], "episode_ids": ["EP-009"], "raw_event_orders": [8], "raw_counts": { "attempt_count": 1, "rejected_submission_count": 1, "diagnostic_call_count": 0, "event_count": 1 }, "denominators": { "trace_tool_call_count": 16, "trace_refusal_count": 9, "trace_episode_count": 16, "eligible_population": { "event_families": ["tool_call"], "population_class": "failure_only", "normal_success_population_complete": false } } }
+    ]
+  },
+  "axes": {
+    "vocabulary": ["producer", "consumer", "record_quality", "persistence_lifecycle", "workload"],
+    "present": ["producer", "consumer", "record_quality", "persistence_lifecycle", "workload"],
+    "by_axis": {
+      "producer": { "axis": "producer", "observed": true, "finding_count": 2, "cluster_count": 2 },
+      "consumer": { "axis": "consumer", "observed": true, "finding_count": 2, "cluster_count": 2 },
+      "record_quality": { "axis": "record_quality", "observed": true, "finding_count": 2, "cluster_count": 2 },
+      "persistence_lifecycle": { "axis": "persistence_lifecycle", "observed": true, "finding_count": 2, "cluster_count": 2 },
+      "workload": { "axis": "workload", "observed": true, "finding_count": 1, "cluster_count": 1 }
+    }
+  },
+  "conformance": {
+    "identities": ["CHECK-1", "CHECK-2", "CHECK-3", "CHECK-4"],
+    "evaluation": {
+      "schema_version": "authoring-ergonomics-conformance.v1",
+      "owner": "IN-0016",
+      "authority": {
+        "kind": "advisory_evidence",
+        "confers": [],
+        "note": "Fixture conformance evidence authorizes nothing."
+      },
+      "trace_id": "WK-2477-COMPLETE",
+      "source": {
+        "source_kind": "workspace_errors_log",
+        "source_locator": "<redacted-root>/errors.log",
+        "source_digest": "sha256:wk-2477-fixture",
+        "source_ordinal": 0
+      },
+      "observed_identities": { "repository": "fixture", "records": [], "focus": null },
+      "coverage": {
+        "declarations": [
+          {
+            "workload": "fixture-failure-journal",
+            "event_families": ["tool_call"],
+            "population_class": "failure_only",
+            "normal_success_population_complete": false
+          },
+          {
+            "workload": "fixture-routing",
+            "event_families": ["tool_discovery"],
+            "population_class": "normal_and_failure",
+            "normal_success_population_complete": false
+          }
+        ],
+        "declared_event_families": ["tool_call", "tool_discovery"],
+        "undeclared_event_families": [],
+        "normal_success_population_complete": false
+      },
+      "report_schema_version": "authoring-ergonomics-report.v1",
+      "identities": ["CHECK-1", "CHECK-2", "CHECK-3", "CHECK-4"],
+      "gates": [
+        { "identity": "CHECK-1", "outcome": "unevaluable_missing_coverage", "reason_code": "failure_only" },
+        { "identity": "CHECK-2", "outcome": "unevaluable_missing_coverage", "reason_code": "failure_only" },
+        { "identity": "CHECK-3", "outcome": "fail", "reason_code": "violation_observed" },
+        { "identity": "CHECK-4", "outcome": "fail", "reason_code": "violation_observed" }
+      ],
+      "outcome_counts": { "pass": 0, "fail": 2, "unevaluable_missing_coverage": 2 },
+      "evaluated_gate_count": 2
+    }
+  },
+  "routing": {
+    "routing_states": ["owner_resolved", "owner_unresolved", "lookup_degraded"],
+    "lookup_routes": ["tool_discovery", "canonical_work_record_search", "code_index"],
+    "resolution_mode": "dynamic_per_call_lookup",
+    "cluster_count": 9,
+    "routed_cluster_count": 9,
+    "unrouted_cluster_count": 0,
+    "state_counts": { "owner_resolved": 3, "owner_unresolved": 3, "lookup_degraded": 3 },
+    "lookup_route_states": {
+      "tool_discovery": { "state": "complete" },
+      "canonical_work_record_search": { "state": "complete" },
+      "code_index": { "state": "stale", "freshness": "stale" }
+    },
+    "results": [
+      { "cluster_id": "CL-001", "routing_state": "owner_resolved", "owner": { "record_id": "WK-FIXTURE" }, "degradation_reasons": [] },
+      { "cluster_id": "CL-002", "routing_state": "owner_unresolved", "owner": null, "degradation_reasons": [] },
+      { "cluster_id": "CL-003", "routing_state": "lookup_degraded", "owner": null, "degradation_reasons": ["code_index_stale"] },
+      { "cluster_id": "CL-004", "routing_state": "owner_resolved", "owner": { "record_id": "WK-FIXTURE" }, "degradation_reasons": [] },
+      { "cluster_id": "CL-005", "routing_state": "owner_unresolved", "owner": null, "degradation_reasons": [] },
+      { "cluster_id": "CL-006", "routing_state": "lookup_degraded", "owner": null, "degradation_reasons": ["code_index_stale"] },
+      { "cluster_id": "CL-007", "routing_state": "owner_resolved", "owner": { "record_id": "WK-FIXTURE" }, "degradation_reasons": [] },
+      { "cluster_id": "CL-008", "routing_state": "owner_unresolved", "owner": null, "degradation_reasons": [] },
+      { "cluster_id": "CL-009", "routing_state": "lookup_degraded", "owner": null, "degradation_reasons": ["code_index_stale"] }
+    ]
+  },
+  "unknown_evidence": {
+    "adapter": [],
+    "report": [],
+    "routing": [
+      { "kind": "ownership_lookup_degraded", "subject": "CL-003", "reasons": ["code_index_stale"] },
+      { "kind": "ownership_lookup_degraded", "subject": "CL-006", "reasons": ["code_index_stale"] },
+      { "kind": "ownership_lookup_degraded", "subject": "CL-009", "reasons": ["code_index_stale"] }
+    ]
+  }
+}

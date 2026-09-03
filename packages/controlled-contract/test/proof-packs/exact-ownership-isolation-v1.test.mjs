@@ -9,11 +9,11 @@ import { runProofPackAdequacyControls } from "./exact-ownership-isolation-v1-ade
 import { buildExactOwnershipIsolationFixture } from "./exact-ownership-isolation-v1-fixture.mjs";
 import { executeExactOwnershipScenario, exactOwnershipImplementationPassed } from
   "./exact-ownership-isolation-v1-harness.mjs";
-import { evaluateVerificationProfileV034 } from "../../lib/verification-profile-v034.mjs";
+import { evaluateStableProofPackFixtureV1 } from "../support/stable-v1-proof-pack-runtime.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const packDirectory = path.join(
-  root, "certification/profiles/proof.ownership.exact-isolation/1.0.0"
+  root, "certification/profiles/proof.ownership.exact-isolation/2.0.0"
 );
 async function readJson(relative) {
   return JSON.parse(await readFile(path.join(packDirectory, relative), "utf8"));
@@ -74,7 +74,7 @@ test("three unrelated ownership domains satisfy the truthful profile", async () 
   const profile = await readJson("profile.json");
   for (const domain of ["tenant_document", "cloud_bucket", "payment_account"]) {
     const fixture = buildExactOwnershipIsolationFixture({ domain });
-    const result = evaluateVerificationProfileV034({ contract: fixture.contract, profile,
+    const result = evaluateStableProofPackFixtureV1({ contract: fixture.contract, profile,
       evaluation_input: fixture.input });
     assert.equal(result.satisfaction, "satisfied", domain);
     assert.deepEqual(result.diagnostics, [], domain);
@@ -97,7 +97,7 @@ test("fixture construction and evaluation are deterministic", async () => {
   const first = buildExactOwnershipIsolationFixture({ domain: "payment_account" });
   const second = buildExactOwnershipIsolationFixture({ domain: "payment_account" });
   assert.equal(canonicalDigest(first), canonicalDigest(second));
-  const evaluate = (fixture) => evaluateVerificationProfileV034({
+  const evaluate = (fixture) => evaluateStableProofPackFixtureV1({
     contract: fixture.contract, profile, evaluation_input: fixture.input });
   assert.equal(canonicalDigest(evaluate(first)), canonicalDigest(evaluate(second)));
 });

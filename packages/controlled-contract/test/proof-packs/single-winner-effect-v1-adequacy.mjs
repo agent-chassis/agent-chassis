@@ -1,5 +1,5 @@
 import { PROOF_PACK_ADEQUACY_RUN_VERSION } from "../support/proof-pack-adequacy-constants.mjs";
-import { evaluateVerificationProfileV034 } from "../../lib/verification-profile-v034.mjs";
+import { evaluateStableProofPackFixtureV1 } from "../support/stable-v1-proof-pack-runtime.mjs";
 import {
   SINGLE_WINNER_EFFECT_V1_PROFILE,
   buildSingleWinnerEffectFixture,
@@ -16,12 +16,12 @@ import {
 } from "./single-winner-effect-v1-harness.mjs";
 
 const SINGLE_WINNER_EFFECT_V1_PROFILE_DIGEST =
-  "cef87caccfe055e2343e1ed5140eb11afce7c5ade24c1e3ffbb25d14dddf9e95";
+  "9b3252412735e49132470172118145841b80a59f2a878ee599386a6e599c6bb5";
 const SINGLE_WINNER_EFFECT_V1_GUARANTEE_DIGEST =
   "defcedac8d42c9dde51822e911be1f334993db004b4bb9f174e6b0f1ddc38e4c";
 
 const evaluateFixture = ({ contract, input, evaluation_input, profile }) =>
-  evaluateVerificationProfileV034({
+  evaluateStableProofPackFixtureV1({
     contract,
     profile,
     evaluation_input: evaluation_input ?? input

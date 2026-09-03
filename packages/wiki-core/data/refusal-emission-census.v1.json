@@ -1,0 +1,663 @@
+{
+  "schema_version": "refusal-emission-census.v1",
+  "owner": "WK-2359",
+  "kind": "point-in-time semantic refusal-emission census",
+  "description": "One semantic classification per public refusal emission observed at the boundaries named in WK-2359's write_scope. Each entry is assigned EXACTLY ONE DEC-0177 mechanical limb (or exact_returned_policy), names the operation that would have failed, and states what continuing would have done unsafely. Procedure-only rules are excluded: under DEC-0177 a rule about what SHOULD happen is policy, not a mechanical refusal, and does not belong in this taxonomy.",
+  "provenance": {
+    "base_identity": "e15cacbf0e663e0d6aabc4eabf3ca73f796a7f7d",
+    "base_kind": "git_commit",
+    "worktree_state": "the pinned commit plus WK-2359's own uncommitted changes to its write_scope; the corpus describes the population as WK-2359 leaves it",
+    "audit_method": "Static enumeration of registered runtime-blocker code identities referenced by the production (.mjs, non-test) source files named in WK-2359's write_scope, resolved through RUNTIME_BLOCKER_CODES / DISPATCH_BLOCKER_CODES / DISPATCH_MECHANICAL_BLOCKER_CODES enum access and bare string literals, then matched against packages/wiki-core/data/runtime-blocker-codes.v1.json.",
+    "declared_population": "public refusal emissions at WK-2359's in-scope boundaries ONLY",
+    "not_claimed": [
+      "repository-wide completeness",
+      "discovery of new emission sites",
+      "detection of source moves",
+      "drift gating"
+    ],
+    "population_owner_for_repository_scope": "WK-2361",
+    "audited_source_files": [
+      "packages/wiki-core/src/lib/refusal-payload.mjs",
+      "packages/wiki-core/src/lib/runtime-blocker-taxonomy.mjs",
+      "packages/wiki-core/src/lib/next-calls-descriptor.mjs",
+      "packages/wiki-core/src/lib/coordination-preflight.mjs",
+      "packages/wiki-core/src/lib/work-record-dispatch.mjs",
+      "packages/wiki-core/src/lib/work-record-dispatch-node-engine-admissibility-recovery-projection.mjs",
+      "packages/wiki-core/src/operations/controlled-contract/refusal.mjs",
+      "packages/agent-launch-core/src/lib/dispatch-runtime.mjs",
+      "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-routing.mjs",
+      "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-run-lifecycle-selection.mjs",
+      "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-refusal.mjs",
+      "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs",
+      "packages/wiki-mcp/src/lib/dispatch-tool-helpers.mjs",
+      "packages/wiki-mcp/src/lib/dispatch-run-monitor-routes.mjs",
+      "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs",
+      "packages/wiki-mcp/src/lib/mcp-response.mjs",
+      "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs",
+      "packages/wiki-mcp/src/lib/work-record-read-tools.mjs"
+    ]
+  },
+  "semantic_categories": [
+    "authenticity",
+    "integrity",
+    "identity",
+    "confinement",
+    "transaction_safety",
+    "replay",
+    "exact_returned_policy"
+  ],
+  "disclosed_omissions": [],
+  "entry_count": 61,
+  "entries": [
+    {
+      "source_id": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-routing.mjs#review_transport_runtime_failure",
+      "source_file": "packages/agent-launch-cli/src/lib/workspace-agent-dispatch-backend-routing.mjs",
+      "emitted_code": "review_transport_runtime_failure",
+      "registry_category": "review_transport",
+      "semantic_category": "integrity",
+      "failed_operation": "MCP reviewer dispatch route exists but the runtime launch/monitor channel failed.",
+      "unsafe_continuation_effect": "the review transport failed at runtime, so review provenance would be lost",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/agent-launch-core/src/lib/dispatch-runtime.mjs#backend_unavailable",
+      "source_file": "packages/agent-launch-core/src/lib/dispatch-runtime.mjs",
+      "emitted_code": "backend_unavailable",
+      "registry_category": "backend",
+      "semantic_category": "integrity",
+      "failed_operation": "A required launcher backend, host server, registry, or confinement prerequisite is not reachable.",
+      "unsafe_continuation_effect": "no launch backend is registered, so the spawn could not complete",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/agent-launch-core/src/lib/dispatch-runtime.mjs#monitor_handle_caller_mismatch",
+      "source_file": "packages/agent-launch-core/src/lib/dispatch-runtime.mjs",
+      "emitted_code": "monitor_handle_caller_mismatch",
+      "registry_category": "monitor_handle",
+      "semantic_category": "identity",
+      "failed_operation": "Monitor handle is valid but the caller identity is not the launcher-minted owner of that run.",
+      "unsafe_continuation_effect": "the handle is bound to a different caller, so run state would leak across callers",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/agent-launch-core/src/lib/dispatch-runtime.mjs#monitor_handle_subject_mismatch",
+      "source_file": "packages/agent-launch-core/src/lib/dispatch-runtime.mjs",
+      "emitted_code": "monitor_handle_subject_mismatch",
+      "registry_category": "monitor_handle",
+      "semantic_category": "identity",
+      "failed_operation": "Monitor handle is valid but refers to a different WK/slice subject than the request.",
+      "unsafe_continuation_effect": "the handle is bound to a different subject, so status would be attributed to the wrong unit",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/agent-launch-core/src/lib/dispatch-runtime.mjs#monitor_handle_unknown",
+      "source_file": "packages/agent-launch-core/src/lib/dispatch-runtime.mjs",
+      "emitted_code": "monitor_handle_unknown",
+      "registry_category": "monitor_handle",
+      "semantic_category": "identity",
+      "failed_operation": "Dispatch monitor handle is unknown to the runtime; the handle does not correspond to a tracked role-run.",
+      "unsafe_continuation_effect": "the monitor handle names no live run, so status would be reported for nothing",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/agent-launch-core/src/lib/dispatch-runtime.mjs#operator_recovery_needed",
+      "source_file": "packages/agent-launch-core/src/lib/dispatch-runtime.mjs",
+      "emitted_code": "operator_recovery_needed",
+      "registry_category": "operator_recovery",
+      "semantic_category": "integrity",
+      "failed_operation": "An authenticated unexpected condition originating outside the tooling model has no mechanically supported continuation; the exact external condition must be preserved for operator recovery.",
+      "unsafe_continuation_effect": "the authenticated external condition is outside every modeled tooling route, so continuing would discard its exact identity",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/agent-launch-core/src/lib/dispatch-runtime.mjs#validation_failure",
+      "source_file": "packages/agent-launch-core/src/lib/dispatch-runtime.mjs",
+      "emitted_code": "validation_failure",
+      "registry_category": "validation",
+      "semantic_category": "integrity",
+      "failed_operation": "Structured validation step (lint, work-record schema, closure schema, docs-policy) reported an error.",
+      "unsafe_continuation_effect": "the input does not satisfy its declared schema, so downstream state would be corrupt",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-core/src/lib/coordination-preflight.mjs#caller_role_mismatch",
+      "source_file": "packages/wiki-core/src/lib/coordination-preflight.mjs",
+      "emitted_code": "caller_role_mismatch",
+      "registry_category": "caller_identity",
+      "semantic_category": "identity",
+      "failed_operation": "Caller/session role identity does not match the role required for the requested dispatch.",
+      "unsafe_continuation_effect": "the resolved role does not match the caller, so authority would be exercised under the wrong identity",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-core/src/lib/coordination-preflight.mjs#caller_supplied_identity",
+      "source_file": "packages/wiki-core/src/lib/coordination-preflight.mjs",
+      "emitted_code": "caller_supplied_identity",
+      "registry_category": "caller_identity",
+      "semantic_category": "identity",
+      "failed_operation": "Identity was supplied through a non-authoritative carrier (request payload, prompt text, ambient env, argv, claimed_identity.role, docs inference).",
+      "unsafe_continuation_effect": "the caller supplied its own identity, so the operation would act under an unverified actor",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-core/src/lib/coordination-preflight.mjs#mandatory_review_transport_blocked",
+      "source_file": "packages/wiki-core/src/lib/coordination-preflight.mjs",
+      "emitted_code": "mandatory_review_transport_blocked",
+      "registry_category": "review_transport",
+      "semantic_category": "integrity",
+      "failed_operation": "Mandatory findings-only review is required but no MCP reviewer route or authorized bootstrap exception is available.",
+      "unsafe_continuation_effect": "the mandatory review transport is unavailable, so a required review could not be delivered",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-core/src/lib/coordination-preflight.mjs#missing_structured_transport",
+      "source_file": "packages/wiki-core/src/lib/coordination-preflight.mjs",
+      "emitted_code": "missing_structured_transport",
+      "registry_category": "transport",
+      "semantic_category": "integrity",
+      "failed_operation": "Required structured/MCP transport for the requested action is not available in this session.",
+      "unsafe_continuation_effect": "the required structured transport is absent, so the result could not be returned",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-core/src/lib/coordination-preflight.mjs#operator_recovery_needed",
+      "source_file": "packages/wiki-core/src/lib/coordination-preflight.mjs",
+      "emitted_code": "operator_recovery_needed",
+      "registry_category": "operator_recovery",
+      "semantic_category": "integrity",
+      "failed_operation": "An authenticated unexpected condition originating outside the tooling model has no mechanically supported continuation; the exact external condition must be preserved for operator recovery.",
+      "unsafe_continuation_effect": "the authenticated external condition is outside every modeled tooling route, so continuing would discard its exact identity",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-core/src/lib/coordination-preflight.mjs#read_only_mount",
+      "source_file": "packages/wiki-core/src/lib/coordination-preflight.mjs",
+      "emitted_code": "read_only_mount",
+      "registry_category": "filesystem",
+      "semantic_category": "confinement",
+      "failed_operation": "Mounted repository filesystem is read-only and required writes cannot be applied.",
+      "unsafe_continuation_effect": "the target mount is read-only, so a declared write would fail mid-operation",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/agent-launch-cli/src/lib/stdio-mcp-conduit-composition-compatibility.mjs#stdio_mcp_lifecycle_protocol_incompatible",
+      "source_file": "packages/agent-launch-cli/src/lib/stdio-mcp-conduit-composition-compatibility.mjs",
+      "emitted_code": "stdio_mcp_lifecycle_protocol_incompatible",
+      "registry_category": "operator_recovery",
+      "semantic_category": "integrity",
+      "failed_operation": "The active managed launcher composition cannot authenticate one compatible wiki-MCP stdio lifecycle protocol generation.",
+      "unsafe_continuation_effect": "the conduit protocol version is incompatible, so the session would desynchronise",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-core/src/lib/runtime-blocker-taxonomy.mjs#work_record_readiness_failure",
+      "source_file": "packages/wiki-core/src/lib/runtime-blocker-taxonomy.mjs",
+      "emitted_code": "work_record_readiness_failure",
+      "registry_category": "work_record_readiness",
+      "semantic_category": "integrity",
+      "failed_operation": "The named WK or slice contract field, check, status, or path is missing or structurally invalid.",
+      "unsafe_continuation_effect": "the authored contract is internally incomplete, so a worker would execute an under-specified unit",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-core/src/operations/controlled-contract/refusal.mjs#controlled_contract_document_parse_failed",
+      "source_file": "packages/wiki-core/src/operations/controlled-contract/refusal.mjs",
+      "emitted_code": "controlled_contract_document_parse_failed",
+      "registry_category": "controlled_contract",
+      "semantic_category": "integrity",
+      "failed_operation": "A controlled-contract operation could not parse a document or compile a schema, and the failure arrived untyped rather than as a package-defined carrier refusal.",
+      "unsafe_continuation_effect": "the document could not be parsed, so its content cannot be trusted",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-core/src/operations/controlled-contract/refusal.mjs#controlled_contract_internal_invariant",
+      "source_file": "packages/wiki-core/src/operations/controlled-contract/refusal.mjs",
+      "emitted_code": "controlled_contract_internal_invariant",
+      "registry_category": "controlled_contract",
+      "semantic_category": "integrity",
+      "failed_operation": "An unexpected internal exception crossed a controlled-contract public boundary; the operation, stage, owning boundary, and correlation identity are reported and no recovery is claimed.",
+      "unsafe_continuation_effect": "an internal invariant broke, so continuing would act on undefined state",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-core/src/operations/controlled-contract/refusal.mjs#controlled_contract_platform_failure",
+      "source_file": "packages/wiki-core/src/operations/controlled-contract/refusal.mjs",
+      "emitted_code": "controlled_contract_platform_failure",
+      "registry_category": "controlled_contract",
+      "semantic_category": "integrity",
+      "failed_operation": "A controlled-contract operation failed against the host platform (filesystem, process, or module loader) rather than against its own contract.",
+      "unsafe_continuation_effect": "a host condition prevented the operation from completing correctly",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-run-monitor-routes.mjs#backend_unavailable",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-run-monitor-routes.mjs",
+      "emitted_code": "backend_unavailable",
+      "registry_category": "backend",
+      "semantic_category": "integrity",
+      "failed_operation": "A required launcher backend, host server, registry, or confinement prerequisite is not reachable.",
+      "unsafe_continuation_effect": "no launch backend is registered, so the spawn could not complete",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-run-monitor-routes.mjs#caller_supplied_identity",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-run-monitor-routes.mjs",
+      "emitted_code": "caller_supplied_identity",
+      "registry_category": "caller_identity",
+      "semantic_category": "identity",
+      "failed_operation": "Identity was supplied through a non-authoritative carrier (request payload, prompt text, ambient env, argv, claimed_identity.role, docs inference).",
+      "unsafe_continuation_effect": "the caller supplied its own identity, so the operation would act under an unverified actor",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-run-monitor-routes.mjs#monitor_handle_unknown",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-run-monitor-routes.mjs",
+      "emitted_code": "monitor_handle_unknown",
+      "registry_category": "monitor_handle",
+      "semantic_category": "identity",
+      "failed_operation": "Dispatch monitor handle is unknown to the runtime; the handle does not correspond to a tracked role-run.",
+      "unsafe_continuation_effect": "the monitor handle names no live run, so status would be reported for nothing",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-run-monitor-routes.mjs#operator_recovery_needed",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-run-monitor-routes.mjs",
+      "emitted_code": "operator_recovery_needed",
+      "registry_category": "operator_recovery",
+      "semantic_category": "integrity",
+      "failed_operation": "An authenticated unexpected condition originating outside the tooling model has no mechanically supported continuation; the exact external condition must be preserved for operator recovery.",
+      "unsafe_continuation_effect": "the authenticated external condition is outside every modeled tooling route, so continuing would discard its exact identity",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-run-monitor-routes.mjs#validation_failure",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-run-monitor-routes.mjs",
+      "emitted_code": "validation_failure",
+      "registry_category": "validation",
+      "semantic_category": "integrity",
+      "failed_operation": "Structured validation step (lint, work-record schema, closure schema, docs-policy) reported an error.",
+      "unsafe_continuation_effect": "the input does not satisfy its declared schema, so downstream state would be corrupt",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs#backend_unavailable",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs",
+      "emitted_code": "backend_unavailable",
+      "registry_category": "backend",
+      "semantic_category": "integrity",
+      "failed_operation": "A required launcher backend, host server, registry, or confinement prerequisite is not reachable.",
+      "unsafe_continuation_effect": "no launch backend is registered, so the spawn could not complete",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs#caller_role_mismatch",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs",
+      "emitted_code": "caller_role_mismatch",
+      "registry_category": "caller_identity",
+      "semantic_category": "identity",
+      "failed_operation": "Caller/session role identity does not match the role required for the requested dispatch.",
+      "unsafe_continuation_effect": "the resolved role does not match the caller, so authority would be exercised under the wrong identity",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs#caller_supplied_identity",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs",
+      "emitted_code": "caller_supplied_identity",
+      "registry_category": "caller_identity",
+      "semantic_category": "identity",
+      "failed_operation": "Identity was supplied through a non-authoritative carrier (request payload, prompt text, ambient env, argv, claimed_identity.role, docs inference).",
+      "unsafe_continuation_effect": "the caller supplied its own identity, so the operation would act under an unverified actor",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs#graph_impact_artifact_missing",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs",
+      "emitted_code": "graph_impact_artifact_missing",
+      "registry_category": "graph_impact",
+      "semantic_category": "integrity",
+      "failed_operation": "Graph impact base artifact is missing (staleness=missing) and no usable dirty overlay covers it.",
+      "unsafe_continuation_effect": "the graph artifact is absent, so impact facts have no source",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs#graph_impact_persistence_unavailable",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs",
+      "emitted_code": "graph_impact_persistence_unavailable",
+      "registry_category": "graph_impact_persistence",
+      "semantic_category": "integrity",
+      "failed_operation": "Required graph-impact evidence cannot be persisted to the WK through MCP; shell/CLI persistence is not an allowed fallback.",
+      "unsafe_continuation_effect": "graph evidence cannot be persisted, so recorded evidence would be lost",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs#graph_impact_query_error",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs",
+      "emitted_code": "graph_impact_query_error",
+      "registry_category": "graph_impact",
+      "semantic_category": "integrity",
+      "failed_operation": "Graph impact query itself errored even though the artifact appears present.",
+      "unsafe_continuation_effect": "the graph query failed, so impact facts would be incomplete",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs#graph_impact_rebuild_required",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs",
+      "emitted_code": "graph_impact_rebuild_required",
+      "registry_category": "graph_impact",
+      "semantic_category": "integrity",
+      "failed_operation": "Graph impact base artifact is stale or rebuild-required and no usable dirty worktree overlay is available.",
+      "unsafe_continuation_effect": "the graph is stale beyond use, so impact facts would be wrong",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs#graph_impact_unavailable",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs",
+      "emitted_code": "graph_impact_unavailable",
+      "registry_category": "graph_impact",
+      "semantic_category": "integrity",
+      "failed_operation": "Graph impact is unavailable or errored: no usable base artifact and no usable dirty overlay.",
+      "unsafe_continuation_effect": "the graph index is unavailable, so impact facts would be fabricated",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs#graph_impact_unknown_state",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs",
+      "emitted_code": "graph_impact_unknown_state",
+      "registry_category": "graph_impact",
+      "semantic_category": "integrity",
+      "failed_operation": "Graph impact state could not be classified (staleness=unknown and no usable overlay).",
+      "unsafe_continuation_effect": "the graph state is unrecognised, so its trustworthiness cannot be established",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs#managed_slice_tip_reconcile_required",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs",
+      "emitted_code": "managed_slice_tip_reconcile_required",
+      "registry_category": "backend",
+      "semantic_category": "integrity",
+      "failed_operation": "Managed provisioning is available, but the slice branch retains a delivery the canonical WK base does not contain, so it cannot be adopted as a fresh worker base.",
+      "unsafe_continuation_effect": "the slice tip retains an unintegrated delivery that a fresh base would make invisible",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs#missing_structured_transport",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs",
+      "emitted_code": "missing_structured_transport",
+      "registry_category": "transport",
+      "semantic_category": "integrity",
+      "failed_operation": "Required structured/MCP transport for the requested action is not available in this session.",
+      "unsafe_continuation_effect": "the required structured transport is absent, so the result could not be returned",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs#monitor_handle_caller_mismatch",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs",
+      "emitted_code": "monitor_handle_caller_mismatch",
+      "registry_category": "monitor_handle",
+      "semantic_category": "identity",
+      "failed_operation": "Monitor handle is valid but the caller identity is not the launcher-minted owner of that run.",
+      "unsafe_continuation_effect": "the handle is bound to a different caller, so run state would leak across callers",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs#monitor_handle_replay",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs",
+      "emitted_code": "monitor_handle_replay",
+      "registry_category": "monitor_handle",
+      "semantic_category": "replay",
+      "failed_operation": "Monitor handle has already been consumed for a terminal status and is being replayed.",
+      "unsafe_continuation_effect": "the handle was already consumed, so a settled run would be observed a second time as live",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs#monitor_handle_subject_mismatch",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs",
+      "emitted_code": "monitor_handle_subject_mismatch",
+      "registry_category": "monitor_handle",
+      "semantic_category": "identity",
+      "failed_operation": "Monitor handle is valid but refers to a different WK/slice subject than the request.",
+      "unsafe_continuation_effect": "the handle is bound to a different subject, so status would be attributed to the wrong unit",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs#monitor_handle_unknown",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs",
+      "emitted_code": "monitor_handle_unknown",
+      "registry_category": "monitor_handle",
+      "semantic_category": "identity",
+      "failed_operation": "Dispatch monitor handle is unknown to the runtime; the handle does not correspond to a tracked role-run.",
+      "unsafe_continuation_effect": "the monitor handle names no live run, so status would be reported for nothing",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs#non_mcp_role_route_blocked",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs",
+      "emitted_code": "non_mcp_role_route_blocked",
+      "registry_category": "route",
+      "semantic_category": "confinement",
+      "failed_operation": "An agent-originating request attempted to use a non-MCP role route; the call is blocked and the agent must use MCP role dispatch.",
+      "unsafe_continuation_effect": "the route is not exposed to this runtime and role",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs#operator_recovery_needed",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs",
+      "emitted_code": "operator_recovery_needed",
+      "registry_category": "operator_recovery",
+      "semantic_category": "integrity",
+      "failed_operation": "An authenticated unexpected condition originating outside the tooling model has no mechanically supported continuation; the exact external condition must be preserved for operator recovery.",
+      "unsafe_continuation_effect": "the authenticated external condition is outside every modeled tooling route, so continuing would discard its exact identity",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs#role_policy_violation",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs",
+      "emitted_code": "role_policy_violation",
+      "registry_category": "role_policy",
+      "semantic_category": "confinement",
+      "failed_operation": "Caller role is forbidden from this action by the orchestrator/worker role policy.",
+      "unsafe_continuation_effect": "the requested action lies outside the role's declared capability boundary",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs#unsupported_route",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs",
+      "emitted_code": "unsupported_route",
+      "registry_category": "route",
+      "semantic_category": "identity",
+      "failed_operation": "Requested dispatch route (family/model/profile) is not supported.",
+      "unsafe_continuation_effect": "the named route does not exist, so no operation could be selected",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs#validation_failure",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs",
+      "emitted_code": "validation_failure",
+      "registry_category": "validation",
+      "semantic_category": "integrity",
+      "failed_operation": "Structured validation step (lint, work-record schema, closure schema, docs-policy) reported an error.",
+      "unsafe_continuation_effect": "the input does not satisfy its declared schema, so downstream state would be corrupt",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs#work_record_readiness_failure",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs",
+      "emitted_code": "work_record_readiness_failure",
+      "registry_category": "work_record_readiness",
+      "semantic_category": "integrity",
+      "failed_operation": "The named WK or slice contract field, check, status, or path is missing or structurally invalid.",
+      "unsafe_continuation_effect": "the authored contract is internally incomplete, so a worker would execute an under-specified unit",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs#worker_admission_carrier_invalid",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tool-constants.mjs",
+      "emitted_code": "worker_admission_carrier_invalid",
+      "registry_category": "work_record_readiness",
+      "semantic_category": "authenticity",
+      "failed_operation": "The restored managed-admission carrier does not match the current attempt, so managed dispatch fails closed before the worker spawns.",
+      "unsafe_continuation_effect": "the admission carrier is not authentic, so admission would rest on unverified evidence",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tool-helpers.mjs#monitor_handle_unknown",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tool-helpers.mjs",
+      "emitted_code": "monitor_handle_unknown",
+      "registry_category": "monitor_handle",
+      "semantic_category": "identity",
+      "failed_operation": "Dispatch monitor handle is unknown to the runtime; the handle does not correspond to a tracked role-run.",
+      "unsafe_continuation_effect": "the monitor handle names no live run, so status would be reported for nothing",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs#backend_unavailable",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs",
+      "emitted_code": "backend_unavailable",
+      "registry_category": "backend",
+      "semantic_category": "integrity",
+      "failed_operation": "A required launcher backend, host server, registry, or confinement prerequisite is not reachable.",
+      "unsafe_continuation_effect": "no launch backend is registered, so the spawn could not complete",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs#caller_supplied_identity",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs",
+      "emitted_code": "caller_supplied_identity",
+      "registry_category": "caller_identity",
+      "semantic_category": "identity",
+      "failed_operation": "Identity was supplied through a non-authoritative carrier (request payload, prompt text, ambient env, argv, claimed_identity.role, docs inference).",
+      "unsafe_continuation_effect": "the caller supplied its own identity, so the operation would act under an unverified actor",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs#launcher_transition.cce_policy_refused.v1",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs",
+      "emitted_code": "launcher_transition.cce_policy_refused.v1",
+      "registry_category": "role_policy",
+      "semantic_category": "exact_returned_policy",
+      "failed_operation": "The exact returned CCE policy refused the launcher transition.",
+      "unsafe_continuation_effect": "an authenticated policy authority returned a refusal that is transported unchanged",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs#operator_recovery_needed",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs",
+      "emitted_code": "operator_recovery_needed",
+      "registry_category": "operator_recovery",
+      "semantic_category": "integrity",
+      "failed_operation": "An authenticated unexpected condition originating outside the tooling model has no mechanically supported continuation; the exact external condition must be preserved for operator recovery.",
+      "unsafe_continuation_effect": "the authenticated external condition is outside every modeled tooling route, so continuing would discard its exact identity",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs#role_policy_violation",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs",
+      "emitted_code": "role_policy_violation",
+      "registry_category": "role_policy",
+      "semantic_category": "confinement",
+      "failed_operation": "Caller role is forbidden from this action by the orchestrator/worker role policy.",
+      "unsafe_continuation_effect": "the requested action lies outside the role's declared capability boundary",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs#worker_admission_carrier_invalid",
+      "source_file": "packages/wiki-mcp/src/lib/dispatch-tools/register.mjs",
+      "emitted_code": "worker_admission_carrier_invalid",
+      "registry_category": "work_record_readiness",
+      "semantic_category": "authenticity",
+      "failed_operation": "The restored managed-admission carrier does not match the current attempt, so managed dispatch fails closed before the worker spawns.",
+      "unsafe_continuation_effect": "the admission carrier is not authentic, so admission would rest on unverified evidence",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs#compact_read_selected_detail_required",
+      "source_file": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs",
+      "emitted_code": "compact_read_selected_detail_required",
+      "registry_category": "read_disclosure",
+      "semantic_category": "integrity",
+      "failed_operation": "A valid compact_read_token was presented but the large unscoped expensive read stays bounded; re-call scoped to a specific selected_slice/selected_record instead of requesting the whole record.",
+      "unsafe_continuation_effect": "an unbounded expensive read would exceed transport bounds and lose data irrecoverably",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs#compact_read_token_expired",
+      "source_file": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs",
+      "emitted_code": "compact_read_token_expired",
+      "registry_category": "read_disclosure",
+      "semantic_category": "replay",
+      "failed_operation": "The compact_read_token TTL has elapsed; re-run the compact read to mint a fresh token and re-call with it.",
+      "unsafe_continuation_effect": "the token has expired, so an old disclosure grant would be replayed",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs#compact_read_token_malformed",
+      "source_file": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs",
+      "emitted_code": "compact_read_token_malformed",
+      "registry_category": "read_disclosure",
+      "semantic_category": "authenticity",
+      "failed_operation": "The supplied compact_read_token was not a well-formed bounded acknowledgment (undecodable, wrong shape or scalar types, wrong fixed lifetime, future-issued, or overlong); re-run the compact read to mint a fresh acknowledgment and re-call with it.",
+      "unsafe_continuation_effect": "the token is malformed, so its bearer cannot be established",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs#compact_read_token_missing",
+      "source_file": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs",
+      "emitted_code": "compact_read_token_missing",
+      "registry_category": "read_disclosure",
+      "semantic_category": "authenticity",
+      "failed_operation": "No compact_read_token was supplied on a large unscoped expensive work-record read; obtain one from a prior compact read and re-call with it.",
+      "unsafe_continuation_effect": "no continuation token was presented, so disclosure would be unauthenticated",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs#compact_read_token_stale_source_digest",
+      "source_file": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs",
+      "emitted_code": "compact_read_token_stale_source_digest",
+      "registry_category": "read_disclosure",
+      "semantic_category": "integrity",
+      "failed_operation": "The record changed since the compact_read_token was minted (source_digest mismatch); re-run the compact read to refresh the token against the current record and re-call.",
+      "unsafe_continuation_effect": "the source changed after the token was minted, so disclosure would describe stale content",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs#compact_read_token_wrong_schema",
+      "source_file": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs",
+      "emitted_code": "compact_read_token_wrong_schema",
+      "registry_category": "read_disclosure",
+      "semantic_category": "authenticity",
+      "failed_operation": "The compact_read_token schema_version does not match the expected compact-read token schema; mint a fresh token from a current compact read and re-call.",
+      "unsafe_continuation_effect": "the token schema is wrong, so its claims cannot be interpreted",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs#compact_read_token_wrong_scope",
+      "source_file": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs",
+      "emitted_code": "compact_read_token_wrong_scope",
+      "registry_category": "read_disclosure",
+      "semantic_category": "identity",
+      "failed_operation": "The compact_read_token was issued for a different workspace repo or record id; re-run the compact read for the correct record and re-call with the corrected token.",
+      "unsafe_continuation_effect": "the token was minted for a different scope",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs#compact_read_token_wrong_selector",
+      "source_file": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs",
+      "emitted_code": "compact_read_token_wrong_selector",
+      "registry_category": "read_disclosure",
+      "semantic_category": "identity",
+      "failed_operation": "The compact_read_token selector does not match the requested selector; re-run the compact read with the intended selector and re-call with the corrected token.",
+      "unsafe_continuation_effect": "the token was minted for a different selector",
+      "procedure_only": false
+    },
+    {
+      "source_id": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs#compact_read_token_wrong_tool_family",
+      "source_file": "packages/wiki-mcp/src/lib/work-record-compact-read-gate.mjs",
+      "emitted_code": "compact_read_token_wrong_tool_family",
+      "registry_category": "read_disclosure",
+      "semantic_category": "identity",
+      "failed_operation": "The compact_read_token was issued for a different tool family than the one being called; re-run the compact read for THIS tool to mint a matching token and re-call.",
+      "unsafe_continuation_effect": "the token was minted for a different tool family",
+      "procedure_only": false
+    }
+  ]
+}
